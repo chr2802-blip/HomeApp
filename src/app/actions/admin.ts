@@ -1,0 +1,162 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import type { Role } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { requireAdmin, requireSuperAdmin, requireUser, hashPassword } from "@/lib/auth";
+import { assertHomeAdmin, canAdministerHome } from "@/lib/access";
+import { generateInviteCode, hashInviteCode } from "@/lib/invite-code";
+
+const INVITE_TTL_DAYS = 14;
+
+export type InviteState =
+  | { ok: true; email: string; code: string }
+  | { ok: false; error: string }
+  | undefined;
+
+export async function createInvite(_prev: InviteState, formData: FormData): Promise<InviteState> {
+  const user = await requireAdmin();
+  const homeId = String(formData.get("homeId") ?? "");
+  if (!canAdministerHome(user, homeId)) return { ok: false, error: "Not allowed." };
+
+  const parsed = z
+    .object({
+      email: z.string().email(),
+      role: z.enum(["ADMIN", "USER"]),
+    })
+    .safeParse({ email: formData.get("email"), role: formData.get("role") });
+  if (!parsed.success) return { ok: false, error: "Enter a valid email address." };
+
+  const email = parsed.data.email.toLowerCase();
+  if (await prisma.user.findUnique({ where: { email } })) {
+    return { ok: false, error: "That email already has an account." };
+  }
+
+  const code = generateInviteCode();
+  const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
+
+  await prisma.invite.deleteMany({ where: { email, homeId, acceptedAt: null } });
+  await prisma.invite.create({
+    data: {
+      email,
+      homeId,
+      role: parsed.data.role as Role,
+      codeHash: hashInviteCode(code),
+      expiresAt,
+      createdById: user.id,
+    },
+  });
+
+  revalidatePath("/admin");
+  return { ok: true, email, code };
+}
+
+export async function revokeInvite(formData: FormData) {
+  const user = await requireAdmin();
+  const invite = await prisma.invite.findUnique({
+    where: { id: String(formData.get("inviteId")) },
+  });
+  if (!invite) return;
+  assertHomeAdmin(user, invite.homeId);
+
+  await prisma.invite.delete({ where: { id: invite.id } });
+  revalidatePath("/admin");
+}
+
+export async function updateHome(formData: FormData) {
+  const user = await requireAdmin();
+  const homeId = String(formData.get("homeId") ?? "");
+  assertHomeAdmin(user, homeId);
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return;
+  const address = String(formData.get("address") ?? "").trim();
+
+  await prisma.home.update({
+    where: { id: homeId },
+    data: { name, address: address || null },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/homes");
+}
+
+export async function updateMemberRole(formData: FormData) {
+  const actor = await requireAdmin();
+  const member = await prisma.user.findUnique({
+    where: { id: String(formData.get("userId")) },
+  });
+  if (!member?.homeId) return;
+  assertHomeAdmin(actor, member.homeId);
+  if (member.role === "SUPER_ADMIN") return;
+  if (member.id === actor.id) return;
+
+  const role = String(formData.get("role"));
+  if (role !== "ADMIN" && role !== "USER") return;
+
+  await prisma.user.update({ where: { id: member.id }, data: { role: role as Role } });
+  revalidatePath("/admin");
+}
+
+export async function removeMember(formData: FormData) {
+  const actor = await requireAdmin();
+  const member = await prisma.user.findUnique({
+    where: { id: String(formData.get("userId")) },
+  });
+  if (!member?.homeId) return;
+  assertHomeAdmin(actor, member.homeId);
+  if (member.role === "SUPER_ADMIN" || member.id === actor.id) return;
+
+  await prisma.user.delete({ where: { id: member.id } });
+  revalidatePath("/admin");
+}
+
+export async function createHome(formData: FormData) {
+  await requireSuperAdmin();
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return;
+  const address = String(formData.get("address") ?? "").trim();
+
+  await prisma.home.create({ data: { name, address: address || null } });
+  revalidatePath("/admin/homes");
+}
+
+export async function deleteHome(formData: FormData) {
+  await requireSuperAdmin();
+  const homeId = String(formData.get("homeId") ?? "");
+
+  await prisma.home.delete({ where: { id: homeId } });
+  revalidatePath("/admin/homes");
+}
+
+/** Super admins browse a home by making it their active home. */
+export async function switchHome(formData: FormData) {
+  const user = await requireSuperAdmin();
+  const homeIdRaw = String(formData.get("homeId") ?? "");
+  const homeId = homeIdRaw || null;
+
+  if (homeId && !(await prisma.home.findUnique({ where: { id: homeId } }))) return;
+
+  await prisma.user.update({ where: { id: user.id }, data: { homeId } });
+  revalidatePath("/", "layout");
+  redirect("/dashboard");
+}
+
+export async function updateOwnProfile(formData: FormData) {
+  const user = await requireUser();
+  const name = String(formData.get("name") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+
+  const data: { name?: string; passwordHash?: string } = {};
+  if (name) data.name = name;
+  if (password) {
+    if (password.length < 8) return;
+    data.passwordHash = await hashPassword(password);
+  }
+  if (Object.keys(data).length === 0) return;
+
+  await prisma.user.update({ where: { id: user.id }, data });
+  revalidatePath("/", "layout");
+}

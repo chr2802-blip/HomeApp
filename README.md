@@ -1,36 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# HomeHub
 
-## Getting Started
+Lists, recurring tasks and recipes for your home. Multi-tenant: every home is isolated, and
+users belong to exactly one home.
 
-First, run the development server:
+Next.js 15 (App Router) · Prisma · PostgreSQL · Tailwind · Web Push
+
+## Features
+
+**Lists** — Create any number of lists (shopping, to-do, packing). Add, tick off, remove and
+clear items. Rename or delete a whole list.
+
+**Recurring tasks** — Give a task an interval in days. Marking it done reschedules it that many
+days out. Overdue and due-today tasks are highlighted on the dashboard, and a daily job sends a
+push notification for anything due.
+
+**Recipes** — Title, description, ingredients and instructions (one per line). Paste an
+Instagram, YouTube, TikTok, Vimeo or Facebook link and the video is embedded on the recipe page.
+Links from any other host are shown as a plain "open in new tab" link rather than embedded.
+
+## Roles
+
+| Role | Can do |
+| --- | --- |
+| Super admin | Everything; creates homes, switches between any home to administer it |
+| Admin | Manages their own home: settings, members, roles, invitations |
+| User | Creates and edits lists, tasks and recipes in their own home |
+
+Every home member shares that home's lists, tasks and recipes. No one can reach another home's
+data — requests for another home's records return 404.
+
+## Invitations
+
+There is no mail server. An admin creates an invitation for a specific email address and the app
+generates a one-time code. The admin passes that code on however they like (text, chat, in
+person). The invitee goes to `/accept-invite` and must supply **both** the exact invited email
+**and** the code to create their account. Codes are stored hashed, expire after 14 days, and are
+displayed only once — create a new invitation if one is lost.
+
+## Local setup
+
+1. Install dependencies and create the environment file:
+
+```bash
+npm install
+```
+
+Copy `.env.example` to `.env` and fill it in:
+
+- `DATABASE_URL` — any Postgres instance.
+- `AUTH_SECRET` — generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+- `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` — generate with `npx web-push generate-vapid-keys`.
+- `CRON_SECRET` — any random string; the reminder endpoint requires it.
+- `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` — used once, to seed the first account.
+
+2. Create the tables and the first super admin:
+
+```bash
+npm run db:push
+```
+
+```bash
+npm run db:seed
+```
+
+3. Start it:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Log in at `/login` with the super admin credentials, create a home under **Admin → All homes**,
+switch into it, and invite the rest of the household.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploying to Vercel
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Push this repo to GitHub and import it in Vercel.
+2. Create a Postgres database (Neon, Supabase or Vercel Postgres) and set `DATABASE_URL`.
+3. Add every other variable from `.env.example` to the Vercel project settings.
+4. Deploy, then run `npm run db:push` and `npm run db:seed` once against the production database
+   (locally, with the production `DATABASE_URL` in your shell).
 
-## Learn More
+`vercel.json` registers a daily cron at 07:00 UTC that calls `/api/cron/reminders`. Vercel sends
+its own `Authorization: Bearer $CRON_SECRET` header, so setting `CRON_SECRET` in the project is
+all that is needed.
 
-To learn more about Next.js, take a look at the following resources:
+Push notifications require HTTPS, which Vercel provides. On iOS the site must be added to the
+home screen before Safari will deliver notifications.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Useful commands
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run db:studio
+```
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run build
+```

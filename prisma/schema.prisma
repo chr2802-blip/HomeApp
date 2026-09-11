@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Pooled connection, used at runtime by serverless functions.
+  url      = env("DATABASE_URL")
+  // Unpooled connection; migrations need a direct session. Locally both are the same.
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  USER
+}
+
+model Home {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  createdAt DateTime @default(now())
+
+  users    User[]
+  invites  Invite[]
+  lists    List[]
+  tasks    RecurringTask[]
+  recipes  Recipe[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(USER)
+  homeId       String?
+  createdAt    DateTime @default(now())
+
+  home              Home?              @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  pushSubscriptions PushSubscription[]
+  lists             List[]
+  tasks             RecurringTask[]
+  recipes           Recipe[]
+  invitesCreated    Invite[]           @relation("InviteCreatedBy")
+
+  @@index([homeId])
+}
+
+model Invite {
+  id          String    @id @default(cuid())
+  email       String
+  homeId      String
+  role        Role      @default(USER)
+  codeHash    String
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdById String
+  createdAt   DateTime  @default(now())
+
+  home      Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  createdBy User @relation("InviteCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([homeId])
+  @@index([email])
+}
+
+model List {
+  id          String   @id @default(cuid())
+  homeId      String
+  title       String
+  createdById String
+  createdAt   DateTime @default(now())
+
+  home      Home       @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  createdBy User       @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  items     ListItem[]
+
+  @@index([homeId])
+}
+
+model ListItem {
+  id       String  @id @default(cuid())
+  listId   String
+  text     String
+  done     Boolean @default(false)
+  position Int     @default(0)
+
+  list List @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@index([listId])
+}
+
+model RecurringTask {
+  id              String    @id @default(cuid())
+  homeId          String
+  title           String
+  notes           String?
+  intervalDays    Int
+  nextDueAt       DateTime
+  lastCompletedAt DateTime?
+  lastNotifiedAt  DateTime?
+  createdById     String
+  createdAt       DateTime  @default(now())
+
+  home      Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([homeId])
+  @@index([nextDueAt])
+}
+
+model Recipe {
+  id           String   @id @default(cuid())
+  homeId       String
+  title        String
+  description  String?
+  ingredients  String   @default("")
+  instructions String   @default("")
+  videoUrl     String?
+  createdById  String
+  createdAt    DateTime @default(now())
+
+  home      Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([homeId])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}

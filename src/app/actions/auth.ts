@@ -1,0 +1,91 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import { prisma } from "@/lib/prisma";
+import {
+  createSession,
+  destroySession,
+  hashPassword,
+  verifyPassword,
+} from "@/lib/auth";
+import { inviteCodeMatches } from "@/lib/invite-code";
+
+export type FormState = { error?: string } | undefined;
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+export async function login(_prev: FormState, formData: FormData): Promise<FormState> {
+  const parsed = loginSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+  if (!parsed.success) return { error: "Enter a valid email and password." };
+
+  const user = await prisma.user.findUnique({
+    where: { email: parsed.data.email.toLowerCase() },
+  });
+  if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
+    return { error: "Wrong email or password." };
+  }
+
+  await createSession(user.id);
+  redirect("/dashboard");
+}
+
+export async function logout() {
+  await destroySession();
+  redirect("/login");
+}
+
+const acceptSchema = z.object({
+  email: z.string().email(),
+  code: z.string().min(1),
+  name: z.string().min(1, "Enter your name."),
+  password: z.string().min(8, "Password must be at least 8 characters."),
+});
+
+export async function acceptInvite(_prev: FormState, formData: FormData): Promise<FormState> {
+  const parsed = acceptSchema.safeParse({
+    email: formData.get("email"),
+    code: formData.get("code"),
+    name: formData.get("name"),
+    password: formData.get("password"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Check the form and try again." };
+  }
+
+  const email = parsed.data.email.toLowerCase();
+
+  if (await prisma.user.findUnique({ where: { email } })) {
+    return { error: "An account with that email already exists. Try logging in." };
+  }
+
+  const invites = await prisma.invite.findMany({
+    where: { email, acceptedAt: null, expiresAt: { gt: new Date() } },
+  });
+  const invite = invites.find((candidate) => inviteCodeMatches(parsed.data.code, candidate.codeHash));
+  if (!invite) return { error: "That email and code don't match an open invitation." };
+
+  const user = await prisma.user.create({
+    data: {
+      email,
+      name: parsed.data.name.trim(),
+      passwordHash: await hashPassword(parsed.data.password),
+      role: invite.role,
+      homeId: invite.homeId,
+    },
+  });
+
+  await prisma.invite.update({
+    where: { id: invite.id },
+    data: { acceptedAt: new Date() },
+  });
+
+  await createSession(user.id);
+  redirect("/dashboard");
+}
