@@ -72,20 +72,56 @@ npm run dev
 Log in at `/login` with the super admin credentials, create a home under **Admin → All homes**,
 switch into it, and invite the rest of the household.
 
-## Deploying to Vercel
+## Deploying to Vercel with Supabase
 
-1. Push this repo to GitHub and import it in Vercel.
-2. Create a Postgres database (Neon, Supabase or Vercel Postgres) and set `DATABASE_URL`.
-3. Add every other variable from `.env.example` to the Vercel project settings.
-4. Deploy, then run `npm run db:push` and `npm run db:seed` once against the production database
-   (locally, with the production `DATABASE_URL` in your shell).
+### 1. Create the database
+
+In Supabase create a project, then open **Project Settings → Database → Connection string**. Two
+different strings are needed:
+
+- **Transaction pooler** (port `6543`) → `DATABASE_URL`. Append `?pgbouncer=true&connection_limit=1`,
+  which Prisma requires when talking to a transaction pooler.
+- **Direct connection** (port `5432`) → `DIRECT_URL`. Migrations need a real session and cannot run
+  through the pooler.
+
+### 2. Generate secrets
+
+```bash
+node -e "console.log('AUTH_SECRET=' + require('crypto').randomBytes(32).toString('hex'))"
+```
+
+```bash
+node -e "console.log('CRON_SECRET=' + require('crypto').randomBytes(24).toString('hex'))"
+```
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+### 3. Import into Vercel
+
+Import the GitHub repo, then add every variable from `.env.example` under **Settings → Environment
+Variables**. The build runs `prisma migrate deploy`, so the schema is created on the first deploy —
+there is no separate migration step.
+
+### 4. Create the first super admin
+
+Once deployed, run the seed once from your machine against the production database:
+
+```bash
+DATABASE_URL="<direct-url>" DIRECT_URL="<direct-url>" SUPER_ADMIN_EMAIL="you@example.com" SUPER_ADMIN_PASSWORD="<a strong password>" npm run db:seed
+```
+
+Log in, create a home under **Admin → All homes**, switch into it, and invite the household.
+
+### Notes
 
 `vercel.json` registers a daily cron at 07:00 UTC that calls `/api/cron/reminders`. Vercel sends
-its own `Authorization: Bearer $CRON_SECRET` header, so setting `CRON_SECRET` in the project is
-all that is needed.
+its own `Authorization: Bearer $CRON_SECRET` header, so setting `CRON_SECRET` is all that is needed.
+Hobby-plan projects are limited to one cron run per day, which this schedule fits.
 
-Push notifications require HTTPS, which Vercel provides. On iOS the site must be added to the
-home screen before Safari will deliver notifications.
+Push notifications require HTTPS, which Vercel provides. On iOS the site must be added to the home
+screen before Safari will deliver notifications.
 
 ## Useful commands
 
