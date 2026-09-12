@@ -72,6 +72,71 @@ npm run dev
 Log in at `/login` with the super admin credentials, create a home under **Admin → All homes**,
 switch into it, and invite the rest of the household.
 
+## Tests
+
+```bash
+npm test
+```
+
+Two kinds of test run from the same command:
+
+- **Unit** (`tests/unit`) — pure logic with no database: the video-embed allowlist, due-date
+  wording, invite codes and the role rules.
+- **Integration** (`tests/integration`) — the real server actions and the reminder endpoint,
+  driven against a real Postgres database, with only Next.js's per-request APIs stubbed. These
+  cover logging in, throttling, accepting an invite, lists, recurring tasks, recipes,
+  administration, and that one home can never reach another home's data.
+
+Run one group on its own with `npm run test:unit` or `npm run test:integration`, watch them with
+`npm run test:watch`, and run the whole gate — lint, types, tests — with `npm run verify`.
+
+### The test database
+
+Integration tests need Postgres running:
+
+```bash
+docker start homehub-pg
+```
+
+They use a **separate** database from development. The name is taken from `DATABASE_URL` with
+`_test` on the end (so `homehub` → `homehub_test`), created and migrated automatically on the
+first run. Set `TEST_DATABASE_URL` to point somewhere else.
+
+Every test starts from an empty database, so the suite truncates tables as it goes. Two guards
+make it impossible for that to hit real data: the name must end in `_test`, and it is checked
+again immediately before the first delete. Your development data is never touched.
+
+## Blocking a bad deploy
+
+Pushing to `main` is what triggers a Vercel deploy, so the tests gate the push:
+
+1. **Before the push.** `npm install` points git at `.githooks`, where a `pre-push` hook runs
+   `npm run verify`. If lint, the types or any test fails, nothing is pushed and nothing deploys.
+   In a genuine emergency, `git push --no-verify` skips it.
+2. **In CI.** `.github/workflows/test.yml` runs the same checks on GitHub against a throwaway
+   Postgres, on every push and pull request.
+3. **During the build.** `npm run build` runs the unit tests before `next build`, so a broken
+   build fails on Vercel even if the first two were bypassed. (Integration tests are left out
+   here: the build has no test database, and it must never touch the production one.)
+
+### Making Vercel wait for CI
+
+By default Vercel builds and releases as soon as `main` moves, without waiting for the workflow
+above. Two independent ways to close that gap — either is enough, and they combine well:
+
+**Vercel Deployment Checks** hold a finished production build back from your production domain
+until the checks pass. First make sure automatic aliasing is on under
+**Project Settings → Environments → Production**. Then open
+**Project Settings → Build and Deployment → Deployment Checks**, choose **Add Checks**, pick
+**GitHub** as the provider, and select the **Lint, types and tests** check (GitHub identifies
+checks by job name, so renaming that job in `test.yml` means re-selecting it here). The build
+still runs; it just is not released to users until the tests go green. `Force Promote` on the
+deployment page overrides this when you need it.
+
+**A GitHub ruleset** on `main` requiring the same check keeps failing code off the branch in the
+first place, so no production build is ever created from it. Set it under
+**Repository Settings → Rules → Rulesets**, requiring a pull request and the status check.
+
 ## Deploying to Vercel with Supabase
 
 ### 1. Create the database
@@ -125,9 +190,19 @@ screen before Safari will deliver notifications.
 
 ## Useful commands
 
+Browse the database:
+
 ```bash
 npm run db:studio
 ```
+
+Run every check exactly as the pre-push hook does:
+
+```bash
+npm run verify
+```
+
+Build as Vercel will:
 
 ```bash
 npm run build

@@ -1,0 +1,3 @@
+# Git hooks are run by sh. With CRLF line endings the shebang line is unusable on
+# Linux and macOS, and the hook silently stops guarding pushes.
+.githooks/* text eol=lf
