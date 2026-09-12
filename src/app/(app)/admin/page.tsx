@@ -1,4 +1,3 @@
-import { format } from "date-fns";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -20,6 +19,7 @@ import {
   Select,
 } from "@/components/ui";
 import { InviteForm } from "@/components/invite-form";
+import { formatInZone } from "@/lib/time";
 import { ConfirmButton } from "@/components/confirm-button";
 import { TestPushButton } from "@/components/notification-setup";
 
@@ -136,7 +136,7 @@ export default async function AdminPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{invite.email}</p>
                   <p className="text-xs text-slate-500">
-                    {invite.role.toLowerCase()} · expires {format(invite.expiresAt, "d MMM yyyy")}
+                    {invite.role.toLowerCase()} · expires {formatInZone(invite.expiresAt, "d MMM yyyy")}
                   </p>
                 </div>
                 <form action={revokeInvite}>

@@ -18,6 +18,17 @@ push notification for anything due.
 Instagram, YouTube, TikTok, Vimeo or Facebook link and the video is embedded on the recipe page.
 Links from any other host are shown as a plain "open in new tab" link rather than embedded.
 
+## Dates and times
+
+The app runs on one household clock, set by `TIME_ZONE` in [`src/lib/time.ts`](src/lib/time.ts)
+(currently `Europe/Copenhagen`). Tasks come due at 09:00 on that clock, and "Due today" means
+today's calendar date there.
+
+This is deliberately not the server's own timezone, which is UTC on Vercel and something else on
+a developer's laptop. Anything that decides or displays a date goes through `src/lib/time.ts`
+rather than using `new Date(...)` arithmetic directly. If the household moves, change that one
+constant.
+
 ## Roles
 
 | Role | Can do |
@@ -196,9 +207,12 @@ Log in, create a home under **Admin → All homes**, switch into it, and invite 
 
 ### Notes
 
-`vercel.json` registers a daily cron at 07:00 UTC that calls `/api/cron/reminders`. Vercel sends
+`vercel.json` registers a daily cron at 06:00 UTC that calls `/api/cron/reminders`. Vercel sends
 its own `Authorization: Bearer $CRON_SECRET` header, so setting `CRON_SECRET` is all that is needed.
 Hobby-plan projects are limited to one cron run per day, which this schedule fits.
+
+The job notifies about everything due by the end of that day rather than by the minute it runs,
+so the exact hour is not load-bearing — it only has to land in the morning.
 
 Push notifications require HTTPS, which Vercel provides. On iOS the site must be added to the home
 screen before Safari will deliver notifications.

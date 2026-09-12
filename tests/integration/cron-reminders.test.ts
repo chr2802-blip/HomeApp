@@ -5,6 +5,7 @@ vi.mock("@/lib/push", () => ({ sendPushToUsers }));
 
 const { prisma } = await import("@/lib/prisma");
 const { GET } = await import("@/app/api/cron/reminders/route");
+const { dueAtDaysFrom, endOfDayInZone } = await import("@/lib/time");
 const { createHome, createHomeWithMembers, createTask, createUser } = await import(
   "../helpers/factories"
 );
@@ -129,6 +130,51 @@ describe("choosing which tasks to notify about", () => {
     const response = await GET(request(CRON_SECRET));
 
     expect(await response.json()).toEqual({ tasksDue: 0, notificationsSent: 0 });
+  });
+});
+
+describe("notifying on the due day itself", () => {
+  /**
+   * Regression: the job used to ask for tasks due at or before the moment it ran.
+   * It runs in the early morning while tasks come due at 09:00 local, so a task was
+   * never due yet on its own day and every reminder arrived twenty-four hours late.
+   */
+  it("notifies about a task due later the same day", async () => {
+    const { home, member } = await createHomeWithMembers();
+    const laterToday = endOfDayInZone(new Date());
+    laterToday.setMinutes(laterToday.getMinutes() - 1);
+
+    await createTask({ homeId: home.id, createdById: member.id, nextDueAt: laterToday });
+
+    const response = await GET(request(CRON_SECRET));
+
+    expect(await response.json()).toMatchObject({ tasksDue: 1 });
+  });
+
+  it("notifies about a task due at this morning's usual hour", async () => {
+    const { home, member } = await createHomeWithMembers();
+    await createTask({
+      homeId: home.id,
+      createdById: member.id,
+      nextDueAt: dueAtDaysFrom(0),
+    });
+
+    const response = await GET(request(CRON_SECRET));
+
+    expect(await response.json()).toMatchObject({ tasksDue: 1 });
+  });
+
+  it("still leaves tomorrow's task alone", async () => {
+    const { home, member } = await createHomeWithMembers();
+    await createTask({
+      homeId: home.id,
+      createdById: member.id,
+      nextDueAt: dueAtDaysFrom(1),
+    });
+
+    const response = await GET(request(CRON_SECRET));
+
+    expect(await response.json()).toMatchObject({ tasksDue: 0 });
   });
 });
 

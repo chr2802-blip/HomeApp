@@ -4,13 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireHomeUser } from "@/lib/auth";
 import { assertHomeAccess } from "@/lib/access";
-
-function startOfDayFrom(date: Date, daysAhead: number) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + daysAhead);
-  next.setHours(9, 0, 0, 0);
-  return next;
-}
+import { dueAtDaysFrom, dueAtOn } from "@/lib/time";
 
 function parseIntervalDays(value: FormDataEntryValue | null) {
   const days = Number(value);
@@ -34,7 +28,6 @@ export async function createTask(formData: FormData) {
 
   const notes = String(formData.get("notes") ?? "").trim();
   const firstDueRaw = String(formData.get("firstDueAt") ?? "");
-  const firstDue = firstDueRaw ? new Date(`${firstDueRaw}T09:00:00`) : startOfDayFrom(new Date(), 0);
 
   await prisma.recurringTask.create({
     data: {
@@ -42,7 +35,7 @@ export async function createTask(formData: FormData) {
       title,
       notes: notes || null,
       intervalDays,
-      nextDueAt: Number.isNaN(firstDue.getTime()) ? startOfDayFrom(new Date(), 0) : firstDue,
+      nextDueAt: dueAtOn(firstDueRaw) ?? dueAtDaysFrom(0),
       createdById: user.id,
     },
   });
@@ -59,7 +52,6 @@ export async function updateTask(formData: FormData) {
 
   const notes = String(formData.get("notes") ?? "").trim();
   const nextDueRaw = String(formData.get("nextDueAt") ?? "");
-  const nextDue = nextDueRaw ? new Date(`${nextDueRaw}T09:00:00`) : task.nextDueAt;
 
   await prisma.recurringTask.update({
     where: { id: task.id },
@@ -67,7 +59,7 @@ export async function updateTask(formData: FormData) {
       title,
       notes: notes || null,
       intervalDays,
-      nextDueAt: Number.isNaN(nextDue.getTime()) ? task.nextDueAt : nextDue,
+      nextDueAt: dueAtOn(nextDueRaw) ?? task.nextDueAt,
     },
   });
 
@@ -83,7 +75,7 @@ export async function completeTask(formData: FormData) {
     where: { id: task.id },
     data: {
       lastCompletedAt: now,
-      nextDueAt: startOfDayFrom(now, task.intervalDays),
+      nextDueAt: dueAtDaysFrom(task.intervalDays, now),
       lastNotifiedAt: null,
     },
   });

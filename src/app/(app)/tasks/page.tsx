@@ -1,17 +1,17 @@
-import { format } from "date-fns";
 import { requireHomeUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { completeTask, createTask, deleteTask, updateTask } from "@/app/actions/tasks";
 import { Badge, Card, EmptyState, Input, Label, PageHeader, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { dueLabel, dueTone } from "@/lib/due";
+import { formatInZone, todayInZone } from "@/lib/time";
 import { ConfirmButton } from "@/components/confirm-button";
 import { FormDialog } from "@/components/form-dialog";
 
 export default async function TasksPage() {
   const user = await requireHomeUser();
   const now = new Date();
-  const today = format(now, "yyyy-MM-dd");
+  const today = todayInZone(now);
 
   const tasks = await prisma.recurringTask.findMany({
     where: { homeId: user.homeId },
@@ -82,7 +82,7 @@ export default async function TasksPage() {
                   <p className="mt-1 text-xs text-slate-500">
                     Every {task.intervalDays} days
                     {task.lastCompletedAt
-                      ? ` · last done ${format(task.lastCompletedAt, "d MMM yyyy")}`
+                      ? ` · last done ${formatInZone(task.lastCompletedAt, "d MMM yyyy")}`
                       : " · never completed"}
                   </p>
                 </div>
@@ -125,7 +125,7 @@ export default async function TasksPage() {
                         id={`due-${task.id}`}
                         name="nextDueAt"
                         type="date"
-                        defaultValue={format(task.nextDueAt, "yyyy-MM-dd")}
+                        defaultValue={formatInZone(task.nextDueAt, "yyyy-MM-dd")}
                       />
                     </div>
                   </div>
