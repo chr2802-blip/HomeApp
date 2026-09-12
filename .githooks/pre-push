@@ -1,0 +1,21 @@
+#!/bin/sh
+#
+# Pushing to GitHub is what triggers a Vercel deploy, so the full check runs here:
+# lint, types, then every test. Nothing reaches production without passing.
+#
+# To push anyway in an emergency: git push --no-verify
+
+set -e
+
+echo "pre-push: checking the build before it can deploy..."
+
+if ! npm run --silent verify; then
+  echo ""
+  echo "pre-push: FAILED — nothing was pushed, so nothing will deploy."
+  echo "  Integration tests need the local Postgres running:"
+  echo "    docker start homehub-pg"
+  echo "  Re-run the checks on their own with: npm run verify"
+  exit 1
+fi
+
+echo "pre-push: all checks passed."

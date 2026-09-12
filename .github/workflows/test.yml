@@ -1,0 +1,51 @@
+name: Tests
+
+# Runs on every push and pull request. Vercel can be told to wait for this check
+# before it deploys — see "Blocking a bad deploy" in the README.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    name: Lint, types and tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: homehub
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # The suite derives "homehub_test" from this and creates it on first run.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/homehub
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/homehub
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma generate
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm test
