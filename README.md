@@ -78,7 +78,7 @@ switch into it, and invite the rest of the household.
 npm test
 ```
 
-Two kinds of test run from the same command:
+Two kinds of test run from that command:
 
 - **Unit** (`tests/unit`) — pure logic with no database: the video-embed allowlist, due-date
   wording, invite codes and the role rules.
@@ -87,34 +87,49 @@ Two kinds of test run from the same command:
   cover logging in, throttling, accepting an invite, lists, recurring tasks, recipes,
   administration, and that one home can never reach another home's data.
 
-Run one group on its own with `npm run test:unit` or `npm run test:integration`, watch them with
-`npm run test:watch`, and run the whole gate — lint, types, tests — with `npm run verify`.
+Run one group on its own with `npm run test:unit` or `npm run test:integration`, and watch them
+with `npm run test:watch`.
 
-### The test database
+Browser tests are separate, because they need the app built and served:
 
-Integration tests need Postgres running:
+```bash
+npm run e2e
+```
+
+- **End to end** (`e2e`) — Playwright drives a real Chromium against a production build of the
+  app: signing in and out, issuing an invite and redeeming the code, building a list and ticking
+  items off, completing a recurring task, embedding a recipe video, every administration screen,
+  and one home being unable to open another home's pages. `npm run e2e:ui` opens the interactive
+  runner; after a failure `npm run e2e:report` shows the trace, screenshot and DOM snapshot.
+
+`npm run verify` runs the whole gate: lint, types, the vitest suites, then the browser tests.
+
+### Test databases
+
+The tests need Postgres running:
 
 ```bash
 docker start homehub-pg
 ```
 
-They use a **separate** database from development. The name is taken from `DATABASE_URL` with
-`_test` on the end (so `homehub` → `homehub_test`), created and migrated automatically on the
-first run. Set `TEST_DATABASE_URL` to point somewhere else.
+They use **separate** databases from development, named after `DATABASE_URL` with a suffix —
+`homehub_test` for vitest and `homehub_e2e` for Playwright — each created and migrated
+automatically on first run. Override with `TEST_DATABASE_URL` or `E2E_DATABASE_URL`.
 
-Every test starts from an empty database, so the suite truncates tables as it goes. Two guards
-make it impossible for that to hit real data: the name must end in `_test`, and it is checked
-again immediately before the first delete. Your development data is never touched.
+Both suites truncate tables between tests, so each starts from a known state. Two guards make it
+impossible for that to reach real data: the database name must carry the right suffix, and it is
+checked again immediately before the first delete. Your development data is never touched.
 
 ## Blocking a bad deploy
 
 Pushing to `main` is what triggers a Vercel deploy, so the tests gate the push:
 
 1. **Before the push.** `npm install` points git at `.githooks`, where a `pre-push` hook runs
-   `npm run verify`. If lint, the types or any test fails, nothing is pushed and nothing deploys.
-   In a genuine emergency, `git push --no-verify` skips it.
+   `npm run verify`. If lint, the types or any test — including the browser tests — fails,
+   nothing is pushed and nothing deploys. In a genuine emergency, `git push --no-verify` skips it.
 2. **In CI.** `.github/workflows/test.yml` runs the same checks on GitHub against a throwaway
-   Postgres, on every push and pull request.
+   Postgres, on every push and pull request. A failing browser test uploads its Playwright
+   report as a build artifact.
 3. **During the build.** `npm run build` runs the unit tests before `next build`, so a broken
    build fails on Vercel even if the first two were bypassed. (Integration tests are left out
    here: the build has no test database, and it must never touch the production one.)
