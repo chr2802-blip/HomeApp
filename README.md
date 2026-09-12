@@ -119,9 +119,23 @@ Pushing to `main` is what triggers a Vercel deploy, so the tests gate the push:
    build fails on Vercel even if the first two were bypassed. (Integration tests are left out
    here: the build has no test database, and it must never touch the production one.)
 
-To make Vercel wait for CI rather than deploying alongside it, turn on
-**Vercel → Project Settings → Git → "Only deploy when checks pass"**. Protecting `main` on
-GitHub so it only takes pull requests that pass the Tests check does the same job.
+### Making Vercel wait for CI
+
+By default Vercel builds and releases as soon as `main` moves, without waiting for the workflow
+above. Two independent ways to close that gap — either is enough, and they combine well:
+
+**Vercel Deployment Checks** hold a finished production build back from your production domain
+until the checks pass. First make sure automatic aliasing is on under
+**Project Settings → Environments → Production**. Then open
+**Project Settings → Build and Deployment → Deployment Checks**, choose **Add Checks**, pick
+**GitHub** as the provider, and select the **Lint, types and tests** check (GitHub identifies
+checks by job name, so renaming that job in `test.yml` means re-selecting it here). The build
+still runs; it just is not released to users until the tests go green. `Force Promote` on the
+deployment page overrides this when you need it.
+
+**A GitHub ruleset** on `main` requiring the same check keeps failing code off the branch in the
+first place, so no production build is ever created from it. Set it under
+**Repository Settings → Rules → Rulesets**, requiring a pull request and the status check.
 
 ## Deploying to Vercel with Supabase
 
