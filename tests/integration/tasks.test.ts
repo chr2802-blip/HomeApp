@@ -20,7 +20,7 @@ const only = () => prisma.recurringTask.findFirstOrThrow();
 
 describe("createTask", () => {
   it("creates a task in the caller's home", async () => {
-    await createTask(formData({ title: "Change the filter", intervalDays: "30", notes: "Kitchen" }));
+    await createTask(undefined, formData({ title: "Change the filter", intervalDays: "30", notes: "Kitchen" }));
 
     expect(await only()).toMatchObject({
       title: "Change the filter",
@@ -34,6 +34,7 @@ describe("createTask", () => {
 
   it("honours a chosen first due date, at 9am", async () => {
     await createTask(
+      undefined,
       formData({ title: "Descale kettle", intervalDays: "90", firstDueAt: "2026-06-01" }),
     );
 
@@ -45,20 +46,20 @@ describe("createTask", () => {
   });
 
   it("defaults to due today when no date is given", async () => {
-    await createTask(formData({ title: "Water plants", intervalDays: "7" }));
+    await createTask(undefined, formData({ title: "Water plants", intervalDays: "7" }));
 
     const task = await only();
     expect(task.nextDueAt.toDateString()).toBe(new Date().toDateString());
   });
 
   it("stores blank notes as null rather than an empty string", async () => {
-    await createTask(formData({ title: "Task", intervalDays: "7", notes: "   " }));
+    await createTask(undefined, formData({ title: "Task", intervalDays: "7", notes: "   " }));
 
     expect((await only()).notes).toBeNull();
   });
 
   it("ignores a task with no title", async () => {
-    await createTask(formData({ title: "   ", intervalDays: "7" }));
+    await createTask(undefined, formData({ title: "   ", intervalDays: "7" }));
 
     expect(await prisma.recurringTask.count()).toBe(0);
   });
@@ -71,26 +72,38 @@ describe("createTask", () => {
     ["absurdly large", "4000"],
     ["empty", ""],
   ])("refuses a %s interval", async (_label, intervalDays) => {
-    await createTask(formData({ title: "Task", intervalDays }));
+    await createTask(undefined, formData({ title: "Task", intervalDays }));
 
     expect(await prisma.recurringTask.count()).toBe(0);
   });
 
   it("accepts the boundary intervals", async () => {
-    await createTask(formData({ title: "Daily", intervalDays: "1" }));
-    await createTask(formData({ title: "Decade", intervalDays: "3650" }));
+    await createTask(undefined, formData({ title: "Daily", intervalDays: "1" }));
+    await createTask(undefined, formData({ title: "Decade", intervalDays: "3650" }));
 
     expect(await prisma.recurringTask.count()).toBe(2);
   });
 
-  it("falls back to today when the given date is unparseable", async () => {
-    await createTask(
+  it("reports an unparseable date rather than quietly using today", async () => {
+    const result = await createTask(
+      undefined,
       formData({ title: "Task", intervalDays: "7", firstDueAt: "not-a-date" }),
     );
 
-    const task = await only();
-    expect(Number.isNaN(task.nextDueAt.getTime())).toBe(false);
-    expect(task.nextDueAt.toDateString()).toBe(new Date().toDateString());
+    expect(result).toEqual({ ok: false, error: "That first due date is not a real date." });
+    expect(await prisma.recurringTask.count()).toBe(0);
+  });
+
+  it("says which interval values are allowed", async () => {
+    const result = await createTask(undefined, formData({ title: "Task", intervalDays: "0" }));
+
+    expect(result).toEqual({ ok: false, error: "Repeat every 1 to 3650 days." });
+  });
+
+  it("asks for a title when none is given", async () => {
+    const result = await createTask(undefined, formData({ title: "  ", intervalDays: "7" }));
+
+    expect(result).toEqual({ ok: false, error: "Give the task a name." });
   });
 });
 
@@ -164,6 +177,7 @@ describe("updateTask", () => {
     const task = await seedTask({ homeId: home.id, createdById: member.id });
 
     await updateTask(
+      undefined,
       formData({
         taskId: task.id,
         title: "Replace the filter",
@@ -187,7 +201,7 @@ describe("updateTask", () => {
     const original = new Date("2026-05-05T09:00:00");
     const task = await seedTask({ homeId: home.id, createdById: member.id, nextDueAt: original });
 
-    await updateTask(formData({ taskId: task.id, title: "Renamed", intervalDays: "7" }));
+    await updateTask(undefined, formData({ taskId: task.id, title: "Renamed", intervalDays: "7" }));
 
     expect((await only()).nextDueAt.toISOString()).toBe(original.toISOString());
   });
@@ -195,7 +209,7 @@ describe("updateTask", () => {
   it("rejects an invalid interval and leaves the task untouched", async () => {
     const task = await seedTask({ homeId: home.id, createdById: member.id, intervalDays: 7 });
 
-    await updateTask(formData({ taskId: task.id, title: "Renamed", intervalDays: "0" }));
+    await updateTask(undefined, formData({ taskId: task.id, title: "Renamed", intervalDays: "0" }));
 
     expect(await only()).toMatchObject({ title: "Water the plants", intervalDays: 7 });
   });

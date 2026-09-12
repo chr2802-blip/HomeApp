@@ -19,6 +19,7 @@ import {
   Select,
 } from "@/components/ui";
 import { InviteForm } from "@/components/invite-form";
+import { ActionForm } from "@/components/action-form";
 import { formatInZone } from "@/lib/time";
 import { ConfirmButton } from "@/components/confirm-button";
 import { TestPushButton } from "@/components/notification-setup";
@@ -69,7 +70,7 @@ export default async function AdminPage() {
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Home</h2>
         <Card>
-          <form action={updateHome} className="grid gap-4 sm:grid-cols-2">
+          <ActionForm action={updateHome} submitLabel="Save home" className="grid gap-4 sm:grid-cols-2">
             <input type="hidden" name="homeId" value={home.id} />
             <div className="space-y-1">
               <Label htmlFor="name">Home name</Label>
@@ -79,10 +80,7 @@ export default async function AdminPage() {
               <Label htmlFor="address">Address (optional)</Label>
               <Input id="address" name="address" defaultValue={home.address ?? ""} />
             </div>
-            <div className="sm:col-span-2">
-              <Button type="submit">Save home</Button>
-            </div>
-          </form>
+          </ActionForm>
         </Card>
       </section>
 
@@ -152,10 +150,14 @@ export default async function AdminPage() {
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Your account</h2>
         <Card className="space-y-4">
-          <form action={updateOwnProfile} className="grid gap-4 sm:grid-cols-2">
+          <ActionForm
+            action={updateOwnProfile}
+            submitLabel="Update account"
+            className="grid gap-4 sm:grid-cols-2"
+          >
             <div className="space-y-1">
               <Label htmlFor="profile-name">Name</Label>
-              <Input id="profile-name" name="name" defaultValue={user.name} />
+              <Input id="profile-name" name="name" defaultValue={user.name} required />
             </div>
             <div className="space-y-1">
               <Label htmlFor="profile-password">New password</Label>
@@ -168,10 +170,7 @@ export default async function AdminPage() {
                 minLength={8}
               />
             </div>
-            <div className="sm:col-span-2">
-              <Button type="submit">Update account</Button>
-            </div>
-          </form>
+          </ActionForm>
           <div className="border-t border-slate-100 pt-4">
             <TestPushButton />
           </div>

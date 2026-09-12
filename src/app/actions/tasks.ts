@@ -5,12 +5,22 @@ import { prisma } from "@/lib/prisma";
 import { requireHomeUser } from "@/lib/auth";
 import { assertHomeAccess } from "@/lib/access";
 import { dueAtDaysFrom, dueAtOn } from "@/lib/time";
+import { fail, invalid, ok, parsed, type ActionResult } from "@/lib/action-result";
+
+const MAX_INTERVAL_DAYS = 3650;
 
 function parseIntervalDays(value: FormDataEntryValue | null) {
   const days = Number(value);
-  if (!Number.isInteger(days) || days < 1 || days > 3650) return null;
+  if (!Number.isInteger(days) || days < 1 || days > MAX_INTERVAL_DAYS) return null;
   return days;
 }
+
+function refreshTaskViews() {
+  revalidatePath("/tasks");
+  revalidatePath("/dashboard");
+}
+
+type TaskFields = { title: string; intervalDays: number; notes: string | null };
 
 async function taskInScope(taskId: string) {
   const user = await requireHomeUser();
@@ -20,51 +30,57 @@ async function taskInScope(taskId: string) {
   return task;
 }
 
-export async function createTask(formData: FormData) {
-  const user = await requireHomeUser();
+/** Shared by create and edit, which take the same fields. */
+function readTaskForm(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
-  const intervalDays = parseIntervalDays(formData.get("intervalDays"));
-  if (!title || !intervalDays) return;
+  if (!title) return invalid<TaskFields>("Give the task a name.");
 
-  const notes = String(formData.get("notes") ?? "").trim();
+  const intervalDays = parseIntervalDays(formData.get("intervalDays"));
+  if (!intervalDays) return invalid<TaskFields>(`Repeat every 1 to ${MAX_INTERVAL_DAYS} days.`);
+
+  return parsed<TaskFields>({
+    title,
+    intervalDays,
+    notes: String(formData.get("notes") ?? "").trim() || null,
+  });
+}
+
+export async function createTask(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const user = await requireHomeUser();
+  const form = readTaskForm(formData);
+  if (!form.ok) return fail(form.error);
+
   const firstDueRaw = String(formData.get("firstDueAt") ?? "");
+  if (firstDueRaw && !dueAtOn(firstDueRaw)) return fail("That first due date is not a real date.");
 
   await prisma.recurringTask.create({
     data: {
+      ...form.fields,
       homeId: user.homeId,
-      title,
-      notes: notes || null,
-      intervalDays,
       nextDueAt: dueAtOn(firstDueRaw) ?? dueAtDaysFrom(0),
       createdById: user.id,
     },
   });
 
-  revalidatePath("/tasks");
-  revalidatePath("/dashboard");
+  refreshTaskViews();
+  return ok();
 }
 
-export async function updateTask(formData: FormData) {
+export async function updateTask(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const task = await taskInScope(String(formData.get("taskId")));
-  const title = String(formData.get("title") ?? "").trim();
-  const intervalDays = parseIntervalDays(formData.get("intervalDays"));
-  if (!title || !intervalDays) return;
+  const form = readTaskForm(formData);
+  if (!form.ok) return fail(form.error);
 
-  const notes = String(formData.get("notes") ?? "").trim();
   const nextDueRaw = String(formData.get("nextDueAt") ?? "");
+  if (nextDueRaw && !dueAtOn(nextDueRaw)) return fail("That due date is not a real date.");
 
   await prisma.recurringTask.update({
     where: { id: task.id },
-    data: {
-      title,
-      notes: notes || null,
-      intervalDays,
-      nextDueAt: dueAtOn(nextDueRaw) ?? task.nextDueAt,
-    },
+    data: { ...form.fields, nextDueAt: dueAtOn(nextDueRaw) ?? task.nextDueAt },
   });
 
-  revalidatePath("/tasks");
-  revalidatePath("/dashboard");
+  refreshTaskViews();
+  return ok();
 }
 
 export async function completeTask(formData: FormData) {
@@ -80,13 +96,11 @@ export async function completeTask(formData: FormData) {
     },
   });
 
-  revalidatePath("/tasks");
-  revalidatePath("/dashboard");
+  refreshTaskViews();
 }
 
 export async function deleteTask(formData: FormData) {
   const task = await taskInScope(String(formData.get("taskId")));
   await prisma.recurringTask.delete({ where: { id: task.id } });
-  revalidatePath("/tasks");
-  revalidatePath("/dashboard");
+  refreshTaskViews();
 }
