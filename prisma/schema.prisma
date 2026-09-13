@@ -138,6 +138,37 @@ model LoginAttempt {
   @@index([createdAt])
 }
 
+/**
+ * One row per reminder run. Without this a cron that silently stops running looks
+ * exactly like a week with nothing due, and nobody finds out.
+ */
+model CronRun {
+  id                String    @id @default(cuid())
+  job               String
+  startedAt         DateTime  @default(now())
+  finishedAt        DateTime?
+  ok                Boolean   @default(false)
+  tasksDue          Int       @default(0)
+  notificationsSent Int       @default(0)
+  error             String?
+
+  @@index([job, startedAt])
+}
+
+/**
+ * Database calls that took longer than the threshold. Only the slow ones are kept:
+ * recording every query would make the metrics table the busiest one in the database.
+ */
+model SlowQuery {
+  id         String   @id @default(cuid())
+  model      String?
+  operation  String
+  durationMs Int
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model PushSubscription {
   id        String   @id @default(cuid())
   userId    String
