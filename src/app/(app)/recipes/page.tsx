@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireHomeUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { homeDb } from "@/lib/home-db";
 import { createRecipe } from "@/app/actions/recipes";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 import { toEmbed } from "@/lib/embed";
@@ -10,8 +10,7 @@ import { RecipeFields } from "@/components/recipe-fields";
 export default async function RecipesPage() {
   const user = await requireHomeUser();
 
-  const recipes = await prisma.recipe.findMany({
-    where: { homeId: user.homeId },
+  const recipes = await homeDb(user.homeId).recipe.findMany({
     orderBy: { createdAt: "desc" },
   });
 
