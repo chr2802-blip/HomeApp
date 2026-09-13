@@ -54,7 +54,7 @@ test("an item can be removed outright", async ({ page }) => {
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await expect(page.getByText("Screws", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Remove" }).click();
+  await clickAndConfirm(page, "Remove");
   await expect(page.getByText("This list is empty.")).toBeVisible();
 });
 

@@ -16,11 +16,16 @@ export function ConfirmButton({
   message,
   title = "Are you sure?",
   confirmLabel = "Delete",
+  triggerVariant = "danger",
+  triggerClassName = "",
   children,
 }: {
   message: string;
   title?: string;
   confirmLabel?: string;
+  /** The row buttons inside a list stay quiet; page-level ones stay red. */
+  triggerVariant?: "danger" | "ghost";
+  triggerClassName?: string;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -36,7 +41,13 @@ export function ConfirmButton({
 
   return (
     <>
-      <Button ref={triggerRef} type="button" variant="danger" onClick={() => setOpen(true)}>
+      <Button
+        ref={triggerRef}
+        type="button"
+        variant={triggerVariant}
+        className={triggerClassName}
+        onClick={() => setOpen(true)}
+      >
         {children}
       </Button>
 
