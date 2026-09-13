@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useFormStatus } from "react-dom";
 import { Modal } from "@/components/modal";
 import { Button } from "@/components/ui";
+import { useFormAction } from "@/components/use-form-action";
+import type { FormAction } from "@/lib/action-result";
 
-function SubmitButton({ label }: { label: string }) {
-  const { pending } = useFormStatus();
+function SubmitButton({ label, pending }: { label: string; pending: boolean }) {
   return (
     <Button type="submit" disabled={pending} aria-busy={pending} className="flex-1 sm:flex-none">
       {pending && (
@@ -31,6 +31,46 @@ const ICONS = {
 } as const;
 
 /**
+ * The form itself, mounted only while the dialog is open. Keeping it separate means
+ * the action state is discarded on close, so reopening never shows the previous
+ * attempt's error.
+ */
+function DialogForm({
+  action,
+  submitLabel,
+  onDone,
+  onCancel,
+  children,
+}: {
+  action: FormAction;
+  submitLabel: string;
+  onDone: () => void;
+  onCancel: () => void;
+  children: React.ReactNode;
+}) {
+  // Close only once the action reports success. A rejected submission leaves the
+  // dialog open, with the reason and everything already typed still in place.
+  const { state, pending, handleSubmit } = useFormAction(action, { onSuccess: onDone });
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {children}
+      {state?.ok === false && (
+        <p role="alert" className="text-sm text-red-600">
+          {state.error}
+        </p>
+      )}
+      <div className="flex gap-2 pt-2">
+        <SubmitButton label={submitLabel} pending={pending} />
+        <Button type="button" variant="secondary" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/**
  * Trigger button plus the modal holding its form — used for both creating and editing,
  * so every entity is written through the same sheet.
  */
@@ -48,7 +88,7 @@ export function FormDialog({
   triggerIcon?: keyof typeof ICONS | "none";
   title: string;
   submitLabel: string;
-  action: (formData: FormData) => void | Promise<void>;
+  action: FormAction;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -71,21 +111,14 @@ export function FormDialog({
       </Button>
 
       <Modal open={open} onClose={() => setOpen(false)} title={title}>
-        <form
-          action={async (formData) => {
-            await action(formData);
-            setOpen(false);
-          }}
-          className="space-y-4"
+        <DialogForm
+          action={action}
+          submitLabel={submitLabel}
+          onDone={() => setOpen(false)}
+          onCancel={() => setOpen(false)}
         >
           {children}
-          <div className="flex gap-2 pt-2">
-            <SubmitButton label={submitLabel} />
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-          </div>
-        </form>
+        </DialogForm>
       </Modal>
     </>
   );

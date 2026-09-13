@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireSuperAdmin, requireUser, hashPassword } from "@/lib/auth";
 import { assertHomeAdmin, canAdministerHome } from "@/lib/access";
 import { generateInviteCode, hashInviteCode } from "@/lib/invite-code";
+import { fail, ok, type ActionResult } from "@/lib/action-result";
 
 const INVITE_TTL_DAYS = 14;
 
@@ -65,13 +66,13 @@ export async function revokeInvite(formData: FormData) {
   revalidatePath("/admin");
 }
 
-export async function updateHome(formData: FormData) {
+export async function updateHome(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const user = await requireAdmin();
   const homeId = String(formData.get("homeId") ?? "");
   assertHomeAdmin(user, homeId);
 
   const name = String(formData.get("name") ?? "").trim();
-  if (!name) return;
+  if (!name) return fail("Give the home a name.");
   const address = String(formData.get("address") ?? "").trim();
 
   await prisma.home.update({
@@ -81,6 +82,7 @@ export async function updateHome(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/admin/homes");
+  return ok();
 }
 
 export async function updateMemberRole(formData: FormData) {
@@ -113,14 +115,15 @@ export async function removeMember(formData: FormData) {
   revalidatePath("/admin");
 }
 
-export async function createHome(formData: FormData) {
+export async function createHome(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   await requireSuperAdmin();
   const name = String(formData.get("name") ?? "").trim();
-  if (!name) return;
+  if (!name) return fail("Give the home a name.");
   const address = String(formData.get("address") ?? "").trim();
 
   await prisma.home.create({ data: { name, address: address || null } });
   revalidatePath("/admin/homes");
+  return ok();
 }
 
 export async function deleteHome(formData: FormData) {
@@ -144,19 +147,29 @@ export async function switchHome(formData: FormData) {
   redirect("/dashboard");
 }
 
-export async function updateOwnProfile(formData: FormData) {
+export async function updateOwnProfile(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
   const user = await requireUser();
   const name = String(formData.get("name") ?? "").trim();
   const password = String(formData.get("password") ?? "");
 
-  const data: { name?: string; passwordHash?: string } = {};
-  if (name) data.name = name;
-  if (password) {
-    if (password.length < 8) return;
-    data.passwordHash = await hashPassword(password);
+  if (!name) return fail("Your name cannot be blank.");
+  // Checked before anything is written, so a rejected password never also loses the
+  // name the person typed alongside it.
+  if (password && password.length < 8) {
+    return fail("A new password must be at least 8 characters.");
   }
-  if (Object.keys(data).length === 0) return;
 
-  await prisma.user.update({ where: { id: user.id }, data });
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      name,
+      ...(password ? { passwordHash: await hashPassword(password) } : {}),
+    },
+  });
+
   revalidatePath("/", "layout");
+  return ok();
 }

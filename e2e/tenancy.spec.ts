@@ -99,6 +99,28 @@ test.describe("an admin of a different home", () => {
   });
 });
 
+test.describe("the not-found page", () => {
+  test("explains itself and offers a way back", async ({ page, loginAs }) => {
+    const { list } = await seedOtherHomeContent();
+    await loginAs(ACCOUNTS.member);
+
+    const response = await page.goto(`/lists/${list.id}`);
+
+    expect(response?.status()).toBe(404);
+    await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Back to the dashboard" })).toBeVisible();
+  });
+
+  test("looks the same for a record that never existed", async ({ page, loginAs }) => {
+    await loginAs(ACCOUNTS.member);
+
+    const response = await page.goto("/lists/does-not-exist");
+
+    expect(response?.status()).toBe(404);
+    await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible();
+  });
+});
+
 test.describe("a super admin", () => {
   test("can open a home's content once switched into it", async ({ page, loginAs }) => {
     const { list, otherHome } = await seedOtherHomeContent();

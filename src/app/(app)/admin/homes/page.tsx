@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createHome, deleteHome, switchHome } from "@/app/actions/admin";
 import { Badge, Button, Card, EmptyState, Input, Label, PageHeader } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
+import { ActionForm } from "@/components/action-form";
 
 export default async function HomesPage() {
   const user = await requireSuperAdmin();
@@ -22,7 +23,12 @@ export default async function HomesPage() {
       />
 
       <Card className="mb-6">
-        <form action={createHome} className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+        <ActionForm
+          action={createHome}
+          submitLabel="Create home"
+          successLabel="Home created."
+          className="grid gap-4 sm:grid-cols-2"
+        >
           <div className="space-y-1">
             <Label htmlFor="home-name">New home name</Label>
             <Input id="home-name" name="name" required />
@@ -31,8 +37,7 @@ export default async function HomesPage() {
             <Label htmlFor="home-address">Address (optional)</Label>
             <Input id="home-address" name="address" />
           </div>
-          <Button type="submit">Create home</Button>
-        </form>
+        </ActionForm>
       </Card>
 
       {homes.length === 0 ? (

@@ -8,6 +8,7 @@ import { ConfirmButton } from "@/components/confirm-button";
 import { SubmitButton } from "@/components/submit-button";
 import { ListItems } from "@/components/list-items";
 import { FormDialog } from "@/components/form-dialog";
+import { AddItemForm } from "@/components/add-item-form";
 
 export default async function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -50,11 +51,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
       </div>
 
       <Card className="mb-4">
-        <form action={addListItem} className="flex flex-wrap gap-2">
-          <input type="hidden" name="listId" value={list.id} />
-          <Input name="text" placeholder="Add an item" required className="flex-1" />
-          <SubmitButton pendingLabel="Adding…">Add</SubmitButton>
-        </form>
+        <AddItemForm action={addListItem} listId={list.id} />
       </Card>
 
       <Card className="divide-y divide-slate-100 p-0">

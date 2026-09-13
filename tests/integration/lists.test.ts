@@ -27,7 +27,7 @@ beforeEach(async () => {
 
 describe("createList", () => {
   it("creates a list in the caller's home and opens it", async () => {
-    const destination = await captureRedirect(() => createList(formData({ title: "Groceries" })));
+    const destination = await captureRedirect(() => createList(undefined, formData({ title: "Groceries" })));
 
     const list = await prisma.list.findFirstOrThrow();
     expect(list).toMatchObject({ title: "Groceries", homeId: home.id, createdById: member.id });
@@ -35,20 +35,20 @@ describe("createList", () => {
   });
 
   it("trims the title", async () => {
-    await captureRedirect(() => createList(formData({ title: "  Hardware store  " })));
+    await captureRedirect(() => createList(undefined, formData({ title: "  Hardware store  " })));
 
     expect((await prisma.list.findFirstOrThrow()).title).toBe("Hardware store");
   });
 
   it("ignores an empty title", async () => {
-    await createList(formData({ title: "   " }));
+    await createList(undefined, formData({ title: "   " }));
 
     expect(await prisma.list.count()).toBe(0);
   });
 
   it("allows two lists with the same name", async () => {
-    await captureRedirect(() => createList(formData({ title: "Shopping" })));
-    await captureRedirect(() => createList(formData({ title: "Shopping" })));
+    await captureRedirect(() => createList(undefined, formData({ title: "Shopping" })));
+    await captureRedirect(() => createList(undefined, formData({ title: "Shopping" })));
 
     expect(await prisma.list.count()).toBe(2);
   });
@@ -58,7 +58,7 @@ describe("renameList", () => {
   it("renames the list", async () => {
     const list = await seedList({ homeId: home.id, createdById: member.id });
 
-    await renameList(formData({ listId: list.id, title: "Weekly shop" }));
+    await renameList(undefined, formData({ listId: list.id, title: "Weekly shop" }));
 
     expect((await prisma.list.findUniqueOrThrow({ where: { id: list.id } })).title).toBe(
       "Weekly shop",
@@ -68,7 +68,7 @@ describe("renameList", () => {
   it("ignores a blank new title", async () => {
     const list = await seedList({ homeId: home.id, createdById: member.id });
 
-    await renameList(formData({ listId: list.id, title: "  " }));
+    await renameList(undefined, formData({ listId: list.id, title: "  " }));
 
     expect((await prisma.list.findUniqueOrThrow({ where: { id: list.id } })).title).toBe("Shopping");
   });
@@ -94,9 +94,9 @@ describe("list items", () => {
   it("adds items in order, each at the end", async () => {
     const list = await seedList({ homeId: home.id, createdById: member.id });
 
-    await addListItem(formData({ listId: list.id, text: "Milk" }));
-    await addListItem(formData({ listId: list.id, text: "Bread" }));
-    await addListItem(formData({ listId: list.id, text: "Eggs" }));
+    await addListItem(undefined, formData({ listId: list.id, text: "Milk" }));
+    await addListItem(undefined, formData({ listId: list.id, text: "Bread" }));
+    await addListItem(undefined, formData({ listId: list.id, text: "Eggs" }));
 
     const items = await prisma.listItem.findMany({ orderBy: { position: "asc" } });
     expect(items.map((item) => item.text)).toEqual(["Milk", "Bread", "Eggs"]);
@@ -105,12 +105,12 @@ describe("list items", () => {
 
   it("keeps adding to the end after an earlier item is removed", async () => {
     const list = await seedList({ homeId: home.id, createdById: member.id });
-    await addListItem(formData({ listId: list.id, text: "Milk" }));
-    await addListItem(formData({ listId: list.id, text: "Bread" }));
+    await addListItem(undefined, formData({ listId: list.id, text: "Milk" }));
+    await addListItem(undefined, formData({ listId: list.id, text: "Bread" }));
 
     const milk = await prisma.listItem.findFirstOrThrow({ where: { text: "Milk" } });
     await deleteListItem(formData({ itemId: milk.id }));
-    await addListItem(formData({ listId: list.id, text: "Eggs" }));
+    await addListItem(undefined, formData({ listId: list.id, text: "Eggs" }));
 
     const items = await prisma.listItem.findMany({ orderBy: { position: "asc" } });
     expect(items.map((item) => item.text)).toEqual(["Bread", "Eggs"]);
@@ -119,8 +119,8 @@ describe("list items", () => {
   it("trims item text and ignores empty items", async () => {
     const list = await seedList({ homeId: home.id, createdById: member.id });
 
-    await addListItem(formData({ listId: list.id, text: "  Butter  " }));
-    await addListItem(formData({ listId: list.id, text: "   " }));
+    await addListItem(undefined, formData({ listId: list.id, text: "  Butter  " }));
+    await addListItem(undefined, formData({ listId: list.id, text: "   " }));
 
     const items = await prisma.listItem.findMany();
     expect(items).toHaveLength(1);
@@ -129,7 +129,7 @@ describe("list items", () => {
 
   it("toggles an item done and back again", async () => {
     const list = await seedList({ homeId: home.id, createdById: member.id });
-    await addListItem(formData({ listId: list.id, text: "Milk" }));
+    await addListItem(undefined, formData({ listId: list.id, text: "Milk" }));
     const item = await prisma.listItem.findFirstOrThrow();
 
     await toggleListItem(formData({ itemId: item.id }));
@@ -141,7 +141,7 @@ describe("list items", () => {
 
   it("deletes a single item", async () => {
     const list = await seedList({ homeId: home.id, createdById: member.id });
-    await addListItem(formData({ listId: list.id, text: "Milk" }));
+    await addListItem(undefined, formData({ listId: list.id, text: "Milk" }));
     const item = await prisma.listItem.findFirstOrThrow();
 
     await deleteListItem(formData({ itemId: item.id }));
@@ -151,8 +151,8 @@ describe("list items", () => {
 
   it("clears only the completed items", async () => {
     const list = await seedList({ homeId: home.id, createdById: member.id });
-    await addListItem(formData({ listId: list.id, text: "Milk" }));
-    await addListItem(formData({ listId: list.id, text: "Bread" }));
+    await addListItem(undefined, formData({ listId: list.id, text: "Milk" }));
+    await addListItem(undefined, formData({ listId: list.id, text: "Bread" }));
     const milk = await prisma.listItem.findFirstOrThrow({ where: { text: "Milk" } });
     await toggleListItem(formData({ itemId: milk.id }));
 

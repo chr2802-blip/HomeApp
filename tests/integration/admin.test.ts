@@ -149,7 +149,7 @@ describe("updateHome", () => {
     const { home, admin } = await createHomeWithMembers();
     await signIn(admin);
 
-    await updateHome(formData({ homeId: home.id, name: "The Nest", address: "  " }));
+    await updateHome(undefined, formData({ homeId: home.id, name: "The Nest", address: "  " }));
 
     expect(await prisma.home.findUniqueOrThrow({ where: { id: home.id } })).toMatchObject({
       name: "The Nest",
@@ -161,7 +161,7 @@ describe("updateHome", () => {
     const { home, admin } = await createHomeWithMembers();
     await signIn(admin);
 
-    await updateHome(formData({ homeId: home.id, name: "   " }));
+    await updateHome(undefined, formData({ homeId: home.id, name: "   " }));
 
     expect((await prisma.home.findUniqueOrThrow({ where: { id: home.id } })).name).toBe(home.name);
   });
@@ -241,7 +241,7 @@ describe("homes are provisioned by the super admin only", () => {
     const superAdmin = await createUser({ role: "SUPER_ADMIN", homeId: null });
     await signIn(superAdmin);
 
-    await createHome(formData({ name: "New House", address: "1 Main St" }));
+    await createHome(undefined, formData({ name: "New House", address: "1 Main St" }));
 
     expect(await prisma.home.findFirstOrThrow()).toMatchObject({
       name: "New House",
@@ -253,7 +253,7 @@ describe("homes are provisioned by the super admin only", () => {
     const superAdmin = await createUser({ role: "SUPER_ADMIN", homeId: null });
     await signIn(superAdmin);
 
-    await createHome(formData({ name: "  " }));
+    await createHome(undefined, formData({ name: "  " }));
 
     expect(await prisma.home.count()).toBe(0);
   });
@@ -275,7 +275,7 @@ describe("homes are provisioned by the super admin only", () => {
     const { home, admin } = await createHomeWithMembers();
     await signIn(admin);
 
-    await expectRedirect(() => createHome(formData({ name: "Sneaky House" })), "/dashboard");
+    await expectRedirect(() => createHome(undefined, formData({ name: "Sneaky House" })), "/dashboard");
     await expectRedirect(() => deleteHome(formData({ homeId: home.id })), "/dashboard");
 
     expect(await prisma.home.count()).toBe(1);
@@ -323,7 +323,7 @@ describe("updateOwnProfile", () => {
     const { member } = await createHomeWithMembers();
     await signIn(member);
 
-    await updateOwnProfile(formData({ name: "New Name" }));
+    await updateOwnProfile(undefined, formData({ name: "New Name" }));
 
     expect((await prisma.user.findUniqueOrThrow({ where: { id: member.id } })).name).toBe(
       "New Name",
@@ -334,29 +334,50 @@ describe("updateOwnProfile", () => {
     const { member } = await createHomeWithMembers();
     await signIn(member);
 
-    await updateOwnProfile(formData({ name: "", password: "a-brand-new-password" }));
+    const result = await updateOwnProfile(
+      undefined,
+      formData({ name: member.name, password: "a-brand-new-password" }),
+    );
 
+    expect(result).toEqual({ ok: true });
     const updated = await prisma.user.findUniqueOrThrow({ where: { id: member.id } });
     expect(await verifyPassword("a-brand-new-password", updated.passwordHash)).toBe(true);
     expect(await verifyPassword(TEST_PASSWORD, updated.passwordHash)).toBe(false);
   });
 
-  it("refuses a password shorter than eight characters", async () => {
+  it("refuses a blank name instead of ignoring the whole submission", async () => {
     const { member } = await createHomeWithMembers();
     await signIn(member);
 
-    await updateOwnProfile(formData({ name: "Kept", password: "short" }));
+    const result = await updateOwnProfile(undefined, formData({ name: "  " }));
 
-    const updated = await prisma.user.findUniqueOrThrow({ where: { id: member.id } });
-    expect(await verifyPassword(TEST_PASSWORD, updated.passwordHash)).toBe(true);
-    expect(updated.name).toBe("Test User"); // the whole update is abandoned
+    expect(result).toEqual({ ok: false, error: "Your name cannot be blank." });
+  });
+
+  it("keeps the name when the password is rejected", async () => {
+    const { member } = await createHomeWithMembers();
+    await signIn(member);
+
+    // The old behaviour discarded the name too, silently.
+    const result = await updateOwnProfile(
+      undefined,
+      formData({ name: "Renamed", password: "short" }),
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: "A new password must be at least 8 characters.",
+    });
+    const unchanged = await prisma.user.findUniqueOrThrow({ where: { id: member.id } });
+    expect(unchanged.name).toBe("Test User");
+    expect(await verifyPassword(TEST_PASSWORD, unchanged.passwordHash)).toBe(true);
   });
 
   it("cannot be used to change anyone else's account", async () => {
     const { member, admin } = await createHomeWithMembers();
     await signIn(member);
 
-    await updateOwnProfile(formData({ userId: admin.id, name: "Renamed" }));
+    await updateOwnProfile(undefined, formData({ userId: admin.id, name: "Renamed" }));
 
     expect((await prisma.user.findUniqueOrThrow({ where: { id: admin.id } })).name).toBe(
       "Test User",

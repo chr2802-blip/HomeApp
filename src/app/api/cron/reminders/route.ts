@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { sendPushToUsers } from "@/lib/push";
+import { endOfDayInZone } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,10 @@ export async function GET(request: Request) {
 
   const dueTasks = await prisma.recurringTask.findMany({
     where: {
-      nextDueAt: { lte: now },
+      // Anything due by the end of today, not just by the moment this job runs. The
+      // schedule fires in the morning while tasks come due at 09:00 local, so comparing
+      // against `now` skipped every task on its own due date and notified a day late.
+      nextDueAt: { lte: endOfDayInZone(now) },
       OR: [{ lastNotifiedAt: null }, { lastNotifiedAt: { lt: notifiedCutoff } }],
     },
   });

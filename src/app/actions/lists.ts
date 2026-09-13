@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireHomeUser } from "@/lib/auth";
 import { assertHomeAccess } from "@/lib/access";
+import { fail, ok, type ActionResult } from "@/lib/action-result";
 
 async function listInScope(listId: string) {
   const user = await requireHomeUser();
@@ -14,10 +15,10 @@ async function listInScope(listId: string) {
   return list;
 }
 
-export async function createList(formData: FormData) {
+export async function createList(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const user = await requireHomeUser();
   const title = String(formData.get("title") ?? "").trim();
-  if (!title) return;
+  if (!title) return fail("Give the list a name.");
 
   const list = await prisma.list.create({
     data: { title, homeId: user.homeId, createdById: user.id },
@@ -34,20 +35,22 @@ export async function deleteList(formData: FormData) {
   redirect("/lists");
 }
 
-export async function renameList(formData: FormData) {
+export async function renameList(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const list = await listInScope(String(formData.get("listId")));
   const title = String(formData.get("title") ?? "").trim();
-  if (!title) return;
+  if (!title) return fail("Give the list a name.");
 
   await prisma.list.update({ where: { id: list.id }, data: { title } });
+
   revalidatePath(`/lists/${list.id}`);
   revalidatePath("/lists");
+  return ok();
 }
 
-export async function addListItem(formData: FormData) {
+export async function addListItem(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const list = await listInScope(String(formData.get("listId")));
   const text = String(formData.get("text") ?? "").trim();
-  if (!text) return;
+  if (!text) return fail("Write something to add.");
 
   const last = await prisma.listItem.findFirst({
     where: { listId: list.id },
@@ -59,6 +62,7 @@ export async function addListItem(formData: FormData) {
   });
 
   revalidatePath(`/lists/${list.id}`);
+  return ok();
 }
 
 export async function toggleListItem(formData: FormData) {

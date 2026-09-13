@@ -133,3 +133,14 @@ export function formData(fields: Record<string, string | undefined>) {
   }
   return data;
 }
+
+/**
+ * Calls an action the way React's useActionState does — with the previous result
+ * first — so tests read as the form does rather than repeating `undefined` everywhere.
+ */
+export function submit<R>(
+  action: (previous: undefined, data: FormData) => Promise<R>,
+  fields: Record<string, string | undefined>,
+) {
+  return action(undefined, formData(fields));
+}

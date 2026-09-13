@@ -23,6 +23,7 @@ describe("createRecipe", () => {
   it("saves the recipe in the caller's home and opens it", async () => {
     const destination = await captureRedirect(() =>
       createRecipe(
+        undefined,
         formData({
           title: "Pancakes",
           description: "Sunday breakfast",
@@ -47,6 +48,7 @@ describe("createRecipe", () => {
   it("keeps a valid video link", async () => {
     await captureRedirect(() =>
       createRecipe(
+        undefined,
         formData({
           title: "Pasta",
           ingredients: "",
@@ -63,9 +65,19 @@ describe("createRecipe", () => {
     ["javascript:", "javascript:alert(1)"],
     ["data:", "data:text/html,<script>alert(1)</script>"],
     ["nonsense", "not a url"],
-  ])("strips a %s video link", async (_label, videoUrl) => {
+  ])("refuses a %s video link instead of silently dropping it", async (_label, videoUrl) => {
+    const result = await createRecipe(
+      undefined,
+      formData({ title: "Pasta", ingredients: "", instructions: "", videoUrl }),
+    );
+
+    expect(result).toEqual({ ok: false, error: "That video link is not a valid web address." });
+    expect(await prisma.recipe.count()).toBe(0);
+  });
+
+  it("accepts a recipe with no video link at all", async () => {
     await captureRedirect(() =>
-      createRecipe(formData({ title: "Pasta", ingredients: "", instructions: "", videoUrl })),
+      createRecipe(undefined, formData({ title: "Pasta", ingredients: "", instructions: "", videoUrl: "" })),
     );
 
     expect((await only()).videoUrl).toBeNull();
@@ -73,14 +85,14 @@ describe("createRecipe", () => {
 
   it("stores a blank description as null", async () => {
     await captureRedirect(() =>
-      createRecipe(formData({ title: "Pasta", description: "  ", ingredients: "", instructions: "" })),
+      createRecipe(undefined, formData({ title: "Pasta", description: "  ", ingredients: "", instructions: "" })),
     );
 
     expect((await only()).description).toBeNull();
   });
 
   it("ignores a recipe with no title", async () => {
-    await createRecipe(formData({ title: "  ", ingredients: "x", instructions: "y" }));
+    await createRecipe(undefined, formData({ title: "  ", ingredients: "x", instructions: "y" }));
 
     expect(await prisma.recipe.count()).toBe(0);
   });
@@ -93,6 +105,7 @@ describe("updateRecipe", () => {
     await expectRedirect(
       () =>
         updateRecipe(
+          undefined,
           formData({
             recipeId: recipe.id,
             title: "Better pancakes",
@@ -124,6 +137,7 @@ describe("updateRecipe", () => {
     await expectRedirect(
       () =>
         updateRecipe(
+          undefined,
           formData({
             recipeId: recipe.id,
             title: "Pancakes",
@@ -142,6 +156,7 @@ describe("updateRecipe", () => {
     const recipe = await seedRecipe({ homeId: home.id, createdById: member.id });
 
     await updateRecipe(
+      undefined,
       formData({ recipeId: recipe.id, title: "   ", ingredients: "", instructions: "" }),
     );
 
@@ -150,7 +165,7 @@ describe("updateRecipe", () => {
 
   it("fails loudly for a recipe that does not exist", async () => {
     await expect(
-      updateRecipe(formData({ recipeId: "missing", title: "x", ingredients: "", instructions: "" })),
+      updateRecipe(undefined, formData({ recipeId: "missing", title: "x", ingredients: "", instructions: "" })),
     ).rejects.toThrow("Recipe not found");
   });
 });

@@ -1,4 +1,5 @@
 import { ACCOUNTS, expect, openDialog, test } from "./helpers/fixtures";
+import { dueAtDaysFrom, formatInZone } from "../src/lib/time";
 
 test.beforeEach(async ({ loginAs, page }) => {
   await loginAs(ACCOUNTS.member);
@@ -69,9 +70,9 @@ test("an overdue task is flagged", async ({ page }) => {
   await page.getByLabel("Task", { exact: true }).fill("Overdue task");
   await page.getByLabel("Repeat every (days)").fill("7");
 
-  const threeDaysAgo = new Date();
-  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-  await page.getByLabel("First due date").fill(threeDaysAgo.toISOString().slice(0, 10));
+  // Counted on the household's clock, which is what the app labels against. Deriving
+  // this from toISOString() would use UTC and drift by a day near local midnight.
+  await page.getByLabel("First due date").fill(formatInZone(dueAtDaysFrom(-3), "yyyy-MM-dd"));
 
   await page.getByRole("button", { name: "Add task" }).click();
 
