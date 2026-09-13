@@ -21,6 +21,8 @@ const serverEnv = {
   AUTH_SECRET: "e2e-auth-secret-that-is-long-enough-to-sign-with",
   CRON_SECRET: "e2e-cron-secret",
   NODE_ENV: "production",
+  // Serve as production does, in UTC, rather than inheriting the developer's clock.
+  TZ: "UTC",
   // No VAPID keys: push stays inert, so no test can fire a real notification.
   NEXT_PUBLIC_VAPID_PUBLIC_KEY: "",
   VAPID_PRIVATE_KEY: "",

@@ -31,6 +31,9 @@ export default defineConfig({
       DIRECT_URL: databaseUrl,
       AUTH_SECRET: "test-auth-secret-that-is-long-enough-to-sign-with",
       CRON_SECRET: "test-cron-secret",
+      // Run as production does. Without this the suite inherits the developer's clock,
+      // which in Copenhagen makes a local-time bug invisible until CI runs in UTC.
+      TZ: "UTC",
       // Deliberately no VAPID keys: push stays inert unless a test mocks it.
     },
     projects: [

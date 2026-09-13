@@ -7,6 +7,7 @@ import {
   formData,
   signIn,
 } from "../helpers/factories";
+import { dueAtDaysFrom, formatInZone, todayInZone } from "@/lib/time";
 
 let home: Awaited<ReturnType<typeof createHomeWithMembers>>["home"];
 let member: Awaited<ReturnType<typeof createHomeWithMembers>>["member"];
@@ -38,18 +39,15 @@ describe("createTask", () => {
       formData({ title: "Descale kettle", intervalDays: "90", firstDueAt: "2026-06-01" }),
     );
 
-    const task = await only();
-    expect(task.nextDueAt.getFullYear()).toBe(2026);
-    expect(task.nextDueAt.getMonth()).toBe(5);
-    expect(task.nextDueAt.getDate()).toBe(1);
-    expect(task.nextDueAt.getHours()).toBe(9);
+    // Read on the household's clock, not the machine's: the stored instant is 07:00Z
+    // in summer, and asserting getHours() would only pass in that one timezone.
+    expect(formatInZone((await only()).nextDueAt, "yyyy-MM-dd HH:mm")).toBe("2026-06-01 09:00");
   });
 
   it("defaults to due today when no date is given", async () => {
     await createTask(undefined, formData({ title: "Water plants", intervalDays: "7" }));
 
-    const task = await only();
-    expect(task.nextDueAt.toDateString()).toBe(new Date().toDateString());
+    expect(formatInZone((await only()).nextDueAt, "yyyy-MM-dd")).toBe(todayInZone());
   });
 
   it("stores blank notes as null rather than an empty string", async () => {
@@ -119,11 +117,8 @@ describe("completeTask", () => {
     await completeTask(formData({ taskId: task.id }));
 
     const updated = await only();
-    const expected = new Date();
-    expected.setDate(expected.getDate() + 10);
-
-    expect(updated.nextDueAt.toDateString()).toBe(expected.toDateString());
-    expect(updated.nextDueAt.getHours()).toBe(9);
+    expect(updated.nextDueAt.toISOString()).toBe(dueAtDaysFrom(10).toISOString());
+    expect(formatInZone(updated.nextDueAt, "HH:mm")).toBe("09:00");
     expect(updated.lastCompletedAt).toBeInstanceOf(Date);
   });
 
@@ -138,9 +133,7 @@ describe("completeTask", () => {
 
     await completeTask(formData({ taskId: task.id }));
 
-    const expected = new Date();
-    expected.setDate(expected.getDate() + 7);
-    expect((await only()).nextDueAt.toDateString()).toBe(expected.toDateString());
+    expect((await only()).nextDueAt.toISOString()).toBe(dueAtDaysFrom(7).toISOString());
   });
 
   it("clears the reminder stamp so the next due date can notify again", async () => {
@@ -163,7 +156,7 @@ describe("completeTask", () => {
     await completeTask(formData({ taskId: task.id }));
     const second = (await only()).nextDueAt;
 
-    expect(second.toDateString()).toBe(first.toDateString());
+    expect(formatInZone(second, "yyyy-MM-dd")).toBe(formatInZone(first, "yyyy-MM-dd"));
     expect(await prisma.recurringTask.count()).toBe(1);
   });
 
@@ -193,8 +186,7 @@ describe("updateTask", () => {
       intervalDays: 60,
       notes: "Under the sink",
     });
-    expect(updated.nextDueAt.getMonth()).toBe(11);
-    expect(updated.nextDueAt.getDate()).toBe(24);
+    expect(formatInZone(updated.nextDueAt, "yyyy-MM-dd")).toBe("2026-12-24");
   });
 
   it("keeps the existing due date when none is supplied", async () => {
