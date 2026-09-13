@@ -2,53 +2,42 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireHomeUser } from "@/lib/auth";
-import { assertHomeAccess } from "@/lib/access";
+import { homeScoped } from "@/lib/scoped";
+import { optionalText, readForm, requiredText } from "@/lib/form";
 import { safeExternalHref } from "@/lib/embed";
-import { fail, invalid, parsed, type ActionResult } from "@/lib/action-result";
+import { fail, type ActionResult } from "@/lib/action-result";
 
-async function recipeInScope(recipeId: string) {
-  const user = await requireHomeUser();
-  const recipe = await prisma.recipe.findUnique({ where: { id: recipeId } });
-  if (!recipe) throw new Error("Recipe not found");
-  assertHomeAccess(user, recipe.homeId);
-  return recipe;
-}
+const recipeInScope = homeScoped("Recipe", (id) => prisma.recipe.findUnique({ where: { id } }));
 
-type RecipeFieldValues = {
-  title: string;
-  description: string | null;
-  ingredients: string;
-  instructions: string;
-  videoUrl: string | null;
-};
-
-function readRecipeForm(formData: FormData) {
-  const rawVideoUrl = String(formData.get("videoUrl") ?? "").trim();
-  const videoUrl = safeExternalHref(rawVideoUrl);
-
-  // A link that was typed but could not be understood is a mistake worth reporting,
-  // rather than silently dropping what the cook pasted.
-  if (rawVideoUrl && !videoUrl) {
-    return invalid<RecipeFieldValues>("That video link is not a valid web address.");
-  }
-
-  const title = String(formData.get("title") ?? "").trim();
-  if (!title) return invalid<RecipeFieldValues>("Give the recipe a title.");
-
-  return parsed<RecipeFieldValues>({
-    title,
-    description: String(formData.get("description") ?? "").trim() || null,
-    ingredients: String(formData.get("ingredients") ?? "").trim(),
-    instructions: String(formData.get("instructions") ?? "").trim(),
-    videoUrl,
-  });
-}
+const recipeSchema = z.object({
+  title: requiredText("Give the recipe a title."),
+  description: optionalText,
+  ingredients: z.string().trim().optional().transform((value) => value ?? ""),
+  instructions: z.string().trim().optional().transform((value) => value ?? ""),
+  // A link that was typed but cannot be understood is a mistake worth reporting,
+  // rather than silently dropping what the cook pasted. Checked before the transform,
+  // which would otherwise make an empty field and a bad link both look like null.
+  videoUrl: z
+    .string()
+    .trim()
+    .optional()
+    .superRefine((raw, context) => {
+      if (raw && !safeExternalHref(raw)) {
+        context.addIssue({
+          code: "custom",
+          message: "That video link is not a valid web address.",
+        });
+      }
+    })
+    .transform((raw) => (raw ? safeExternalHref(raw) : null)),
+});
 
 export async function createRecipe(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const user = await requireHomeUser();
-  const form = readRecipeForm(formData);
+  const form = readForm(recipeSchema, formData);
   if (!form.ok) return fail(form.error);
 
   const recipe = await prisma.recipe.create({
@@ -61,7 +50,7 @@ export async function createRecipe(_prev: ActionResult, formData: FormData): Pro
 
 export async function updateRecipe(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const recipe = await recipeInScope(String(formData.get("recipeId")));
-  const form = readRecipeForm(formData);
+  const form = readForm(recipeSchema, formData);
   if (!form.ok) return fail(form.error);
 
   await prisma.recipe.update({ where: { id: recipe.id }, data: form.fields });

@@ -1,4 +1,4 @@
-import { ACCOUNTS, expect, openDialog, test } from "./helpers/fixtures";
+import { ACCOUNTS, clickAndConfirm, expect, openDialog, test } from "./helpers/fixtures";
 import { dueAtDaysFrom, formatInZone } from "../src/lib/time";
 
 test.beforeEach(async ({ loginAs, page }) => {
@@ -60,7 +60,7 @@ test("a task can be edited", async ({ page }) => {
 test("a task can be deleted", async ({ page }) => {
   await addTask(page, { title: "Doomed task" });
 
-  await page.getByRole("button", { name: "Delete" }).click();
+  await clickAndConfirm(page, "Delete");
 
   await expect(page.getByText("No recurring tasks yet.")).toBeVisible();
 });
