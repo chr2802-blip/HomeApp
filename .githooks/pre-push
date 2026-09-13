@@ -12,9 +12,10 @@ echo "pre-push: checking the build before it can deploy..."
 if ! npm run --silent verify; then
   echo ""
   echo "pre-push: FAILED — nothing was pushed, so nothing will deploy."
-  echo "  Integration tests need the local Postgres running:"
+  echo "  Integration and browser tests need the local Postgres running:"
   echo "    docker start homehub-pg"
   echo "  Re-run the checks on their own with: npm run verify"
+  echo "  Browser failures leave a report: npm run e2e:report"
   exit 1
 fi
 

@@ -5,13 +5,13 @@
  * connecting.
  */
 
-export function deriveTestDatabaseUrl(env = process.env) {
-  if (env.TEST_DATABASE_URL) return env.TEST_DATABASE_URL;
+function derive(env, overrideKey, suffix) {
+  if (env[overrideKey]) return env[overrideKey];
 
   const base = env.DATABASE_URL;
   if (!base) {
     throw new Error(
-      "Neither TEST_DATABASE_URL nor DATABASE_URL is set. Copy .env.example to .env first.",
+      `Neither ${overrideKey} nor DATABASE_URL is set. Copy .env.example to .env first.`,
     );
   }
 
@@ -19,19 +19,40 @@ export function deriveTestDatabaseUrl(env = process.env) {
   const name = url.pathname.replace(/^\//, "");
   if (!name) throw new Error(`DATABASE_URL has no database name: ${url.host}`);
 
-  url.pathname = `/${name.endsWith("_test") ? name : `${name}_test`}`;
+  url.pathname = `/${name.endsWith(suffix) ? name : `${name}${suffix}`}`;
   return url.toString();
 }
 
-export function testDatabaseName(urlString) {
+function assertSuffix(urlString, suffix) {
   const name = new URL(urlString).pathname.replace(/^\//, "");
-  if (!name.endsWith("_test")) {
+  if (!name.endsWith(suffix)) {
     throw new Error(
-      `Refusing to run tests against database "${name}": the name must end with "_test". ` +
-        "Point TEST_DATABASE_URL at a throwaway database.",
+      `Refusing to run tests against database "${name}": the name must end with "${suffix}". ` +
+        "Point the override variable at a throwaway database.",
     );
   }
   return name;
+}
+
+/** Database for the vitest suite. */
+export function deriveTestDatabaseUrl(env = process.env) {
+  return derive(env, "TEST_DATABASE_URL", "_test");
+}
+
+export function testDatabaseName(urlString) {
+  return assertSuffix(urlString, "_test");
+}
+
+/**
+ * Database for the Playwright suite. Kept separate from the vitest one so the browser
+ * tests and the unit suite can never interfere with each other's rows.
+ */
+export function deriveE2eDatabaseUrl(env = process.env) {
+  return derive(env, "E2E_DATABASE_URL", "_e2e");
+}
+
+export function e2eDatabaseName(urlString) {
+  return assertSuffix(urlString, "_e2e");
 }
 
 /** The same server, but connected to the default "postgres" database. */
