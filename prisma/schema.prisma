@@ -109,6 +109,8 @@ model RecurringTask {
 
   @@index([homeId])
   @@index([nextDueAt])
+  // The dashboard and the task list both ask for one home's tasks in due order.
+  @@index([homeId, nextDueAt])
 }
 
 model Recipe {

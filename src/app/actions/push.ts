@@ -4,6 +4,15 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { sendPushToUsers } from "@/lib/push";
 
+/**
+ * A push endpoint is issued by the browser's push service and is only known to the
+ * device holding it, so possession of the endpoint is what identifies the device.
+ *
+ * Registering therefore claims the endpoint for whoever is signed in: on a shared
+ * family tablet the subscription legitimately moves to the person now using it.
+ * Removing is different — there is no case for deleting a subscription that is not
+ * yours, so that is scoped to the caller.
+ */
 export async function saveSubscription(subscription: {
   endpoint: string;
   keys: { p256dh: string; auth: string };
@@ -23,8 +32,11 @@ export async function saveSubscription(subscription: {
 }
 
 export async function removeSubscription(endpoint: string) {
-  await requireUser();
-  await prisma.pushSubscription.deleteMany({ where: { endpoint } });
+  const user = await requireUser();
+
+  // Scoped to the caller: without this, any signed-in account could switch off
+  // another person's notifications by passing their endpoint.
+  await prisma.pushSubscription.deleteMany({ where: { endpoint, userId: user.id } });
 }
 
 export async function sendTestPush() {
