@@ -1,5 +1,5 @@
 import { requireHomeUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { homeDb } from "@/lib/home-db";
 import { completeTask, createTask, deleteTask, updateTask } from "@/app/actions/tasks";
 import { Badge, Card, EmptyState, Input, Label, PageHeader, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
@@ -13,8 +13,7 @@ export default async function TasksPage() {
   const now = new Date();
   const today = todayInZone(now);
 
-  const tasks = await prisma.recurringTask.findMany({
-    where: { homeId: user.homeId },
+  const tasks = await homeDb(user.homeId).recurringTask.findMany({
     orderBy: { nextDueAt: "asc" },
   });
 

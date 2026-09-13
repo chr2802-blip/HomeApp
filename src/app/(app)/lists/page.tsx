@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireHomeUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { homeDb } from "@/lib/home-db";
 import { createList, deleteList } from "@/app/actions/lists";
 import { Card, EmptyState, Input, Label, PageHeader } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
@@ -9,8 +9,7 @@ import { FormDialog } from "@/components/form-dialog";
 export default async function ListsPage() {
   const user = await requireHomeUser();
 
-  const lists = await prisma.list.findMany({
-    where: { homeId: user.homeId },
+  const lists = await homeDb(user.homeId).list.findMany({
     orderBy: { createdAt: "desc" },
     include: {
       _count: { select: { items: true } },

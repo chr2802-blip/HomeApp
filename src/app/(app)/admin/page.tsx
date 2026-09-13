@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { homeDb } from "@/lib/home-db";
 import {
   removeMember,
   revokeInvite,
@@ -43,13 +44,12 @@ export default async function AdminPage() {
   }
 
   const homeId = user.homeId;
+  const db = homeDb(homeId);
+
   const [home, members, invites] = await Promise.all([
     prisma.home.findUnique({ where: { id: homeId } }),
-    prisma.user.findMany({ where: { homeId }, orderBy: { createdAt: "asc" } }),
-    prisma.invite.findMany({
-      where: { homeId, acceptedAt: null },
-      orderBy: { createdAt: "desc" },
-    }),
+    db.user.findMany({ orderBy: { createdAt: "asc" } }),
+    db.invite.findMany({ where: { acceptedAt: null }, orderBy: { createdAt: "desc" } }),
   ]);
 
   if (!home) return <EmptyState>Home not found.</EmptyState>;

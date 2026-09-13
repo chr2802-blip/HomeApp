@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { homeDb } from "@/lib/home-db";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 import { completeTask } from "@/app/actions/tasks";
 import { SubmitButton } from "@/components/submit-button";
@@ -27,18 +27,19 @@ export default async function DashboardPage() {
   const now = new Date();
   const soon = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
 
+  const db = homeDb(user.homeId);
+
   const [dueTasks, lists, recipeCount] = await Promise.all([
-    prisma.recurringTask.findMany({
-      where: { homeId: user.homeId, nextDueAt: { lte: soon } },
+    db.recurringTask.findMany({
+      where: { nextDueAt: { lte: soon } },
       orderBy: { nextDueAt: "asc" },
     }),
-    prisma.list.findMany({
-      where: { homeId: user.homeId },
+    db.list.findMany({
       orderBy: { createdAt: "desc" },
       take: 5,
       include: { _count: { select: { items: true } } },
     }),
-    prisma.recipe.count({ where: { homeId: user.homeId } }),
+    db.recipe.count(),
   ]);
 
   return (

@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireHomeUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { canAccessHome } from "@/lib/access";
+import { homeDb } from "@/lib/home-db";
 import { addListItem, clearCompletedItems, deleteList, renameList } from "@/app/actions/lists";
 import { Card, Input, Label } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
@@ -14,11 +13,13 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   const { id } = await params;
   const user = await requireHomeUser();
 
-  const list = await prisma.list.findUnique({
+  // Scoped to the caller's home, so another home's id simply finds nothing —
+  // indistinguishable from a record that never existed, which is the point.
+  const list = await homeDb(user.homeId).list.findUnique({
     where: { id },
     include: { items: { orderBy: [{ done: "asc" }, { position: "asc" }] } },
   });
-  if (!list || !canAccessHome(user, list.homeId)) notFound();
+  if (!list) notFound();
 
   const doneCount = list.items.filter((item) => item.done).length;
 

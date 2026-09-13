@@ -18,6 +18,32 @@ push notification for anything due.
 Instagram, YouTube, TikTok, Vimeo or Facebook link and the video is embedded on the recipe page.
 Links from any other host are shown as a plain "open in new tab" link rather than embedded.
 
+## Keeping homes apart
+
+The worst bug this app could have is one household seeing another's data, and the way
+that happens is a forgotten `where: { homeId }` in a query someone wrote in a hurry.
+
+So pages do not write that clause. They read through a client bound to one home:
+
+```ts
+const lists = await homeDb(user.homeId).list.findMany({ orderBy: { createdAt: "desc" } });
+```
+
+[`src/lib/home-db.ts`](src/lib/home-db.ts) carries the home into every query against a
+home-scoped model — lists, tasks, recipes, invites and members — and stamps it onto
+anything created. A query that forgets the home returns nothing instead of somebody
+else's rows, and a record cannot be filed under the wrong home. Models that belong to
+nobody in particular, such as push subscriptions, pass through untouched.
+
+A lint rule keeps pages and components on that path. Reaching for `prisma.list` in a
+page is an error with a message saying why; `prisma` directly is for the places where
+crossing homes is the point, such as the nightly reminder job and the super admin's
+system view.
+
+This sits alongside the permission checks in [`src/lib/access.ts`](src/lib/access.ts)
+rather than replacing them: those decide whether someone may act, this removes the
+chance to ask the wrong question.
+
 ## Knowing whether it is working
 
 **Admin → System** (super admin only) answers "is this installation healthy?": whether the

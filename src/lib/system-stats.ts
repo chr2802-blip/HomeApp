@@ -1,4 +1,5 @@
 import { prisma, slowQueryThresholdMs } from "./prisma";
+import { homeDb } from "./home-db";
 import { REMINDER_JOB } from "./observability";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -44,17 +45,19 @@ export async function getSystemStats(now: Date = new Date()) {
  * household, with nothing about other homes or the system as a whole.
  */
 export async function getHomeReminderStatus(homeId: string, now: Date = new Date()) {
+  const db = homeDb(homeId);
+
   const [memberCount, subscriptions, lastNotified, overdue, nextDue] = await Promise.all([
-    prisma.user.count({ where: { homeId } }),
+    db.user.count(),
+    // Push subscriptions hang off a user, not a home, so this one names the home itself.
     prisma.pushSubscription.count({ where: { user: { homeId } } }),
-    prisma.recurringTask.findFirst({
-      where: { homeId, lastNotifiedAt: { not: null } },
+    db.recurringTask.findFirst({
+      where: { lastNotifiedAt: { not: null } },
       orderBy: { lastNotifiedAt: "desc" },
       select: { lastNotifiedAt: true },
     }),
-    prisma.recurringTask.count({ where: { homeId, nextDueAt: { lt: now } } }),
-    prisma.recurringTask.findFirst({
-      where: { homeId },
+    db.recurringTask.count({ where: { nextDueAt: { lt: now } } }),
+    db.recurringTask.findFirst({
       orderBy: { nextDueAt: "asc" },
       select: { nextDueAt: true, title: true },
     }),
