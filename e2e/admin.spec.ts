@@ -1,4 +1,4 @@
-import { ACCOUNTS, expect, rowWith, test } from "./helpers/fixtures";
+import { ACCOUNTS, clickAndConfirm, expect, rowWith, test } from "./helpers/fixtures";
 import { HOME_NAME, OTHER_HOME_NAME, prisma } from "./helpers/database";
 
 test.describe("as a home admin", () => {
@@ -38,7 +38,7 @@ test.describe("as a home admin", () => {
 
   test("a member can be removed", async ({ page }) => {
     const memberRow = rowWith(page, ACCOUNTS.member.email, page.getByRole("button", { name: "Remove" }));
-    await memberRow.getByRole("button", { name: "Remove" }).click();
+    await clickAndConfirm(page, "Remove", { within: memberRow });
 
     await expect(page.getByText(ACCOUNTS.member.email)).toBeHidden();
     expect(await prisma().user.findUnique({ where: { email: ACCOUNTS.member.email } })).toBeNull();
@@ -140,7 +140,7 @@ test.describe("as a super admin", () => {
     await page.goto("/admin/homes");
 
     const targetRow = rowWith(page, HOME_NAME, page.getByRole("button", { name: "Delete" }));
-    await targetRow.getByRole("button", { name: "Delete" }).click();
+    await clickAndConfirm(page, "Delete", { within: targetRow });
 
     await expect(page.getByText(HOME_NAME)).toBeHidden();
     expect(await prisma().user.findUnique({ where: { email: ACCOUNTS.member.email } })).toBeNull();

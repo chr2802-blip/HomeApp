@@ -2,6 +2,7 @@
 
 import { useOptimistic } from "react";
 import { deleteListItem, toggleListItem } from "@/app/actions/lists";
+import { ConfirmButton } from "@/components/confirm-button";
 
 type Item = { id: string; text: string; done: boolean; position: number };
 
@@ -66,9 +67,15 @@ export function ListItems({ items }: { items: Item[] }) {
             }}
           >
             <input type="hidden" name="itemId" value={item.id} />
-            <button className="pressable text-sm text-slate-400 hover:text-red-600 active:scale-90">
+            <ConfirmButton
+              title="Remove item"
+              confirmLabel="Remove"
+              message={`Remove "${item.text}" from this list?`}
+              triggerVariant="ghost"
+              triggerClassName="px-2 py-1 text-sm text-slate-400 hover:text-red-600"
+            >
               Remove
-            </button>
+            </ConfirmButton>
           </form>
         </div>
       ))}

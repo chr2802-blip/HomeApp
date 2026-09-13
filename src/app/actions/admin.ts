@@ -9,6 +9,23 @@ import { requireAdmin, requireSuperAdmin, requireUser, hashPassword } from "@/li
 import { assertHomeAdmin, canAdministerHome } from "@/lib/access";
 import { generateInviteCode, hashInviteCode } from "@/lib/invite-code";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
+import { optionalText, readForm, requiredText } from "@/lib/form";
+
+const homeSchema = z.object({
+  name: requiredText("Give the home a name."),
+  address: optionalText,
+});
+
+const profileSchema = z.object({
+  name: requiredText("Your name cannot be blank."),
+  // Blank means "keep the current password", so the length only applies to a new one.
+  password: z
+    .string()
+    .optional()
+    .refine((value) => !value || value.length >= 8, {
+      error: "A new password must be at least 8 characters.",
+    }),
+});
 
 const INVITE_TTL_DAYS = 14;
 
@@ -22,15 +39,16 @@ export async function createInvite(_prev: InviteState, formData: FormData): Prom
   const homeId = String(formData.get("homeId") ?? "");
   if (!canAdministerHome(user, homeId)) return { ok: false, error: "Not allowed." };
 
-  const parsed = z
-    .object({
-      email: z.string().email(),
-      role: z.enum(["ADMIN", "USER"]),
-    })
-    .safeParse({ email: formData.get("email"), role: formData.get("role") });
-  if (!parsed.success) return { ok: false, error: "Enter a valid email address." };
+  const form = readForm(
+    z.object({
+      email: z.string().email("Enter a valid email address."),
+      role: z.enum(["ADMIN", "USER"], { error: "Enter a valid email address." }),
+    }),
+    formData,
+  );
+  if (!form.ok) return { ok: false, error: form.error };
 
-  const email = parsed.data.email.toLowerCase();
+  const email = form.fields.email.toLowerCase();
   if (await prisma.user.findUnique({ where: { email } })) {
     return { ok: false, error: "That email already has an account." };
   }
@@ -43,7 +61,7 @@ export async function createInvite(_prev: InviteState, formData: FormData): Prom
     data: {
       email,
       homeId,
-      role: parsed.data.role as Role,
+      role: form.fields.role as Role,
       codeHash: hashInviteCode(code),
       expiresAt,
       createdById: user.id,
@@ -71,14 +89,10 @@ export async function updateHome(_prev: ActionResult, formData: FormData): Promi
   const homeId = String(formData.get("homeId") ?? "");
   assertHomeAdmin(user, homeId);
 
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) return fail("Give the home a name.");
-  const address = String(formData.get("address") ?? "").trim();
+  const form = readForm(homeSchema, formData);
+  if (!form.ok) return fail(form.error);
 
-  await prisma.home.update({
-    where: { id: homeId },
-    data: { name, address: address || null },
-  });
+  await prisma.home.update({ where: { id: homeId }, data: form.fields });
 
   revalidatePath("/admin");
   revalidatePath("/admin/homes");
@@ -117,11 +131,10 @@ export async function removeMember(formData: FormData) {
 
 export async function createHome(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   await requireSuperAdmin();
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) return fail("Give the home a name.");
-  const address = String(formData.get("address") ?? "").trim();
+  const form = readForm(homeSchema, formData);
+  if (!form.ok) return fail(form.error);
 
-  await prisma.home.create({ data: { name, address: address || null } });
+  await prisma.home.create({ data: form.fields });
   revalidatePath("/admin/homes");
   return ok();
 }
@@ -152,15 +165,12 @@ export async function updateOwnProfile(
   formData: FormData,
 ): Promise<ActionResult> {
   const user = await requireUser();
-  const name = String(formData.get("name") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
+  // Both fields are checked before anything is written, so a rejected password never
+  // also loses the name the person typed alongside it.
+  const form = readForm(profileSchema, formData);
+  if (!form.ok) return fail(form.error);
 
-  if (!name) return fail("Your name cannot be blank.");
-  // Checked before anything is written, so a rejected password never also loses the
-  // name the person typed alongside it.
-  if (password && password.length < 8) {
-    return fail("A new password must be at least 8 characters.");
-  }
+  const { name, password } = form.fields;
 
   await prisma.user.update({
     where: { id: user.id },

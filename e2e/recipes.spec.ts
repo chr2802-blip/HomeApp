@@ -1,4 +1,4 @@
-import { ACCOUNTS, expect, openDialog, test } from "./helpers/fixtures";
+import { ACCOUNTS, clickAndConfirm, expect, openDialog, test } from "./helpers/fixtures";
 
 test.beforeEach(async ({ loginAs, page }) => {
   await loginAs(ACCOUNTS.member);
@@ -95,7 +95,7 @@ test("a recipe can be deleted", async ({ page }) => {
   await page.getByRole("button", { name: "Save recipe" }).click();
   await page.waitForURL(/\/recipes\/[a-z0-9]+$/);
 
-  await page.getByRole("button", { name: "Delete" }).click();
+  await clickAndConfirm(page, "Delete");
 
   await expect(page).toHaveURL(/\/recipes$/);
   await expect(page.getByText("Doomed recipe")).toBeHidden();

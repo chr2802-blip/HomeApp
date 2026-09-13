@@ -1,63 +1,59 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireHomeUser } from "@/lib/auth";
-import { assertHomeAccess } from "@/lib/access";
+import { homeScoped } from "@/lib/scoped";
+import { optionalText, readForm, requiredText } from "@/lib/form";
 import { dueAtDaysFrom, dueAtOn } from "@/lib/time";
-import { fail, invalid, ok, parsed, type ActionResult } from "@/lib/action-result";
+import { fail, ok, type ActionResult } from "@/lib/action-result";
 
 const MAX_INTERVAL_DAYS = 3650;
+const INTERVAL_MESSAGE = `Repeat every 1 to ${MAX_INTERVAL_DAYS} days.`;
 
-function parseIntervalDays(value: FormDataEntryValue | null) {
-  const days = Number(value);
-  if (!Number.isInteger(days) || days < 1 || days > MAX_INTERVAL_DAYS) return null;
-  return days;
-}
+const taskInScope = homeScoped("Task", (id) =>
+  prisma.recurringTask.findUnique({ where: { id } }),
+);
+
+/** Create and edit take the same fields; only the name of the date differs. */
+const taskSchema = z.object({
+  title: requiredText("Give the task a name."),
+  intervalDays: z.coerce
+    .number({ error: INTERVAL_MESSAGE })
+    .int(INTERVAL_MESSAGE)
+    .min(1, INTERVAL_MESSAGE)
+    .max(MAX_INTERVAL_DAYS, INTERVAL_MESSAGE),
+  notes: optionalText,
+});
 
 function refreshTaskViews() {
   revalidatePath("/tasks");
   revalidatePath("/dashboard");
 }
 
-type TaskFields = { title: string; intervalDays: number; notes: string | null };
+/** A blank date means "leave it alone"; anything else has to be a real date. */
+function readDueDate(formData: FormData, field: string, label: string) {
+  const raw = String(formData.get(field) ?? "").trim();
+  if (!raw) return { ok: true as const, dueAt: null };
 
-async function taskInScope(taskId: string) {
-  const user = await requireHomeUser();
-  const task = await prisma.recurringTask.findUnique({ where: { id: taskId } });
-  if (!task) throw new Error("Task not found");
-  assertHomeAccess(user, task.homeId);
-  return task;
-}
-
-/** Shared by create and edit, which take the same fields. */
-function readTaskForm(formData: FormData) {
-  const title = String(formData.get("title") ?? "").trim();
-  if (!title) return invalid<TaskFields>("Give the task a name.");
-
-  const intervalDays = parseIntervalDays(formData.get("intervalDays"));
-  if (!intervalDays) return invalid<TaskFields>(`Repeat every 1 to ${MAX_INTERVAL_DAYS} days.`);
-
-  return parsed<TaskFields>({
-    title,
-    intervalDays,
-    notes: String(formData.get("notes") ?? "").trim() || null,
-  });
+  const dueAt = dueAtOn(raw);
+  return dueAt ? { ok: true as const, dueAt } : { ok: false as const, label };
 }
 
 export async function createTask(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const user = await requireHomeUser();
-  const form = readTaskForm(formData);
+  const form = readForm(taskSchema, formData);
   if (!form.ok) return fail(form.error);
 
-  const firstDueRaw = String(formData.get("firstDueAt") ?? "");
-  if (firstDueRaw && !dueAtOn(firstDueRaw)) return fail("That first due date is not a real date.");
+  const due = readDueDate(formData, "firstDueAt", "That first due date is not a real date.");
+  if (!due.ok) return fail(due.label);
 
   await prisma.recurringTask.create({
     data: {
       ...form.fields,
       homeId: user.homeId,
-      nextDueAt: dueAtOn(firstDueRaw) ?? dueAtDaysFrom(0),
+      nextDueAt: due.dueAt ?? dueAtDaysFrom(0),
       createdById: user.id,
     },
   });
@@ -68,15 +64,15 @@ export async function createTask(_prev: ActionResult, formData: FormData): Promi
 
 export async function updateTask(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const task = await taskInScope(String(formData.get("taskId")));
-  const form = readTaskForm(formData);
+  const form = readForm(taskSchema, formData);
   if (!form.ok) return fail(form.error);
 
-  const nextDueRaw = String(formData.get("nextDueAt") ?? "");
-  if (nextDueRaw && !dueAtOn(nextDueRaw)) return fail("That due date is not a real date.");
+  const due = readDueDate(formData, "nextDueAt", "That due date is not a real date.");
+  if (!due.ok) return fail(due.label);
 
   await prisma.recurringTask.update({
     where: { id: task.id },
-    data: { ...form.fields, nextDueAt: dueAtOn(nextDueRaw) ?? task.nextDueAt },
+    data: { ...form.fields, nextDueAt: due.dueAt ?? task.nextDueAt },
   });
 
   refreshTaskViews();

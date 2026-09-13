@@ -36,23 +36,41 @@ export async function GET(request: Request) {
     },
   });
 
+  if (dueTasks.length === 0) {
+    return NextResponse.json({ tasksDue: 0, notificationsSent: 0 });
+  }
+
+  // Members are fetched once for all the homes involved, rather than once per task:
+  // a home with several tasks due on the same morning asked for the same rows again
+  // and again.
+  const homeIds = [...new Set(dueTasks.map((task) => task.homeId))];
+  const members = await prisma.user.findMany({
+    where: { homeId: { in: homeIds } },
+    select: { id: true, homeId: true },
+  });
+
+  const membersByHome = new Map<string, string[]>();
+  for (const member of members) {
+    if (!member.homeId) continue;
+    const existing = membersByHome.get(member.homeId);
+    if (existing) existing.push(member.id);
+    else membersByHome.set(member.homeId, [member.id]);
+  }
+
   let delivered = 0;
   for (const task of dueTasks) {
-    const members = await prisma.user.findMany({
-      where: { homeId: task.homeId },
-      select: { id: true },
-    });
-
-    delivered += await sendPushToUsers(
-      members.map((member) => member.id),
-      { title: "Task due", body: task.title, url: "/tasks" },
-    );
-
-    await prisma.recurringTask.update({
-      where: { id: task.id },
-      data: { lastNotifiedAt: now },
+    delivered += await sendPushToUsers(membersByHome.get(task.homeId) ?? [], {
+      title: "Task due",
+      body: task.title,
+      url: "/tasks",
     });
   }
+
+  // One write for the whole batch instead of one per task.
+  await prisma.recurringTask.updateMany({
+    where: { id: { in: dueTasks.map((task) => task.id) } },
+    data: { lastNotifiedAt: now },
+  });
 
   return NextResponse.json({ tasksDue: dueTasks.length, notificationsSent: delivered });
 }

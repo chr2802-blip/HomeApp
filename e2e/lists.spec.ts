@@ -1,4 +1,4 @@
-import { ACCOUNTS, expect, openDialog, test } from "./helpers/fixtures";
+import { ACCOUNTS, clickAndConfirm, expect, openDialog, test } from "./helpers/fixtures";
 
 test.beforeEach(async ({ loginAs, page }) => {
   await loginAs(ACCOUNTS.member);
@@ -54,7 +54,7 @@ test("an item can be removed outright", async ({ page }) => {
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await expect(page.getByText("Screws", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Remove" }).click();
+  await clickAndConfirm(page, "Remove");
   await expect(page.getByText("This list is empty.")).toBeVisible();
 });
 
@@ -77,8 +77,7 @@ test("deleting a list returns to the index and the list is gone", async ({ page 
   await page.getByRole("button", { name: "Create list" }).click();
   await page.waitForURL(/\/lists\/[a-z0-9]+$/);
 
-  // The confirm() dialog is auto-accepted by the fixture.
-  await page.getByRole("button", { name: "Delete" }).click();
+  await clickAndConfirm(page, "Delete");
 
   await expect(page).toHaveURL(/\/lists$/);
   await expect(page.getByText("Doomed list")).toBeHidden();

@@ -17,6 +17,9 @@ export const test = base.extend<Fixtures>({
     await use(page);
   },
 
+  // Nothing should raise a native dialog any more — destructive actions ask through
+  // the app's own sheet. Accepting is a safety net so a stray confirm() cannot hang a
+  // test; failing loudly instead would be caught by the assertions that follow.
   acceptConfirms: [
     async ({ page }, use) => {
       page.on("dialog", (dialog) => dialog.accept());
@@ -44,6 +47,24 @@ test.afterAll(async () => {
 export async function openDialog(page: Page, triggerName: string) {
   await page.getByRole("button", { name: triggerName, exact: true }).first().click();
   await expect(page.getByRole("dialog")).toBeVisible();
+}
+
+/**
+ * Clicks a destructive button and agrees to the sheet it raises. `within` narrows the
+ * trigger to one row when a page shows several.
+ */
+export async function clickAndConfirm(
+  page: Page,
+  triggerName: string,
+  options: { within?: Locator; confirmLabel?: string } = {},
+) {
+  const scope = options.within ?? page;
+  await scope.getByRole("button", { name: triggerName, exact: true }).first().click();
+
+  const sheet = page.getByRole("dialog");
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole("button", { name: options.confirmLabel ?? triggerName, exact: true }).click();
+  await expect(sheet).toBeHidden();
 }
 
 /**

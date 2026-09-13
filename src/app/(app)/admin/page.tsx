@@ -112,7 +112,11 @@ export default async function AdminPage() {
                   </form>
                   <form action={removeMember}>
                     <input type="hidden" name="userId" value={member.id} />
-                    <ConfirmButton message={`Remove ${member.name} from this home?`}>
+                    <ConfirmButton
+                      title="Remove member"
+                      confirmLabel="Remove"
+                      message={`Remove ${member.name} from this home? Everything they created is removed too.`}
+                    >
                       Remove
                     </ConfirmButton>
                   </form>
