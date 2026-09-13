@@ -21,7 +21,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   });
   if (!list) notFound();
 
-  const doneCount = list.items.filter((item) => item.done).length;
+  const ticked = list.items.filter((item) => item.done);
 
   return (
     <>
@@ -52,18 +52,22 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
       </div>
 
       <Card className="mb-4">
-        <AddItemForm action={addListItem} listId={list.id} />
+        <AddItemForm
+          action={addListItem}
+          listId={list.id}
+          suggestions={ticked.map((item) => ({ id: item.id, text: item.text }))}
+        />
       </Card>
 
       <Card className="divide-y divide-slate-100 p-0">
-        <ListItems items={list.items} />
+        <ListItems listId={list.id} items={list.items} />
       </Card>
 
-      {doneCount > 0 && (
+      {ticked.length > 0 && (
         <form action={clearCompletedItems} className="mt-4">
           <input type="hidden" name="listId" value={list.id} />
           <SubmitButton variant="secondary" pendingLabel="Clearing…">
-            Clear {doneCount} completed
+            Clear {ticked.length} completed
           </SubmitButton>
         </form>
       )}

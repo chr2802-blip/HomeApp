@@ -8,7 +8,9 @@ Next.js 15 (App Router) · Prisma · PostgreSQL · Tailwind · Web Push
 ## Features
 
 **Lists** — Create any number of lists (shopping, to-do, packing). Add, tick off, remove and
-clear items. Rename or delete a whole list.
+clear items. Rename or delete a whole list. Drag items into the order you shop in, and
+when you type something that was ticked off earlier it is offered back rather than
+duplicated — so next week's list is mostly rebuilt from last week's.
 
 **Recurring tasks** — Give a task an interval in days. Marking it done reschedules it that many
 days out. Overdue and due-today tasks are highlighted on the dashboard, and a daily job sends a
