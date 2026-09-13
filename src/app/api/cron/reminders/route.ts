@@ -62,7 +62,7 @@ async function sendDueReminders() {
   });
 
   if (dueTasks.length === 0) {
-    await pruneMetrics(now);
+    await prune(now);
     return { tasksDue: 0, notificationsSent: 0 };
   }
 
@@ -98,9 +98,26 @@ async function sendDueReminders() {
     data: { lastNotifiedAt: now },
   });
 
-  // The daily run is also the moment old metrics are cleared out, which avoids a
-  // second schedule existing purely to take out the rubbish.
-  await pruneMetrics(now);
+  await prune(now);
 
   return { tasksDue: dueTasks.length, notificationsSent: delivered };
+}
+
+/**
+ * The daily run is also when old metrics are cleared out, which avoids a second
+ * schedule existing purely to take out the rubbish. Failing to tidy up is not a
+ * failure to send reminders, so it is reported without failing the run.
+ */
+async function prune(now: Date) {
+  try {
+    await pruneMetrics(now);
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        level: "warn",
+        event: "metric_prune_failed",
+        message: error instanceof Error ? error.message : String(error),
+      }),
+    );
+  }
 }
