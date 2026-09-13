@@ -34,6 +34,9 @@ export default defineConfig({
       // Run as production does. Without this the suite inherits the developer's clock,
       // which in Copenhagen makes a local-time bug invisible until CI runs in UTC.
       TZ: "UTC",
+      // Effectively off, so an ordinary slow test query cannot leave rows behind and
+      // upset another test's counts. The logging tests lower it themselves.
+      SLOW_QUERY_MS: "600000",
       // Deliberately no VAPID keys: push stays inert unless a test mocks it.
     },
     projects: [

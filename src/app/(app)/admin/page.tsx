@@ -20,6 +20,7 @@ import {
 } from "@/components/ui";
 import { InviteForm } from "@/components/invite-form";
 import { ActionForm } from "@/components/action-form";
+import { ReminderStatus } from "@/components/reminder-status";
 import { formatInZone } from "@/lib/time";
 import { ConfirmButton } from "@/components/confirm-button";
 import { TestPushButton } from "@/components/notification-setup";
@@ -60,9 +61,14 @@ export default async function AdminPage() {
         description={`Managing ${home.name}`}
         action={
           user.role === "SUPER_ADMIN" ? (
-            <ButtonLink href="/admin/homes" variant="secondary">
-              All homes
-            </ButtonLink>
+            <div className="flex gap-2">
+              <ButtonLink href="/admin/system" variant="secondary">
+                System
+              </ButtonLink>
+              <ButtonLink href="/admin/homes" variant="secondary">
+                All homes
+              </ButtonLink>
+            </div>
           ) : undefined
         }
       />
@@ -82,6 +88,11 @@ export default async function AdminPage() {
             </div>
           </ActionForm>
         </Card>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Reminders</h2>
+        <ReminderStatus homeId={home.id} />
       </section>
 
       <section className="mb-8">

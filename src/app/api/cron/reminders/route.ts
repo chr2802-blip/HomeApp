@@ -3,6 +3,12 @@ import { timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { sendPushToUsers } from "@/lib/push";
 import { endOfDayInZone } from "@/lib/time";
+import {
+  REMINDER_JOB,
+  finishCronRun,
+  pruneMetrics,
+  startCronRun,
+} from "@/lib/observability";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +29,25 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Opened before any work, so a run that dies partway still leaves a record of
+  // having started rather than looking like it never ran.
+  const run = await startCronRun(REMINDER_JOB);
+
+  try {
+    const result = await sendDueReminders();
+    await finishCronRun(run.id, { ok: true, ...result });
+    return NextResponse.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await finishCronRun(run.id, { ok: false, error: message });
+    console.error(
+      JSON.stringify({ level: "error", event: "cron_failed", job: REMINDER_JOB, message }),
+    );
+    return NextResponse.json({ error: "Reminder run failed" }, { status: 500 });
+  }
+}
+
+async function sendDueReminders() {
   const now = new Date();
   const notifiedCutoff = new Date(now.getTime() - 20 * 60 * 60 * 1000);
 
@@ -37,7 +62,8 @@ export async function GET(request: Request) {
   });
 
   if (dueTasks.length === 0) {
-    return NextResponse.json({ tasksDue: 0, notificationsSent: 0 });
+    await pruneMetrics(now);
+    return { tasksDue: 0, notificationsSent: 0 };
   }
 
   // Members are fetched once for all the homes involved, rather than once per task:
@@ -72,5 +98,9 @@ export async function GET(request: Request) {
     data: { lastNotifiedAt: now },
   });
 
-  return NextResponse.json({ tasksDue: dueTasks.length, notificationsSent: delivered });
+  // The daily run is also the moment old metrics are cleared out, which avoids a
+  // second schedule existing purely to take out the rubbish.
+  await pruneMetrics(now);
+
+  return { tasksDue: dueTasks.length, notificationsSent: delivered };
 }

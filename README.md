@@ -18,6 +18,47 @@ push notification for anything due.
 Instagram, YouTube, TikTok, Vimeo or Facebook link and the video is embedded on the recipe page.
 Links from any other host are shown as a plain "open in new tab" link rather than embedded.
 
+## Knowing whether it is working
+
+**Admin → System** (super admin only) answers "is this installation healthy?": whether the
+database is reachable and how fast it responds, when reminders last went out, the last few runs
+with their counts, content totals, and the slowest database calls of the last day.
+
+**Admin → Reminders** (every home admin) answers the same question for one household: how many
+people have notifications switched on, when a reminder last went out, and what is overdue.
+Nothing there reveals another home.
+
+The point of both is the failure that hides: if the reminder schedule stops firing, no reminders
+looks exactly like nothing being due. Every run writes a row, so a gap becomes visible.
+
+### `/api/health`
+
+```bash
+curl https://<your-app>/api/health
+```
+
+Answers `{"status":"ok"}` and HTTP 200, or 503 when the database is unreachable — enough for an
+uptime monitor, and nothing an outsider can learn from. `status` is `degraded` when reminders
+have not run in `REMINDER_STALE_AFTER_HOURS` (26) or the last run failed; that stays HTTP 200,
+because the app is still serving.
+
+Send the cron secret for the detail behind the verdict:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://<your-app>/api/health
+```
+
+### Slow queries and errors
+
+Database calls over `SLOW_QUERY_MS` (400 by default) are recorded and shown on the System page.
+Only slow ones are kept — logging every query would make the metrics table the busiest in the
+database — and the daily reminder run prunes anything older than seven days.
+
+Failed requests are **not** stored. `src/instrumentation.ts` writes each one to the platform log
+as a single JSON line with the path, route and stack, so log search can filter on the fields.
+Errors arrive in bursts and are unbounded in size; a table of them would need its own paging and
+pruning to be worth reading.
+
 ## Dates and times
 
 The app runs on one household clock, set by `TIME_ZONE` in [`src/lib/time.ts`](src/lib/time.ts)
