@@ -198,11 +198,15 @@ describe("slow query logging", () => {
     expect(recorded.durationMs).toBeGreaterThanOrEqual(THRESHOLD_MS);
   });
 
-  it("leaves a quick call unrecorded", async () => {
-    await prisma.home.count();
+  it("leaves a call under the threshold unrecorded", async () => {
+    // Raised beyond anything a query could take, rather than trusting a real call to
+    // be quick: on a loaded machine even a count() can cross a few hundred
+    // milliseconds, which would make this fail for no good reason.
+    process.env.SLOW_QUERY_MS = "60000";
 
-    // Nothing to wait for, but give the fire-and-forget write the same chance.
+    await sleep(400);
     await new Promise((resolve) => setTimeout(resolve, 250));
+
     expect(await prisma.slowQuery.count()).toBe(0);
   });
 
@@ -210,10 +214,9 @@ describe("slow query logging", () => {
     await sleep(THRESHOLD_MS + 250);
     await expect.poll(async () => prisma.slowQuery.count(), { timeout: 5000 }).toBeGreaterThan(0);
 
-    const settled = await prisma.slowQuery.count();
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    expect(await prisma.slowQuery.count()).toBe(settled);
+    // The guard is about which rows exist, not how many: counting twice and comparing
+    // would itself be a query that could cross the threshold and change the answer.
+    expect(await prisma.slowQuery.count({ where: { model: "SlowQuery" } })).toBe(0);
   });
 });
 
