@@ -212,6 +212,26 @@ Pushing to `main` is what triggers a Vercel deploy, so the tests gate the push:
    build fails on Vercel even if the first two were bypassed. (Integration tests are left out
    here: the build has no test database, and it must never touch the production one.)
 
+### Only `main` deploys
+
+`vercel.json` disables automatic deployments for every branch except `main`:
+
+```json
+"git": { "deploymentEnabled": { "**": false, "main": true } }
+```
+
+Preview deployments are deliberately off. They shared the production database — the
+build runs `prisma migrate deploy`, so a branch adding a migration applied it to
+production before anyone reviewed it, and the preview app itself read and wrote real
+data. Rather than give previews their own database, there are no previews.
+
+What replaces them: the browser tests, which drive a production build of the app
+against a throwaway database on every push, locally and in CI. That is a better check
+than clicking through a preview, and it cannot touch anything real.
+
+If you ever want a one-off preview, `npx vercel` still deploys from your machine on
+demand. This setting only turns off the automatic ones.
+
 ### Making Vercel wait for CI
 
 By default Vercel builds and releases as soon as `main` moves, without waiting for the workflow
