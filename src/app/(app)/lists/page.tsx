@@ -1,11 +1,10 @@
-import Link from "next/link";
 import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
-import { createList, deleteList } from "@/app/actions/lists";
-import { Card, EmptyState, Input, Label, PageHeader } from "@/components/ui";
-import { ConfirmButton } from "@/components/confirm-button";
+import { createList } from "@/app/actions/lists";
+import { Input, Label, PageHeader } from "@/components/ui";
 import { FormDialog } from "@/components/form-dialog";
 import { AmountsField } from "@/components/amounts-field";
+import { ListDirectory, type ListSummary } from "@/components/list-directory";
 
 export default async function ListsPage() {
   const user = await requireHomeUser();
@@ -15,8 +14,24 @@ export default async function ListsPage() {
     include: {
       _count: { select: { items: true } },
       items: { where: { done: false }, select: { id: true } },
+      // Only the caller's own star: favourites are personal, and the page has no use
+      // for anybody else's.
+      favorites: { where: { userId: user.id }, select: { userId: true } },
     },
   });
+
+  // Favourites first, each group keeping the newest-first order. Sorted here rather
+  // than in the query because "is starred by this person" is a property of the
+  // included rows, not a column to order by.
+  const summaries: ListSummary[] = lists
+    .map((list) => ({
+      id: list.id,
+      title: list.title,
+      open: list.items.length,
+      total: list._count.items,
+      favorite: list.favorites.length > 0,
+    }))
+    .sort((a, b) => Number(b.favorite) - Number(a.favorite));
 
   return (
     <>
@@ -39,36 +54,7 @@ export default async function ListsPage() {
         }
       />
 
-      {lists.length === 0 ? (
-        <EmptyState>No lists yet — create your first one with the button above.</EmptyState>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {lists.map((list, index) => (
-            <Card
-              key={list.id}
-              className="animate-row-in flex items-start justify-between gap-3 transition hover:border-slate-400"
-              style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
-            >
-              <Link
-                href={`/lists/${list.id}`}
-                prefetch
-                className="pressable -m-2 min-w-0 flex-1 rounded-lg p-2 active:scale-[0.98] active:bg-slate-50"
-              >
-                <p className="font-medium hover:underline">{list.title}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {list.items.length} open · {list._count.items} total
-                </p>
-              </Link>
-              <form action={deleteList}>
-                <input type="hidden" name="listId" value={list.id} />
-                <ConfirmButton message={`Delete "${list.title}" and all its items?`}>
-                  Delete
-                </ConfirmButton>
-              </form>
-            </Card>
-          ))}
-        </div>
-      )}
+      <ListDirectory lists={summaries} />
     </>
   );
 }

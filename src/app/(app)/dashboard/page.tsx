@@ -29,10 +29,17 @@ export default async function DashboardPage() {
 
   const db = homeDb(user.homeId);
 
-  const [dueTasks, lists, recipeCount] = await Promise.all([
+  const [dueTasks, favorites, recent, recipeCount] = await Promise.all([
     db.recurringTask.findMany({
       where: { nextDueAt: { lte: soon } },
       orderBy: { nextDueAt: "asc" },
+    }),
+    // The caller's own stars. Favourites are personal, so two people in one home see
+    // different lists here.
+    db.list.findMany({
+      where: { favorites: { some: { userId: user.id } } },
+      orderBy: { title: "asc" },
+      include: { _count: { select: { items: true } } },
     }),
     db.list.findMany({
       orderBy: { createdAt: "desc" },
@@ -41,6 +48,12 @@ export default async function DashboardPage() {
     }),
     db.recipe.count(),
   ]);
+
+  // Favourites replace the recent lists once there are any. Before that the recent ones
+  // stay, with a line saying how to change it: a dashboard that shows nothing until you
+  // have learnt about a feature teaches nobody anything.
+  const starred = favorites.length > 0;
+  const lists = starred ? favorites : recent;
 
   return (
     <>
@@ -77,7 +90,9 @@ export default async function DashboardPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Recent lists</h2>
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
+          {starred ? "Favourite lists" : "Recent lists"}
+        </h2>
         {lists.length === 0 ? (
           <EmptyState>
             No lists yet.{" "}
@@ -96,6 +111,15 @@ export default async function DashboardPage() {
               </Link>
             ))}
           </div>
+        )}
+        {!starred && lists.length > 0 && (
+          <p className="mt-3 text-xs text-slate-500">
+            Star a list on the{" "}
+            <Link href="/lists" className="font-medium text-slate-900 underline">
+              lists page
+            </Link>{" "}
+            to keep it here instead.
+          </p>
         )}
       </section>
 

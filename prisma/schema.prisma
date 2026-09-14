@@ -40,6 +40,7 @@ model User {
 
   home              Home?              @relation(fields: [homeId], references: [id], onDelete: Cascade)
   pushSubscriptions PushSubscription[]
+  favoriteLists     ListFavorite[]
   lists             List[]
   tasks             RecurringTask[]
   recipes           Recipe[]
@@ -76,11 +77,33 @@ model List {
   createdById  String
   createdAt    DateTime @default(now())
 
-  home      Home       @relation(fields: [homeId], references: [id], onDelete: Cascade)
-  createdBy User       @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  home      Home           @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  createdBy User           @relation(fields: [createdById], references: [id], onDelete: Cascade)
   items     ListItem[]
+  favorites ListFavorite[]
 
   @@index([homeId])
+}
+
+/**
+ * One person's shortcut to one list. Favourites are personal rather than shared: two
+ * people in the same home keep different ones, and each dashboard shows its own.
+ *
+ * It carries no homeId, so homeDb cannot scope it — like ListItem it is reached through
+ * its list, which is what carries the home. Pages read it as an include on a list query
+ * they already made through homeDb; a lint rule stops them reaching it directly.
+ */
+model ListFavorite {
+  userId    String
+  listId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  list List @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  // One star per person per list, and the lookup the dashboard makes.
+  @@id([userId, listId])
+  @@index([listId])
 }
 
 model ListItem {
