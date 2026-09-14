@@ -4,16 +4,18 @@ import { completeTask, createTask, deleteTask, updateTask } from "@/app/actions/
 import {
   createHomeWithMembers,
   createTask as seedTask,
+  createUser,
   formData,
   signIn,
 } from "../helpers/factories";
 import { dueAtDaysFrom, formatInZone, todayInZone } from "@/lib/time";
 
 let home: Awaited<ReturnType<typeof createHomeWithMembers>>["home"];
+let admin: Awaited<ReturnType<typeof createHomeWithMembers>>["admin"];
 let member: Awaited<ReturnType<typeof createHomeWithMembers>>["member"];
 
 beforeEach(async () => {
-  ({ home, member } = await createHomeWithMembers());
+  ({ home, admin, member } = await createHomeWithMembers());
   await signIn(member);
 });
 
@@ -204,6 +206,118 @@ describe("updateTask", () => {
     await updateTask(undefined, formData({ taskId: task.id, title: "Renamed", intervalDays: "0" }));
 
     expect(await only()).toMatchObject({ title: "Water the plants", intervalDays: 7 });
+  });
+});
+
+describe("assigning a task", () => {
+  it("hands a new task to a member of the home", async () => {
+    await createTask(
+      undefined,
+      formData({ title: "Bins", intervalDays: "7", assigneeId: admin.id }),
+    );
+
+    expect(await only()).toMatchObject({ assigneeId: admin.id });
+  });
+
+  it("leaves a task to the whole home when nobody is named", async () => {
+    await createTask(undefined, formData({ title: "Bins", intervalDays: "7" }));
+
+    expect((await only()).assigneeId).toBeNull();
+  });
+
+  it("treats an empty choice as the whole home rather than a bad id", async () => {
+    const result = await createTask(
+      undefined,
+      formData({ title: "Bins", intervalDays: "7", assigneeId: "" }),
+    );
+
+    expect(result).toEqual({ ok: true });
+    expect((await only()).assigneeId).toBeNull();
+  });
+
+  it("refuses somebody from another household", async () => {
+    const neighbour = await createHomeWithMembers();
+
+    const result = await createTask(
+      undefined,
+      formData({ title: "Bins", intervalDays: "7", assigneeId: neighbour.member.id }),
+    );
+
+    expect(result).toEqual({ ok: false, error: "That person is not in this home." });
+    expect(await prisma.recurringTask.count()).toBe(0);
+  });
+
+  it("refuses somebody who is in no home at all", async () => {
+    const outsider = await createUser({ homeId: null });
+
+    const result = await createTask(
+      undefined,
+      formData({ title: "Bins", intervalDays: "7", assigneeId: outsider.id }),
+    );
+
+    expect(result).toEqual({ ok: false, error: "That person is not in this home." });
+  });
+
+  it("refuses a user id that does not exist", async () => {
+    const result = await createTask(
+      undefined,
+      formData({ title: "Bins", intervalDays: "7", assigneeId: "nobody" }),
+    );
+
+    expect(result).toEqual({ ok: false, error: "That person is not in this home." });
+  });
+
+  it("moves a task from one member to another", async () => {
+    const task = await seedTask({ homeId: home.id, createdById: member.id, assigneeId: member.id });
+
+    await updateTask(
+      undefined,
+      formData({ taskId: task.id, title: "Bins", intervalDays: "7", assigneeId: admin.id }),
+    );
+
+    expect((await only()).assigneeId).toBe(admin.id);
+  });
+
+  it("hands a task back to the home when the picker is cleared", async () => {
+    const task = await seedTask({ homeId: home.id, createdById: member.id, assigneeId: admin.id });
+
+    await updateTask(
+      undefined,
+      formData({ taskId: task.id, title: "Bins", intervalDays: "7", assigneeId: "" }),
+    );
+
+    expect((await only()).assigneeId).toBeNull();
+  });
+
+  it("leaves the assignment alone when an edit is rejected", async () => {
+    const task = await seedTask({ homeId: home.id, createdById: member.id, assigneeId: admin.id });
+
+    await updateTask(
+      undefined,
+      formData({ taskId: task.id, title: "Bins", intervalDays: "0", assigneeId: "" }),
+    );
+
+    expect((await only()).assigneeId).toBe(admin.id);
+  });
+
+  it("keeps a completion from disturbing who the task is for", async () => {
+    const task = await seedTask({ homeId: home.id, createdById: member.id, assigneeId: admin.id });
+
+    await completeTask(formData({ taskId: task.id }));
+
+    expect((await only()).assigneeId).toBe(admin.id);
+  });
+
+  it("returns the task to the whole home when its assignee is removed", async () => {
+    // removeMember deletes the user outright. The task is the household's, not theirs,
+    // so it has to survive them and fall back to everybody.
+    const task = await seedTask({ homeId: home.id, createdById: member.id, assigneeId: admin.id });
+
+    await prisma.user.delete({ where: { id: admin.id } });
+
+    expect(await prisma.recurringTask.findUnique({ where: { id: task.id } })).toMatchObject({
+      assigneeId: null,
+    });
   });
 });
 

@@ -7,15 +7,22 @@ import { dueLabel, dueTone } from "@/lib/due";
 import { formatInZone, todayInZone } from "@/lib/time";
 import { ConfirmButton } from "@/components/confirm-button";
 import { FormDialog } from "@/components/form-dialog";
+import { AssigneeField } from "@/components/assignee-field";
 
 export default async function TasksPage() {
   const user = await requireHomeUser();
   const now = new Date();
   const today = todayInZone(now);
 
-  const tasks = await homeDb(user.homeId).recurringTask.findMany({
-    orderBy: { nextDueAt: "asc" },
-  });
+  const db = homeDb(user.homeId);
+
+  const [tasks, members] = await Promise.all([
+    db.recurringTask.findMany({
+      orderBy: { nextDueAt: "asc" },
+      include: { assignee: { select: { id: true, name: true } } },
+    }),
+    db.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+  ]);
 
   return (
     <>
@@ -51,6 +58,7 @@ export default async function TasksPage() {
                 <Input id="firstDueAt" name="firstDueAt" type="date" defaultValue={today} />
               </div>
             </div>
+            <AssigneeField members={members} />
             <div className="space-y-1">
               <Label htmlFor="notes">Notes (optional)</Label>
               <Textarea id="notes" name="notes" rows={2} />
@@ -76,6 +84,9 @@ export default async function TasksPage() {
                     <Badge tone={dueTone(task.nextDueAt, now)}>
                       {dueLabel(task.nextDueAt, now)}
                     </Badge>
+                    {/* Only when somebody is named: "everyone" is the resting state and
+                        labelling it on every card would say nothing. */}
+                    {task.assignee && <Badge>For {task.assignee.name}</Badge>}
                   </div>
                   {task.notes && <p className="mt-1 text-sm text-slate-600">{task.notes}</p>}
                   <p className="mt-1 text-xs text-slate-500">
@@ -128,6 +139,11 @@ export default async function TasksPage() {
                       />
                     </div>
                   </div>
+                  <AssigneeField
+                    members={members}
+                    selected={task.assigneeId}
+                    id={`assignee-${task.id}`}
+                  />
                   <div className="space-y-1">
                     <Label htmlFor={`notes-${task.id}`}>Notes</Label>
                     <Textarea

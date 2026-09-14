@@ -7,6 +7,39 @@ import { SubmitButton } from "@/components/submit-button";
 import { NotificationSetup } from "@/components/notification-setup";
 import { dueLabel, dueTone } from "@/lib/due";
 
+type DueTaskRow = {
+  id: string;
+  title: string;
+  intervalDays: number;
+  nextDueAt: Date;
+  assignee: { name: string } | null;
+};
+
+/**
+ * One due task, in whichever section it landed in. The "Done" button is on both: naming
+ * somebody decides who is reminded, not who is allowed to do the job.
+ */
+function DueTask({ task, now }: { task: DueTaskRow; now: Date }) {
+  return (
+    <Card className="flex flex-wrap items-center gap-3 py-3">
+      <div className="min-w-0 flex-1">
+        <p className="font-medium">{task.title}</p>
+        <p className="text-xs text-slate-500">
+          Every {task.intervalDays} days
+          {task.assignee && ` · ${task.assignee.name}`}
+        </p>
+      </div>
+      <Badge tone={dueTone(task.nextDueAt, now)}>{dueLabel(task.nextDueAt, now)}</Badge>
+      <form action={completeTask}>
+        <input type="hidden" name="taskId" value={task.id} />
+        <SubmitButton variant="secondary" pendingLabel="Saving…">
+          Done
+        </SubmitButton>
+      </form>
+    </Card>
+  );
+}
+
 export default async function DashboardPage() {
   const user = await requireUser();
 
@@ -33,6 +66,7 @@ export default async function DashboardPage() {
     db.recurringTask.findMany({
       where: { nextDueAt: { lte: soon } },
       orderBy: { nextDueAt: "asc" },
+      include: { assignee: { select: { name: true } } },
     }),
     // The caller's own stars. Favourites are personal, so two people in one home see
     // different lists here.
@@ -48,6 +82,15 @@ export default async function DashboardPage() {
     }),
     db.recipe.count(),
   ]);
+
+  /*
+   * An unassigned task belongs to the whole household, so it is one of yours too — the
+   * split is "is this mine to do" and not "does this have a name on it". Both sides come
+   * out of the one query above and are separated here: a household's tasks due in the
+   * next few days are few enough that a second round trip would buy nothing.
+   */
+  const mine = dueTasks.filter((task) => !task.assigneeId || task.assigneeId === user.id);
+  const theirs = dueTasks.filter((task) => task.assigneeId && task.assigneeId !== user.id);
 
   // Favourites replace the recent lists once there are any. Before that the recent ones
   // stay, with a line saying how to change it: a dashboard that shows nothing until you
@@ -65,29 +108,34 @@ export default async function DashboardPage() {
       <NotificationSetup />
 
       <section className="mt-6">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Tasks due</h2>
-        {dueTasks.length === 0 ? (
-          <EmptyState>Nothing due in the next few days.</EmptyState>
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Due for you</h2>
+        {mine.length === 0 ? (
+          <EmptyState>Nothing due for you in the next few days.</EmptyState>
         ) : (
           <div className="space-y-2">
-            {dueTasks.map((task) => (
-              <Card key={task.id} className="flex flex-wrap items-center gap-3 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium">{task.title}</p>
-                  <p className="text-xs text-slate-500">Every {task.intervalDays} days</p>
-                </div>
-                <Badge tone={dueTone(task.nextDueAt, now)}>{dueLabel(task.nextDueAt, now)}</Badge>
-                <form action={completeTask}>
-                  <input type="hidden" name="taskId" value={task.id} />
-                  <SubmitButton variant="secondary" pendingLabel="Saving…">
-                    Done
-                  </SubmitButton>
-                </form>
-              </Card>
+            {mine.map((task) => (
+              <DueTask key={task.id} task={task} now={now} />
             ))}
           </div>
         )}
       </section>
+
+      {/*
+        Only when somebody else has something due. A household where nobody assigns
+        anything would otherwise carry a permanently empty heading.
+      */}
+      {theirs.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
+            Due for someone else
+          </h2>
+          <div className="space-y-2">
+            {theirs.map((task) => (
+              <DueTask key={task.id} task={task} now={now} />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="mt-8">
         <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">

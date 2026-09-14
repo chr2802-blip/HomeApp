@@ -8,7 +8,7 @@ test.beforeEach(async ({ loginAs, page }) => {
 
 async function addTask(
   page: Parameters<typeof openDialog>[0],
-  options: { title: string; intervalDays?: string; notes?: string },
+  options: { title: string; intervalDays?: string; notes?: string; assignTo?: string },
 ) {
   await openDialog(page, "New task");
   await page.getByLabel("Task", { exact: true }).fill(options.title);
@@ -17,6 +17,9 @@ async function addTask(
   }
   if (options.notes) {
     await page.getByLabel("Notes (optional)").fill(options.notes);
+  }
+  if (options.assignTo) {
+    await page.getByLabel("Assigned to").selectOption({ label: options.assignTo });
   }
   await page.getByRole("button", { name: "Add task" }).click();
   await expect(page.getByText(options.title, { exact: true })).toBeVisible();
@@ -87,4 +90,67 @@ test("the browser blocks an interval below the allowed minimum", async ({ page }
 
   // min={1} on the input stops the submit, so the dialog stays open.
   await expect(page.getByRole("dialog")).toBeVisible();
+});
+
+test("a task is everyone's until somebody is named", async ({ page }) => {
+  await addTask(page, { title: "Bins" });
+
+  await expect(page.getByText(`For ${ACCOUNTS.admin.name}`)).toBeHidden();
+
+  await openDialog(page, "Edit");
+  await page.getByLabel("Assigned to").selectOption({ label: ACCOUNTS.admin.name });
+  await page.getByRole("button", { name: "Save changes" }).click();
+
+  await expect(page.getByText(`For ${ACCOUNTS.admin.name}`)).toBeVisible();
+});
+
+test("a task can be handed back to the whole home", async ({ page }) => {
+  await addTask(page, { title: "Bins", assignTo: ACCOUNTS.admin.name });
+  await expect(page.getByText(`For ${ACCOUNTS.admin.name}`)).toBeVisible();
+
+  await openDialog(page, "Edit");
+  await page.getByLabel("Assigned to").selectOption({ label: "Everyone in the home" });
+  await page.getByRole("button", { name: "Save changes" }).click();
+
+  await expect(page.getByText(`For ${ACCOUNTS.admin.name}`)).toBeHidden();
+});
+
+test("the dashboard separates what is yours from what is somebody else's", async ({ page }) => {
+  await addTask(page, { title: "Everybody task" });
+  await addTask(page, { title: "My task", assignTo: ACCOUNTS.member.name });
+  await addTask(page, { title: "Ada's task", assignTo: ACCOUNTS.admin.name });
+
+  await page.goto("/dashboard");
+
+  const mine = page.locator("section").filter({ has: page.getByRole("heading", { name: "Due for you" }) });
+  const theirs = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Due for someone else" }) });
+
+  // An unassigned task is the household's, which includes the person looking at it.
+  await expect(mine.getByText("Everybody task")).toBeVisible();
+  await expect(mine.getByText("My task")).toBeVisible();
+  await expect(mine.getByText("Ada's task")).toBeHidden();
+
+  await expect(theirs.getByText("Ada's task")).toBeVisible();
+  await expect(theirs.getByText(ACCOUNTS.admin.name)).toBeVisible();
+});
+
+test("the second section stays away when nothing is due for anybody else", async ({ page }) => {
+  await addTask(page, { title: "Everybody task" });
+
+  await page.goto("/dashboard");
+
+  await expect(page.getByRole("heading", { name: "Due for you" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Due for someone else" })).toBeHidden();
+});
+
+test("anyone can complete a task that names somebody else", async ({ page }) => {
+  await addTask(page, { title: "Ada's task", intervalDays: "30", assignTo: ACCOUNTS.admin.name });
+
+  // Naming somebody decides who is reminded, not who is allowed to do the job.
+  await page.getByRole("button", { name: "Mark done" }).click();
+
+  await expect(page.getByText(/Every 30 days · last done/)).toBeVisible();
+  await expect(page.getByText(`For ${ACCOUNTS.admin.name}`)).toBeVisible();
 });
