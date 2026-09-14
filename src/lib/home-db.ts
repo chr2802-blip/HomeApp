@@ -5,7 +5,14 @@ import { prisma } from "./prisma";
  * subscriptions, the login attempt log, the homes themselves — is passed through
  * untouched.
  */
-const HOME_SCOPED = new Set(["List", "RecurringTask", "Recipe", "Invite", "User"]);
+const HOME_SCOPED = new Set([
+  "List",
+  "RecurringTask",
+  "Recipe",
+  "RecipeCategory",
+  "Invite",
+  "User",
+]);
 
 /** Operations that select rows. Prisma accepts a non-unique field here as well. */
 const FILTERED = new Set([

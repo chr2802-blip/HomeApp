@@ -14,10 +14,15 @@ async function seedOtherHomeContent() {
   const list = await db.list.create({
     data: { homeId: otherHome.id, createdById: owner.id, title: "Neighbour's shopping" },
   });
+  // The other home keeps its own categories, which is part of what must stay invisible.
+  const category = await db.recipeCategory.create({
+    data: { homeId: otherHome.id, name: "Neighbour's sauces" },
+  });
   const recipe = await db.recipe.create({
     data: {
       homeId: otherHome.id,
       createdById: owner.id,
+      categoryId: category.id,
       title: "Neighbour's secret sauce",
       ingredients: "Tomatoes",
       instructions: "Simmer.",

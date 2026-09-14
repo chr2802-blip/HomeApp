@@ -1,18 +1,32 @@
-import Link from "next/link";
 import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
 import { createRecipe } from "@/app/actions/recipes";
-import { Card, EmptyState, PageHeader } from "@/components/ui";
+import { PageHeader } from "@/components/ui";
 import { toEmbed } from "@/lib/embed";
 import { FormDialog } from "@/components/form-dialog";
 import { RecipeFields } from "@/components/recipe-fields";
+import { RecipeDirectory, type RecipeSummary } from "@/components/recipe-directory";
 
 export default async function RecipesPage() {
   const user = await requireHomeUser();
+  const db = homeDb(user.homeId);
 
-  const recipes = await homeDb(user.homeId).recipe.findMany({
-    orderBy: { createdAt: "desc" },
-  });
+  const [recipes, categories] = await Promise.all([
+    db.recipe.findMany({ orderBy: { createdAt: "desc" } }),
+    // Alphabetical: the headings are a table of contents, and a household's own order
+    // of creation is not one a reader can scan by. Only the two columns the page shows,
+    // since these cross to the client.
+    db.recipeCategory.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+  ]);
+
+  const summaries: RecipeSummary[] = recipes.map((recipe) => ({
+    id: recipe.id,
+    title: recipe.title,
+    categoryId: recipe.categoryId,
+    description: recipe.description,
+    ingredients: recipe.ingredients,
+    hasVideo: Boolean(toEmbed(recipe.videoUrl)),
+  }));
 
   return (
     <>
@@ -26,36 +40,12 @@ export default async function RecipesPage() {
             submitLabel="Save recipe"
             action={createRecipe}
           >
-            <RecipeFields />
+            <RecipeFields categories={categories} />
           </FormDialog>
         }
       />
 
-      {recipes.length === 0 ? (
-        <EmptyState>No recipes saved yet.</EmptyState>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {recipes.map((recipe, index) => (
-            <Link
-              key={recipe.id}
-              href={`/recipes/${recipe.id}`}
-              prefetch
-              className="pressable animate-row-in block active:scale-[0.98]"
-              style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
-            >
-              <Card className="h-full transition-colors duration-150 hover:border-slate-400">
-                <p className="font-medium">{recipe.title}</p>
-                {recipe.description && (
-                  <p className="mt-1 line-clamp-2 text-sm text-slate-600">{recipe.description}</p>
-                )}
-                {toEmbed(recipe.videoUrl) && (
-                  <p className="mt-2 text-xs text-slate-500">Includes a video</p>
-                )}
-              </Card>
-            </Link>
-          ))}
-        </div>
-      )}
+      <RecipeDirectory recipes={summaries} categories={categories} />
     </>
   );
 }

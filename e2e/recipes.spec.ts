@@ -1,4 +1,5 @@
 import { ACCOUNTS, clickAndConfirm, expect, openDialog, test } from "./helpers/fixtures";
+import { CATEGORIES } from "./helpers/database";
 
 test.beforeEach(async ({ loginAs, page }) => {
   await loginAs(ACCOUNTS.member);
@@ -7,9 +8,19 @@ test.beforeEach(async ({ loginAs, page }) => {
 
 async function fillRecipe(
   page: Parameters<typeof openDialog>[0],
-  options: { title: string; description?: string; videoUrl?: string; ingredients?: string; instructions?: string },
+  options: {
+    title: string;
+    category?: string;
+    description?: string;
+    videoUrl?: string;
+    ingredients?: string;
+    instructions?: string;
+  },
 ) {
   await page.getByLabel("Title").fill(options.title);
+  // Every recipe needs a category, so the seed's first one stands in unless a test
+  // cares which.
+  await page.getByLabel("Category").selectOption({ label: options.category ?? CATEGORIES[0] });
   if (options.description) await page.getByLabel("Short description").fill(options.description);
   if (options.videoUrl) {
     await page.getByLabel("Video link (Instagram, YouTube, TikTok…)").fill(options.videoUrl);

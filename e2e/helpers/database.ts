@@ -24,6 +24,12 @@ export const ACCOUNTS = {
 export const HOME_NAME = "E2E House";
 export const OTHER_HOME_NAME = "Neighbour House";
 
+/**
+ * Categories the first home starts with. A recipe cannot be saved without one, so the
+ * seed provides them the way a real home's admin would have done before anyone cooked.
+ */
+export const CATEGORIES = ["Baking", "Weeknight"] as const;
+
 let client: PrismaClient | null = null;
 
 export function prisma() {
@@ -82,7 +88,8 @@ async function truncate() {
 
 /**
  * Wipes the database and rebuilds the fixed cast: two homes, a super admin with no home
- * of their own, and an admin plus a member in the first home. Every spec starts here.
+ * of their own, an admin plus a member in the first home, and that home's recipe
+ * categories. Every spec starts here.
  */
 export async function resetAndSeed() {
   const db = prisma();
@@ -92,6 +99,10 @@ export async function resetAndSeed() {
 
   const home = await db.home.create({ data: { name: HOME_NAME, address: "1 Test Street" } });
   const otherHome = await db.home.create({ data: { name: OTHER_HOME_NAME } });
+
+  await db.recipeCategory.createMany({
+    data: CATEGORIES.map((name) => ({ homeId: home.id, name })),
+  });
 
   await db.user.create({
     data: {

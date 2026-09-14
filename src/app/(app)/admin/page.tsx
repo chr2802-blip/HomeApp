@@ -22,6 +22,7 @@ import {
 import { InviteForm } from "@/components/invite-form";
 import { ActionForm } from "@/components/action-form";
 import { ReminderStatus } from "@/components/reminder-status";
+import { RecipeCategoriesAdmin } from "@/components/recipe-categories-admin";
 import { formatInZone } from "@/lib/time";
 import { ConfirmButton } from "@/components/confirm-button";
 import { TestPushButton } from "@/components/notification-setup";
@@ -160,6 +161,11 @@ export default async function AdminPage() {
             ))}
           </Card>
         )}
+      </section>
+
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Recipe categories</h2>
+        <RecipeCategoriesAdmin homeId={home.id} />
       </section>
 
       <section className="mb-8">

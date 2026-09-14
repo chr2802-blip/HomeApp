@@ -108,18 +108,37 @@ export function createList(options: { homeId: string; createdById: string; title
   });
 }
 
-export function createRecipe(options: {
+export function createRecipeCategory(options: { homeId: string; name?: string }) {
+  return prisma.recipeCategory.create({
+    data: { homeId: options.homeId, name: options.name ?? `Category ${unique()}` },
+  });
+}
+
+/**
+ * Every recipe needs a category, so one is made alongside unless the caller names the
+ * category it belongs in — which keeps the tests that do not care about categories from
+ * having to mention them.
+ */
+export async function createRecipe(options: {
   homeId: string;
   createdById: string;
+  categoryId?: string;
   title?: string;
+  description?: string | null;
+  ingredients?: string;
   videoUrl?: string | null;
 }) {
+  const categoryId =
+    options.categoryId ?? (await createRecipeCategory({ homeId: options.homeId })).id;
+
   return prisma.recipe.create({
     data: {
       homeId: options.homeId,
       createdById: options.createdById,
+      categoryId,
       title: options.title ?? "Pancakes",
-      ingredients: "Flour\nMilk",
+      description: options.description ?? null,
+      ingredients: options.ingredients ?? "Flour\nMilk",
       instructions: "Mix and fry.",
       videoUrl: options.videoUrl ?? null,
     },

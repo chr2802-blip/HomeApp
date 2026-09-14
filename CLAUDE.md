@@ -121,6 +121,12 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
   the widget itself emits — the drag tests wait on dnd-kit's announcements.
 - **Prisma accepts a non-unique field in `where`** on `findUnique`, `update` and `delete`,
   returning null or `P2025` on mismatch. That is what makes `homeDb` work everywhere.
+- **A required relation between two cascade-deleted models wants `NoAction`, not
+  `Restrict`.** `Recipe.categoryId` is required, and deleting a home cascades to both its
+  recipes and its categories in one statement. Postgres checks `Restrict` the instant the
+  referenced row goes, so that ordering can fail; `NoAction` is checked once the statement
+  is finished, by which point both sides are gone. Both still refuse to delete a category
+  that holds recipes, which is the point of having the constraint.
 - **`vercel.json` is schema-validated.** An unknown key can fail the deploy; keep
   explanations in the README.
 - **On Windows, `npx.cmd` cannot be spawned without a shell.** Invoke a CLI's entry point

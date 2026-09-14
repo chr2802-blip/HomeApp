@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
 import { deleteRecipe, updateRecipe } from "@/app/actions/recipes";
-import { Card } from "@/components/ui";
+import { Badge, Card } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
 import { FormDialog } from "@/components/form-dialog";
 import { RecipeFields } from "@/components/recipe-fields";
@@ -19,9 +19,14 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
   const { id } = await params;
   const user = await requireHomeUser();
 
+  const db = homeDb(user.homeId);
+
   // Scoped to the caller's home, so another home's id simply finds nothing —
   // indistinguishable from a record that never existed, which is the point.
-  const recipe = await homeDb(user.homeId).recipe.findUnique({ where: { id } });
+  const [recipe, categories] = await Promise.all([
+    db.recipe.findUnique({ where: { id }, include: { category: true } }),
+    db.recipeCategory.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+  ]);
   if (!recipe) notFound();
 
   const embed = toEmbed(recipe.videoUrl);
@@ -33,6 +38,9 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
     <>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
+          <div className="mb-1.5">
+            <Badge>{recipe.category.name}</Badge>
+          </div>
           <h1 className="text-2xl font-semibold tracking-tight">{recipe.title}</h1>
           {recipe.description && <p className="mt-1 text-sm text-slate-500">{recipe.description}</p>}
         </div>
@@ -46,7 +54,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
             action={updateRecipe}
           >
             <input type="hidden" name="recipeId" value={recipe.id} />
-            <RecipeFields recipe={recipe} />
+            <RecipeFields recipe={recipe} categories={categories} />
           </FormDialog>
           <form action={deleteRecipe}>
             <input type="hidden" name="recipeId" value={recipe.id} />

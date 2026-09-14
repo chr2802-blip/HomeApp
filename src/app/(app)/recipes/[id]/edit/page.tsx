@@ -9,15 +9,25 @@ export default async function EditRecipePage({ params }: { params: Promise<{ id:
   const { id } = await params;
   const user = await requireHomeUser();
 
+  const db = homeDb(user.homeId);
+
   // Scoped to the caller's home, so another home's id simply finds nothing —
   // indistinguishable from a record that never existed, which is the point.
-  const recipe = await homeDb(user.homeId).recipe.findUnique({ where: { id } });
+  const [recipe, categories] = await Promise.all([
+    db.recipe.findUnique({ where: { id } }),
+    db.recipeCategory.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+  ]);
   if (!recipe) notFound();
 
   return (
     <>
       <PageHeader title="Edit recipe" />
-      <RecipeForm action={updateRecipe} recipe={recipe} submitLabel="Save changes" />
+      <RecipeForm
+        action={updateRecipe}
+        recipe={recipe}
+        categories={categories}
+        submitLabel="Save changes"
+      />
     </>
   );
 }

@@ -2,12 +2,17 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { deleteList, updateList, toggleListFavorite, toggleListItem } from "@/app/actions/lists";
 import { completeTask, deleteTask, updateTask } from "@/app/actions/tasks";
-import { deleteRecipe, updateRecipe } from "@/app/actions/recipes";
+import { createRecipe as saveRecipe, deleteRecipe, updateRecipe } from "@/app/actions/recipes";
+import {
+  deleteRecipeCategory,
+  renameRecipeCategory,
+} from "@/app/actions/recipe-categories";
 import { createInvite, removeMember, updateHome, updateMemberRole } from "@/app/actions/admin";
 import {
   createHome,
   createList,
   createRecipe,
+  createRecipeCategory,
   createTask,
   createUser,
   formData,
@@ -88,11 +93,47 @@ describe("a member of one home cannot touch another home's data", () => {
     const recipe = await createRecipe({ homeId: victimHome.id, createdById: victimOwner.id });
 
     await expectDenied(() =>
-      updateRecipe(undefined, formData({ recipeId: recipe.id, title: "Hacked", ingredients: "", instructions: "" })),
+      updateRecipe(
+        undefined,
+        formData({
+          recipeId: recipe.id,
+          categoryId: recipe.categoryId,
+          title: "Hacked",
+          ingredients: "",
+          instructions: "",
+        }),
+      ),
     );
     await expectDenied(() => deleteRecipe(formData({ recipeId: recipe.id })));
 
     expect((await prisma.recipe.findUnique({ where: { id: recipe.id } }))?.title).toBe("Pancakes");
+  });
+
+  it("cannot rename or delete another home's recipe category", async () => {
+    const category = await createRecipeCategory({ homeId: victimHome.id, name: "Baking" });
+
+    // Scoped out of sight rather than refused: the intruder is an admin of their own
+    // home, so the answer they get is that no such category exists.
+    expect(
+      await renameRecipeCategory(undefined, formData({ categoryId: category.id, name: "Hacked" })),
+    ).toEqual({ ok: false, error: "That category no longer exists." });
+    await deleteRecipeCategory(formData({ categoryId: category.id }));
+
+    expect(
+      (await prisma.recipeCategory.findUnique({ where: { id: category.id } }))?.name,
+    ).toBe("Baking");
+  });
+
+  it("cannot file a recipe under another home's category", async () => {
+    const category = await createRecipeCategory({ homeId: victimHome.id, name: "Baking" });
+
+    const result = await saveRecipe(
+      undefined,
+      formData({ title: "Trojan", categoryId: category.id, ingredients: "", instructions: "" }),
+    );
+
+    expect(result).toEqual({ ok: false, error: "Choose a category for this recipe." });
+    expect(await prisma.recipe.count()).toBe(0);
   });
 
   it("cannot rename another home", async () => {

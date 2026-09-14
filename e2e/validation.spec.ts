@@ -1,5 +1,5 @@
 import { ACCOUNTS, expect, openDialog, test } from "./helpers/fixtures";
-import { prisma } from "./helpers/database";
+import { CATEGORIES, prisma } from "./helpers/database";
 import type { Locator } from "@playwright/test";
 
 /**
@@ -90,6 +90,9 @@ test.describe("a rejected recipe", () => {
     await page.goto("/recipes/new");
 
     await page.getByLabel("Title").fill("Pasta");
+    // A category is required, and the browser would block the submission before the
+    // server ever got to judge the video link.
+    await page.getByLabel("Category").selectOption({ label: CATEGORIES[0] });
     await forceValue(
       page.getByLabel("Video link (Instagram, YouTube, TikTok…)"),
       "ftp://example.com/clip",
