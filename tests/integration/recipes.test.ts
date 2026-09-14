@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { createRecipe, deleteRecipe, updateRecipe } from "@/app/actions/recipes";
 import {
+  createHome,
   createHomeWithMembers,
   createRecipe as seedRecipe,
+  createRecipeCategory,
   formData,
   signIn,
 } from "../helpers/factories";
@@ -11,9 +13,11 @@ import { captureRedirect, expectRedirect } from "../helpers/expect";
 
 let home: Awaited<ReturnType<typeof createHomeWithMembers>>["home"];
 let member: Awaited<ReturnType<typeof createHomeWithMembers>>["member"];
+let category: Awaited<ReturnType<typeof createRecipeCategory>>;
 
 beforeEach(async () => {
   ({ home, member } = await createHomeWithMembers());
+  category = await createRecipeCategory({ homeId: home.id, name: "Baking" });
   await signIn(member);
 });
 
@@ -26,6 +30,7 @@ describe("createRecipe", () => {
         undefined,
         formData({
           title: "Pancakes",
+          categoryId: category.id,
           description: "Sunday breakfast",
           ingredients: "Flour\nMilk\nEggs",
           instructions: "Mix.\nFry.",
@@ -36,6 +41,7 @@ describe("createRecipe", () => {
     const recipe = await only();
     expect(recipe).toMatchObject({
       title: "Pancakes",
+      categoryId: category.id,
       description: "Sunday breakfast",
       ingredients: "Flour\nMilk\nEggs",
       instructions: "Mix.\nFry.",
@@ -51,6 +57,7 @@ describe("createRecipe", () => {
         undefined,
         formData({
           title: "Pasta",
+          categoryId: category.id,
           ingredients: "",
           instructions: "",
           videoUrl: "https://www.instagram.com/reel/AbC123/",
@@ -68,7 +75,7 @@ describe("createRecipe", () => {
   ])("refuses a %s video link instead of silently dropping it", async (_label, videoUrl) => {
     const result = await createRecipe(
       undefined,
-      formData({ title: "Pasta", ingredients: "", instructions: "", videoUrl }),
+      formData({ title: "Pasta", categoryId: category.id, ingredients: "", instructions: "", videoUrl }),
     );
 
     expect(result).toEqual({ ok: false, error: "That video link is not a valid web address." });
@@ -77,7 +84,10 @@ describe("createRecipe", () => {
 
   it("accepts a recipe with no video link at all", async () => {
     await captureRedirect(() =>
-      createRecipe(undefined, formData({ title: "Pasta", ingredients: "", instructions: "", videoUrl: "" })),
+      createRecipe(
+        undefined,
+        formData({ title: "Pasta", categoryId: category.id, ingredients: "", instructions: "", videoUrl: "" }),
+      ),
     );
 
     expect((await only()).videoUrl).toBeNull();
@@ -85,14 +95,48 @@ describe("createRecipe", () => {
 
   it("stores a blank description as null", async () => {
     await captureRedirect(() =>
-      createRecipe(undefined, formData({ title: "Pasta", description: "  ", ingredients: "", instructions: "" })),
+      createRecipe(
+        undefined,
+        formData({ title: "Pasta", categoryId: category.id, description: "  ", ingredients: "", instructions: "" }),
+      ),
     );
 
     expect((await only()).description).toBeNull();
   });
 
+  it("refuses a recipe with no category", async () => {
+    const result = await createRecipe(
+      undefined,
+      formData({ title: "Pasta", ingredients: "", instructions: "" }),
+    );
+
+    expect(result).toEqual({ ok: false, error: "Choose a category for this recipe." });
+    expect(await prisma.recipe.count()).toBe(0);
+  });
+
+  /*
+   * The picker only ever offers this home's categories, so reaching here means either a
+   * stale page or a hand-written submission. Either way the recipe must not end up filed
+   * under a heading its household cannot see or rename.
+   */
+  it("refuses to file a recipe under another home's category", async () => {
+    const neighbour = await createHome({ name: "Next Door" });
+    const theirs = await createRecipeCategory({ homeId: neighbour.id, name: "Baking" });
+
+    const result = await createRecipe(
+      undefined,
+      formData({ title: "Pasta", categoryId: theirs.id, ingredients: "", instructions: "" }),
+    );
+
+    expect(result).toEqual({ ok: false, error: "Choose a category for this recipe." });
+    expect(await prisma.recipe.count()).toBe(0);
+  });
+
   it("ignores a recipe with no title", async () => {
-    await createRecipe(undefined, formData({ title: "  ", ingredients: "x", instructions: "y" }));
+    await createRecipe(
+      undefined,
+      formData({ title: "  ", categoryId: category.id, ingredients: "x", instructions: "y" }),
+    );
 
     expect(await prisma.recipe.count()).toBe(0);
   });
@@ -100,7 +144,7 @@ describe("createRecipe", () => {
 
 describe("updateRecipe", () => {
   it("replaces every field", async () => {
-    const recipe = await seedRecipe({ homeId: home.id, createdById: member.id });
+    const recipe = await seedRecipe({ homeId: home.id, createdById: member.id, categoryId: category.id });
 
     await expectRedirect(
       () =>
@@ -108,6 +152,7 @@ describe("updateRecipe", () => {
           undefined,
           formData({
             recipeId: recipe.id,
+            categoryId: category.id,
             title: "Better pancakes",
             description: "Improved",
             ingredients: "Flour\nButtermilk",
@@ -131,6 +176,7 @@ describe("updateRecipe", () => {
     const recipe = await seedRecipe({
       homeId: home.id,
       createdById: member.id,
+      categoryId: category.id,
       videoUrl: "https://youtu.be/dQw4w9WgXcQ",
     });
 
@@ -140,6 +186,7 @@ describe("updateRecipe", () => {
           undefined,
           formData({
             recipeId: recipe.id,
+            categoryId: category.id,
             title: "Pancakes",
             ingredients: "",
             instructions: "",
@@ -153,26 +200,71 @@ describe("updateRecipe", () => {
   });
 
   it("refuses to blank out the title", async () => {
-    const recipe = await seedRecipe({ homeId: home.id, createdById: member.id });
+    const recipe = await seedRecipe({ homeId: home.id, createdById: member.id, categoryId: category.id });
 
     await updateRecipe(
       undefined,
-      formData({ recipeId: recipe.id, title: "   ", ingredients: "", instructions: "" }),
+      formData({ recipeId: recipe.id, categoryId: category.id, title: "   ", ingredients: "", instructions: "" }),
     );
 
     expect((await only()).title).toBe("Pancakes");
   });
 
+  it("moves a recipe to a different category", async () => {
+    const recipe = await seedRecipe({ homeId: home.id, createdById: member.id, categoryId: category.id });
+    const weeknight = await createRecipeCategory({ homeId: home.id, name: "Weeknight" });
+
+    await expectRedirect(
+      () =>
+        updateRecipe(
+          undefined,
+          formData({
+            recipeId: recipe.id,
+            categoryId: weeknight.id,
+            title: "Pancakes",
+            ingredients: "",
+            instructions: "",
+          }),
+        ),
+      `/recipes/${recipe.id}`,
+    );
+
+    expect((await only()).categoryId).toBe(weeknight.id);
+  });
+
+  it("refuses to move a recipe into another home's category", async () => {
+    const recipe = await seedRecipe({ homeId: home.id, createdById: member.id, categoryId: category.id });
+    const neighbour = await createHome({ name: "Next Door" });
+    const theirs = await createRecipeCategory({ homeId: neighbour.id, name: "Baking" });
+
+    const result = await updateRecipe(
+      undefined,
+      formData({
+        recipeId: recipe.id,
+        categoryId: theirs.id,
+        title: "Pancakes",
+        ingredients: "",
+        instructions: "",
+      }),
+    );
+
+    expect(result).toEqual({ ok: false, error: "Choose a category for this recipe." });
+    expect((await only()).categoryId).toBe(category.id);
+  });
+
   it("fails loudly for a recipe that does not exist", async () => {
     await expect(
-      updateRecipe(undefined, formData({ recipeId: "missing", title: "x", ingredients: "", instructions: "" })),
+      updateRecipe(
+        undefined,
+        formData({ recipeId: "missing", categoryId: category.id, title: "x", ingredients: "", instructions: "" }),
+      ),
     ).rejects.toThrow("Recipe not found");
   });
 });
 
 describe("deleteRecipe", () => {
   it("removes the recipe and returns to the index", async () => {
-    const recipe = await seedRecipe({ homeId: home.id, createdById: member.id });
+    const recipe = await seedRecipe({ homeId: home.id, createdById: member.id, categoryId: category.id });
 
     await expectRedirect(() => deleteRecipe(formData({ recipeId: recipe.id })), "/recipes");
 

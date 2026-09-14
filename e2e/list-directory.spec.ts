@@ -16,17 +16,27 @@ const star = (page: Page, title: string) =>
   page.getByRole("button", { name: `Favourite ${title}`, exact: true });
 
 /**
- * Presses a star until it takes.
+ * Presses a star until it takes, then waits for the write to land.
  *
- * The button does nothing until React has hydrated it, and nothing in the markup says
- * when that is — the server renders the same button either way. So keep offering the
- * press until the control reports the state it should now be in.
+ * Two separate problems, and only the first is about hydration. The button does nothing
+ * until React has hydrated it, and nothing in the markup says when that is — the server
+ * renders the same button either way — so keep offering the press until the control
+ * reports the state it should now be in.
+ *
+ * But the star fills optimistically: aria-pressed says "true" the instant it is clicked,
+ * before the server has been told anything. A test that navigated away on that signal
+ * would be racing the action it had just started, and would sometimes arrive at the
+ * dashboard before the row existed. So the persisted row is what is actually waited on.
  */
 async function press(page: Page, title: string, expected: "true" | "false") {
   await expect(async () => {
     await star(page, title).click();
     await expect(star(page, title)).toHaveAttribute("aria-pressed", expected, { timeout: 1000 });
   }).toPass({ timeout: 20_000 });
+
+  await expect
+    .poll(() => prisma().listFavorite.count({ where: { list: { title } } }))
+    .toBe(expected === "true" ? 1 : 0);
 }
 
 /** The list names currently shown on the lists page, top to bottom. */
