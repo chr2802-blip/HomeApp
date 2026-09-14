@@ -74,8 +74,11 @@ hook uses `onSubmit` so values survive an error; only a successful add to a list
 
 ### Tests gate everything
 
-`.githooks/pre-push` runs `npm run verify`; CI runs it again; `npm run build` runs the
-unit tests. Pushing to `main` deploys, so a failing suite must not reach the remote.
+`.githooks/pre-push` checks the change before it leaves: lint, types and unit tests
+always; the integration and browser suites only when `src/`, `prisma/`, `tests/`, `e2e/`,
+`scripts/`, a lockfile or a build config changed. CI runs the full suite regardless, and
+`npm run build` runs the unit tests. Pushing to `main` deploys, so a failing suite must
+not reach the remote.
 
 Integration and E2E use **separate** databases (`homehub_test`, `homehub_e2e`), created
 automatically. They truncate between tests, and refuse to run against a database whose

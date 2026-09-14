@@ -204,9 +204,13 @@ checked again immediately before the first delete. Your development data is neve
 
 Pushing to `main` is what triggers a Vercel deploy, so the tests gate the push:
 
-1. **Before the push.** `npm install` points git at `.githooks`, where a `pre-push` hook runs
-   `npm run verify`. If lint, the types or any test — including the browser tests — fails,
-   nothing is pushed and nothing deploys. In a genuine emergency, `git push --no-verify` skips it.
+1. **Before the push.** `npm install` points git at `.githooks`, where a `pre-push` hook
+   checks the change. Lint, types and the unit tests always run — seconds, and they need
+   nothing running. The integration and browser suites run only when something they could
+   exercise has changed, so editing a README costs about ten seconds rather than three
+   minutes and a full build; anything unrecognised runs everything. If a check fails,
+   nothing is pushed and nothing deploys. In a genuine emergency, `git push --no-verify`
+   skips it.
 2. **In CI.** `.github/workflows/test.yml` runs the same checks on GitHub against a throwaway
    Postgres, on every push and pull request. A failing browser test uploads its Playwright
    report as a build artifact.
