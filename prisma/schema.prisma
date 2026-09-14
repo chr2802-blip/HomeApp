@@ -3,9 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   // Pooled connection, used at runtime by serverless functions.
-  url      = env("DATABASE_URL")
+  url       = env("DATABASE_URL")
   // Unpooled connection; migrations need a direct session. Locally both are the same.
   directUrl = env("DIRECT_URL")
 }
@@ -22,11 +22,11 @@ model Home {
   address   String?
   createdAt DateTime @default(now())
 
-  users    User[]
-  invites  Invite[]
-  lists    List[]
-  tasks    RecurringTask[]
-  recipes  Recipe[]
+  users   User[]
+  invites Invite[]
+  lists   List[]
+  tasks   RecurringTask[]
+  recipes Recipe[]
 }
 
 model User {
@@ -67,11 +67,14 @@ model Invite {
 }
 
 model List {
-  id          String   @id @default(cuid())
-  homeId      String
-  title       String
-  createdById String
-  createdAt   DateTime @default(now())
+  id           String   @id @default(cuid())
+  homeId       String
+  title        String
+  /// Whether items on this list carry a quantity. Chosen when the list is made: a
+  /// shopping list wants "2 milk", a to-do list does not.
+  trackAmounts Boolean  @default(false)
+  createdById  String
+  createdAt    DateTime @default(now())
 
   home      Home       @relation(fields: [homeId], references: [id], onDelete: Cascade)
   createdBy User       @relation(fields: [createdById], references: [id], onDelete: Cascade)
@@ -84,6 +87,7 @@ model ListItem {
   id       String  @id @default(cuid())
   listId   String
   text     String
+  amount   Int     @default(1)
   done     Boolean @default(false)
   position Int     @default(0)
 
@@ -130,7 +134,9 @@ model Recipe {
   @@index([homeId])
 }
 
-/** Failed sign-in and invite attempts, used only for throttling. */
+/**
+ * Failed sign-in and invite attempts, used only for throttling.
+ */
 model LoginAttempt {
   id        String   @id @default(cuid())
   key       String

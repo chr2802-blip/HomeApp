@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
-import { addListItem, clearCompletedItems, deleteList, renameList } from "@/app/actions/lists";
+import { addListItem, deleteList, updateList } from "@/app/actions/lists";
 import { Card, Input, Label } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
-import { SubmitButton } from "@/components/submit-button";
 import { ListItems } from "@/components/list-items";
 import { FormDialog } from "@/components/form-dialog";
+import { AmountsField } from "@/components/amounts-field";
 import { AddItemForm } from "@/components/add-item-form";
 
 export default async function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -34,13 +34,14 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
             triggerIcon="pencil"
             title="Edit list"
             submitLabel="Save changes"
-            action={renameList}
+            action={updateList}
           >
             <input type="hidden" name="listId" value={list.id} />
             <div className="space-y-1">
               <Label htmlFor="title">List name</Label>
               <Input id="title" name="title" defaultValue={list.title} required autoFocus />
             </div>
+            <AmountsField defaultChecked={list.trackAmounts} />
           </FormDialog>
           <form action={deleteList}>
             <input type="hidden" name="listId" value={list.id} />
@@ -55,22 +56,14 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
         <AddItemForm
           action={addListItem}
           listId={list.id}
+          trackAmounts={list.trackAmounts}
           suggestions={ticked.map((item) => ({ id: item.id, text: item.text }))}
         />
       </Card>
 
       <Card className="divide-y divide-slate-100 p-0">
-        <ListItems listId={list.id} items={list.items} />
+        <ListItems listId={list.id} items={list.items} trackAmounts={list.trackAmounts} />
       </Card>
-
-      {ticked.length > 0 && (
-        <form action={clearCompletedItems} className="mt-4">
-          <input type="hidden" name="listId" value={list.id} />
-          <SubmitButton variant="secondary" pendingLabel="Clearing…">
-            Clear {ticked.length} completed
-          </SubmitButton>
-        </form>
-      )}
     </>
   );
 }

@@ -5,6 +5,7 @@ import { createList, deleteList } from "@/app/actions/lists";
 import { Card, EmptyState, Input, Label, PageHeader } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
 import { FormDialog } from "@/components/form-dialog";
+import { AmountsField } from "@/components/amounts-field";
 
 export default async function ListsPage() {
   const user = await requireHomeUser();
@@ -33,6 +34,7 @@ export default async function ListsPage() {
               <Label htmlFor="title">List name</Label>
               <Input id="title" name="title" placeholder="Shopping list" required autoFocus />
             </div>
+            <AmountsField />
           </FormDialog>
         }
       />

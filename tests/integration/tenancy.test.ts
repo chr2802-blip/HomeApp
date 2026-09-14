@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { deleteList, renameList, toggleListItem } from "@/app/actions/lists";
+import { deleteList, updateList, toggleListItem } from "@/app/actions/lists";
 import { completeTask, deleteTask, updateTask } from "@/app/actions/tasks";
 import { deleteRecipe, updateRecipe } from "@/app/actions/recipes";
 import { createInvite, removeMember, updateHome, updateMemberRole } from "@/app/actions/admin";
@@ -39,7 +39,7 @@ describe("a member of one home cannot touch another home's data", () => {
   it("cannot rename another home's list", async () => {
     const list = await createList({ homeId: victimHome.id, createdById: victimOwner.id });
 
-    await expectDenied(() => renameList(undefined, formData({ listId: list.id, title: "Hacked" })));
+    await expectDenied(() => updateList(undefined, formData({ listId: list.id, title: "Hacked" })));
 
     expect((await prisma.list.findUnique({ where: { id: list.id } }))?.title).toBe("Shopping");
   });
@@ -178,7 +178,7 @@ describe("signed-out visitors", () => {
     const task = await createTask({ homeId: home.id, createdById: owner.id });
     const recipe = await createRecipe({ homeId: home.id, createdById: owner.id });
 
-    await expectRedirectToLogin(() => renameList(undefined, formData({ listId: list.id, title: "x" })));
+    await expectRedirectToLogin(() => updateList(undefined, formData({ listId: list.id, title: "x" })));
     await expectRedirectToLogin(() => completeTask(formData({ taskId: task.id })));
     await expectRedirectToLogin(() => deleteRecipe(formData({ recipeId: recipe.id })));
     await expectRedirectToLogin(() => updateHome(undefined, formData({ homeId: home.id, name: "x" })));

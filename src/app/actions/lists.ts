@@ -8,20 +8,41 @@ import { requireHomeUser } from "@/lib/auth";
 import { assertHomeAccess } from "@/lib/access";
 import { homeScoped } from "@/lib/scoped";
 import { readForm, requiredText } from "@/lib/form";
+import { clampAmount } from "@/lib/amount";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 
 const listInScope = homeScoped("List", (id) => prisma.list.findUnique({ where: { id } }));
 
-const titleSchema = z.object({ title: requiredText("Give the list a name.") });
-const itemSchema = z.object({ text: requiredText("Write something to add.") });
+/** An absent amount means one, which is what a list that ignores them always sends. */
+const amount = z
+  .string()
+  .optional()
+  .transform((value) => clampAmount(value ?? 1));
+
+/** An unticked checkbox is absent from the form rather than present and false. */
+const checkbox = z
+  .string()
+  .optional()
+  .transform((value) => value !== undefined);
+
+const listSchema = z.object({
+  title: requiredText("Give the list a name."),
+  trackAmounts: checkbox,
+});
+const itemSchema = z.object({ text: requiredText("Write something to add."), amount });
 
 export async function createList(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const user = await requireHomeUser();
-  const form = readForm(titleSchema, formData);
+  const form = readForm(listSchema, formData);
   if (!form.ok) return fail(form.error);
 
   const list = await prisma.list.create({
-    data: { title: form.fields.title, homeId: user.homeId, createdById: user.id },
+    data: {
+      title: form.fields.title,
+      trackAmounts: form.fields.trackAmounts,
+      homeId: user.homeId,
+      createdById: user.id,
+    },
   });
 
   revalidatePath("/lists");
@@ -35,12 +56,15 @@ export async function deleteList(formData: FormData) {
   redirect("/lists");
 }
 
-export async function renameList(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+export async function updateList(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const list = await listInScope(String(formData.get("listId")));
-  const form = readForm(titleSchema, formData);
+  const form = readForm(listSchema, formData);
   if (!form.ok) return fail(form.error);
 
-  await prisma.list.update({ where: { id: list.id }, data: { title: form.fields.title } });
+  await prisma.list.update({
+    where: { id: list.id },
+    data: { title: form.fields.title, trackAmounts: form.fields.trackAmounts },
+  });
 
   revalidatePath(`/lists/${list.id}`);
   revalidatePath("/lists");
@@ -70,14 +94,14 @@ export async function addListItem(_prev: ActionResult, formData: FormData): Prom
   const form = readForm(itemSchema, formData);
   if (!form.ok) return fail(form.error);
 
-  const text = form.fields.text;
+  const { text, amount } = form.fields;
   const existing = await prisma.listItem.findFirst({
     where: { listId: list.id, text: { equals: text, mode: "insensitive" } },
     orderBy: { done: "desc" },
   });
 
   if (existing?.done) {
-    await restore(existing.id, list.id);
+    await restore(existing.id, list.id, amount);
     revalidatePath(`/lists/${list.id}`);
     return ok();
   }
@@ -85,30 +109,33 @@ export async function addListItem(_prev: ActionResult, formData: FormData): Prom
   if (existing) return fail(`"${existing.text}" is already on the list.`);
 
   await prisma.listItem.create({
-    data: { listId: list.id, text, position: await nextPosition(list.id) },
+    data: { listId: list.id, text, amount, position: await nextPosition(list.id) },
   });
 
   revalidatePath(`/lists/${list.id}`);
   return ok();
 }
 
-/** Unticks an item and moves it to the end of what is still outstanding. */
-async function restore(itemId: string, listId: string) {
+/**
+ * Unticks an item and moves it to the end of what is still outstanding, with however
+ * many of it are wanted this time rather than last time.
+ */
+async function restore(itemId: string, listId: string, amount: number) {
   await prisma.listItem.update({
     where: { id: itemId },
-    data: { done: false, position: await nextPosition(listId) },
+    data: { done: false, amount, position: await nextPosition(listId) },
   });
 }
 
 /**
  * Puts a ticked item back on the list, used when one is picked from the suggestions
- * under the add box.
+ * under the add box. The amount standing in the add box comes with it.
  */
 export async function restoreListItem(formData: FormData) {
   const item = await itemInScope(String(formData.get("itemId")));
   if (!item) return;
 
-  await restore(item.id, item.listId);
+  await restore(item.id, item.listId, clampAmount(formData.get("amount") ?? 1));
   revalidatePath(`/lists/${item.listId}`);
 }
 
@@ -177,8 +204,18 @@ export async function deleteListItem(formData: FormData) {
   revalidatePath(`/lists/${item.listId}`);
 }
 
-export async function clearCompletedItems(formData: FormData) {
-  const list = await listInScope(String(formData.get("listId")));
-  await prisma.listItem.deleteMany({ where: { listId: list.id, done: true } });
-  revalidatePath(`/lists/${list.id}`);
+/**
+ * Sets how many of an item are wanted. Like toggling and deleting it acts on one id and
+ * reports nothing: the picker can only offer amounts that are already in range, so
+ * there is no rejection for a form to show.
+ */
+export async function setListItemAmount(formData: FormData) {
+  const item = await itemInScope(String(formData.get("itemId")));
+  if (!item) return;
+
+  await prisma.listItem.update({
+    where: { id: item.id },
+    data: { amount: clampAmount(formData.get("amount")) },
+  });
+  revalidatePath(`/lists/${item.listId}`);
 }

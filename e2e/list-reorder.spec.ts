@@ -99,6 +99,16 @@ test.describe("reordering by keyboard", () => {
   }) => {
     await openList(page, [{ text: "Milk" }, { text: "Bread", done: true }]);
 
+    // Unfold the completed section, so the absent handle is genuinely absent rather
+    // than merely folded away. Keep offering the click until React has hydrated the
+    // toggle — nothing in the markup says when that is.
+    const section = page.getByRole("button", { name: "Completed (1)" });
+    await expect(async () => {
+      await section.click();
+      await expect(section).toHaveAttribute("aria-expanded", "true", { timeout: 1000 });
+    }).toPass({ timeout: 20_000 });
+
+    await expect(page.getByText("Bread", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Reorder Milk" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Reorder Bread" })).toHaveCount(0);
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptimistic, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -18,14 +18,21 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { deleteListItem, reorderListItems, toggleListItem } from "@/app/actions/lists";
+import {
+  deleteListItem,
+  reorderListItems,
+  setListItemAmount,
+  toggleListItem,
+} from "@/app/actions/lists";
 import { ConfirmButton } from "@/components/confirm-button";
+import { AmountPicker } from "@/components/amount-picker";
 
-type Item = { id: string; text: string; done: boolean; position: number };
+type Item = { id: string; text: string; amount: number; done: boolean; position: number };
 
 type Change =
   | { type: "toggle"; id: string }
   | { type: "remove"; id: string }
+  | { type: "amount"; id: string; amount: number }
   | { type: "reorder"; ids: string[] };
 
 function applyTo(items: Item[], change: Change): Item[] {
@@ -34,6 +41,9 @@ function applyTo(items: Item[], change: Change): Item[] {
   }
   if (change.type === "remove") {
     return items.filter((item) => item.id !== change.id);
+  }
+  if (change.type === "amount") {
+    return items.map((item) => (item.id === change.id ? { ...item, amount: change.amount } : item));
   }
 
   // Re-number to the dragged order so the row stays where it was dropped while the
@@ -50,12 +60,16 @@ function sorted(items: Item[]) {
 function Row({
   item,
   draggable,
+  showAmount,
   onToggle,
+  onAmount,
   onRemove,
 }: {
   item: Item;
   draggable: boolean;
+  showAmount: boolean;
   onToggle: () => void;
+  onAmount: (amount: number) => void;
   onRemove: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -114,6 +128,15 @@ function Row({
         </span>
       </form>
 
+      {/* A ticked item shows what was wanted but offers no picker: it is settled, and a
+          stepper on every row of the completed section is only something to scroll past. */}
+      {showAmount &&
+        (item.done ? (
+          <span className="shrink-0 text-sm tabular-nums text-slate-400">×{item.amount}</span>
+        ) : (
+          <AmountPicker value={item.amount} onChange={onAmount} label={`Amount for ${item.text}`} />
+        ))}
+
       <form action={onRemove}>
         <ConfirmButton
           title="Remove item"
@@ -122,16 +145,40 @@ function Row({
           triggerVariant="ghost"
           triggerClassName="px-2 py-1 text-sm text-slate-400 hover:text-red-600"
         >
-          Remove
+          {/* On a phone the word costs about a fifth of the row, which the item's own
+              name needs more. The cross replaces it there; the accessible name is
+              "Remove" at either width. */}
+          <svg
+            viewBox="0 0 20 20"
+            className="h-4 w-4 sm:hidden"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden="true"
+          >
+            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
+          </svg>
+          <span className="sr-only sm:not-sr-only">Remove</span>
         </ConfirmButton>
       </form>
     </div>
   );
 }
 
-export function ListItems({ listId, items }: { listId: string; items: Item[] }) {
+export function ListItems({
+  listId,
+  items,
+  trackAmounts,
+}: {
+  listId: string;
+  items: Item[];
+  trackAmounts: boolean;
+}) {
   const [optimisticItems, applyChange] = useOptimistic(items, applyTo);
   const [, startTransition] = useTransition();
+  // Ticked items are the part of the list already dealt with. They start folded away
+  // and open on request, rather than pushing what is still outstanding down the screen.
+  const [showDone, setShowDone] = useState(false);
 
   const sensors = useSensors(
     // A little movement before a drag starts, so tapping the handle on a phone does
@@ -178,9 +225,20 @@ export function ListItems({ listId, items }: { listId: string; items: Item[] }) 
         key={item.id}
         item={item}
         draggable={draggable}
+        showAmount={trackAmounts}
         onToggle={async () => {
           applyChange({ type: "toggle", id: item.id });
           await toggleListItem(payload);
+        }}
+        onAmount={(amount) => {
+          const data = new FormData();
+          data.set("itemId", item.id);
+          data.set("amount", String(amount));
+
+          startTransition(async () => {
+            applyChange({ type: "amount", id: item.id, amount });
+            await setListItemAmount(data);
+          });
         }}
         onRemove={async () => {
           applyChange({ type: "remove", id: item.id });
@@ -199,17 +257,47 @@ export function ListItems({ listId, items }: { listId: string; items: Item[] }) 
         onDragEnd={handleDragEnd}
       >
         <SortableContext items={open.map((item) => item.id)} strategy={verticalListSortingStrategy}>
-          <div className="divide-y divide-slate-100">
-            {open.map((item) => rowFor(item, true))}
-          </div>
+          <div className="divide-y divide-slate-100">{open.map((item) => rowFor(item, true))}</div>
         </SortableContext>
       </DndContext>
 
-      {/* Ticked items keep their own order at the bottom and are not draggable, so a
-          dragged row cannot land somewhere the sort would immediately undo. */}
+      {open.length === 0 && (
+        <p className="p-6 text-center text-sm text-slate-500">Everything here is ticked off.</p>
+      )}
+
+      {/* Ticked items keep their own order and are not draggable, so a dragged row
+          cannot land somewhere the sort would immediately undo. */}
       {done.length > 0 && (
-        <div className="divide-y divide-slate-100 border-t border-slate-100">
-          {done.map((item) => rowFor(item, false))}
+        <div className="border-t border-slate-100">
+          <button
+            type="button"
+            onClick={() => setShowDone((shown) => !shown)}
+            aria-expanded={showDone}
+            aria-controls="completed-items"
+            className="pressable flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium text-slate-500 hover:bg-slate-50"
+          >
+            <svg
+              viewBox="0 0 20 20"
+              className={`h-3.5 w-3.5 transition-transform duration-150 ${
+                showDone ? "rotate-90" : ""
+              }`}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              aria-hidden="true"
+            >
+              <path d="M7 4l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Completed ({done.length})
+          </button>
+          {showDone && (
+            <div
+              id="completed-items"
+              className="divide-y divide-slate-100 border-t border-slate-100"
+            >
+              {done.map((item) => rowFor(item, false))}
+            </div>
+          )}
         </div>
       )}
     </>

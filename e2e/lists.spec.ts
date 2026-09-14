@@ -19,7 +19,7 @@ test("creating a list opens it", async ({ page }) => {
   await expect(page.getByText("This list is empty.")).toBeVisible();
 });
 
-test("items can be added, ticked off and removed", async ({ page }) => {
+test("ticking an item off folds it into the completed section", async ({ page }) => {
   await openDialog(page, "New list");
   await page.getByLabel("List name").fill("Groceries");
   await page.getByRole("button", { name: "Create list" }).click();
@@ -31,17 +31,65 @@ test("items can be added, ticked off and removed", async ({ page }) => {
     await expect(page.getByText(item, { exact: true })).toBeVisible();
   }
 
-  // Tick the first item off.
+  // Nothing is completed yet, so there is no section to fold away.
+  await expect(page.getByRole("button", { name: /Completed/ })).toHaveCount(0);
+
   const milkRow = page.locator("div").filter({ hasText: /^Milk/ }).last();
   await milkRow.getByRole("button", { name: "Mark as done" }).click();
-  await expect(page.getByRole("button", { name: "Mark as not done" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Clear 1 completed/ })).toBeVisible();
 
-  // Clearing removes only the completed one.
-  await page.getByRole("button", { name: /Clear 1 completed/ }).click();
+  // The ticked item leaves the open list and is hidden inside the new section.
+  const section = page.getByRole("button", { name: "Completed (1)" });
+  await expect(section).toBeVisible();
+  await expect(section).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByText("Milk", { exact: true })).toBeHidden();
   await expect(page.getByText("Bread", { exact: true })).toBeVisible();
   await expect(page.getByText("Eggs", { exact: true })).toBeVisible();
+
+  // Opening it shows the item again, still tickable.
+  await section.click();
+  await expect(section).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByText("Milk", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Mark as not done" }).click();
+  await expect(page.getByRole("button", { name: /Completed/ })).toHaveCount(0);
+  await expect(page.getByText("Milk", { exact: true })).toBeVisible();
+});
+
+test("the completed section starts folded away on every visit", async ({ page }) => {
+  await openDialog(page, "New list");
+  await page.getByLabel("List name").fill("Groceries");
+  await page.getByRole("button", { name: "Create list" }).click();
+  await page.waitForURL(/\/lists\/[a-z0-9]+$/);
+
+  await page.getByPlaceholder("Add an item").fill("Milk");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByRole("button", { name: "Mark as done" }).click();
+
+  const section = page.getByRole("button", { name: "Completed (1)" });
+  await section.click();
+  await expect(page.getByText("Milk", { exact: true })).toBeVisible();
+
+  await page.reload();
+
+  await expect(page.getByRole("button", { name: "Completed (1)" })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  await expect(page.getByText("Milk", { exact: true })).toBeHidden();
+});
+
+test("there is no clear-completed button", async ({ page }) => {
+  await openDialog(page, "New list");
+  await page.getByLabel("List name").fill("Groceries");
+  await page.getByRole("button", { name: "Create list" }).click();
+  await page.waitForURL(/\/lists\/[a-z0-9]+$/);
+
+  await page.getByPlaceholder("Add an item").fill("Milk");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByRole("button", { name: "Mark as done" }).click();
+  await expect(page.getByRole("button", { name: "Completed (1)" })).toBeVisible();
+
+  await expect(page.getByRole("button", { name: /Clear/ })).toHaveCount(0);
 });
 
 test("an item can be removed outright", async ({ page }) => {
@@ -95,7 +143,8 @@ test("the index shows open and total counts", async ({ page }) => {
     await expect(page.getByText(item, { exact: true })).toBeVisible();
   }
   await page.getByRole("button", { name: "Mark as done" }).first().click();
-  await expect(page.getByRole("button", { name: "Mark as not done" })).toBeVisible();
+  // The ticked item is folded away, which is how we know the tick landed.
+  await expect(page.getByRole("button", { name: "Completed (1)" })).toBeVisible();
 
   await page.goto("/lists");
   await expect(page.getByText("1 open · 2 total")).toBeVisible();
