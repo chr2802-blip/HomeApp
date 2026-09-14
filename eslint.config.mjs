@@ -47,6 +47,16 @@ const eslintConfig = [
           message:
             "Read home-scoped models through homeDb(homeId) so the home cannot be left out. Use prisma directly only where crossing homes is the point.",
         },
+        {
+          /*
+           * ListFavorite carries no homeId, so homeDb would pass a query straight
+           * through unscoped — the opposite of the rule above. It is reached through
+           * its list: include it on a list query already made through homeDb.
+           */
+          selector: "MemberExpression[object.name='prisma'][property.name='listFavorite']",
+          message:
+            "Read favourites as an include on a homeDb list query. prisma.listFavorite here would not be scoped to a home at all.",
+        },
       ],
     },
   },

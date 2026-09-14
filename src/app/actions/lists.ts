@@ -71,6 +71,29 @@ export async function updateList(_prev: ActionResult, formData: FormData): Promi
   return ok();
 }
 
+/**
+ * Stars or unstars a list for whoever is looking at it.
+ *
+ * Favourites are personal, so the row is keyed by the caller's own id — never by an id
+ * the form supplied. Like toggling an item this acts on one id and reports nothing.
+ */
+export async function toggleListFavorite(formData: FormData) {
+  const user = await requireHomeUser();
+  const list = await listInScope(String(formData.get("listId")));
+  const key = { userId_listId: { userId: user.id, listId: list.id } };
+
+  const starred = await prisma.listFavorite.findUnique({ where: key });
+  if (starred) {
+    await prisma.listFavorite.delete({ where: key });
+  } else {
+    await prisma.listFavorite.create({ data: { userId: user.id, listId: list.id } });
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/lists");
+  revalidatePath(`/lists/${list.id}`);
+}
+
 /** One past the furthest item, so a new or restored item lands at the bottom. */
 async function nextPosition(listId: string) {
   const last = await prisma.listItem.findFirst({

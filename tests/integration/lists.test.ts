@@ -8,12 +8,14 @@ import {
   reorderListItems,
   restoreListItem,
   setListItemAmount,
+  toggleListFavorite,
   toggleListItem,
   updateList,
 } from "@/app/actions/lists";
 import {
   createHomeWithMembers,
   createList as seedList,
+  createUser,
   formData,
   signIn,
 } from "../helpers/factories";
@@ -368,6 +370,81 @@ describe("restoreListItem", () => {
 
   it("ignores an item that no longer exists", async () => {
     await expect(restoreListItem(formData({ itemId: "missing" }))).resolves.toBeUndefined();
+  });
+});
+
+describe("favourites", () => {
+  const starsOf = (userId: string) =>
+    prisma.listFavorite
+      .findMany({ where: { userId }, include: { list: true } })
+      .then((rows) => rows.map((row) => row.list.title));
+
+  it("stars a list for the person who asked", async () => {
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+
+    await toggleListFavorite(formData({ listId: list.id }));
+
+    expect(await starsOf(member.id)).toEqual(["Shopping"]);
+  });
+
+  it("unstars it when asked again", async () => {
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+
+    await toggleListFavorite(formData({ listId: list.id }));
+    await toggleListFavorite(formData({ listId: list.id }));
+
+    expect(await prisma.listFavorite.count()).toBe(0);
+  });
+
+  it("keeps one person's favourites out of another's, in the same home", async () => {
+    const housemate = await createUser({ homeId: home.id });
+    const shopping = await seedList({ homeId: home.id, createdById: member.id });
+    const jobs = await seedList({ homeId: home.id, createdById: member.id, title: "Jobs" });
+
+    await toggleListFavorite(formData({ listId: shopping.id }));
+
+    await signIn(housemate);
+    await toggleListFavorite(formData({ listId: jobs.id }));
+
+    expect(await starsOf(member.id)).toEqual(["Shopping"]);
+    expect(await starsOf(housemate.id)).toEqual(["Jobs"]);
+  });
+
+  it("stars for the caller, whatever the form says", async () => {
+    const housemate = await createUser({ homeId: home.id });
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+
+    // A hand-written request naming somebody else only ever stars the sender's own.
+    await toggleListFavorite(formData({ listId: list.id, userId: housemate.id }));
+
+    expect(await starsOf(member.id)).toEqual(["Shopping"]);
+    expect(await starsOf(housemate.id)).toEqual([]);
+  });
+
+  it("goes away with the list", async () => {
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+    await toggleListFavorite(formData({ listId: list.id }));
+
+    await expectRedirect(() => deleteList(formData({ listId: list.id })), "/lists");
+
+    expect(await prisma.listFavorite.count()).toBe(0);
+  });
+
+  it("goes away with the person", async () => {
+    const housemate = await createUser({ homeId: home.id });
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+    await signIn(housemate);
+    await toggleListFavorite(formData({ listId: list.id }));
+
+    await prisma.user.delete({ where: { id: housemate.id } });
+
+    expect(await prisma.listFavorite.count()).toBe(0);
+  });
+
+  it("fails loudly for a list that does not exist", async () => {
+    await expect(toggleListFavorite(formData({ listId: "missing" }))).rejects.toThrow(
+      "List not found",
+    );
   });
 });
 

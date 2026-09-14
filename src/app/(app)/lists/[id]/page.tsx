@@ -7,6 +7,7 @@ import { ConfirmButton } from "@/components/confirm-button";
 import { ListItems } from "@/components/list-items";
 import { FormDialog } from "@/components/form-dialog";
 import { AmountsField } from "@/components/amounts-field";
+import { FavoriteButton } from "@/components/favorite-button";
 import { AddItemForm } from "@/components/add-item-form";
 
 export default async function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -17,7 +18,11 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   // indistinguishable from a record that never existed, which is the point.
   const list = await homeDb(user.homeId).list.findUnique({
     where: { id },
-    include: { items: { orderBy: [{ done: "asc" }, { position: "asc" }] } },
+    include: {
+      items: { orderBy: [{ done: "asc" }, { position: "asc" }] },
+      // Only the caller's own star — favourites are personal.
+      favorites: { where: { userId: user.id }, select: { userId: true } },
+    },
   });
   if (!list) notFound();
 
@@ -26,7 +31,15 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   return (
     <>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">{list.title}</h1>
+        <div className="flex min-w-0 items-center gap-1">
+          <FavoriteButton
+            listId={list.id}
+            title={list.title}
+            favorite={list.favorites.length > 0}
+            className="-ml-2"
+          />
+          <h1 className="text-2xl font-semibold tracking-tight">{list.title}</h1>
+        </div>
         <div className="flex gap-2">
           <FormDialog
             triggerLabel="Edit"
