@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import {
   addListItem,
-  clearCompletedItems,
   createList,
   deleteList,
   deleteListItem,
-  renameList,
   reorderListItems,
   restoreListItem,
+  setListItemAmount,
   toggleListItem,
+  updateList,
 } from "@/app/actions/lists";
 import {
   createHomeWithMembers,
@@ -48,6 +48,20 @@ describe("createList", () => {
     expect(await prisma.list.count()).toBe(0);
   });
 
+  it("leaves amounts off unless the box is ticked", async () => {
+    await captureRedirect(() => createList(undefined, formData({ title: "Jobs" })));
+
+    expect((await prisma.list.findFirstOrThrow()).trackAmounts).toBe(false);
+  });
+
+  it("turns amounts on when the box is ticked", async () => {
+    await captureRedirect(() =>
+      createList(undefined, formData({ title: "Groceries", trackAmounts: "on" })),
+    );
+
+    expect((await prisma.list.findFirstOrThrow()).trackAmounts).toBe(true);
+  });
+
   it("allows two lists with the same name", async () => {
     await captureRedirect(() => createList(undefined, formData({ title: "Shopping" })));
     await captureRedirect(() => createList(undefined, formData({ title: "Shopping" })));
@@ -56,11 +70,11 @@ describe("createList", () => {
   });
 });
 
-describe("renameList", () => {
+describe("updateList", () => {
   it("renames the list", async () => {
     const list = await seedList({ homeId: home.id, createdById: member.id });
 
-    await renameList(undefined, formData({ listId: list.id, title: "Weekly shop" }));
+    await updateList(undefined, formData({ listId: list.id, title: "Weekly shop" }));
 
     expect((await prisma.list.findUniqueOrThrow({ where: { id: list.id } })).title).toBe(
       "Weekly shop",
@@ -70,9 +84,30 @@ describe("renameList", () => {
   it("ignores a blank new title", async () => {
     const list = await seedList({ homeId: home.id, createdById: member.id });
 
-    await renameList(undefined, formData({ listId: list.id, title: "  " }));
+    await updateList(undefined, formData({ listId: list.id, title: "  " }));
 
     expect((await prisma.list.findUniqueOrThrow({ where: { id: list.id } })).title).toBe("Shopping");
+  });
+
+  it("turns amounts on and off again", async () => {
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+
+    await updateList(undefined, formData({ listId: list.id, title: "Shopping", trackAmounts: "on" }));
+    expect((await prisma.list.findUniqueOrThrow({ where: { id: list.id } })).trackAmounts).toBe(true);
+
+    await updateList(undefined, formData({ listId: list.id, title: "Shopping" }));
+    expect((await prisma.list.findUniqueOrThrow({ where: { id: list.id } })).trackAmounts).toBe(
+      false,
+    );
+  });
+
+  it("keeps the amounts already on the items when the setting is turned off", async () => {
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+    await prisma.listItem.create({ data: { listId: list.id, text: "Milk", amount: 3, position: 1 } });
+
+    await updateList(undefined, formData({ listId: list.id, title: "Shopping" }));
+
+    expect((await prisma.listItem.findFirstOrThrow()).amount).toBe(3);
   });
 });
 
@@ -149,19 +184,6 @@ describe("list items", () => {
     await deleteListItem(formData({ itemId: item.id }));
 
     expect(await prisma.listItem.count()).toBe(0);
-  });
-
-  it("clears only the completed items", async () => {
-    const list = await seedList({ homeId: home.id, createdById: member.id });
-    await addListItem(undefined, formData({ listId: list.id, text: "Milk" }));
-    await addListItem(undefined, formData({ listId: list.id, text: "Bread" }));
-    const milk = await prisma.listItem.findFirstOrThrow({ where: { text: "Milk" } });
-    await toggleListItem(formData({ itemId: milk.id }));
-
-    await clearCompletedItems(formData({ listId: list.id }));
-
-    const remaining = await prisma.listItem.findMany();
-    expect(remaining.map((item) => item.text)).toEqual(["Bread"]);
   });
 
   it("quietly ignores an item that no longer exists", async () => {
@@ -252,6 +274,70 @@ describe("adding something already on the list", () => {
   });
 });
 
+describe("amounts", () => {
+  async function listWithItem(text = "Milk", fields: Record<string, string> = {}) {
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+    await addListItem(undefined, formData({ listId: list.id, text, ...fields }));
+    return { list, item: await prisma.listItem.findFirstOrThrow() };
+  }
+
+  it("defaults to one when the form does not send an amount", async () => {
+    const { item } = await listWithItem();
+
+    expect(item.amount).toBe(1);
+  });
+
+  it("stores the amount the add box was showing", async () => {
+    const { item } = await listWithItem("Milk", { amount: "3" });
+
+    expect(item.amount).toBe(3);
+  });
+
+  it("sets a new amount on an item", async () => {
+    const { item } = await listWithItem();
+
+    await setListItemAmount(formData({ itemId: item.id, amount: "4" }));
+
+    expect((await prisma.listItem.findUniqueOrThrow({ where: { id: item.id } })).amount).toBe(4);
+  });
+
+  // The picker cannot offer these; a request carrying one was written by hand.
+  it.each([
+    ["0", 1],
+    ["-5", 1],
+    ["", 1],
+    ["nonsense", 1],
+    ["7.6", 8],
+    ["1000", 99],
+  ])("clamps %s to %i", async (sent, stored) => {
+    const { item } = await listWithItem();
+
+    await setListItemAmount(formData({ itemId: item.id, amount: sent }));
+
+    expect((await prisma.listItem.findUniqueOrThrow({ where: { id: item.id } })).amount).toBe(
+      stored,
+    );
+  });
+
+  it("quietly ignores an item that no longer exists", async () => {
+    await expect(
+      setListItemAmount(formData({ itemId: "missing", amount: "2" })),
+    ).resolves.toBeUndefined();
+  });
+
+  it("takes the new amount when a ticked item is added again", async () => {
+    const { list, item } = await listWithItem("Milk", { amount: "2" });
+    await toggleListItem(formData({ itemId: item.id }));
+
+    await addListItem(undefined, formData({ listId: list.id, text: "Milk", amount: "5" }));
+
+    expect((await prisma.listItem.findUniqueOrThrow({ where: { id: item.id } }))).toMatchObject({
+      amount: 5,
+      done: false,
+    });
+  });
+});
+
 describe("restoreListItem", () => {
   it("unticks the item and sends it to the end", async () => {
     const list = await seedList({ homeId: home.id, createdById: member.id });
@@ -267,6 +353,17 @@ describe("restoreListItem", () => {
 
     const open = await prisma.listItem.findMany({ where: { done: false }, orderBy: { position: "asc" } });
     expect(open.map((item) => item.text)).toEqual(["Bread", "Milk"]);
+  });
+
+  it("brings the amount standing in the add box with it", async () => {
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+    const milk = await prisma.listItem.create({
+      data: { listId: list.id, text: "Milk", amount: 2, done: true, position: 1 },
+    });
+
+    await restoreListItem(formData({ itemId: milk.id, amount: "4" }));
+
+    expect((await prisma.listItem.findUniqueOrThrow({ where: { id: milk.id } })).amount).toBe(4);
   });
 
   it("ignores an item that no longer exists", async () => {

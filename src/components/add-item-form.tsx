@@ -4,6 +4,8 @@ import { useRef, useState, useTransition } from "react";
 import { Button, Input } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
 import { restoreListItem } from "@/app/actions/lists";
+import { AmountPicker } from "@/components/amount-picker";
+import { MIN_AMOUNT } from "@/lib/amount";
 import type { FormAction } from "@/lib/action-result";
 
 export type Suggestion = { id: string; text: string };
@@ -22,12 +24,15 @@ export function AddItemForm({
   action,
   listId,
   suggestions,
+  trackAmounts,
 }: {
   action: FormAction;
   listId: string;
   suggestions: Suggestion[];
+  trackAmounts: boolean;
 }) {
   const [query, setQuery] = useState("");
+  const [amount, setAmount] = useState(MIN_AMOUNT);
   const [highlighted, setHighlighted] = useState(-1);
   const [restoring, startRestore] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -36,6 +41,9 @@ export function AddItemForm({
     onSuccess: (form) => {
       form.reset();
       setQuery("");
+      // Back to one for the next item: the amount belongs to the thing just added, not
+      // to everything typed after it.
+      setAmount(MIN_AMOUNT);
       setHighlighted(-1);
     },
   });
@@ -49,8 +57,10 @@ export function AddItemForm({
   function restore(item: Suggestion) {
     const data = new FormData();
     data.set("itemId", item.id);
+    data.set("amount", String(amount));
 
     setQuery("");
+    setAmount(MIN_AMOUNT);
     setHighlighted(-1);
     inputRef.current?.focus();
 
@@ -85,6 +95,12 @@ export function AddItemForm({
       <form onSubmit={handleSubmit} className="space-y-2">
         <div className="flex flex-wrap gap-2">
           <input type="hidden" name="listId" value={listId} />
+          {trackAmounts && (
+            <>
+              <input type="hidden" name="amount" value={amount} />
+              <AmountPicker value={amount} onChange={setAmount} label="Amount" />
+            </>
+          )}
           <Input
             ref={inputRef}
             name="text"
