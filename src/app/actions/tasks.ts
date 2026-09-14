@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireHomeUser } from "@/lib/auth";
+import { homeDb } from "@/lib/home-db";
 import { homeScoped } from "@/lib/scoped";
 import { optionalText, readForm, requiredText } from "@/lib/form";
 import { dueAtDaysFrom, dueAtOn } from "@/lib/time";
@@ -32,6 +33,26 @@ function refreshTaskViews() {
   revalidatePath("/dashboard");
 }
 
+/**
+ * The member a task is being handed to, checked against the home before it is stored.
+ *
+ * The picker only offers this home's members, but the value arrives in a form and a
+ * form can say anything. Asking through `homeDb` makes the check the query itself:
+ * another household's member is simply not found, so there is no comparison to forget.
+ *
+ * A blank value means the whole household, which is what an unassigned task has always
+ * meant.
+ */
+async function readAssignee(formData: FormData, homeId: string) {
+  const id = String(formData.get("assigneeId") ?? "").trim();
+  if (!id) return { ok: true as const, assigneeId: null };
+
+  const member = await homeDb(homeId).user.findUnique({ where: { id } });
+  return member ? { ok: true as const, assigneeId: member.id } : { ok: false as const };
+}
+
+const NOT_A_MEMBER = "That person is not in this home.";
+
 /** A blank date means "leave it alone"; anything else has to be a real date. */
 function readDueDate(formData: FormData, field: string, label: string) {
   const raw = String(formData.get(field) ?? "").trim();
@@ -49,11 +70,15 @@ export async function createTask(_prev: ActionResult, formData: FormData): Promi
   const due = readDueDate(formData, "firstDueAt", "That first due date is not a real date.");
   if (!due.ok) return fail(due.label);
 
+  const assignee = await readAssignee(formData, user.homeId);
+  if (!assignee.ok) return fail(NOT_A_MEMBER);
+
   await prisma.recurringTask.create({
     data: {
       ...form.fields,
       homeId: user.homeId,
       nextDueAt: due.dueAt ?? dueAtDaysFrom(0),
+      assigneeId: assignee.assigneeId,
       createdById: user.id,
     },
   });
@@ -70,9 +95,16 @@ export async function updateTask(_prev: ActionResult, formData: FormData): Promi
   const due = readDueDate(formData, "nextDueAt", "That due date is not a real date.");
   if (!due.ok) return fail(due.label);
 
+  const assignee = await readAssignee(formData, task.homeId);
+  if (!assignee.ok) return fail(NOT_A_MEMBER);
+
   await prisma.recurringTask.update({
     where: { id: task.id },
-    data: { ...form.fields, nextDueAt: due.dueAt ?? task.nextDueAt },
+    data: {
+      ...form.fields,
+      nextDueAt: due.dueAt ?? task.nextDueAt,
+      assigneeId: assignee.assigneeId,
+    },
   });
 
   refreshTaskViews();

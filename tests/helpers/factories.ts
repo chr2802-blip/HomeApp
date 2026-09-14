@@ -85,6 +85,7 @@ export function createTask(options: {
   intervalDays?: number;
   nextDueAt?: Date;
   lastNotifiedAt?: Date | null;
+  assigneeId?: string | null;
 }) {
   return prisma.recurringTask.create({
     data: {
@@ -94,6 +95,7 @@ export function createTask(options: {
       intervalDays: options.intervalDays ?? 7,
       nextDueAt: options.nextDueAt ?? new Date(),
       lastNotifiedAt: options.lastNotifiedAt ?? null,
+      assigneeId: options.assigneeId ?? null,
     },
   });
 }

@@ -200,6 +200,29 @@ Both suites truncate tables between tests, so each starts from a known state. Tw
 impossible for that to reach real data: the database name must carry the right suffix, and it is
 checked again immediately before the first delete. Your development data is never touched.
 
+### Working in more than one checkout at once
+
+A second worktree needs its own databases **and its own browser-test port**. The databases are
+the obvious half; the port is the half that wastes an afternoon.
+
+```bash
+# in the second checkout's .env
+TEST_DATABASE_URL=postgresql://…/homehub_myfeature_test
+E2E_DATABASE_URL=postgresql://…/homehub_myfeature_e2e
+E2E_PORT=3180
+```
+
+Playwright serves the built app on `E2E_PORT` (3100 by default) and reuses a server it finds
+already listening there. Two checkouts on the same port therefore share one server built from
+one of them, and whichever suite finishes first tears it down under the other. It does not look
+like a collision: it looks like `ERR_CONNECTION_REFUSED`, tests failing in a different place
+each run, and a summary reporting a handful of passes out of a hundred. Every one of those is
+worth chasing, and none of them is real.
+
+Migrations are the other thing to watch. Both checkouts migrate the same shared databases unless
+they are pointed apart, so a branch carrying a migration the other does not have will break the
+other's suite — usually as a null-constraint violation in a model neither branch was touching.
+
 ## Blocking a bad deploy
 
 Pushing to `main` is what triggers a Vercel deploy, so the tests gate the push:

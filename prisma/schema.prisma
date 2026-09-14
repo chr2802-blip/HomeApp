@@ -43,7 +43,8 @@ model User {
   pushSubscriptions PushSubscription[]
   favoriteLists     ListFavorite[]
   lists             List[]
-  tasks             RecurringTask[]
+  tasks             RecurringTask[]    @relation("TaskCreatedBy")
+  tasksAssigned     RecurringTask[]    @relation("TaskAssignee")
   recipes           Recipe[]
   invitesCreated    Invite[]           @relation("InviteCreatedBy")
 
@@ -129,10 +130,22 @@ model RecurringTask {
   lastCompletedAt DateTime?
   lastNotifiedAt  DateTime?
   createdById     String
+  /**
+   * Who the task is for, or null for the whole household. Null is not "nobody": an
+   * unassigned task belongs to everyone, and everyone is reminded about it. Naming
+   * somebody narrows the reminder to them, it does not change who may complete it.
+   */
+  assigneeId      String?
   createdAt       DateTime  @default(now())
 
-  home      Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
-  createdBy User @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  home      Home  @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  createdBy User  @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  /**
+   * SetNull rather than Cascade, unlike createdBy: removing a member must not take the
+   * household's tasks with them. The task falls back to being everybody's, which is
+   * where it started.
+   */
+  assignee  User? @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
 
   @@index([homeId])
   @@index([nextDueAt])

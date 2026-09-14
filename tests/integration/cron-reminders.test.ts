@@ -178,6 +178,84 @@ describe("notifying on the due day itself", () => {
   });
 });
 
+describe("who an assigned task reaches", () => {
+  it("notifies only the member a task names", async () => {
+    const { home, admin, member } = await createHomeWithMembers();
+    await createTask({
+      homeId: home.id,
+      createdById: member.id,
+      nextDueAt: daysAgo(1),
+      assigneeId: member.id,
+    });
+
+    await GET(request(CRON_SECRET));
+
+    const [recipients] = sendPushToUsers.mock.calls[0] as unknown as [string[]];
+    expect(recipients).toEqual([member.id]);
+    expect(recipients).not.toContain(admin.id);
+  });
+
+  it("still notifies the whole home when a task names nobody", async () => {
+    const { home, admin, member } = await createHomeWithMembers();
+    await createTask({ homeId: home.id, createdById: member.id, nextDueAt: daysAgo(1) });
+
+    await GET(request(CRON_SECRET));
+
+    const [recipients] = sendPushToUsers.mock.calls[0] as unknown as [string[]];
+    expect([...recipients].sort()).toEqual([admin.id, member.id].sort());
+  });
+
+  // Recipients are chosen per task rather than once for the run, which a single home
+  // in the fixture would not have shown.
+  it("narrows one home's assigned task while another's still reaches everybody", async () => {
+    const first = await createHomeWithMembers();
+    const second = await createHomeWithMembers();
+    await createTask({
+      homeId: first.home.id,
+      createdById: first.member.id,
+      nextDueAt: daysAgo(1),
+      assigneeId: first.admin.id,
+    });
+    await createTask({
+      homeId: second.home.id,
+      createdById: second.member.id,
+      nextDueAt: daysAgo(1),
+    });
+
+    await GET(request(CRON_SECRET));
+
+    const sent = sendPushToUsers.mock.calls.map((call) =>
+      [...(call as unknown as [string[]])[0]].sort(),
+    );
+    expect(sent).toContainEqual([first.admin.id]);
+    expect(sent).toContainEqual([second.admin.id, second.member.id].sort());
+  });
+
+  /**
+   * An assignment can outlive the membership it was made under: a super admin switches
+   * their active home without anything clearing the tasks they were handed. Silence is
+   * the one outcome that must not happen — a task nobody hears about looks exactly like
+   * a week with nothing due — so the household picks it up again.
+   */
+  it("falls back to the household when the named member has left it", async () => {
+    const { home, admin, member } = await createHomeWithMembers();
+    const leaver = await createUser({ homeId: home.id });
+    await createTask({
+      homeId: home.id,
+      createdById: member.id,
+      nextDueAt: daysAgo(1),
+      assigneeId: leaver.id,
+    });
+
+    await prisma.user.update({ where: { id: leaver.id }, data: { homeId: null } });
+
+    await GET(request(CRON_SECRET));
+
+    const [recipients] = sendPushToUsers.mock.calls[0] as unknown as [string[]];
+    expect([...recipients].sort()).toEqual([admin.id, member.id].sort());
+  });
+});
+
 describe("not repeating itself", () => {
   it("does not notify twice in the same day", async () => {
     const { home, member } = await createHomeWithMembers();

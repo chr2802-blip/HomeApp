@@ -29,10 +29,21 @@ export function ButtonLink({
   return <Link className={`${base} ${variants[variant]} ${className}`} {...props} />;
 }
 
-export function Card({ className = "", ...props }: ComponentProps<"div">) {
+/**
+ * `padded` rather than a `p-0` in className: both are padding utilities, and which one
+ * wins is decided by their order in the stylesheet, not in the class attribute — so
+ * overriding from outside silently left the padding in place.
+ */
+export function Card({
+  className = "",
+  padded = true,
+  ...props
+}: ComponentProps<"div"> & { padded?: boolean }) {
   return (
     <div
-      className={`rounded-xl border border-slate-200 bg-white p-5 shadow-sm ${className}`}
+      className={`rounded-xl border border-slate-200 bg-white shadow-sm ${
+        padded ? "p-5" : ""
+      } ${className}`}
       {...props}
     />
   );

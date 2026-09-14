@@ -85,7 +85,7 @@ async function sendDueReminders() {
 
   let delivered = 0;
   for (const task of dueTasks) {
-    delivered += await sendPushToUsers(membersByHome.get(task.homeId) ?? [], {
+    delivered += await sendPushToUsers(recipientsFor(task, membersByHome.get(task.homeId) ?? []), {
       title: "Task due",
       body: task.title,
       url: "/tasks",
@@ -101,6 +101,21 @@ async function sendDueReminders() {
   await prune(now);
 
   return { tasksDue: dueTasks.length, notificationsSent: delivered };
+}
+
+/**
+ * Who hears about one task: the member it names, or the whole household when it names
+ * nobody.
+ *
+ * The named member is looked up in the home's roster rather than trusted outright. An
+ * assignment can outlive the membership it was made under — a super admin moves
+ * themselves between homes without anything clearing the tasks they were handed — and a
+ * task whose one recipient has left would otherwise go quiet with nobody noticing. Then
+ * it falls back to the household, which is where an unnamed task already sends it.
+ */
+function recipientsFor(task: { assigneeId: string | null }, members: string[]) {
+  if (!task.assigneeId) return members;
+  return members.includes(task.assigneeId) ? [task.assigneeId] : members;
 }
 
 /**

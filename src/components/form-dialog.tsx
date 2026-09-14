@@ -6,7 +6,7 @@ import { Button } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
 import type { FormAction } from "@/lib/action-result";
 
-function SubmitButton({ label, pending }: { label: string; pending: boolean }) {
+export function DialogSubmitButton({ label, pending }: { label: string; pending: boolean }) {
   return (
     <Button type="submit" disabled={pending} aria-busy={pending} className="flex-1 sm:flex-none">
       {pending && (
@@ -34,8 +34,11 @@ const ICONS = {
  * The form itself, mounted only while the dialog is open. Keeping it separate means
  * the action state is discarded on close, so reopening never shows the previous
  * attempt's error.
+ *
+ * Exported because not every dialog is opened by a button standing next to it — a task
+ * is edited by pressing its card — but they all report failure the same way.
  */
-function DialogForm({
+export function DialogForm({
   action,
   submitLabel,
   onDone,
@@ -61,7 +64,7 @@ function DialogForm({
         </p>
       )}
       <div className="flex gap-2 pt-2">
-        <SubmitButton label={submitLabel} pending={pending} />
+        <DialogSubmitButton label={submitLabel} pending={pending} />
         <Button type="button" variant="secondary" onClick={onCancel}>
           Cancel
         </Button>
