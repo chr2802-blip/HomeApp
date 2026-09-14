@@ -205,7 +205,9 @@ describe("who an assigned task reaches", () => {
     expect([...recipients].sort()).toEqual([admin.id, member.id].sort());
   });
 
-  it("sends one home's assigned task and another's unassigned one in the same run", async () => {
+  // Recipients are chosen per task rather than once for the run, which a single home
+  // in the fixture would not have shown.
+  it("narrows one home's assigned task while another's still reaches everybody", async () => {
     const first = await createHomeWithMembers();
     const second = await createHomeWithMembers();
     await createTask({
@@ -222,9 +224,11 @@ describe("who an assigned task reaches", () => {
 
     await GET(request(CRON_SECRET));
 
-    const byTask = sendPushToUsers.mock.calls.map(([recipients]) => recipients as unknown as string[]);
-    expect(byTask).toContainEqual([first.admin.id]);
-    expect(byTask.some((r) => [...r].sort().join() === [second.admin.id, second.member.id].sort().join())).toBe(true);
+    const sent = sendPushToUsers.mock.calls.map((call) =>
+      [...(call as unknown as [string[]])[0]].sort(),
+    );
+    expect(sent).toContainEqual([first.admin.id]);
+    expect(sent).toContainEqual([second.admin.id, second.member.id].sort());
   });
 
   /**
