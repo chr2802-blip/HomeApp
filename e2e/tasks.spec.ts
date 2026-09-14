@@ -1,5 +1,12 @@
-import { ACCOUNTS, clickAndConfirm, expect, openDialog, test } from "./helpers/fixtures";
+import { ACCOUNTS, expect, openDialog, test } from "./helpers/fixtures";
+import type { Page } from "@playwright/test";
 import { dueAtDaysFrom, formatInZone } from "../src/lib/time";
+
+/** A task is edited by pressing its card, which is a button naming the task. */
+async function openTask(page: Page, title: string) {
+  await page.getByRole("button", { name: new RegExp(title) }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+}
 
 test.beforeEach(async ({ loginAs, page }) => {
   await loginAs(ACCOUNTS.member);
@@ -51,7 +58,7 @@ test("completing a task reschedules it and records the completion", async ({ pag
 test("a task can be edited", async ({ page }) => {
   await addTask(page, { title: "Old title", intervalDays: "7" });
 
-  await openDialog(page, "Edit");
+  await openTask(page, "Old title");
   await page.getByLabel("Task", { exact: true }).fill("New title");
   await page.getByLabel("Repeat every (days)").fill("14");
   await page.getByRole("button", { name: "Save changes" }).click();
@@ -60,10 +67,12 @@ test("a task can be edited", async ({ page }) => {
   await expect(page.getByText(/Every 14 days/)).toBeVisible();
 });
 
-test("a task can be deleted", async ({ page }) => {
+test("a task can be deleted from its own sheet", async ({ page }) => {
   await addTask(page, { title: "Doomed task" });
 
-  await clickAndConfirm(page, "Delete");
+  await openTask(page, "Doomed task");
+  await page.getByRole("button", { name: "Delete task", exact: true }).click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
 
   await expect(page.getByText("No recurring tasks yet.")).toBeVisible();
 });
@@ -97,7 +106,7 @@ test("a task is everyone's until somebody is named", async ({ page }) => {
 
   await expect(page.getByText(`For ${ACCOUNTS.admin.name}`)).toBeHidden();
 
-  await openDialog(page, "Edit");
+  await openTask(page, "Bins");
   await page.getByLabel("Assigned to").selectOption({ label: ACCOUNTS.admin.name });
   await page.getByRole("button", { name: "Save changes" }).click();
 
@@ -108,7 +117,7 @@ test("a task can be handed back to the whole home", async ({ page }) => {
   await addTask(page, { title: "Bins", assignTo: ACCOUNTS.admin.name });
   await expect(page.getByText(`For ${ACCOUNTS.admin.name}`)).toBeVisible();
 
-  await openDialog(page, "Edit");
+  await openTask(page, "Bins");
   await page.getByLabel("Assigned to").selectOption({ label: "Everyone in the home" });
   await page.getByRole("button", { name: "Save changes" }).click();
 
@@ -153,4 +162,24 @@ test("anyone can complete a task that names somebody else", async ({ page }) => 
 
   await expect(page.getByText(/Every 30 days · last done/)).toBeVisible();
   await expect(page.getByText(`For ${ACCOUNTS.admin.name}`)).toBeVisible();
+});
+
+test("pressing a card opens that task and no other", async ({ page }) => {
+  await addTask(page, { title: "Water the plants" });
+  await addTask(page, { title: "Descale the kettle", intervalDays: "90" });
+
+  await openTask(page, "Descale the kettle");
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("Task", { exact: true })).toHaveValue("Descale the kettle");
+  await expect(dialog.getByLabel("Repeat every (days)")).toHaveValue("90");
+});
+
+test("marking a task done does not open its sheet", async ({ page }) => {
+  await addTask(page, { title: "Water the plants", intervalDays: "30" });
+
+  await page.getByRole("button", { name: "Mark done" }).click();
+
+  await expect(page.getByText(/Every 30 days · last done/)).toBeVisible();
+  await expect(page.getByRole("dialog")).toBeHidden();
 });
