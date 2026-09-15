@@ -167,6 +167,8 @@ export default async function TasksPage() {
         action={
           <FormDialog
             triggerLabel="New task"
+            triggerVariant="create"
+            triggerShape="icon"
             title="New task"
             submitLabel="Add task"
             action={createTask}
