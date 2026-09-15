@@ -10,12 +10,17 @@ import { SubmitButton } from "@/components/submit-button";
 import type { FormAction } from "@/lib/action-result";
 
 /**
- * One recurring task.
+ * One task, of either kind.
  *
  * Editing and deleting sit behind the three dots, as they do on every other card, and
  * pressing the card itself opens the same edit sheet — the shortcut for the thing the
  * menu is most often opened for. That leaves the face of the card for what is done most
  * often of all: saying the task is done.
+ *
+ * A finished one-off shows the way back instead. It is the same button in the same
+ * place because it is the same thought a moment later — pressing Mark done on the wrong
+ * card is the mistake this undoes, and hiding the undo behind the menu would make
+ * finding it the hard part.
  *
  * `summary` is rendered by the page on the server; only the opening and closing needs a
  * browser.
@@ -25,13 +30,17 @@ export function TaskCard({
   title,
   summary,
   photo,
+  finished = false,
   updateAction,
   completeAction,
+  reopenAction,
   deleteAction,
   children,
 }: {
   taskId: string;
   title: string;
+  /** Whether this is a one-off that has been done, and so offers a way back instead. */
+  finished?: boolean;
   /** What the card shows when closed. */
   summary: React.ReactNode;
   /**
@@ -42,6 +51,7 @@ export function TaskCard({
   photo?: React.ReactNode;
   updateAction: FormAction;
   completeAction: (formData: FormData) => void | Promise<void>;
+  reopenAction: (formData: FormData) => void | Promise<void>;
   deleteAction: (formData: FormData) => void | Promise<void>;
   /** The edit form's fields. */
   children: React.ReactNode;
@@ -76,10 +86,10 @@ export function TaskCard({
         {/* A sibling of the button rather than inside it: a form cannot live in a
             button, and marking a task done should not also open its sheet. */}
         <div className="border-t border-slate-100 px-5 py-3">
-          <form action={completeAction}>
+          <form action={finished ? reopenAction : completeAction}>
             <input type="hidden" name="taskId" value={taskId} />
             <SubmitButton variant="secondary" pendingLabel="Saving…">
-              Mark done
+              {finished ? "Reopen" : "Mark done"}
             </SubmitButton>
           </form>
         </div>
@@ -100,7 +110,7 @@ export function TaskCard({
       <ConfirmDialog
         open={confirming}
         onClose={() => setConfirming(false)}
-        message={`Delete the recurring task "${title}"?`}
+        message={`Delete the task "${title}"?`}
         action={deleteAction}
       >
         <input type="hidden" name="taskId" value={taskId} />

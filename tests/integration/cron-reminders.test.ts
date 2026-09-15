@@ -131,6 +131,51 @@ describe("choosing which tasks to notify about", () => {
 
     expect(await response.json()).toEqual({ tasksDue: 0, notificationsSent: 0 });
   });
+
+  it("notifies about a one-off that has not been done", async () => {
+    const { home, member } = await createHomeWithMembers();
+    await createTask({
+      homeId: home.id,
+      createdById: member.id,
+      intervalDays: null,
+      nextDueAt: daysAgo(1),
+    });
+
+    expect(await (await GET(request(CRON_SECRET))).json()).toMatchObject({ tasksDue: 1 });
+  });
+
+  it("leaves a one-off that has been done alone, however long its date has passed", async () => {
+    // A finished one-off keeps the date it was due, so without this it would be
+    // reminded about every morning for ever.
+    const { home, member } = await createHomeWithMembers();
+    await createTask({
+      homeId: home.id,
+      createdById: member.id,
+      intervalDays: null,
+      nextDueAt: daysAgo(30),
+      lastCompletedAt: daysAgo(29),
+    });
+
+    expect(await (await GET(request(CRON_SECRET))).json()).toEqual({
+      tasksDue: 0,
+      notificationsSent: 0,
+    });
+    expect(sendPushToUsers).not.toHaveBeenCalled();
+  });
+
+  it("notifies about a recurring task that has been completed before", async () => {
+    // A completed recurring task is not finished — it comes round again, and the
+    // filter that hides done one-offs must not catch it.
+    const { home, member } = await createHomeWithMembers();
+    await createTask({
+      homeId: home.id,
+      createdById: member.id,
+      nextDueAt: daysAgo(1),
+      lastCompletedAt: daysAgo(8),
+    });
+
+    expect(await (await GET(request(CRON_SECRET))).json()).toMatchObject({ tasksDue: 1 });
+  });
 });
 
 describe("notifying on the due day itself", () => {
@@ -279,7 +324,7 @@ describe("not repeating itself", () => {
     await GET(request(CRON_SECRET));
 
     expect(
-      (await prisma.recurringTask.findUniqueOrThrow({ where: { id: task.id } })).lastNotifiedAt,
+      (await prisma.task.findUniqueOrThrow({ where: { id: task.id } })).lastNotifiedAt,
     ).toBeInstanceOf(Date);
   });
 
@@ -307,7 +352,7 @@ describe("not repeating itself", () => {
     expect(await response.json()).toMatchObject({ tasksDue: 1, notificationsSent: 0 });
     expect(sendPushToUsers).toHaveBeenCalledWith([], expect.anything());
     expect(
-      (await prisma.recurringTask.findUniqueOrThrow({ where: { id: task.id } })).lastNotifiedAt,
+      (await prisma.task.findUniqueOrThrow({ where: { id: task.id } })).lastNotifiedAt,
     ).toBeInstanceOf(Date);
   });
 });

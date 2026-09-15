@@ -9,29 +9,54 @@ import { homeScoped } from "@/lib/scoped";
 import { optionalText, readForm, requiredText } from "@/lib/form";
 import { dueAtDaysFrom, dueAtOn } from "@/lib/time";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
+import {
+  INTERVAL_MESSAGE,
+  MAX_INTERVAL_DAYS,
+  REPEAT_FIELD,
+  REPEAT_ONCE,
+  isOneOff,
+} from "@/lib/tasks";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 
-const MAX_INTERVAL_DAYS = 3650;
-const INTERVAL_MESSAGE = `Repeat every 1 to ${MAX_INTERVAL_DAYS} days.`;
-
-const taskInScope = homeScoped("Task", (id) =>
-  prisma.recurringTask.findUnique({ where: { id } }),
-);
+const taskInScope = homeScoped("Task", (id) => prisma.task.findUnique({ where: { id } }));
 
 /** Create and edit take the same fields; only the name of the date differs. */
 const taskSchema = z.object({
   title: requiredText("Give the task a name."),
-  intervalDays: z.coerce
-    .number({ error: INTERVAL_MESSAGE })
-    .int(INTERVAL_MESSAGE)
-    .min(1, INTERVAL_MESSAGE)
-    .max(MAX_INTERVAL_DAYS, INTERVAL_MESSAGE),
   notes: optionalText,
 });
+
+const intervalSchema = z.coerce
+  .number({ error: INTERVAL_MESSAGE })
+  .int(INTERVAL_MESSAGE)
+  .min(1, INTERVAL_MESSAGE)
+  .max(MAX_INTERVAL_DAYS, INTERVAL_MESSAGE);
 
 function refreshTaskViews() {
   revalidatePath("/tasks");
   revalidatePath("/dashboard");
+}
+
+/**
+ * How often the task comes back, or null when it is a one-off.
+ *
+ * The repeat picker says which kind it is in its own field, so an interval arriving
+ * alongside "just once" is ignored rather than argued with: the person chose the kind,
+ * and the number is left over from the box that was on screen a moment earlier.
+ *
+ * A form that says nothing about the kind is read as recurring, which is what every
+ * task was before one-offs existed — so an interval is still required, and still
+ * checked, for anything that has not opted in.
+ */
+function readInterval(formData: FormData) {
+  if (String(formData.get(REPEAT_FIELD) ?? "") === REPEAT_ONCE) {
+    return { ok: true as const, intervalDays: null };
+  }
+
+  const parsed = intervalSchema.safeParse(formData.get("intervalDays"));
+  return parsed.success
+    ? { ok: true as const, intervalDays: parsed.data }
+    : { ok: false as const, error: parsed.error.issues[0]?.message ?? INTERVAL_MESSAGE };
 }
 
 /**
@@ -68,6 +93,9 @@ export async function createTask(_prev: ActionResult, formData: FormData): Promi
   const form = readForm(taskSchema, formData);
   if (!form.ok) return fail(form.error);
 
+  const repeat = readInterval(formData);
+  if (!repeat.ok) return fail(repeat.error);
+
   const due = readDueDate(formData, "firstDueAt", "That first due date is not a real date.");
   if (!due.ok) return fail(due.label);
 
@@ -77,10 +105,11 @@ export async function createTask(_prev: ActionResult, formData: FormData): Promi
   const photo = await readPhotoChoice(formData, user.homeId);
   if (!photo.ok) return fail(photo.error);
 
-  await prisma.recurringTask.create({
+  await prisma.task.create({
     data: {
       ...form.fields,
       homeId: user.homeId,
+      intervalDays: repeat.intervalDays,
       nextDueAt: due.dueAt ?? dueAtDaysFrom(0),
       assigneeId: assignee.assigneeId,
       photoId: photo.photoId ?? null,
@@ -97,6 +126,9 @@ export async function updateTask(_prev: ActionResult, formData: FormData): Promi
   const form = readForm(taskSchema, formData);
   if (!form.ok) return fail(form.error);
 
+  const repeat = readInterval(formData);
+  if (!repeat.ok) return fail(repeat.error);
+
   const due = readDueDate(formData, "nextDueAt", "That due date is not a real date.");
   if (!due.ok) return fail(due.label);
 
@@ -106,13 +138,18 @@ export async function updateTask(_prev: ActionResult, formData: FormData): Promi
   const photo = await readPhotoChoice(formData, task.homeId);
   if (!photo.ok) return fail(photo.error);
 
-  await prisma.recurringTask.update({
+  await prisma.task.update({
     where: { id: task.id },
     data: {
       ...form.fields,
+      intervalDays: repeat.intervalDays,
       nextDueAt: due.dueAt ?? task.nextDueAt,
       assigneeId: assignee.assigneeId,
       photoId: photo.photoId,
+      // Giving a finished one-off a repeat brings it back to life, and a task that is
+      // back on the list has not been done yet. Left alone it would show as recurring
+      // and completed on a date it will never come round to again.
+      ...(isOneOff(task) && repeat.intervalDays !== null && { lastCompletedAt: null }),
     },
   });
 
@@ -128,21 +165,46 @@ export async function completeTask(formData: FormData) {
   const task = await taskInScope(String(formData.get("taskId")));
   const now = new Date();
 
-  await prisma.recurringTask.update({
+  await prisma.task.update({
     where: { id: task.id },
     data: {
       lastCompletedAt: now,
-      nextDueAt: dueAtDaysFrom(task.intervalDays, now),
       lastNotifiedAt: null,
+      // A recurring task books itself in again, counted from today rather than from the
+      // date it slipped past. A one-off is finished, so its date stays where it was:
+      // moving it on would put a done thing back in the diary. Spelled out rather than
+      // asked through `isOneOff`, which reads the same but tells the compiler nothing
+      // about the number below it.
+      ...(task.intervalDays !== null && { nextDueAt: dueAtDaysFrom(task.intervalDays, now) }),
     },
   });
 
   refreshTaskViews();
 }
 
+/**
+ * Puts a finished one-off back on the list — the undo for a "Mark done" pressed on the
+ * wrong card.
+ *
+ * The due date is left where it was rather than moved to today: the task was due when
+ * it was due, and something marked done by mistake should come back looking exactly as
+ * it did.
+ */
+export async function reopenTask(formData: FormData) {
+  const task = await taskInScope(String(formData.get("taskId")));
+
+  // Only a one-off is ever finished, so only a one-off has anything to reopen. A
+  // recurring task reaching here would lose the date it was last done for nothing.
+  if (!isOneOff(task)) return;
+
+  await prisma.task.update({ where: { id: task.id }, data: { lastCompletedAt: null } });
+
+  refreshTaskViews();
+}
+
 export async function deleteTask(formData: FormData) {
   const task = await taskInScope(String(formData.get("taskId")));
-  await prisma.recurringTask.delete({ where: { id: task.id } });
+  await prisma.task.delete({ where: { id: task.id } });
   // Nothing else can be pointing at it: a picture belongs to the one thing it was
   // added to.
   await discardPhoto(task.homeId, task.photoId);

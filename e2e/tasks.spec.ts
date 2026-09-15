@@ -18,10 +18,20 @@ test.beforeEach(async ({ loginAs, page }) => {
 
 async function addTask(
   page: Parameters<typeof openDialog>[0],
-  options: { title: string; intervalDays?: string; notes?: string; assignTo?: string },
+  options: {
+    title: string;
+    intervalDays?: string;
+    notes?: string;
+    assignTo?: string;
+    /** A one-off: the repeat picker is set to "Just once" and takes the interval away. */
+    once?: boolean;
+  },
 ) {
   await openDialog(page, "New task");
   await page.getByLabel("Task", { exact: true }).fill(options.title);
+  if (options.once) {
+    await page.getByLabel("Repeat", { exact: true }).selectOption({ label: "Just once" });
+  }
   if (options.intervalDays) {
     await page.getByLabel("Repeat every (days)").fill(options.intervalDays);
   }
@@ -36,7 +46,7 @@ async function addTask(
 }
 
 test("the empty state says there are no tasks", async ({ page }) => {
-  await expect(page.getByText("No recurring tasks yet.")).toBeVisible();
+  await expect(page.getByText("No tasks yet.")).toBeVisible();
 });
 
 test("a new task appears as due today and never completed", async ({ page }) => {
@@ -76,7 +86,7 @@ test("a task can be deleted from its own menu", async ({ page }) => {
   await openMenu(page, { label: "Doomed task" });
   await clickAndConfirm(page, "Delete");
 
-  await expect(page.getByText("No recurring tasks yet.")).toBeVisible();
+  await expect(page.getByText("No tasks yet.")).toBeVisible();
 });
 
 test("an overdue task is flagged", async ({ page }) => {
@@ -86,7 +96,7 @@ test("an overdue task is flagged", async ({ page }) => {
 
   // Counted on the household's clock, which is what the app labels against. Deriving
   // this from toISOString() would use UTC and drift by a day near local midnight.
-  await page.getByLabel("First due date").fill(formatInZone(dueAtDaysFrom(-3), "yyyy-MM-dd"));
+  await page.getByLabel("Due date").fill(formatInZone(dueAtDaysFrom(-3), "yyyy-MM-dd"));
 
   await page.getByRole("button", { name: "Add task" }).click();
 
@@ -184,4 +194,88 @@ test("marking a task done does not open its sheet", async ({ page }) => {
 
   await expect(page.getByText(/Every 30 days · last done/)).toBeVisible();
   await expect(page.getByRole("dialog")).toBeHidden();
+});
+
+test("a one-off is added with no interval to give", async ({ page }) => {
+  await openDialog(page, "New task");
+  await page.getByLabel("Task", { exact: true }).fill("Book the plumber");
+  await page.getByLabel("Repeat", { exact: true }).selectOption({ label: "Just once" });
+
+  // There is no interval to fill in, which is the point: the field goes away rather
+  // than sitting there greyed out.
+  await expect(page.getByLabel("Repeat every (days)")).toBeHidden();
+
+  await page.getByRole("button", { name: "Add task" }).click();
+
+  await expect(page.getByText("Book the plumber", { exact: true })).toBeVisible();
+  await expect(page.getByText("One-off", { exact: true })).toBeVisible();
+  await expect(page.getByText("Due today")).toBeVisible();
+});
+
+test("the done list stays away until a one-off is finished", async ({ page }) => {
+  await addTask(page, { title: "Book the plumber", once: true });
+
+  await expect(page.getByRole("heading", { name: "Done" })).toBeHidden();
+
+  await page.getByRole("button", { name: "Mark done" }).click();
+
+  await expect(page.getByRole("heading", { name: "Done" })).toBeVisible();
+  await expect(page.getByText("Nothing left to do.")).toBeVisible();
+});
+
+test("a finished one-off can be brought back exactly as it was", async ({ page }) => {
+  await addTask(page, { title: "Book the plumber", once: true });
+  await page.getByRole("button", { name: "Mark done" }).click();
+  await expect(page.getByRole("heading", { name: "Done" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Reopen" }).click();
+
+  await expect(page.getByRole("heading", { name: "Done" })).toBeHidden();
+  await expect(page.getByText("Due today")).toBeVisible();
+});
+
+test("completing a recurring task leaves the done list empty", async ({ page }) => {
+  // A recurring task is never finished: it books itself in again rather than moving to
+  // the bottom of the page.
+  await addTask(page, { title: "Water the plants", intervalDays: "30" });
+
+  await page.getByRole("button", { name: "Mark done" }).click();
+
+  await expect(page.getByText(/Every 30 days · last done/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Done" })).toBeHidden();
+});
+
+test("a recurring task can be turned into a one-off", async ({ page }) => {
+  await addTask(page, { title: "Water the plants", intervalDays: "30" });
+
+  await openTask(page, "Water the plants");
+  await page.getByLabel("Repeat", { exact: true }).selectOption({ label: "Just once" });
+  await page.getByRole("button", { name: "Save changes" }).click();
+
+  await expect(page.getByText("One-off", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Every 30 days/)).toBeHidden();
+});
+
+test("a one-off due for somebody else shows on the dashboard like any other", async ({ page }) => {
+  await addTask(page, { title: "Book the plumber", once: true, assignTo: ACCOUNTS.admin.name });
+
+  await page.goto("/dashboard");
+
+  const theirs = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Due for someone else" }) });
+
+  await expect(theirs.getByText("Book the plumber")).toBeVisible();
+  await expect(theirs.getByText("One-off", { exact: false })).toBeVisible();
+});
+
+test("a one-off that has been done drops off the dashboard", async ({ page }) => {
+  await addTask(page, { title: "Book the plumber", once: true });
+  await page.getByRole("button", { name: "Mark done" }).click();
+  await expect(page.getByRole("heading", { name: "Done" })).toBeVisible();
+
+  await page.goto("/dashboard");
+
+  await expect(page.getByText("Book the plumber")).toBeHidden();
+  await expect(page.getByText("Nothing due for you in the next few days.")).toBeVisible();
 });

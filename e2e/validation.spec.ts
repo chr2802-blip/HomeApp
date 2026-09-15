@@ -45,7 +45,7 @@ test.describe("a rejected dialog submission", () => {
 
     await expect(page.getByText(INTERVAL_ERROR)).toBeVisible();
     await expect(page.getByRole("dialog")).toBeVisible();
-    expect(await prisma().recurringTask.count()).toBe(0);
+    expect(await prisma().task.count()).toBe(0);
   });
 
   test("keeps what was already typed", async ({ page }) => {
@@ -70,7 +70,7 @@ test.describe("a rejected dialog submission", () => {
 
     await expect(page.getByRole("dialog")).toBeHidden();
     await expect(page.getByText("Water the plants")).toBeVisible();
-    expect(await prisma().recurringTask.count()).toBe(1);
+    expect(await prisma().task.count()).toBe(1);
   });
 
   test("does not carry the error into the next dialog", async ({ page }) => {

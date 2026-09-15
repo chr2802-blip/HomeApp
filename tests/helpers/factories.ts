@@ -79,22 +79,29 @@ export async function createInviteFor(options: {
   return { invite, code };
 }
 
+/**
+ * A task, recurring by default. Pass `intervalDays: null` for a one-off — the caller
+ * has to say so, because "no interval given" is how every other option here means
+ * "whatever the usual is".
+ */
 export function createTask(options: {
   homeId: string;
   createdById: string;
   title?: string;
-  intervalDays?: number;
+  intervalDays?: number | null;
   nextDueAt?: Date;
+  lastCompletedAt?: Date | null;
   lastNotifiedAt?: Date | null;
   assigneeId?: string | null;
 }) {
-  return prisma.recurringTask.create({
+  return prisma.task.create({
     data: {
       homeId: options.homeId,
       createdById: options.createdById,
       title: options.title ?? "Water the plants",
-      intervalDays: options.intervalDays ?? 7,
+      intervalDays: options.intervalDays === undefined ? 7 : options.intervalDays,
       nextDueAt: options.nextDueAt ?? new Date(),
+      lastCompletedAt: options.lastCompletedAt ?? null,
       lastNotifiedAt: options.lastNotifiedAt ?? null,
       assigneeId: options.assigneeId ?? null,
     },

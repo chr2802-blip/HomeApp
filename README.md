@@ -1,6 +1,6 @@
 # HomeHub
 
-Lists, recurring tasks and recipes for your home. Multi-tenant: every home is isolated, and
+Lists, tasks and recipes for your home. Multi-tenant: every home is isolated, and
 users belong to exactly one home.
 
 Next.js 15 (App Router) · Prisma · PostgreSQL · Tailwind · Web Push
@@ -12,16 +12,20 @@ clear items. Rename or delete a whole list. Drag items into the order you shop i
 when you type something that was ticked off earlier it is offered back rather than
 duplicated — so next week's list is mostly rebuilt from last week's.
 
-**Recurring tasks** — Give a task an interval in days. Marking it done reschedules it that many
-days out. Overdue and due-today tasks are highlighted on the dashboard, and a daily job sends a
-push notification for anything due.
+**Tasks** — A task happens once or over and over, and the repeat picker is where you say which.
+A one-off is finished when you mark it done: it moves to a "Done" list at the bottom of the page,
+where it can be brought back if the wrong card was pressed. A recurring task is given an interval
+in days, and marking it done reschedules it that many days out. Either can be handed to one member
+of the home, and either can be edited into the other kind later. Overdue and due-today tasks are
+highlighted on the dashboard, and a daily job sends a push notification for anything due — a
+one-off that has been done is out of all of that for good.
 
 **Recipes** — Title, description, ingredients and instructions (one per line). Paste an
 Instagram, YouTube, TikTok, Vimeo or Facebook link and the video is embedded on the recipe page.
 Links from any other host are shown as a plain "open in new tab" link rather than embedded.
 
 **Pictures** — The home has one of its own, shown beside its name and across the top of the
-dashboard, and so can each list, recurring task and recipe. Taking a photo on a phone and
+dashboard, and so can each list, task and recipe. Taking a photo on a phone and
 adding it works: it is shrunk in the browser before any of it is uploaded. See below.
 
 ## Pictures
@@ -193,7 +197,7 @@ Two kinds of test run from that command:
   wording, invite codes and the role rules.
 - **Integration** (`tests/integration`) — the real server actions and the reminder endpoint,
   driven against a real Postgres database, with only Next.js's per-request APIs stubbed. These
-  cover logging in, throttling, accepting an invite, lists, recurring tasks, recipes,
+  cover logging in, throttling, accepting an invite, lists, tasks, recipes,
   administration, and that one home can never reach another home's data.
 
 Run one group on its own with `npm run test:unit` or `npm run test:integration`, and watch them
@@ -207,7 +211,7 @@ npm run e2e
 
 - **End to end** (`e2e`) — Playwright drives a real Chromium against a production build of the
   app: signing in and out, issuing an invite and redeeming the code, building a list and ticking
-  items off, completing a recurring task, embedding a recipe video, every administration screen,
+  items off, completing a task of either kind, embedding a recipe video, every administration screen,
   and one home being unable to open another home's pages. `npm run e2e:ui` opens the interactive
   runner; after a failure `npm run e2e:report` shows the trace, screenshot and DOM snapshot.
 

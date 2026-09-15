@@ -239,7 +239,7 @@ describe("attaching a picture", () => {
       }),
     );
 
-    expect((await prisma.recurringTask.findFirstOrThrow()).photoId).toBe(taskPhoto.id);
+    expect((await prisma.task.findFirstOrThrow()).photoId).toBe(taskPhoto.id);
     expect((await prisma.recipe.findFirstOrThrow()).photoId).toBe(recipePhoto.id);
   });
 
@@ -366,7 +366,7 @@ describe("replacing and removing", () => {
     const { home, member } = await createHomeWithMembers();
     const photo = await createPhoto({ homeId: home.id });
     const task = await seedTask({ homeId: home.id, createdById: member.id });
-    await prisma.recurringTask.update({ where: { id: task.id }, data: { photoId: photo.id } });
+    await prisma.task.update({ where: { id: task.id }, data: { photoId: photo.id } });
     await signIn(member);
 
     await deleteTask(formData({ taskId: task.id }));
@@ -418,7 +418,7 @@ describe("sweeping up uploads nobody finished", () => {
     await prisma.list.create({
       data: { homeId: home.id, createdById: member.id, title: "Shopping", photoId: onList.id },
     });
-    await prisma.recurringTask.create({
+    await prisma.task.create({
       data: {
         homeId: home.id,
         createdById: member.id,
