@@ -66,7 +66,7 @@ export default async function DashboardPage() {
 
   const db = homeDb(user.homeId);
 
-  const [dueTasks, favorites, recent, recipeCount] = await Promise.all([
+  const [dueTasks, favorites, recent] = await Promise.all([
     db.recurringTask.findMany({
       where: { nextDueAt: { lte: soon } },
       orderBy: { nextDueAt: "asc" },
@@ -84,7 +84,6 @@ export default async function DashboardPage() {
       take: 5,
       include: { _count: { select: { items: true } } },
     }),
-    db.recipe.count(),
   ]);
 
   /*
@@ -106,10 +105,12 @@ export default async function DashboardPage() {
     <>
       {/* The household's own picture, if it has put one up. Above the greeting rather
           than behind it: a photograph with text over it is a photograph you cannot
-          quite see and text you cannot quite read. */}
+          quite see and text you cannot quite read. Edge to edge and against the top
+          bar, so the page opens on the picture rather than on a framed copy of it. */}
       <PhotoBanner
         photoId={user.homePhotoId}
         alt={user.homeName ?? "This home"}
+        bleed
         className="mb-5"
       />
 
@@ -186,18 +187,6 @@ export default async function DashboardPage() {
             to keep it here instead.
           </p>
         )}
-      </section>
-
-      <section className="mt-8">
-        <Card className="flex items-center justify-between">
-          <div>
-            <p className="font-medium">Recipes</p>
-            <p className="text-xs text-slate-500">{recipeCount} saved in this home</p>
-          </div>
-          <ButtonLink href="/recipes" variant="secondary">
-            Browse
-          </ButtonLink>
-        </Card>
       </section>
     </>
   );

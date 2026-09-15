@@ -1,4 +1,4 @@
-import { ACCOUNTS, expect, openDialog, test } from "./helpers/fixtures";
+import { ACCOUNTS, expect, openDialog, openMenu, test } from "./helpers/fixtures";
 import { CATEGORIES, prisma } from "./helpers/database";
 import { pngBytes } from "../tests/helpers/images";
 
@@ -107,6 +107,7 @@ test("a list keeps a picture, and taking it off removes it", async ({ page, logi
   expect(list.photoId).not.toBeNull();
   const photoId = list.photoId!;
 
+  await openMenu(page);
   await openDialog(page, "Edit");
   await page.getByRole("button", { name: "Remove" }).click();
   await page.getByRole("button", { name: "Save changes" }).click();
@@ -127,7 +128,10 @@ test("the home's own picture reaches the header and the dashboard", async ({ pag
   await expect(page.getByText("Saved.")).toBeVisible();
 
   await page.goto("/dashboard");
-  await expect(page.getByAltText("E2E House")).toHaveCount(2); // header and banner
+  // The banner names the home. The header's avatar stands right beside that name, so it
+  // is decorative and is found by where it sits rather than by an alt text.
+  await expect(page.getByAltText("E2E House")).toHaveCount(1);
+  await expect(page.locator("header img")).toHaveCount(1);
 });
 
 test("a picture is not served to another household", async ({ page, loginAs }) => {

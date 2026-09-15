@@ -87,6 +87,20 @@ sits beside the field. **Never bail out with a bare `return`** — that closes t
 though it saved. Actions that only act on an id (toggle, delete, complete) keep a plain
 `(formData)` signature; there is nothing to report.
 
+### Editing and deleting live behind the three dots
+
+Every stored thing — a list, a recipe, a task, a home, a member, a category — carries its
+edit and delete in a `ContextMenu` (`src/components/context-menu.tsx`), opened by a button
+of three dots. `ItemMenu` (`src/components/item-menu.tsx`) is the usual way in: give it the
+id field both actions read, the record's name and the edit form's fields, and it owns both
+sheets. **Never put a bare Delete button on a card.** A destructive button beside a link is
+a destructive button that gets hit with a thumb.
+
+The panel is drawn through a portal and positioned from the trigger's box on screen: the
+cards it belongs to clip their own contents, so a panel rendered inside one is cut off. It
+follows the page when that scrolls rather than closing — a scroll begun before the press is
+delivered *after* it, and closing would shut the menu the press had just opened.
+
 ### Forms submit through `useFormAction`, not the `action` prop
 
 `src/components/use-form-action.ts`. React 19 clears an uncontrolled form once its action
@@ -139,7 +153,8 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
 
 - **Hydration has no DOM signal.** A widget's markup looks identical before and after
   React attaches listeners. Browser tests of interactive widgets must wait on something
-  the widget itself emits — the drag tests wait on dnd-kit's announcements.
+  the widget itself emits — the drag tests wait on dnd-kit's announcements, and a context
+  menu's trigger grows `data-ready` once it can actually open.
 - **Prisma accepts a non-unique field in `where`** on `findUnique`, `update` and `delete`,
   returning null or `P2025` on mismatch. That is what makes `homeDb` work everywhere.
 - **A required relation between two cascade-deleted models wants `NoAction`, not

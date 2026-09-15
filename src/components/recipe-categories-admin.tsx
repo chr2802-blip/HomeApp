@@ -6,7 +6,7 @@ import {
 } from "@/app/actions/recipe-categories";
 import { Badge, Card, Input, Label } from "@/components/ui";
 import { ActionForm } from "@/components/action-form";
-import { ConfirmButton } from "@/components/confirm-button";
+import { ItemMenu } from "@/components/item-menu";
 
 /**
  * The headings this home files its recipes under.
@@ -64,16 +64,15 @@ export async function RecipeCategoriesAdmin({ homeId }: { homeId: string }) {
                   {category._count.recipes === 1 ? "recipe" : "recipes"}
                 </Badge>
               ) : (
-                <form action={deleteRecipeCategory}>
-                  <input type="hidden" name="categoryId" value={category.id} />
-                  <ConfirmButton
-                    title="Delete category"
-                    confirmLabel="Delete"
-                    message={`Delete the category "${category.name}"?`}
-                  >
-                    Delete
-                  </ConfirmButton>
-                </form>
+                <ItemMenu
+                  name="categoryId"
+                  id={category.id}
+                  label={category.name}
+                  deleteAction={deleteRecipeCategory}
+                  deleteTitle="Delete category"
+                  deleteMessage={`Delete the category "${category.name}"?`}
+                  className="-mr-2"
+                />
               )}
             </div>
           ))}

@@ -3,8 +3,7 @@ import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
 import { deleteRecipe, updateRecipe } from "@/app/actions/recipes";
 import { Badge, Card } from "@/components/ui";
-import { ConfirmButton } from "@/components/confirm-button";
-import { FormDialog } from "@/components/form-dialog";
+import { ItemMenu } from "@/components/item-menu";
 import { RecipeFields } from "@/components/recipe-fields";
 import { safeExternalHref, toEmbed } from "@/lib/embed";
 import { PhotoBanner } from "@/components/photo";
@@ -45,23 +44,18 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
           <h1 className="text-2xl font-semibold tracking-tight">{recipe.title}</h1>
           {recipe.description && <p className="mt-1 text-sm text-slate-500">{recipe.description}</p>}
         </div>
-        <div className="flex gap-2">
-          <FormDialog
-            triggerLabel="Edit"
-            triggerVariant="secondary"
-            triggerIcon="pencil"
-            title="Edit recipe"
-            submitLabel="Save changes"
-            action={updateRecipe}
-          >
-            <input type="hidden" name="recipeId" value={recipe.id} />
-            <RecipeFields recipe={recipe} categories={categories} />
-          </FormDialog>
-          <form action={deleteRecipe}>
-            <input type="hidden" name="recipeId" value={recipe.id} />
-            <ConfirmButton message={`Delete the recipe "${recipe.title}"?`}>Delete</ConfirmButton>
-          </form>
-        </div>
+        <ItemMenu
+          name="recipeId"
+          id={recipe.id}
+          label={recipe.title}
+          editTitle="Edit recipe"
+          editAction={updateRecipe}
+          deleteAction={deleteRecipe}
+          deleteMessage={`Delete the recipe "${recipe.title}"?`}
+          className="-mr-2"
+        >
+          <RecipeFields recipe={recipe} categories={categories} />
+        </ItemMenu>
       </div>
 
       {/* Above the video, when there is both: the picture is what the dish should end

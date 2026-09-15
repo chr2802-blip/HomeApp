@@ -29,6 +29,7 @@ export default async function ListsPage() {
       id: list.id,
       title: list.title,
       photoId: list.photoId,
+      trackAmounts: list.trackAmounts,
       open: list.items.length,
       total: list._count.items,
       favorite: list.favorites.length > 0,

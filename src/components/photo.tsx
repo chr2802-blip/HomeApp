@@ -48,12 +48,26 @@ function Img({ src, alt, className }: { src: string; alt: string; className: str
  * A fixed height rather than a fixed ratio: a banner sized by its width grows with the
  * window until it has pushed everything the page is actually for below the fold, and
  * the picture is cropped to fill it either way.
+ *
+ * `bleed` is for a banner that opens a page: it cancels the main column's own padding
+ * so the picture runs edge to edge and meets the top bar, with no gap and no rounded
+ * corners to mark where the page begins. The offsets mirror the padding set in the app
+ * layout — change one and change the other.
  */
-export function PhotoBanner({ photoId, alt, className = "" }: PhotoProps) {
+export function PhotoBanner({
+  photoId,
+  alt,
+  className = "",
+  bleed = false,
+}: PhotoProps & { bleed?: boolean }) {
   if (!photoId) return null;
 
   return (
-    <div className={`h-44 w-full overflow-hidden rounded-xl bg-slate-100 sm:h-64 ${className}`}>
+    <div
+      className={`h-44 overflow-hidden bg-slate-100 sm:h-64 ${
+        bleed ? "-mt-8 -mr-4 -ml-4" : "w-full rounded-xl"
+      } ${className}`}
+    >
       <Img src={photoUrl(photoId)} alt={alt} className="h-full w-full object-cover" />
     </div>
   );

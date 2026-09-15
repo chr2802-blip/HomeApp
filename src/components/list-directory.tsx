@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { deleteList } from "@/app/actions/lists";
-import { Card, EmptyState, Input } from "@/components/ui";
-import { ConfirmButton } from "@/components/confirm-button";
+import { deleteList, updateList } from "@/app/actions/lists";
+import { Card, EmptyState, Input, Label } from "@/components/ui";
+import { AmountsField } from "@/components/amounts-field";
 import { FavoriteButton } from "@/components/favorite-button";
+import { ItemMenu } from "@/components/item-menu";
+import { PhotoField } from "@/components/photo-field";
 import { PhotoThumb } from "@/components/photo";
 
 export type ListSummary = {
@@ -16,6 +18,8 @@ export type ListSummary = {
   open: number;
   total: number;
   favorite: boolean;
+  /** Whether items carry a quantity — the edit sheet opens on the list's own setting. */
+  trackAmounts: boolean;
 };
 
 /**
@@ -70,15 +74,9 @@ export function ListDirectory({ lists }: { lists: ListSummary[] }) {
           {matches.map((list, index) => (
             <Card
               key={list.id}
-              className="animate-row-in flex items-start gap-1 transition hover:border-slate-400"
+              className="animate-row-in flex items-center gap-1 transition hover:border-slate-400"
               style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
             >
-              <FavoriteButton
-                listId={list.id}
-                title={list.title}
-                favorite={list.favorite}
-                className="-mt-1 -ml-1"
-              />
               <Link
                 href={`/lists/${list.id}`}
                 prefetch
@@ -94,12 +92,32 @@ export function ListDirectory({ lists }: { lists: ListSummary[] }) {
                   </p>
                 </div>
               </Link>
-              <form action={deleteList}>
-                <input type="hidden" name="listId" value={list.id} />
-                <ConfirmButton message={`Delete "${list.title}" and all its items?`}>
-                  Delete
-                </ConfirmButton>
-              </form>
+              {/* Both sit to the right of the title, outside the link: a button inside
+                  a link is neither valid nor pressable without following it. */}
+              <FavoriteButton listId={list.id} title={list.title} favorite={list.favorite} />
+              <ItemMenu
+                name="listId"
+                id={list.id}
+                label={list.title}
+                editTitle="Edit list"
+                editAction={updateList}
+                deleteAction={deleteList}
+                deleteMessage={`Delete "${list.title}" and all its items?`}
+                className="-mr-2"
+              >
+                <div className="space-y-1">
+                  <Label htmlFor={`title-${list.id}`}>List name</Label>
+                  <Input
+                    id={`title-${list.id}`}
+                    name="title"
+                    defaultValue={list.title}
+                    required
+                    autoFocus
+                  />
+                </div>
+                <AmountsField defaultChecked={list.trackAmounts} />
+                <PhotoField defaultPhotoId={list.photoId} />
+              </ItemMenu>
             </Card>
           ))}
         </div>

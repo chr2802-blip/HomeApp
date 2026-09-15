@@ -1,4 +1,4 @@
-import { ACCOUNTS, clickAndConfirm, expect, rowWith, test } from "./helpers/fixtures";
+import { ACCOUNTS, clickAndConfirm, expect, openMenu, rowWith, test } from "./helpers/fixtures";
 import { HOME_NAME, OTHER_HOME_NAME, prisma } from "./helpers/database";
 
 test.describe("as a home admin", () => {
@@ -37,8 +37,8 @@ test.describe("as a home admin", () => {
   });
 
   test("a member can be removed", async ({ page }) => {
-    const memberRow = rowWith(page, ACCOUNTS.member.email, page.getByRole("button", { name: "Remove" }));
-    await clickAndConfirm(page, "Remove", { within: memberRow });
+    await openMenu(page, { label: ACCOUNTS.member.name });
+    await clickAndConfirm(page, "Remove");
 
     await expect(page.getByText(ACCOUNTS.member.email)).toBeHidden();
     expect(await prisma().user.findUnique({ where: { email: ACCOUNTS.member.email } })).toBeNull();
@@ -49,11 +49,15 @@ test.describe("as a home admin", () => {
     // rather than a selector that simply found nothing.
     const memberRow = rowWith(page, ACCOUNTS.member.email, page.getByRole("combobox"));
     await expect(memberRow.getByRole("combobox")).toHaveCount(1);
-    await expect(memberRow.getByRole("button", { name: "Remove" })).toHaveCount(1);
+    await expect(
+      memberRow.getByRole("button", { name: `Actions for ${ACCOUNTS.member.name}` }),
+    ).toHaveCount(1);
 
     const ownRow = rowWith(page, `${ACCOUNTS.admin.name} (you)`, page.getByText(ACCOUNTS.admin.email));
     await expect(ownRow.getByRole("combobox")).toHaveCount(0);
-    await expect(ownRow.getByRole("button", { name: "Remove" })).toHaveCount(0);
+    await expect(
+      ownRow.getByRole("button", { name: `Actions for ${ACCOUNTS.admin.name}` }),
+    ).toHaveCount(0);
   });
 
   test("an invite can be issued and then revoked", async ({ page }) => {
@@ -139,8 +143,8 @@ test.describe("as a super admin", () => {
   test("deleting a home takes its members and content with it", async ({ page }) => {
     await page.goto("/admin/homes");
 
-    const targetRow = rowWith(page, HOME_NAME, page.getByRole("button", { name: "Delete" }));
-    await clickAndConfirm(page, "Delete", { within: targetRow });
+    await openMenu(page, { label: HOME_NAME });
+    await clickAndConfirm(page, "Delete");
 
     await expect(page.getByText(HOME_NAME)).toBeHidden();
     expect(await prisma().user.findUnique({ where: { email: ACCOUNTS.member.email } })).toBeNull();

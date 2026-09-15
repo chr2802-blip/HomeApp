@@ -1,4 +1,4 @@
-import { ACCOUNTS, expect, openDialog, test } from "./helpers/fixtures";
+import { ACCOUNTS, expect, openDialog, openMenu, test } from "./helpers/fixtures";
 import { prisma } from "./helpers/database";
 import type { Page } from "@playwright/test";
 
@@ -127,6 +127,7 @@ test("amounts can be turned on for a list that was made without them", async ({ 
   await newList(page, "Jobs", false);
   await add(page, "Hoover");
 
+  await openMenu(page);
   await openDialog(page, "Edit");
   await page.getByLabel("Track amounts").check();
   await page.getByRole("button", { name: "Save changes" }).click();

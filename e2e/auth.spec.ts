@@ -1,12 +1,12 @@
 import { ACCOUNTS, expect, test } from "./helpers/fixtures";
-import { prisma } from "./helpers/database";
+import { HOME_NAME, prisma } from "./helpers/database";
 
 test.describe("signing in", () => {
   test("a member logs in and lands on the dashboard", async ({ page, loginAs }) => {
     await loginAs(ACCOUNTS.member);
 
     await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByRole("link", { name: "HomeHub" })).toBeVisible();
+    await expect(page.getByRole("link", { name: HOME_NAME })).toBeVisible();
     await expect(page.getByText(ACCOUNTS.member.name)).toBeVisible();
   });
 

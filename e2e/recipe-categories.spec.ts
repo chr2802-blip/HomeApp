@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { ACCOUNTS, clickAndConfirm, expect, test } from "./helpers/fixtures";
+import { ACCOUNTS, clickAndConfirm, expect, openMenu, test } from "./helpers/fixtures";
 import { CATEGORIES, HOME_NAME, prisma } from "./helpers/database";
 
 type Seed = { title: string; category: string; ingredients?: string; description?: string };
@@ -172,18 +172,17 @@ test.describe("maintaining the categories", () => {
 
   /*
    * Every recipe must have a category, so one in use cannot be removed without deciding
-   * what happens to what is inside it. The count is shown in Delete's place, which also
-   * answers why it is missing.
+   * what happens to what is inside it. The count is shown in the menu's place, which
+   * also answers why it is missing.
    */
-  test("a category holding recipes offers no Delete, an empty one does", async ({ page }) => {
+  test("a category holding recipes offers no menu, an empty one does", async ({ page }) => {
     await seedRecipes([{ title: "Sourdough", category: "Baking" }]);
     await page.reload();
 
-    const inUse = page.locator("div").filter({ hasText: "1 recipe" }).last();
-    await expect(inUse.getByRole("button", { name: "Delete" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Actions for Baking" })).toHaveCount(0);
 
-    const empty = page.locator("div").filter({ has: page.getByLabel("Name of category Weeknight") }).last();
-    await clickAndConfirm(page, "Delete", { within: empty });
+    await openMenu(page, { label: "Weeknight" });
+    await clickAndConfirm(page, "Delete");
 
     await expect(page.getByLabel("Name of category Weeknight")).toHaveCount(0);
     await expect(page.getByLabel("Name of category Baking")).toHaveCount(1);
