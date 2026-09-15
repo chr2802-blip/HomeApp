@@ -22,7 +22,7 @@ async function seedOtherHomeContent() {
     data: {
       homeId: otherHome.id,
       createdById: owner.id,
-      categoryId: category.id,
+      categories: { create: { categoryId: category.id } },
       title: "Neighbour's secret sauce",
       ingredients: "Tomatoes",
       instructions: "Simmer.",

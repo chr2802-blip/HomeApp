@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { Input, Label, Select, Textarea } from "@/components/ui";
+import { Input, Label, Textarea } from "@/components/ui";
 import { PhotoField } from "@/components/photo-field";
+import { CATEGORY_FIELD } from "@/lib/recipes";
 
 export type RecipeValues = {
   id?: string;
   title?: string;
-  categoryId?: string;
+  /** Every heading it is filed under — one at the least, and often several. */
+  categoryIds?: string[];
   description?: string | null;
   ingredients?: string;
   instructions?: string;
@@ -16,25 +18,31 @@ export type RecipeValues = {
 export type CategoryOption = { id: string; name: string };
 
 /**
- * The category picker.
+ * The category picker: a box to tick per heading, because a recipe belongs under as
+ * many as the cook says it does. A lasagne is both a weeknight dinner and Italian, and
+ * a picker that made them choose would file it under whichever came to mind first and
+ * then fail to find it under the other.
+ *
+ * Boxes rather than a multiple-select list: a `<select multiple>` needs a modifier key
+ * to pick a second option, which on a phone there is no way to press at all.
  *
  * A home with no categories yet cannot file a recipe anywhere, so rather than an empty
- * dropdown that refuses every submission, the field says what is missing and where to
- * fix it. Only an admin can act on that, but everyone is told the same thing: being
- * shown a dead end with no explanation is worse than being shown one you must ask
- * somebody else to clear.
+ * picker that refuses every submission, the field says what is missing and where to fix
+ * it. Only an admin can act on that, but everyone is told the same thing: being shown a
+ * dead end with no explanation is worse than being shown one you must ask somebody else
+ * to clear.
  */
 function CategoryField({
   categories,
-  selected,
+  selected = [],
 }: {
   categories: CategoryOption[];
-  selected?: string;
+  selected?: string[];
 }) {
   if (categories.length === 0) {
     return (
-      <div className="space-y-1">
-        <Label htmlFor="categoryId">Category</Label>
+      <fieldset className="space-y-1">
+        <legend className="block text-sm font-medium text-slate-700">Categories</legend>
         <p className="rounded-lg border border-dashed border-slate-300 p-3 text-sm text-slate-500">
           This home has no recipe categories yet. An admin can add them under{" "}
           <Link href="/admin" className="font-medium text-slate-900 underline">
@@ -42,24 +50,36 @@ function CategoryField({
           </Link>
           .
         </p>
-      </div>
+      </fieldset>
     );
   }
 
   return (
-    <div className="space-y-1">
-      <Label htmlFor="categoryId">Category</Label>
-      <Select id="categoryId" name="categoryId" defaultValue={selected ?? ""} required className="w-full">
-        <option value="" disabled>
-          Choose a category…
-        </option>
+    <fieldset className="space-y-1">
+      {/* A legend rather than a label: the field is a group of boxes, and there is no
+          single control for a label to point at. */}
+      <legend className="block text-sm font-medium text-slate-700">Categories</legend>
+      <p className="text-xs text-slate-500">Tick every heading this recipe belongs under.</p>
+      <div className="flex flex-wrap gap-2 pt-1">
         {categories.map((category) => (
-          <option key={category.id} value={category.id}>
-            {category.name}
-          </option>
+          <label key={category.id} className="pressable cursor-pointer">
+            {/* Off-screen rather than hidden: a hidden input cannot be focused, and the
+                keyboard is the only way some people reach it. The chip beside it shows
+                both the tick and the focus ring. */}
+            <input
+              type="checkbox"
+              name={CATEGORY_FIELD}
+              value={category.id}
+              defaultChecked={selected.includes(category.id)}
+              className="peer sr-only"
+            />
+            <span className="block rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors duration-150 peer-checked:border-slate-900 peer-checked:bg-slate-900 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-slate-400 peer-focus-visible:ring-offset-2">
+              {category.name}
+            </span>
+          </label>
         ))}
-      </Select>
-    </div>
+      </div>
+    </fieldset>
   );
 }
 
@@ -78,7 +98,7 @@ export function RecipeFields({
         <Input id="title" name="title" defaultValue={recipe?.title ?? ""} required />
       </div>
 
-      <CategoryField categories={categories} selected={recipe?.categoryId} />
+      <CategoryField categories={categories} selected={recipe?.categoryIds} />
 
       <div className="space-y-1">
         <Label htmlFor="description">Short description</Label>

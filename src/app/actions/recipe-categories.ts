@@ -91,17 +91,18 @@ export async function renameRecipeCategory(
 /**
  * Removes a category, but only while nothing is filed under it.
  *
- * Every recipe must have a category, so there is nothing sensible to do with the ones
- * left behind: deleting them would destroy the household's recipes, and moving them
- * somewhere arbitrary is a decision the app is not entitled to make. The admin page
- * offers no Delete for a category in use — this is the check behind that, and the
- * foreign key refuses it as well if both are somehow got past.
+ * Every recipe must be filed under at least one heading, and a recipe filed only under
+ * this one would be left under none: it would then be saved but absent from the page
+ * that lists the household's recipes. Emptying the heading first is a decision for
+ * whoever knows where those recipes belong instead. The admin page offers no Delete for
+ * a category in use — this is the check behind that, and the foreign key refuses it as
+ * well if both are somehow got past.
  */
 export async function deleteRecipeCategory(formData: FormData) {
   const category = await categoryInScope(String(formData.get("categoryId")));
   if (!category) return;
 
-  const inUse = await prisma.recipe.count({ where: { categoryId: category.id } });
+  const inUse = await prisma.recipeCategoryLink.count({ where: { categoryId: category.id } });
   if (inUse > 0) return;
 
   await prisma.recipeCategory.delete({ where: { id: category.id } });

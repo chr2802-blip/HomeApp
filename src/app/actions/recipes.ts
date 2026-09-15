@@ -10,13 +10,13 @@ import { homeScoped } from "@/lib/scoped";
 import { optionalText, readForm, requiredText } from "@/lib/form";
 import { safeExternalHref } from "@/lib/embed";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
+import { readCategoryChoice } from "@/lib/recipes";
 import { fail, type ActionResult } from "@/lib/action-result";
 
 const recipeInScope = homeScoped("Recipe", (id) => prisma.recipe.findUnique({ where: { id } }));
 
 const recipeSchema = z.object({
   title: requiredText("Give the recipe a title."),
-  categoryId: requiredText("Choose a category for this recipe."),
   description: optionalText,
   ingredients: z.string().trim().optional().transform((value) => value ?? ""),
   instructions: z.string().trim().optional().transform((value) => value ?? ""),
@@ -38,26 +38,42 @@ const recipeSchema = z.object({
     .transform((raw) => (raw ? safeExternalHref(raw) : null)),
 });
 
+/** Said the same way whether none was chosen or one that this home cannot see. */
+const NO_CATEGORY = "Choose at least one category for this recipe.";
+
 /**
- * Checks the chosen category is one of this home's own.
+ * The categories this recipe is to be filed under, once they are known to be this
+ * home's own — and nothing at all if any of them is not.
  *
  * The picker only offers the home's categories, so a mismatch means either a stale page
- * — the category was deleted while the dialog stood open — or a submission that did not
- * come from the picker at all. Read through homeDb, so another home's id is simply not
- * found, and the recipe cannot be filed under a heading its household cannot see.
+ * — a category was deleted while the dialog stood open — or a submission that did not
+ * come from the picker at all. Counted through homeDb, so another home's id is simply
+ * not found, and a recipe cannot be filed under a heading its household cannot see.
+ *
+ * The ids are already deduplicated, so matching the count is the same question as
+ * matching every id, asked in one query rather than one per heading.
  */
-async function categoryInHome(homeId: string, categoryId: string) {
-  return homeDb(homeId).recipeCategory.findUnique({ where: { id: categoryId } });
+async function chosenCategories(homeId: string, formData: FormData) {
+  const categoryIds = readCategoryChoice(formData);
+  if (categoryIds.length === 0) return null;
+
+  const known = await homeDb(homeId).recipeCategory.count({
+    where: { id: { in: categoryIds } },
+  });
+
+  return known === categoryIds.length ? categoryIds : null;
 }
+
+/** The pairings a recipe is written with, as a nested create on the recipe itself. */
+const filedUnder = (categoryIds: string[]) => categoryIds.map((categoryId) => ({ categoryId }));
 
 export async function createRecipe(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const user = await requireHomeUser();
   const form = readForm(recipeSchema, formData);
   if (!form.ok) return fail(form.error);
 
-  if (!(await categoryInHome(user.homeId, form.fields.categoryId))) {
-    return fail("Choose a category for this recipe.");
-  }
+  const categoryIds = await chosenCategories(user.homeId, formData);
+  if (!categoryIds) return fail(NO_CATEGORY);
 
   const photo = await readPhotoChoice(formData, user.homeId);
   if (!photo.ok) return fail(photo.error);
@@ -68,6 +84,7 @@ export async function createRecipe(_prev: ActionResult, formData: FormData): Pro
       photoId: photo.photoId ?? null,
       homeId: user.homeId,
       createdById: user.id,
+      categories: { create: filedUnder(categoryIds) },
     },
   });
 
@@ -80,17 +97,26 @@ export async function updateRecipe(_prev: ActionResult, formData: FormData): Pro
   const form = readForm(recipeSchema, formData);
   if (!form.ok) return fail(form.error);
 
-  if (!(await categoryInHome(recipe.homeId, form.fields.categoryId))) {
-    return fail("Choose a category for this recipe.");
-  }
+  const categoryIds = await chosenCategories(recipe.homeId, formData);
+  if (!categoryIds) return fail(NO_CATEGORY);
 
   const photo = await readPhotoChoice(formData, recipe.homeId);
   if (!photo.ok) return fail(photo.error);
 
-  await prisma.recipe.update({
-    where: { id: recipe.id },
-    data: { ...form.fields, photoId: photo.photoId },
-  });
+  // The old pairings go before the new ones are written, in one transaction: a heading
+  // that was ticked before and still is would otherwise be written twice, and a recipe
+  // must not be left half-filed if the second statement fails.
+  await prisma.$transaction([
+    prisma.recipeCategoryLink.deleteMany({ where: { recipeId: recipe.id } }),
+    prisma.recipe.update({
+      where: { id: recipe.id },
+      data: {
+        ...form.fields,
+        photoId: photo.photoId,
+        categories: { create: filedUnder(categoryIds) },
+      },
+    }),
+  ]);
 
   // Only once the row no longer points at it, so a failed update cannot leave a recipe
   // holding a picture that has already gone.

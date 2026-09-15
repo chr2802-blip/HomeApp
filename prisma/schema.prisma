@@ -177,7 +177,6 @@ model Task {
 model Recipe {
   id           String   @id @default(cuid())
   homeId       String
-  categoryId   String
   title        String
   description  String?
   ingredients  String   @default("")
@@ -187,28 +186,21 @@ model Recipe {
   createdById  String
   createdAt    DateTime @default(now())
 
-  home      Home           @relation(fields: [homeId], references: [id], onDelete: Cascade)
-  createdBy User           @relation(fields: [createdById], references: [id], onDelete: Cascade)
-  photo     Photo?         @relation(fields: [photoId], references: [id], onDelete: SetNull)
-  /**
-   * NoAction rather than Restrict, and the difference matters. Postgres checks Restrict
-   * the moment the category row goes, which would make deleting a whole home fail: the
-   * cascade removes its categories and its recipes in one statement, in no fixed order.
-   * NoAction is checked once the statement is done, by which point both are gone. A
-   * category still holding recipes is refused either way.
-   */
-  category  RecipeCategory @relation(fields: [categoryId], references: [id], onDelete: NoAction)
+  home       Home                 @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  createdBy  User                 @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  photo      Photo?               @relation(fields: [photoId], references: [id], onDelete: SetNull)
+  /// Every heading this recipe is filed under; at least one, often more.
+  categories RecipeCategoryLink[]
 
   @@index([homeId])
-  // The recipes page reads one home's recipes and groups them by category.
-  @@index([homeId, categoryId])
 }
 
 /**
  * A heading a home files its recipes under, maintained by that home's admins.
  * Categories are shared rather than personal — unlike ListFavorite, every cook in the
- * house sees the same ones — and every recipe has exactly one. What the headings mean
- * is each household's business: "Weeknight" is whatever they decided it is.
+ * house sees the same ones — and a recipe carries as many of them as it belongs under.
+ * What the headings mean is each household's business: "Weeknight" is whatever they
+ * decided it is.
  */
 model RecipeCategory {
   id        String   @id @default(cuid())
@@ -216,13 +208,41 @@ model RecipeCategory {
   name      String
   createdAt DateTime @default(now())
 
-  home    Home     @relation(fields: [homeId], references: [id], onDelete: Cascade)
-  recipes Recipe[]
+  home    Home                 @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  recipes RecipeCategoryLink[]
 
   // Two categories with one name in one home would be indistinguishable in the picker.
   // Separate homes name theirs freely.
   @@unique([homeId, name])
   @@index([homeId])
+}
+
+/**
+ * One recipe filed under one heading. A recipe has at least one of these and may have
+ * several: a lasagne is both "Weeknight" and "Italian", and a household that had to
+ * choose between them would file it under whichever it thought of first and then fail
+ * to find it under the other.
+ * Like ListFavorite it carries no homeId, so homeDb cannot scope it — it is reached
+ * through the recipe, which is what carries the home. Actions write it nested inside a
+ * recipe they have already checked, and pages read it as an include on a recipe query
+ * made through homeDb; a lint rule stops them reaching it directly.
+ * NoAction on the category, and the difference from Restrict matters. Postgres checks
+ * Restrict the moment the category row goes, which would make deleting a whole home
+ * fail: the cascade removes its categories, its recipes and these rows in one
+ * statement, in no fixed order. NoAction is checked once the statement is finished, by
+ * which point all of them are gone. A category still holding recipes is refused either
+ * way, which is the point of having the constraint.
+ */
+model RecipeCategoryLink {
+  recipeId   String
+  categoryId String
+
+  recipe   Recipe         @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  category RecipeCategory @relation(fields: [categoryId], references: [id], onDelete: NoAction)
+
+  // One row per pairing, and the lookup that asks what is filed under a category.
+  @@id([recipeId, categoryId])
+  @@index([categoryId])
 }
 
 /**

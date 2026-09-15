@@ -134,18 +134,39 @@ describe("deleteRecipeCategory", () => {
   });
 
   /*
-   * Every recipe must have a category, so there is nothing sensible to do with what is
-   * left behind. The page offers no Delete in this state; this is the check underneath
-   * it, which is what a stale page or a hand-written submission meets.
+   * A recipe filed only under this heading would be left filed under none, and so would
+   * be saved but absent from the page that lists the household's recipes. The page
+   * offers no Delete in this state; this is the check underneath it, which is what a
+   * stale page or a hand-written submission meets.
    */
   it("leaves a category that still holds recipes", async () => {
     const category = await seedCategory({ homeId: home.id, name: "Baking" });
-    await createRecipe({ homeId: home.id, createdById: member.id, categoryId: category.id });
+    await createRecipe({ homeId: home.id, createdById: member.id, categoryIds: [category.id] });
 
     await deleteRecipeCategory(formData({ categoryId: category.id }));
 
     expect(await prisma.recipeCategory.count()).toBe(1);
     expect(await prisma.recipe.count()).toBe(1);
+  });
+
+  /*
+   * The recipe would survive losing this heading, since it has another — but the
+   * database refuses either way, and an admin who wants the category gone can untick it
+   * on the recipes that use it first. Deleting headings out from under recipes is not a
+   * thing to make easy.
+   */
+  it("leaves a category held by a recipe that has other categories too", async () => {
+    const baking = await seedCategory({ homeId: home.id, name: "Baking" });
+    const weeknight = await seedCategory({ homeId: home.id, name: "Weeknight" });
+    await createRecipe({
+      homeId: home.id,
+      createdById: member.id,
+      categoryIds: [baking.id, weeknight.id],
+    });
+
+    await deleteRecipeCategory(formData({ categoryId: baking.id }));
+
+    expect(await prisma.recipeCategory.count()).toBe(2);
   });
 
   it("cannot reach another home's category", async () => {
@@ -171,15 +192,16 @@ describe("deleteRecipeCategory", () => {
 });
 
 /*
- * Deleting a home removes its categories and its recipes in one cascading statement. A
- * Restrict on Recipe.categoryId would be checked the instant a category row went and
- * could fail depending on the order Postgres chose; NoAction is checked once the
- * statement is done. This test is the reason that choice is written down.
+ * Deleting a home removes its categories, its recipes and the pairings between them in
+ * one cascading statement. A Restrict on RecipeCategoryLink.categoryId would be checked
+ * the instant a category row went and could fail depending on the order Postgres chose;
+ * NoAction is checked once the statement is done. This test is the reason that choice is
+ * written down.
  */
 describe("deleting a whole home", () => {
   it("takes its categories and recipes with it", async () => {
     const category = await seedCategory({ homeId: home.id, name: "Baking" });
-    await createRecipe({ homeId: home.id, createdById: member.id, categoryId: category.id });
+    await createRecipe({ homeId: home.id, createdById: member.id, categoryIds: [category.id] });
 
     await prisma.home.delete({ where: { id: home.id } });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Modal } from "@/components/modal";
+import { Modal, ModalBody, ModalFooter } from "@/components/modal";
 import { Button } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 
@@ -33,15 +33,21 @@ export function ConfirmDialog({
 }) {
   return (
     <Modal open={open} onClose={onClose} title={title}>
-      <p className="text-sm text-slate-600">{message}</p>
-      <form action={action} className="mt-5 flex gap-2">
-        {children}
-        <SubmitButton variant="danger" pendingLabel="Working…" className="flex-1 sm:flex-none">
-          {confirmLabel}
-        </SubmitButton>
-        <Button type="button" variant="secondary" onClick={onClose}>
-          Cancel
-        </Button>
+      <form action={action} className="flex min-h-0 flex-1 flex-col">
+        <ModalBody>
+          <p className="text-sm text-slate-600">{message}</p>
+        </ModalBody>
+        <ModalFooter>
+          <div className="flex gap-2">
+            {children}
+            <SubmitButton variant="danger" pendingLabel="Working…" className="flex-1 sm:flex-none">
+              {confirmLabel}
+            </SubmitButton>
+            <Button type="button" variant="secondary" onClick={onClose}>
+              Cancel
+            </Button>
+          </div>
+        </ModalFooter>
       </form>
     </Modal>
   );

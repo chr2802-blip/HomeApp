@@ -10,7 +10,7 @@ async function fillRecipe(
   page: Parameters<typeof openDialog>[0],
   options: {
     title: string;
-    category?: string;
+    categories?: string[];
     description?: string;
     videoUrl?: string;
     ingredients?: string;
@@ -18,9 +18,12 @@ async function fillRecipe(
   },
 ) {
   await page.getByLabel("Title").fill(options.title);
-  // Every recipe needs a category, so the seed's first one stands in unless a test
-  // cares which.
-  await page.getByLabel("Category").selectOption({ label: options.category ?? CATEGORIES[0] });
+  // Every recipe needs at least one category, so the seed's first one stands in unless
+  // a test cares which. The box itself is off screen — what a person presses is the
+  // chip beside it — so it is ticked rather than clicked at.
+  for (const name of options.categories ?? [CATEGORIES[0]]) {
+    await page.getByRole("checkbox", { name, exact: true }).check({ force: true });
+  }
   if (options.description) await page.getByLabel("Short description").fill(options.description);
   if (options.videoUrl) {
     await page.getByLabel("Video link (Instagram, YouTube, TikTok…)").fill(options.videoUrl);
@@ -112,6 +115,34 @@ test("a recipe can be deleted", async ({ page }) => {
 
   await expect(page).toHaveURL(/\/recipes$/);
   await expect(page.getByText("Doomed recipe")).toBeHidden();
+});
+
+test("a recipe can be filed under several categories at once", async ({ page }) => {
+  await fillRecipe(page, { title: "Lasagne", categories: [...CATEGORIES] });
+  await page.getByRole("button", { name: "Save recipe" }).click();
+  await page.waitForURL(/\/recipes\/[a-z0-9]+$/);
+
+  // Both headings are named on the recipe itself…
+  for (const name of CATEGORIES) {
+    await expect(page.getByText(name, { exact: true })).toBeVisible();
+  }
+
+  // …and both are still ticked when it is opened for editing, so saving again does not
+  // quietly drop one of them.
+  await openMenu(page);
+  await openDialog(page, "Edit");
+  for (const name of CATEGORIES) {
+    await expect(page.getByRole("checkbox", { name, exact: true })).toBeChecked();
+  }
+});
+
+test("a recipe cannot be saved with no category at all", async ({ page }) => {
+  await fillRecipe(page, { title: "Homeless" });
+  await page.getByRole("checkbox", { name: CATEGORIES[0], exact: true }).uncheck({ force: true });
+  await page.getByRole("button", { name: "Save recipe" }).click();
+
+  await expect(page.getByText("Choose at least one category for this recipe.")).toBeVisible();
+  await expect(page).toHaveURL(/\/recipes\/new$/);
 });
 
 test("a recipe with no written steps says to follow the video", async ({ page }) => {
