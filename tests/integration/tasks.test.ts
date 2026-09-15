@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { completeTask, createTask, deleteTask, updateTask } from "@/app/actions/tasks";
+import {
+  completeTask,
+  createTask,
+  deleteTask,
+  reopenTask,
+  updateTask,
+} from "@/app/actions/tasks";
 import {
   createHomeWithMembers,
   createTask as seedTask,
@@ -9,6 +15,7 @@ import {
   signIn,
 } from "../helpers/factories";
 import { dueAtDaysFrom, formatInZone, todayInZone } from "@/lib/time";
+import { REPEAT_DAYS, REPEAT_FIELD, REPEAT_ONCE } from "@/lib/tasks";
 
 let home: Awaited<ReturnType<typeof createHomeWithMembers>>["home"];
 let admin: Awaited<ReturnType<typeof createHomeWithMembers>>["admin"];
@@ -19,7 +26,7 @@ beforeEach(async () => {
   await signIn(member);
 });
 
-const only = () => prisma.recurringTask.findFirstOrThrow();
+const only = () => prisma.task.findFirstOrThrow();
 
 describe("createTask", () => {
   it("creates a task in the caller's home", async () => {
@@ -61,7 +68,7 @@ describe("createTask", () => {
   it("ignores a task with no title", async () => {
     await createTask(undefined, formData({ title: "   ", intervalDays: "7" }));
 
-    expect(await prisma.recurringTask.count()).toBe(0);
+    expect(await prisma.task.count()).toBe(0);
   });
 
   it.each([
@@ -74,14 +81,23 @@ describe("createTask", () => {
   ])("refuses a %s interval", async (_label, intervalDays) => {
     await createTask(undefined, formData({ title: "Task", intervalDays }));
 
-    expect(await prisma.recurringTask.count()).toBe(0);
+    expect(await prisma.task.count()).toBe(0);
+  });
+
+  it("still requires an interval when the form says nothing about repeating", async () => {
+    // Every task was recurring before one-offs existed, and a form that has not opted
+    // in is read that way — so a missing interval is a mistake, not a one-off.
+    const result = await createTask(undefined, formData({ title: "Task" }));
+
+    expect(result).toEqual({ ok: false, error: "Repeat every 1 to 3650 days." });
+    expect(await prisma.task.count()).toBe(0);
   });
 
   it("accepts the boundary intervals", async () => {
     await createTask(undefined, formData({ title: "Daily", intervalDays: "1" }));
     await createTask(undefined, formData({ title: "Decade", intervalDays: "3650" }));
 
-    expect(await prisma.recurringTask.count()).toBe(2);
+    expect(await prisma.task.count()).toBe(2);
   });
 
   it("reports an unparseable date rather than quietly using today", async () => {
@@ -91,7 +107,7 @@ describe("createTask", () => {
     );
 
     expect(result).toEqual({ ok: false, error: "That first due date is not a real date." });
-    expect(await prisma.recurringTask.count()).toBe(0);
+    expect(await prisma.task.count()).toBe(0);
   });
 
   it("says which interval values are allowed", async () => {
@@ -159,7 +175,7 @@ describe("completeTask", () => {
     const second = (await only()).nextDueAt;
 
     expect(formatInZone(second, "yyyy-MM-dd")).toBe(formatInZone(first, "yyyy-MM-dd"));
-    expect(await prisma.recurringTask.count()).toBe(1);
+    expect(await prisma.task.count()).toBe(1);
   });
 
   it("fails loudly for a task that does not exist", async () => {
@@ -244,7 +260,7 @@ describe("assigning a task", () => {
     );
 
     expect(result).toEqual({ ok: false, error: "That person is not in this home." });
-    expect(await prisma.recurringTask.count()).toBe(0);
+    expect(await prisma.task.count()).toBe(0);
   });
 
   it("refuses somebody who is in no home at all", async () => {
@@ -315,9 +331,165 @@ describe("assigning a task", () => {
 
     await prisma.user.delete({ where: { id: admin.id } });
 
-    expect(await prisma.recurringTask.findUnique({ where: { id: task.id } })).toMatchObject({
+    expect(await prisma.task.findUnique({ where: { id: task.id } })).toMatchObject({
       assigneeId: null,
     });
+  });
+});
+
+describe("one-off tasks", () => {
+  it("creates a task with no interval when the form asks for just once", async () => {
+    await createTask(
+      undefined,
+      formData({ title: "Book the plumber", [REPEAT_FIELD]: REPEAT_ONCE }),
+    );
+
+    expect(await only()).toMatchObject({
+      title: "Book the plumber",
+      intervalDays: null,
+      lastCompletedAt: null,
+      homeId: home.id,
+    });
+  });
+
+  it("ignores an interval left over beside the choice of just once", async () => {
+    // The number is whatever was in the box before the picker hid it. The picker is
+    // what the person actually chose.
+    await createTask(
+      undefined,
+      formData({ title: "Book the plumber", intervalDays: "7", [REPEAT_FIELD]: REPEAT_ONCE }),
+    );
+
+    expect((await only()).intervalDays).toBeNull();
+  });
+
+  it("still takes a due date, an assignee and notes", async () => {
+    await createTask(
+      undefined,
+      formData({
+        title: "Book the plumber",
+        [REPEAT_FIELD]: REPEAT_ONCE,
+        firstDueAt: "2026-06-01",
+        assigneeId: admin.id,
+        notes: "Upstairs radiator",
+      }),
+    );
+
+    const task = await only();
+    expect(task).toMatchObject({ assigneeId: admin.id, notes: "Upstairs radiator" });
+    expect(formatInZone(task.nextDueAt, "yyyy-MM-dd HH:mm")).toBe("2026-06-01 09:00");
+  });
+
+  it("records the completion without booking the task in again", async () => {
+    const dueAt = new Date("2026-05-05T07:00:00Z");
+    const task = await seedTask({
+      homeId: home.id,
+      createdById: member.id,
+      intervalDays: null,
+      nextDueAt: dueAt,
+    });
+
+    await completeTask(formData({ taskId: task.id }));
+
+    const done = await only();
+    expect(done.lastCompletedAt).toBeInstanceOf(Date);
+    // The date it was due stays where it was: moving it on would put a finished thing
+    // back in the diary.
+    expect(done.nextDueAt.toISOString()).toBe(dueAt.toISOString());
+  });
+
+  it("reopens to exactly where it was", async () => {
+    const dueAt = new Date("2026-05-05T07:00:00Z");
+    const task = await seedTask({
+      homeId: home.id,
+      createdById: member.id,
+      intervalDays: null,
+      nextDueAt: dueAt,
+      lastCompletedAt: new Date(),
+    });
+
+    await reopenTask(formData({ taskId: task.id }));
+
+    const reopened = await only();
+    expect(reopened.lastCompletedAt).toBeNull();
+    expect(reopened.nextDueAt.toISOString()).toBe(dueAt.toISOString());
+  });
+
+  it("leaves a recurring task's history alone when reopen is called on it", async () => {
+    const lastCompletedAt = new Date("2026-04-01T07:00:00Z");
+    const task = await seedTask({ homeId: home.id, createdById: member.id, lastCompletedAt });
+
+    await reopenTask(formData({ taskId: task.id }));
+
+    expect((await only()).lastCompletedAt?.toISOString()).toBe(lastCompletedAt.toISOString());
+  });
+
+  it("fails loudly for a task that does not exist", async () => {
+    await expect(reopenTask(formData({ taskId: "missing" }))).rejects.toThrow("Task not found");
+  });
+
+  it("turns a recurring task into a one-off", async () => {
+    const task = await seedTask({ homeId: home.id, createdById: member.id, intervalDays: 7 });
+
+    await updateTask(
+      undefined,
+      formData({ taskId: task.id, title: "Water the plants", [REPEAT_FIELD]: REPEAT_ONCE }),
+    );
+
+    expect((await only()).intervalDays).toBeNull();
+  });
+
+  it("gives a one-off a repeat, and puts it back on the list when it had been done", async () => {
+    const task = await seedTask({
+      homeId: home.id,
+      createdById: member.id,
+      intervalDays: null,
+      lastCompletedAt: new Date(),
+    });
+
+    await updateTask(
+      undefined,
+      formData({
+        taskId: task.id,
+        title: "Water the plants",
+        [REPEAT_FIELD]: REPEAT_DAYS,
+        intervalDays: "14",
+      }),
+    );
+
+    const updated = await only();
+    expect(updated.intervalDays).toBe(14);
+    // Something that comes round again has not been done yet, and would otherwise read
+    // as completed on a date it will never reach.
+    expect(updated.lastCompletedAt).toBeNull();
+  });
+
+  it("keeps a recurring task's history when it is edited but stays recurring", async () => {
+    const lastCompletedAt = new Date("2026-04-01T07:00:00Z");
+    const task = await seedTask({ homeId: home.id, createdById: member.id, lastCompletedAt });
+
+    await updateTask(
+      undefined,
+      formData({ taskId: task.id, title: "Renamed", intervalDays: "21" }),
+    );
+
+    expect((await only()).lastCompletedAt?.toISOString()).toBe(lastCompletedAt.toISOString());
+  });
+
+  it("refuses somebody from another household, as a recurring task does", async () => {
+    const neighbour = await createHomeWithMembers();
+
+    const result = await createTask(
+      undefined,
+      formData({
+        title: "Book the plumber",
+        [REPEAT_FIELD]: REPEAT_ONCE,
+        assigneeId: neighbour.member.id,
+      }),
+    );
+
+    expect(result).toEqual({ ok: false, error: "That person is not in this home." });
+    expect(await prisma.task.count()).toBe(0);
   });
 });
 
@@ -327,6 +499,6 @@ describe("deleteTask", () => {
 
     await deleteTask(formData({ taskId: task.id }));
 
-    expect(await prisma.recurringTask.count()).toBe(0);
+    expect(await prisma.task.count()).toBe(0);
   });
 });

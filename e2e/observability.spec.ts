@@ -133,7 +133,7 @@ test.describe("a home admin's reminder status", () => {
   test("reports an overdue task in this home", async ({ page, loginAs }) => {
     const home = await prisma().home.findFirstOrThrow({ where: { name: "E2E House" } });
     const owner = await prisma().user.findFirstOrThrow({ where: { email: ACCOUNTS.admin.email } });
-    await prisma().recurringTask.create({
+    await prisma().task.create({
       data: {
         homeId: home.id,
         createdById: owner.id,

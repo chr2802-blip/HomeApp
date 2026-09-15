@@ -13,6 +13,7 @@ const {
   getHealth,
   pruneMetrics,
 } = await import("@/lib/observability");
+const { getHomeReminderStatus, getSystemStats } = await import("@/lib/system-stats");
 const { createHomeWithMembers, createTask } = await import("../helpers/factories");
 
 const CRON_SECRET = process.env.CRON_SECRET!;
@@ -249,5 +250,62 @@ describe("pruning", () => {
     await cronRoute(request("/api/cron/reminders", CRON_SECRET));
 
     expect(await prisma.slowQuery.count()).toBe(0);
+  });
+});
+
+/*
+ * Both counts read "how much is this household behind on", so a one-off already done
+ * must not be in them: its due date stays where it was, in the past, for ever.
+ */
+describe("what counts as overdue", () => {
+  const daysAgo = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+  it("counts a one-off that is past its date and not done", async () => {
+    const { home, member } = await createHomeWithMembers();
+    await createTask({
+      homeId: home.id,
+      createdById: member.id,
+      intervalDays: null,
+      nextDueAt: daysAgo(2),
+    });
+
+    expect((await getHomeReminderStatus(home.id)).overdue).toBe(1);
+    expect((await getSystemStats()).totals.overdue).toBe(1);
+  });
+
+  it("does not count a one-off that has been done", async () => {
+    const { home, member } = await createHomeWithMembers();
+    await createTask({
+      homeId: home.id,
+      createdById: member.id,
+      intervalDays: null,
+      nextDueAt: daysAgo(30),
+      lastCompletedAt: daysAgo(29),
+    });
+
+    expect((await getHomeReminderStatus(home.id)).overdue).toBe(0);
+    expect((await getSystemStats()).totals.overdue).toBe(0);
+    // It is still one of the household's tasks, and the content totals say so.
+    expect((await getSystemStats()).totals.tasks).toBe(1);
+  });
+
+  it("keeps a finished one-off out of what is coming next", async () => {
+    const { home, member } = await createHomeWithMembers();
+    await createTask({
+      homeId: home.id,
+      createdById: member.id,
+      title: "Done and dusted",
+      intervalDays: null,
+      nextDueAt: daysAgo(30),
+      lastCompletedAt: daysAgo(29),
+    });
+    await createTask({
+      homeId: home.id,
+      createdById: member.id,
+      title: "Still to do",
+      nextDueAt: daysAgo(1),
+    });
+
+    expect((await getHomeReminderStatus(home.id)).nextDue?.title).toBe("Still to do");
   });
 });

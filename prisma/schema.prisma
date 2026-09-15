@@ -27,7 +27,7 @@ model Home {
   users            User[]
   invites          Invite[]
   lists            List[]
-  tasks            RecurringTask[]
+  tasks            Task[]
   recipes          Recipe[]
   recipeCategories RecipeCategory[]
   /// Every picture filed under this home, whatever it is attached to.
@@ -48,8 +48,8 @@ model User {
   pushSubscriptions PushSubscription[]
   favoriteLists     ListFavorite[]
   lists             List[]
-  tasks             RecurringTask[]    @relation("TaskCreatedBy")
-  tasksAssigned     RecurringTask[]    @relation("TaskAssignee")
+  tasks             Task[]             @relation("TaskCreatedBy")
+  tasksAssigned     Task[]             @relation("TaskAssignee")
   recipes           Recipe[]
   invitesCreated    Invite[]           @relation("InviteCreatedBy")
 
@@ -127,12 +127,24 @@ model ListItem {
   @@index([listId])
 }
 
-model RecurringTask {
+/**
+ * Something the household has to do: once, or over and over.
+ *
+ * Which of the two it is, is `intervalDays`. A number is the recurring kind — marking
+ * it done books it in again that many days out — and null is a one-off, which is
+ * finished once it has been done and stays that way.
+ *
+ * A one-off is therefore finished when `lastCompletedAt` is set, and a recurring task
+ * never is: see lib/tasks.ts, where that pair of columns is read in one place rather
+ * than spelled out at every query.
+ */
+model Task {
   id              String    @id @default(cuid())
   homeId          String
   title           String
   notes           String?
-  intervalDays    Int
+  /// How many days between repeats, or null for a one-off.
+  intervalDays    Int?
   nextDueAt       DateTime
   lastCompletedAt DateTime?
   lastNotifiedAt  DateTime?
@@ -252,7 +264,7 @@ model Photo {
    */
   homes   Home[]          @relation("HomePhoto")
   lists   List[]
-  tasks   RecurringTask[]
+  tasks   Task[]
   recipes Recipe[]
 
   @@index([homeId])

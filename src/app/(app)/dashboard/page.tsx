@@ -6,12 +6,13 @@ import { completeTask } from "@/app/actions/tasks";
 import { SubmitButton } from "@/components/submit-button";
 import { NotificationSetup } from "@/components/notification-setup";
 import { dueLabel, dueTone } from "@/lib/due";
+import { UNFINISHED, repeatLabel } from "@/lib/tasks";
 import { PhotoBanner, PhotoThumb } from "@/components/photo";
 
 type DueTaskRow = {
   id: string;
   title: string;
-  intervalDays: number;
+  intervalDays: number | null;
   nextDueAt: Date;
   photoId: string | null;
   assignee: { name: string } | null;
@@ -29,7 +30,7 @@ function DueTask({ task, now }: { task: DueTaskRow; now: Date }) {
       <div className="min-w-0 flex-1">
         <p className="font-medium">{task.title}</p>
         <p className="text-xs text-slate-500">
-          Every {task.intervalDays} days
+          {repeatLabel(task)}
           {task.assignee && ` · ${task.assignee.name}`}
         </p>
       </div>
@@ -67,8 +68,9 @@ export default async function DashboardPage() {
   const db = homeDb(user.homeId);
 
   const [dueTasks, favorites, recent] = await Promise.all([
-    db.recurringTask.findMany({
-      where: { nextDueAt: { lte: soon } },
+    db.task.findMany({
+      // A one-off already done is not due, however long its date has been in the past.
+      where: { nextDueAt: { lte: soon }, ...UNFINISHED },
       orderBy: { nextDueAt: "asc" },
       include: { assignee: { select: { name: true } } },
     }),

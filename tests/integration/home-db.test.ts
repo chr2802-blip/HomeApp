@@ -61,7 +61,7 @@ describe("reading", () => {
     await createRecipe({ homeId: theirs.id, createdById: them.id });
 
     const db = homeDb(ours.id);
-    expect(await db.recurringTask.count()).toBe(1);
+    expect(await db.task.count()).toBe(1);
     expect(await db.recipe.count()).toBe(1);
     expect(await db.user.count()).toBe(1);
   });

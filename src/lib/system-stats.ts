@@ -1,6 +1,7 @@
 import { prisma, slowQueryThresholdMs } from "./prisma";
 import { homeDb } from "./home-db";
 import { REMINDER_JOB } from "./observability";
+import { UNFINISHED } from "./tasks";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -13,7 +14,7 @@ export async function getSystemStats(now: Date = new Date()) {
       prisma.home.count(),
       prisma.user.count(),
       prisma.list.count(),
-      prisma.recurringTask.count(),
+      prisma.task.count(),
       prisma.recipe.count(),
       prisma.pushSubscription.count(),
       prisma.cronRun.findMany({
@@ -29,7 +30,8 @@ export async function getSystemStats(now: Date = new Date()) {
         orderBy: { _max: { durationMs: "desc" } },
         take: 10,
       }),
-      prisma.recurringTask.count({ where: { nextDueAt: { lt: now } } }),
+      // A one-off that has been done is not overdue, whatever its date says.
+      prisma.task.count({ where: { nextDueAt: { lt: now }, ...UNFINISHED } }),
     ]);
 
   return {
@@ -51,13 +53,14 @@ export async function getHomeReminderStatus(homeId: string, now: Date = new Date
     db.user.count(),
     // Push subscriptions hang off a user, not a home, so this one names the home itself.
     prisma.pushSubscription.count({ where: { user: { homeId } } }),
-    db.recurringTask.findFirst({
+    db.task.findFirst({
       where: { lastNotifiedAt: { not: null } },
       orderBy: { lastNotifiedAt: "desc" },
       select: { lastNotifiedAt: true },
     }),
-    db.recurringTask.count({ where: { nextDueAt: { lt: now } } }),
-    db.recurringTask.findFirst({
+    db.task.count({ where: { nextDueAt: { lt: now }, ...UNFINISHED } }),
+    db.task.findFirst({
+      where: UNFINISHED,
       orderBy: { nextDueAt: "asc" },
       select: { nextDueAt: true, title: true },
     }),

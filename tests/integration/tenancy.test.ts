@@ -85,7 +85,7 @@ describe("a member of one home cannot touch another home's data", () => {
     );
     await expectDenied(() => deleteTask(formData({ taskId: task.id })));
 
-    const after = await prisma.recurringTask.findUnique({ where: { id: task.id } });
+    const after = await prisma.task.findUnique({ where: { id: task.id } });
     expect(after).toMatchObject({ title: "Water the plants", lastCompletedAt: null });
   });
 
@@ -194,7 +194,7 @@ describe("a super admin reaches every home", () => {
     await completeTask(formData({ taskId: task.id }));
 
     expect(
-      (await prisma.recurringTask.findUnique({ where: { id: task.id } }))?.lastCompletedAt,
+      (await prisma.task.findUnique({ where: { id: task.id } }))?.lastCompletedAt,
     ).toBeInstanceOf(Date);
   });
 });

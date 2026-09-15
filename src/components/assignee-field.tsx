@@ -3,7 +3,7 @@ import { Label, Select } from "@/components/ui";
 export type MemberOption = { id: string; name: string };
 
 /**
- * Who a recurring task is for.
+ * Who a task is for.
  *
  * The blank option is first and is the default, because most tasks belong to the house
  * rather than to a person. It is worded as what it does — everyone is reminded — rather
