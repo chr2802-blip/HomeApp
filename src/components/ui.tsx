@@ -9,6 +9,8 @@ const variants = {
   secondary: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100",
   danger: "border border-red-200 bg-white text-red-600 hover:bg-red-50",
   ghost: "text-slate-500 hover:bg-slate-100 hover:text-slate-900",
+  /** Adding something. The one green in the app, so it means only that. */
+  create: "bg-emerald-600 text-white hover:bg-emerald-700",
 } as const;
 
 type Variant = keyof typeof variants;
@@ -49,6 +51,31 @@ export function Card({
   );
 }
 
+/**
+ * A round button carrying one icon and no words.
+ *
+ * It builds its own classes rather than reusing `Button`'s: the shared base sets
+ * padding, and which of two padding utilities wins is decided by their order in the
+ * stylesheet rather than in the class attribute — the same trap `Card`'s `padded`
+ * exists to avoid. A name is required, because there is no label to read.
+ */
+export function IconButton({
+  variant = "primary",
+  label,
+  className = "",
+  ...props
+}: Omit<ComponentProps<"button">, "aria-label"> & { variant?: Variant; label: string }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      className={`pressable inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full active:scale-[0.92] disabled:opacity-50 disabled:active:scale-100 ${variants[variant]} ${className}`}
+      {...props}
+    />
+  );
+}
+
 export function Input({ className = "", ...props }: ComponentProps<"input">) {
   return (
     <input
@@ -82,6 +109,12 @@ export function Label({ className = "", ...props }: ComponentProps<"label">) {
   );
 }
 
+/**
+ * The title, whatever the page does to itself on the right of it, and the description
+ * below. The description clears the row rather than tucking under the heading: the
+ * control opposite it is the tallest thing in the row, and a line of grey text running
+ * up against it reads as part of the button.
+ */
 export function PageHeader({
   title,
   description,
@@ -92,12 +125,12 @@ export function PageHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-      <div>
+    <div className="mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
+        {action}
       </div>
-      {action}
+      {description && <p className="mt-3 text-sm text-slate-500">{description}</p>}
     </div>
   );
 }

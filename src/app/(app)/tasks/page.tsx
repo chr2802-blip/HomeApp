@@ -33,6 +33,8 @@ export default async function TasksPage() {
         action={
           <FormDialog
             triggerLabel="New task"
+            triggerVariant="create"
+            triggerShape="icon"
             title="New recurring task"
             submitLabel="Add task"
             action={createTask}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Modal } from "@/components/modal";
-import { Button } from "@/components/ui";
+import { Button, IconButton } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
 import type { FormAction } from "@/lib/action-result";
 
@@ -73,22 +73,44 @@ export function DialogForm({
   );
 }
 
+function TriggerIcon({ icon }: { icon: keyof typeof ICONS }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden="true"
+    >
+      <path d={ICONS[icon]} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /**
  * Trigger button plus the modal holding its form — used for both creating and editing,
  * so every entity is written through the same sheet.
+ *
+ * `triggerShape="icon"` drops the words and keeps the icon, for the button that adds to
+ * a page beside that page's own title: the heading has already said what the page holds,
+ * so "New list" under "Lists" only says it again. `triggerLabel` still names the button
+ * for anything that cannot see it.
  */
 export function FormDialog({
   triggerLabel,
   triggerVariant = "primary",
   triggerIcon = "plus",
+  triggerShape = "button",
   title,
   submitLabel,
   action,
   children,
 }: {
   triggerLabel: string;
-  triggerVariant?: "primary" | "secondary";
+  triggerVariant?: "primary" | "secondary" | "create";
   triggerIcon?: keyof typeof ICONS | "none";
+  triggerShape?: "button" | "icon";
   title: string;
   submitLabel: string;
   action: FormAction;
@@ -98,20 +120,29 @@ export function FormDialog({
 
   return (
     <>
-      <Button variant={triggerVariant} onClick={() => setOpen(true)}>
-        {triggerIcon !== "none" && (
+      {triggerShape === "icon" ? (
+        <IconButton
+          variant={triggerVariant}
+          label={triggerLabel}
+          onClick={() => setOpen(true)}
+        >
           <svg
             viewBox="0 0 24 24"
-            className="h-4 w-4"
+            className="h-5 w-5"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2"
+            strokeWidth="2.5"
+            aria-hidden="true"
           >
-            <path d={ICONS[triggerIcon]} strokeLinecap="round" strokeLinejoin="round" />
+            <path d={ICONS.plus} strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-        )}
-        {triggerLabel}
-      </Button>
+        </IconButton>
+      ) : (
+        <Button variant={triggerVariant} onClick={() => setOpen(true)}>
+          {triggerIcon !== "none" && <TriggerIcon icon={triggerIcon} />}
+          {triggerLabel}
+        </Button>
+      )}
 
       <Modal open={open} onClose={() => setOpen(false)} title={title}>
         <DialogForm

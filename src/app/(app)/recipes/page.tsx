@@ -39,6 +39,8 @@ export default async function RecipesPage() {
         action={
           <FormDialog
             triggerLabel="New recipe"
+            triggerVariant="create"
+            triggerShape="icon"
             title="New recipe"
             submitLabel="Save recipe"
             action={createRecipe}
