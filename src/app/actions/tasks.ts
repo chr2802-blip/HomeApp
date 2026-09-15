@@ -8,6 +8,7 @@ import { homeDb } from "@/lib/home-db";
 import { homeScoped } from "@/lib/scoped";
 import { optionalText, readForm, requiredText } from "@/lib/form";
 import { dueAtDaysFrom, dueAtOn } from "@/lib/time";
+import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 
 const MAX_INTERVAL_DAYS = 3650;
@@ -73,12 +74,16 @@ export async function createTask(_prev: ActionResult, formData: FormData): Promi
   const assignee = await readAssignee(formData, user.homeId);
   if (!assignee.ok) return fail(NOT_A_MEMBER);
 
+  const photo = await readPhotoChoice(formData, user.homeId);
+  if (!photo.ok) return fail(photo.error);
+
   await prisma.recurringTask.create({
     data: {
       ...form.fields,
       homeId: user.homeId,
       nextDueAt: due.dueAt ?? dueAtDaysFrom(0),
       assigneeId: assignee.assigneeId,
+      photoId: photo.photoId ?? null,
       createdById: user.id,
     },
   });
@@ -98,14 +103,22 @@ export async function updateTask(_prev: ActionResult, formData: FormData): Promi
   const assignee = await readAssignee(formData, task.homeId);
   if (!assignee.ok) return fail(NOT_A_MEMBER);
 
+  const photo = await readPhotoChoice(formData, task.homeId);
+  if (!photo.ok) return fail(photo.error);
+
   await prisma.recurringTask.update({
     where: { id: task.id },
     data: {
       ...form.fields,
       nextDueAt: due.dueAt ?? task.nextDueAt,
       assigneeId: assignee.assigneeId,
+      photoId: photo.photoId,
     },
   });
+
+  // Only once the row no longer points at it, so a failed update cannot leave a task
+  // holding a picture that has already gone.
+  await discardReplaced(task.homeId, task.photoId, photo.photoId);
 
   refreshTaskViews();
   return ok();
@@ -130,5 +143,8 @@ export async function completeTask(formData: FormData) {
 export async function deleteTask(formData: FormData) {
   const task = await taskInScope(String(formData.get("taskId")));
   await prisma.recurringTask.delete({ where: { id: task.id } });
+  // Nothing else can be pointing at it: a picture belongs to the one thing it was
+  // added to.
+  await discardPhoto(task.homeId, task.photoId);
   refreshTaskViews();
 }

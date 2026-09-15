@@ -6,10 +6,13 @@ import { deleteList } from "@/app/actions/lists";
 import { Card, EmptyState, Input } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
 import { FavoriteButton } from "@/components/favorite-button";
+import { PhotoThumb } from "@/components/photo";
 
 export type ListSummary = {
   id: string;
   title: string;
+  /** The list's picture, if it has one. Only the id: the thumbnail is fetched by URL. */
+  photoId: string | null;
   open: number;
   total: number;
   favorite: boolean;
@@ -79,12 +82,17 @@ export function ListDirectory({ lists }: { lists: ListSummary[] }) {
               <Link
                 href={`/lists/${list.id}`}
                 prefetch
-                className="pressable -m-2 min-w-0 flex-1 rounded-lg p-2 active:scale-[0.98] active:bg-slate-50"
+                className="pressable -m-2 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-2 active:scale-[0.98] active:bg-slate-50"
               >
-                <p className="font-medium hover:underline">{list.title}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {list.open} open · {list.total} total
-                </p>
+                {/* Decorative: the title is right beside it, and a screen reader
+                    reading the same words twice helps nobody. */}
+                <PhotoThumb photoId={list.photoId} alt="" className="h-11 w-11" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium hover:underline">{list.title}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {list.open} open · {list.total} total
+                  </p>
+                </div>
               </Link>
               <form action={deleteList}>
                 <input type="hidden" name="listId" value={list.id} />

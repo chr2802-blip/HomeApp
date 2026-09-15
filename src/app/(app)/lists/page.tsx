@@ -4,6 +4,7 @@ import { createList } from "@/app/actions/lists";
 import { Input, Label, PageHeader } from "@/components/ui";
 import { FormDialog } from "@/components/form-dialog";
 import { AmountsField } from "@/components/amounts-field";
+import { PhotoField } from "@/components/photo-field";
 import { ListDirectory, type ListSummary } from "@/components/list-directory";
 
 export default async function ListsPage() {
@@ -27,6 +28,7 @@ export default async function ListsPage() {
     .map((list) => ({
       id: list.id,
       title: list.title,
+      photoId: list.photoId,
       open: list.items.length,
       total: list._count.items,
       favorite: list.favorites.length > 0,
@@ -50,6 +52,7 @@ export default async function ListsPage() {
               <Input id="title" name="title" placeholder="Shopping list" required autoFocus />
             </div>
             <AmountsField />
+            <PhotoField hint="Optional — a picture makes the list easy to pick out." />
           </FormDialog>
         }
       />

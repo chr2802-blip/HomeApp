@@ -9,6 +9,8 @@ import { FormDialog } from "@/components/form-dialog";
 import { AmountsField } from "@/components/amounts-field";
 import { FavoriteButton } from "@/components/favorite-button";
 import { AddItemForm } from "@/components/add-item-form";
+import { PhotoField } from "@/components/photo-field";
+import { PhotoThumb } from "@/components/photo";
 
 export default async function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -38,6 +40,8 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
             favorite={list.favorites.length > 0}
             className="-ml-2"
           />
+          {/* Decorative: the title is right beside it. */}
+          <PhotoThumb photoId={list.photoId} alt="" className="mr-1 h-11 w-11" />
           <h1 className="text-2xl font-semibold tracking-tight">{list.title}</h1>
         </div>
         <div className="flex gap-2">
@@ -55,6 +59,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
               <Input id="title" name="title" defaultValue={list.title} required autoFocus />
             </div>
             <AmountsField defaultChecked={list.trackAmounts} />
+            <PhotoField defaultPhotoId={list.photoId} />
           </FormDialog>
           <form action={deleteList}>
             <input type="hidden" name="listId" value={list.id} />

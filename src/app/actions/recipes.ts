@@ -9,6 +9,7 @@ import { homeDb } from "@/lib/home-db";
 import { homeScoped } from "@/lib/scoped";
 import { optionalText, readForm, requiredText } from "@/lib/form";
 import { safeExternalHref } from "@/lib/embed";
+import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { fail, type ActionResult } from "@/lib/action-result";
 
 const recipeInScope = homeScoped("Recipe", (id) => prisma.recipe.findUnique({ where: { id } }));
@@ -58,8 +59,16 @@ export async function createRecipe(_prev: ActionResult, formData: FormData): Pro
     return fail("Choose a category for this recipe.");
   }
 
+  const photo = await readPhotoChoice(formData, user.homeId);
+  if (!photo.ok) return fail(photo.error);
+
   const recipe = await prisma.recipe.create({
-    data: { ...form.fields, homeId: user.homeId, createdById: user.id },
+    data: {
+      ...form.fields,
+      photoId: photo.photoId ?? null,
+      homeId: user.homeId,
+      createdById: user.id,
+    },
   });
 
   revalidatePath("/recipes");
@@ -75,7 +84,17 @@ export async function updateRecipe(_prev: ActionResult, formData: FormData): Pro
     return fail("Choose a category for this recipe.");
   }
 
-  await prisma.recipe.update({ where: { id: recipe.id }, data: form.fields });
+  const photo = await readPhotoChoice(formData, recipe.homeId);
+  if (!photo.ok) return fail(photo.error);
+
+  await prisma.recipe.update({
+    where: { id: recipe.id },
+    data: { ...form.fields, photoId: photo.photoId },
+  });
+
+  // Only once the row no longer points at it, so a failed update cannot leave a recipe
+  // holding a picture that has already gone.
+  await discardReplaced(recipe.homeId, recipe.photoId, photo.photoId);
 
   revalidatePath("/recipes");
   revalidatePath(`/recipes/${recipe.id}`);
@@ -85,6 +104,9 @@ export async function updateRecipe(_prev: ActionResult, formData: FormData): Pro
 export async function deleteRecipe(formData: FormData) {
   const recipe = await recipeInScope(String(formData.get("recipeId")));
   await prisma.recipe.delete({ where: { id: recipe.id } });
+  // Nothing else can be pointing at it: a picture belongs to the one thing it was
+  // added to.
+  await discardPhoto(recipe.homeId, recipe.photoId);
   revalidatePath("/recipes");
   redirect("/recipes");
 }

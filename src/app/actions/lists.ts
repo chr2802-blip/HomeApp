@@ -9,6 +9,7 @@ import { assertHomeAccess } from "@/lib/access";
 import { homeScoped } from "@/lib/scoped";
 import { readForm, requiredText } from "@/lib/form";
 import { clampAmount } from "@/lib/amount";
+import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 
 const listInScope = homeScoped("List", (id) => prisma.list.findUnique({ where: { id } }));
@@ -36,10 +37,14 @@ export async function createList(_prev: ActionResult, formData: FormData): Promi
   const form = readForm(listSchema, formData);
   if (!form.ok) return fail(form.error);
 
+  const photo = await readPhotoChoice(formData, user.homeId);
+  if (!photo.ok) return fail(photo.error);
+
   const list = await prisma.list.create({
     data: {
       title: form.fields.title,
       trackAmounts: form.fields.trackAmounts,
+      photoId: photo.photoId ?? null,
       homeId: user.homeId,
       createdById: user.id,
     },
@@ -52,6 +57,9 @@ export async function createList(_prev: ActionResult, formData: FormData): Promi
 export async function deleteList(formData: FormData) {
   const list = await listInScope(String(formData.get("listId")));
   await prisma.list.delete({ where: { id: list.id } });
+  // Nothing else can be pointing at it: a picture belongs to the one thing it was
+  // added to.
+  await discardPhoto(list.homeId, list.photoId);
   revalidatePath("/lists");
   redirect("/lists");
 }
@@ -61,10 +69,21 @@ export async function updateList(_prev: ActionResult, formData: FormData): Promi
   const form = readForm(listSchema, formData);
   if (!form.ok) return fail(form.error);
 
+  const photo = await readPhotoChoice(formData, list.homeId);
+  if (!photo.ok) return fail(photo.error);
+
   await prisma.list.update({
     where: { id: list.id },
-    data: { title: form.fields.title, trackAmounts: form.fields.trackAmounts },
+    data: {
+      title: form.fields.title,
+      trackAmounts: form.fields.trackAmounts,
+      photoId: photo.photoId,
+    },
   });
+
+  // Only once the row no longer points at it, so a failed update cannot leave a list
+  // holding a picture that has already gone.
+  await discardReplaced(list.homeId, list.photoId, photo.photoId);
 
   revalidatePath(`/lists/${list.id}`);
   revalidatePath("/lists");

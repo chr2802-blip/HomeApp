@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Input, Label, Select, Textarea } from "@/components/ui";
+import { PhotoField } from "@/components/photo-field";
 
 export type RecipeValues = {
   id?: string;
@@ -9,6 +10,7 @@ export type RecipeValues = {
   ingredients?: string;
   instructions?: string;
   videoUrl?: string | null;
+  photoId?: string | null;
 };
 
 export type CategoryOption = { id: string; name: string };
@@ -82,6 +84,12 @@ export function RecipeFields({
         <Label htmlFor="description">Short description</Label>
         <Input id="description" name="description" defaultValue={recipe?.description ?? ""} />
       </div>
+
+      <PhotoField
+        defaultPhotoId={recipe?.photoId ?? null}
+        label="Picture"
+        hint="What it looks like when it is finished — shown on the recipe and on its card."
+      />
 
       <div className="space-y-1">
         <Label htmlFor="videoUrl">Video link (Instagram, YouTube, TikTok…)</Label>

@@ -7,6 +7,8 @@ import { formatInZone, todayInZone } from "@/lib/time";
 import { FormDialog } from "@/components/form-dialog";
 import { AssigneeField } from "@/components/assignee-field";
 import { TaskCard } from "@/components/task-card";
+import { PhotoField } from "@/components/photo-field";
+import { PhotoThumb } from "@/components/photo";
 
 export default async function TasksPage() {
   const user = await requireHomeUser();
@@ -62,6 +64,7 @@ export default async function TasksPage() {
               <Label htmlFor="notes">Notes (optional)</Label>
               <Textarea id="notes" name="notes" rows={2} />
             </div>
+            <PhotoField hint="Optional — a picture of the filter, the plant, the meter." />
           </FormDialog>
         }
       />
@@ -82,6 +85,7 @@ export default async function TasksPage() {
                 updateAction={updateTask}
                 completeAction={completeTask}
                 deleteAction={deleteTask}
+                photo={<PhotoThumb photoId={task.photoId} alt="" className="h-14 w-14" />}
                 summary={
                   <>
                     <div className="flex flex-wrap items-center gap-2">
@@ -144,6 +148,7 @@ export default async function TasksPage() {
                     defaultValue={task.notes ?? ""}
                   />
                 </div>
+                <PhotoField defaultPhotoId={task.photoId} />
               </TaskCard>
             </div>
           ))}

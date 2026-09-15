@@ -20,6 +20,8 @@ model Home {
   id        String   @id @default(cuid())
   name      String
   address   String?
+  /// The household's own picture, shown in the header and on the dashboard.
+  photoId   String?
   createdAt DateTime @default(now())
 
   users            User[]
@@ -28,6 +30,9 @@ model Home {
   tasks            RecurringTask[]
   recipes          Recipe[]
   recipeCategories RecipeCategory[]
+  /// Every picture filed under this home, whatever it is attached to.
+  photos           Photo[]          @relation("PhotoHome")
+  photo            Photo?           @relation("HomePhoto", fields: [photoId], references: [id], onDelete: SetNull)
 }
 
 model User {
@@ -76,11 +81,13 @@ model List {
   /// Whether items on this list carry a quantity. Chosen when the list is made: a
   /// shopping list wants "2 milk", a to-do list does not.
   trackAmounts Boolean  @default(false)
+  photoId      String?
   createdById  String
   createdAt    DateTime @default(now())
 
   home      Home           @relation(fields: [homeId], references: [id], onDelete: Cascade)
   createdBy User           @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  photo     Photo?         @relation(fields: [photoId], references: [id], onDelete: SetNull)
   items     ListItem[]
   favorites ListFavorite[]
 
@@ -136,16 +143,18 @@ model RecurringTask {
    * somebody narrows the reminder to them, it does not change who may complete it.
    */
   assigneeId      String?
+  photoId         String?
   createdAt       DateTime  @default(now())
 
-  home      Home  @relation(fields: [homeId], references: [id], onDelete: Cascade)
-  createdBy User  @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  home      Home   @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  photo     Photo? @relation(fields: [photoId], references: [id], onDelete: SetNull)
+  createdBy User   @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
   /**
    * SetNull rather than Cascade, unlike createdBy: removing a member must not take the
    * household's tasks with them. The task falls back to being everybody's, which is
    * where it started.
    */
-  assignee  User? @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assignee  User?  @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
 
   @@index([homeId])
   @@index([nextDueAt])
@@ -162,11 +171,13 @@ model Recipe {
   ingredients  String   @default("")
   instructions String   @default("")
   videoUrl     String?
+  photoId      String?
   createdById  String
   createdAt    DateTime @default(now())
 
   home      Home           @relation(fields: [homeId], references: [id], onDelete: Cascade)
   createdBy User           @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  photo     Photo?         @relation(fields: [photoId], references: [id], onDelete: SetNull)
   /**
    * NoAction rather than Restrict, and the difference matters. Postgres checks Restrict
    * the moment the category row goes, which would make deleting a whole home fail: the
@@ -200,6 +211,53 @@ model RecipeCategory {
   // Separate homes name theirs freely.
   @@unique([homeId, name])
   @@index([homeId])
+}
+
+/**
+ * A picture belonging to one home: the household's own, or one attached to a list, a
+ * task or a recipe.
+ * The bytes live in the database rather than in object storage. A household's whole
+ * collection is measured in megabytes, and keeping it here means there is no second
+ * service to hold credentials for, nothing to keep in step when a row is deleted, and
+ * the local and deployed apps behave identically.
+ * Two sizes are stored, because the two ways a picture is shown want very different
+ * amounts of data: a recipe page wants the whole thing, while a directory of twenty
+ * cards wants twenty postage stamps. Both are written once, at upload, so displaying
+ * either is a single read.
+ * Every picture is downscaled in the browser before it is sent — see lib/downscale.ts
+ * — and what arrives is checked again here against the same limits. A phone's twelve
+ * megapixel photo never travels, and a caller that skips the browser is refused.
+ */
+model Photo {
+  id          String   @id @default(cuid())
+  homeId      String
+  contentType String
+  width       Int
+  height      Int
+  bytes       Bytes
+  thumbWidth  Int
+  thumbHeight Int
+  thumbBytes  Bytes
+  createdAt   DateTime @default(now())
+
+  home Home @relation("PhotoHome", fields: [homeId], references: [id], onDelete: Cascade)
+
+  /**
+   * What is using this picture. Nothing reads these to draw a page — a page has the
+   * photoId already — but they are how an upload nobody finished can be recognised as
+   * unreferenced and swept up.
+   * SetNull on each side, never Restrict: deleting a home removes its pictures and the
+   * things holding them in one statement, and Postgres checks Restrict the instant the
+   * referenced row goes. SetNull has no such ordering to get wrong.
+   */
+  homes   Home[]          @relation("HomePhoto")
+  lists   List[]
+  tasks   RecurringTask[]
+  recipes Recipe[]
+
+  @@index([homeId])
+  // The sweep for unreferenced uploads asks for one home's oldest pictures.
+  @@index([homeId, createdAt])
 }
 
 /**

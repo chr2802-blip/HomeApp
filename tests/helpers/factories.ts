@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createSession, hashPassword } from "@/lib/auth";
 import { generateInviteCode, hashInviteCode } from "@/lib/invite-code";
 import { cookieStore } from "./next-mocks";
+import { pngBytes } from "./images";
 
 let counter = 0;
 const unique = () => `${Date.now().toString(36)}-${counter++}`;
@@ -143,6 +144,26 @@ export async function createRecipe(options: {
       ingredients: options.ingredients ?? "Flour\nMilk",
       instructions: "Mix and fry.",
       videoUrl: options.videoUrl ?? null,
+    },
+  });
+}
+
+/**
+ * A stored picture, already through the checks a real upload goes through — the tests
+ * that care about those call `storePhoto` themselves.
+ */
+export function createPhoto(options: { homeId: string; createdAt?: Date }) {
+  return prisma.photo.create({
+    data: {
+      homeId: options.homeId,
+      contentType: "image/png",
+      width: 40,
+      height: 30,
+      bytes: pngBytes(40, 30),
+      thumbWidth: 20,
+      thumbHeight: 15,
+      thumbBytes: pngBytes(20, 15),
+      ...(options.createdAt ? { createdAt: options.createdAt } : {}),
     },
   });
 }

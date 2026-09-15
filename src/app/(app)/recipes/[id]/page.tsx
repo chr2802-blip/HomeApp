@@ -7,6 +7,7 @@ import { ConfirmButton } from "@/components/confirm-button";
 import { FormDialog } from "@/components/form-dialog";
 import { RecipeFields } from "@/components/recipe-fields";
 import { safeExternalHref, toEmbed } from "@/lib/embed";
+import { PhotoBanner } from "@/components/photo";
 
 function lines(value: string) {
   return value
@@ -62,6 +63,10 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
           </form>
         </div>
       </div>
+
+      {/* Above the video, when there is both: the picture is what the dish should end
+          up looking like, and it loads instantly where an embed does not. */}
+      <PhotoBanner photoId={recipe.photoId} alt={recipe.title} className="mb-6" />
 
       {embed && (
         <Card className="mb-6 overflow-hidden p-0">

@@ -23,6 +23,7 @@ export default async function RecipesPage() {
     id: recipe.id,
     title: recipe.title,
     categoryId: recipe.categoryId,
+    photoId: recipe.photoId,
     description: recipe.description,
     ingredients: recipe.ingredients,
     hasVideo: Boolean(toEmbed(recipe.videoUrl)),
