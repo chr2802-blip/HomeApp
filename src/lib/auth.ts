@@ -52,6 +52,8 @@ export type SessionUser = {
   role: Role;
   homeId: string | null;
   homeName: string | null;
+  /** The home's own picture, shown wherever the home is named. */
+  homePhotoId: string | null;
 };
 
 /**
@@ -85,6 +87,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     role: user.role,
     homeId: user.homeId,
     homeName: user.home?.name ?? null,
+    homePhotoId: user.home?.photoId ?? null,
   };
 });
 

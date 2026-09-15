@@ -43,7 +43,7 @@ const eslintConfig = [
         "error",
         {
           selector:
-            "MemberExpression[object.name='prisma'][property.name=/^(list|listItem|recipe|recipeCategory|recurringTask|invite|user)$/]",
+            "MemberExpression[object.name='prisma'][property.name=/^(list|listItem|recipe|recipeCategory|recurringTask|invite|user|photo)$/]",
           message:
             "Read home-scoped models through homeDb(homeId) so the home cannot be left out. Use prisma directly only where crossing homes is the point.",
         },

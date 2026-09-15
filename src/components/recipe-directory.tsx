@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Card, EmptyState, Input } from "@/components/ui";
+import { PhotoCover } from "@/components/photo";
 
 export type RecipeSummary = {
   id: string;
   title: string;
   categoryId: string;
+  /** The recipe's picture, if it has one. Only the id: the card fetches the thumbnail. */
+  photoId: string | null;
   description: string | null;
   /** Kept only to search on — the card shows the title and description. */
   ingredients: string;
@@ -147,16 +150,23 @@ export function RecipeDirectory({
                     className="pressable animate-row-in block active:scale-[0.98]"
                     style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
                   >
-                    <Card className="h-full transition-colors duration-150 hover:border-slate-400">
-                      <p className="font-medium">{recipe.title}</p>
-                      {recipe.description && (
-                        <p className="mt-1 line-clamp-2 text-sm text-slate-600">
-                          {recipe.description}
-                        </p>
-                      )}
-                      {recipe.hasVideo && (
-                        <p className="mt-2 text-xs text-slate-500">Includes a video</p>
-                      )}
+                    <Card
+                      padded={false}
+                      className="h-full overflow-hidden transition-colors duration-150 hover:border-slate-400"
+                    >
+                      {/* Decorative: the recipe's own title is directly below it. */}
+                      <PhotoCover photoId={recipe.photoId} alt="" />
+                      <div className="p-5">
+                        <p className="font-medium">{recipe.title}</p>
+                        {recipe.description && (
+                          <p className="mt-1 line-clamp-2 text-sm text-slate-600">
+                            {recipe.description}
+                          </p>
+                        )}
+                        {recipe.hasVideo && (
+                          <p className="mt-2 text-xs text-slate-500">Includes a video</p>
+                        )}
+                      </div>
                     </Card>
                   </Link>
                 ))}

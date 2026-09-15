@@ -25,6 +25,7 @@ import { ReminderStatus } from "@/components/reminder-status";
 import { RecipeCategoriesAdmin } from "@/components/recipe-categories-admin";
 import { formatInZone } from "@/lib/time";
 import { ConfirmButton } from "@/components/confirm-button";
+import { PhotoField } from "@/components/photo-field";
 import { TestPushButton } from "@/components/notification-setup";
 
 export default async function AdminPage() {
@@ -86,6 +87,13 @@ export default async function AdminPage() {
             <div className="space-y-1">
               <Label htmlFor="address">Address (optional)</Label>
               <Input id="address" name="address" defaultValue={home.address ?? ""} />
+            </div>
+            <div className="sm:col-span-2">
+              <PhotoField
+                defaultPhotoId={home.photoId}
+                label="Home picture"
+                hint="Shown beside the home's name and across the top of the dashboard."
+              />
             </div>
           </ActionForm>
         </Card>

@@ -12,6 +12,7 @@ const HOME_SCOPED = new Set([
   "RecipeCategory",
   "Invite",
   "User",
+  "Photo",
 ]);
 
 /** Operations that select rows. Prisma accepts a non-unique field here as well. */

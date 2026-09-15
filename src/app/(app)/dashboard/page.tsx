@@ -6,12 +6,14 @@ import { completeTask } from "@/app/actions/tasks";
 import { SubmitButton } from "@/components/submit-button";
 import { NotificationSetup } from "@/components/notification-setup";
 import { dueLabel, dueTone } from "@/lib/due";
+import { PhotoBanner, PhotoThumb } from "@/components/photo";
 
 type DueTaskRow = {
   id: string;
   title: string;
   intervalDays: number;
   nextDueAt: Date;
+  photoId: string | null;
   assignee: { name: string } | null;
 };
 
@@ -22,6 +24,8 @@ type DueTaskRow = {
 function DueTask({ task, now }: { task: DueTaskRow; now: Date }) {
   return (
     <Card className="flex flex-wrap items-center gap-3 py-3">
+      {/* Decorative: the task's own name is right beside it. */}
+      <PhotoThumb photoId={task.photoId} alt="" className="h-11 w-11" />
       <div className="min-w-0 flex-1">
         <p className="font-medium">{task.title}</p>
         <p className="text-xs text-slate-500">
@@ -100,6 +104,15 @@ export default async function DashboardPage() {
 
   return (
     <>
+      {/* The household's own picture, if it has put one up. Above the greeting rather
+          than behind it: a photograph with text over it is a photograph you cannot
+          quite see and text you cannot quite read. */}
+      <PhotoBanner
+        photoId={user.homePhotoId}
+        alt={user.homeName ?? "This home"}
+        className="mb-5"
+      />
+
       <PageHeader
         title={`Hi ${user.name.split(" ")[0]}`}
         description={user.homeName ? `${user.homeName} · what needs attention` : undefined}
@@ -152,9 +165,13 @@ export default async function DashboardPage() {
           <div className="grid gap-2 sm:grid-cols-2">
             {lists.map((list) => (
               <Link key={list.id} href={`/lists/${list.id}`}>
-                <Card className="transition hover:border-slate-400">
-                  <p className="font-medium">{list.title}</p>
-                  <p className="text-xs text-slate-500">{list._count.items} items</p>
+                <Card className="flex items-center gap-3 transition hover:border-slate-400">
+                  {/* Decorative: the list's own name is right beside it. */}
+                  <PhotoThumb photoId={list.photoId} alt="" className="h-11 w-11" />
+                  <div className="min-w-0">
+                    <p className="font-medium">{list.title}</p>
+                    <p className="text-xs text-slate-500">{list._count.items} items</p>
+                  </div>
                 </Card>
               </Link>
             ))}

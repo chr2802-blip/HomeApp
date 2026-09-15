@@ -23,6 +23,7 @@ export function TaskCard({
   taskId,
   title,
   summary,
+  photo,
   updateAction,
   completeAction,
   deleteAction,
@@ -32,6 +33,12 @@ export function TaskCard({
   title: string;
   /** What the card shows when closed. */
   summary: React.ReactNode;
+  /**
+   * The task's picture, drawn beside the summary. Rendered by the page rather than
+   * built here, for the same reason the summary is: only the opening and closing of
+   * the sheet needs a browser.
+   */
+  photo?: React.ReactNode;
   updateAction: FormAction;
   completeAction: (formData: FormData) => void | Promise<void>;
   deleteAction: (formData: FormData) => void | Promise<void>;
@@ -46,9 +53,10 @@ export function TaskCard({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="pressable block w-full px-5 py-4 text-left hover:bg-slate-50"
+          className="pressable flex w-full items-start gap-3 px-5 py-4 text-left hover:bg-slate-50"
         >
-          {summary}
+          {photo}
+          <div className="min-w-0 flex-1">{summary}</div>
         </button>
 
         {/* A sibling of the button rather than inside it: a form cannot live in a

@@ -20,6 +20,35 @@ push notification for anything due.
 Instagram, YouTube, TikTok, Vimeo or Facebook link and the video is embedded on the recipe page.
 Links from any other host are shown as a plain "open in new tab" link rather than embedded.
 
+**Pictures** — The home has one of its own, shown beside its name and across the top of the
+dashboard, and so can each list, recurring task and recipe. Taking a photo on a phone and
+adding it works: it is shrunk in the browser before any of it is uploaded. See below.
+
+## Pictures
+
+A picture can be added to the home itself and to anything a home creates. What you pick is
+never what is stored:
+
+1. The browser decodes it, applies the rotation the camera recorded, and redraws it twice —
+   1600 pixels on the longest edge for the page that shows it whole, 600 for the cards that
+   show a row of them. Both are written out as JPEG.
+2. Only those two go over the network, so a twelve megapixel photo costs a few hundred
+   kilobytes rather than several megabytes, and the upload finishes on a phone connection.
+3. The server reads the dimensions and format out of the bytes that arrive — not out of the
+   `Content-Type` the request claims — and refuses anything past the limits in
+   [`src/lib/photo-file.ts`](src/lib/photo-file.ts). The browser doing the work first is a
+   convenience; this is the part that holds when the browser is not the caller.
+
+The bytes live in Postgres, in a `Photo` row belonging to a home. A household's collection is
+measured in megabytes, and keeping it in the database means no second service to hold
+credentials for and nothing to keep in step when a row is deleted. Pictures are served from
+`/api/photos/<id>` behind the session, so there are no public URLs; an id belonging to another
+home answers 404, exactly as an id that never existed does.
+
+Uploading happens when the picture is chosen rather than when the form is saved, so it appears
+straight away and the form itself carries only an id. Abandon the form and that picture belongs
+to nothing — the next upload from the same home clears any such stray older than an hour.
+
 ## Keeping homes apart
 
 The worst bug this app could have is one household seeing another's data, and the way

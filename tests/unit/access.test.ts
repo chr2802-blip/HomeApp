@@ -12,7 +12,15 @@ const HOME = "home-a";
 const OTHER = "home-b";
 
 function user(role: Role, homeId: string | null = HOME): SessionUser {
-  return { id: "u1", email: "u@example.com", name: "U", role, homeId, homeName: null };
+  return {
+    id: "u1",
+    email: "u@example.com",
+    name: "U",
+    role,
+    homeId,
+    homeName: null,
+    homePhotoId: null,
+  };
 }
 
 describe("canAccessHome", () => {

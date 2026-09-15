@@ -10,6 +10,7 @@ import { assertHomeAdmin, canAdministerHome } from "@/lib/access";
 import { generateInviteCode, hashInviteCode } from "@/lib/invite-code";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { optionalText, readForm, requiredText } from "@/lib/form";
+import { discardReplaced, readPhotoChoice } from "@/lib/photos";
 
 const homeSchema = z.object({
   name: requiredText("Give the home a name."),
@@ -92,8 +93,25 @@ export async function updateHome(_prev: ActionResult, formData: FormData): Promi
   const form = readForm(homeSchema, formData);
   if (!form.ok) return fail(form.error);
 
-  await prisma.home.update({ where: { id: homeId }, data: form.fields });
+  const photo = await readPhotoChoice(formData, homeId);
+  if (!photo.ok) return fail(photo.error);
 
+  const previous = await prisma.home.findUnique({
+    where: { id: homeId },
+    select: { photoId: true },
+  });
+
+  await prisma.home.update({
+    where: { id: homeId },
+    data: { ...form.fields, photoId: photo.photoId },
+  });
+
+  // Only once the row no longer points at it, so a failed update cannot leave the home
+  // holding a picture that has already gone.
+  await discardReplaced(homeId, previous?.photoId ?? null, photo.photoId);
+
+  // The home's picture sits in the header, which every page renders.
+  revalidatePath("/", "layout");
   revalidatePath("/admin");
   revalidatePath("/admin/homes");
   return ok();

@@ -48,6 +48,27 @@ sees. Those read the server's clock, which is UTC in production and something el
 laptop — the same input then means different things in different places. Both test suites
 run with `TZ=UTC` so this fails on the machine that wrote it rather than in CI.
 
+### Pictures are shrunk in the browser, and checked again on arrival
+
+A home, list, task and recipe can each carry one `Photo`, whose bytes live in Postgres.
+`src/lib/downscale.ts` runs in the browser: it decodes what was picked, applies the EXIF
+rotation, and redraws it at `MAX_EDGE` and `THUMB_EDGE`, so a phone photo never travels.
+`src/lib/photo-file.ts` then reads the format and dimensions out of the bytes that arrive —
+never out of the request's `Content-Type` — and refuses anything past the limits.
+
+Never trust the browser's side of that. It is there so the upload is small, not so the
+server can skip measuring.
+
+Pictures upload to `/api/photos` the moment one is chosen; the form carries only the id, in
+the field `PHOTO_FIELD`. Actions read it with `readPhotoChoice`, which looks it up through
+`homeDb` — so another home's id is simply not found. An action that replaces or clears a
+picture calls `discardReplaced`, and one that deletes the thing holding it calls
+`discardPhoto`: nothing else can be pointing at it. An upload whose form was abandoned is
+swept up by the next upload from that home.
+
+Pages read `photoId` and nothing else. **Never `include: { photo: true }`** — that pulls
+both copies of the bytes into a page that only needs a URL.
+
 ### Form actions report what happened
 
 Actions that read user input take `(previous, formData)` and return `ActionResult`:
@@ -127,6 +148,11 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
   referenced row goes, so that ordering can fail; `NoAction` is checked once the statement
   is finished, by which point both sides are gone. Both still refuse to delete a category
   that holds recipes, which is the point of having the constraint.
+- **A picture is served, not embedded.** `/api/photos/<id>` checks the session and answers
+  404 for another home's id. The response is `private, immutable` for a year, which is
+  sound — replacing a picture writes a new row with a new id — but it means a browser can
+  answer a repeat request out of its own cache, so a test about what the *server* will
+  serve has to ask with `cache: "no-store"`.
 - **`vercel.json` is schema-validated.** An unknown key can fail the deploy; keep
   explanations in the README.
 - **On Windows, `npx.cmd` cannot be spawned without a shell.** Invoke a CLI's entry point

@@ -5,6 +5,7 @@ import { NavLinks } from "@/components/nav-links";
 import { BottomNav } from "@/components/bottom-nav";
 import { PageTransition } from "@/components/page-transition";
 import { BackButton } from "@/components/back-button";
+import { PhotoAvatar } from "@/components/photo";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
@@ -21,6 +22,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
           <NavLinks role={user.role} />
           <div className="ml-auto flex items-center gap-3 text-sm">
+            {/* The household's own picture, next to its name. A home without one
+                simply has no avatar rather than a placeholder standing in for it. */}
+            <PhotoAvatar
+              photoId={user.homePhotoId}
+              alt={user.homeName ?? "This home"}
+              className="h-7 w-7"
+            />
             <span className="hidden text-slate-500 sm:inline">
               {user.name}
               {user.homeName ? ` · ${user.homeName}` : ""}
