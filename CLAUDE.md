@@ -125,6 +125,44 @@ cards it belongs to clip their own contents, so a panel rendered inside one is c
 follows the page when that scrolls rather than closing — a scroll begun before the press is
 delivered *after* it, and closing would shut the menu the press had just opened.
 
+### A recipe is filed under one category or several
+
+`RecipeCategoryLink` is the pairing, and a recipe has at least one: a lasagne is both a
+weeknight dinner and Italian, and being made to choose means filing it under whichever
+came to mind first and then failing to find it under the other. The recipes page shows it
+under each of its headings — until a filter is on, where only the heading that was asked
+for is drawn.
+
+The picker sends one `CATEGORY_FIELD` entry per box ticked, so it is read with
+`readCategoryChoice` rather than through the schema: `readForm` builds its object with
+`Object.fromEntries`, which keeps only the last of a repeated field. An action checks
+every chosen id through `homeDb` before writing, and **a recipe left under no heading is
+refused** — it would still be saved, and simply not appear on the page that lists the
+household's recipes.
+
+A category that still holds recipes cannot be deleted, by the action and by the foreign
+key both. Untick it on those recipes first.
+
+### A sheet's actions stay on screen
+
+`Modal` lays its contents out as a column: `ModalBody` scrolls, `ModalFooter` does not.
+Every dialog puts its buttons — and the reason a submission was refused — in the footer,
+so they are in view from the moment it opens. **Never put a form's buttons inside
+`ModalBody`.** On a phone the sheet is the whole screen and the longer forms run well past
+it; a Save button below the fold is a form people abandon believing it did not work.
+
+### Movement says where you are going
+
+`PageTransition` picks the animation from the two paths rather than from the link that was
+pressed, so it is the same whether a recipe was reached by tapping its card, from a
+bookmark or with the back arrow: going a segment deeper slides in from the right, coming
+back out slides in from the left, and a move between tabs — sideways to both — rises
+instead. Sheets come up from the bottom edge on a phone and scale in on a desktop.
+
+Only the arriving page is animated; the one being left is gone the moment the router swaps
+it. Everything here is CSS, and everything is switched off under `prefers-reduced-motion`
+by the one rule at the end of `globals.css`.
+
 ### Forms submit through `useFormAction`, not the `action` prop
 
 `src/components/use-form-action.ts`. React 19 clears an uncontrolled form once its action
@@ -182,11 +220,12 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
 - **Prisma accepts a non-unique field in `where`** on `findUnique`, `update` and `delete`,
   returning null or `P2025` on mismatch. That is what makes `homeDb` work everywhere.
 - **A required relation between two cascade-deleted models wants `NoAction`, not
-  `Restrict`.** `Recipe.categoryId` is required, and deleting a home cascades to both its
-  recipes and its categories in one statement. Postgres checks `Restrict` the instant the
-  referenced row goes, so that ordering can fail; `NoAction` is checked once the statement
-  is finished, by which point both sides are gone. Both still refuse to delete a category
-  that holds recipes, which is the point of having the constraint.
+  `Restrict`.** `RecipeCategoryLink.categoryId` is required, and deleting a home cascades
+  to its recipes, its categories and the pairings between them in one statement. Postgres
+  checks `Restrict` the instant the referenced row goes, so that ordering can fail;
+  `NoAction` is checked once the statement is finished, by which point every side is gone.
+  Both still refuse to delete a category that holds recipes, which is the point of having
+  the constraint.
 - **A picture is served, not embedded.** `/api/photos/<id>` checks the session and answers
   404 for another home's id. The response is `private, immutable` for a year, which is
   sound — replacing a picture writes a new row with a new id — but it means a browser can

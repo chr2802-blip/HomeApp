@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Modal } from "@/components/modal";
+import { Modal, ModalBody, ModalFooter } from "@/components/modal";
 import { Button } from "@/components/ui";
 
 /**
@@ -52,22 +52,26 @@ export function ConfirmButton({
       </Button>
 
       <Modal open={open} onClose={() => setOpen(false)} title={title}>
-        <p className="text-sm text-slate-600">{message}</p>
-        <div className="mt-5 flex gap-2">
-          <Button
-            type="button"
-            variant="danger"
-            onClick={confirm}
-            disabled={submitting}
-            aria-busy={submitting}
-            className="flex-1 sm:flex-none"
-          >
-            {submitting ? "Working…" : confirmLabel}
-          </Button>
-          <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-        </div>
+        <ModalBody>
+          <p className="text-sm text-slate-600">{message}</p>
+        </ModalBody>
+        <ModalFooter>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="danger"
+              onClick={confirm}
+              disabled={submitting}
+              aria-busy={submitting}
+              className="flex-1 sm:flex-none"
+            >
+              {submitting ? "Working…" : confirmLabel}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        </ModalFooter>
       </Modal>
     </>
   );

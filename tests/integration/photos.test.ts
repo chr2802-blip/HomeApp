@@ -234,7 +234,7 @@ describe("attaching a picture", () => {
     await captureRedirect(() =>
       submit(createRecipe, {
         title: "Pancakes",
-        categoryId: category.id,
+        categoryIds: [category.id],
         photoId: recipePhoto.id,
       }),
     );
@@ -432,7 +432,7 @@ describe("sweeping up uploads nobody finished", () => {
       data: {
         homeId: home.id,
         createdById: member.id,
-        categoryId: category.id,
+        categories: { create: { categoryId: category.id } },
         title: "Pancakes",
         photoId: onRecipe.id,
       },

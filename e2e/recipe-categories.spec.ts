@@ -2,7 +2,13 @@ import type { Page } from "@playwright/test";
 import { ACCOUNTS, clickAndConfirm, expect, openMenu, test } from "./helpers/fixtures";
 import { CATEGORIES, HOME_NAME, prisma } from "./helpers/database";
 
-type Seed = { title: string; category: string; ingredients?: string; description?: string };
+type Seed = {
+  title: string;
+  /** Every heading it is filed under; several is the point of the ones that have them. */
+  categories: string[];
+  ingredients?: string;
+  description?: string;
+};
 
 /** Puts recipes in the home under categories the seed already created. */
 async function seedRecipes(recipes: Seed[]) {
@@ -11,14 +17,15 @@ async function seedRecipes(recipes: Seed[]) {
   const owner = await db.user.findFirstOrThrow({ where: { email: ACCOUNTS.member.email } });
 
   for (const recipe of recipes) {
-    const category = await db.recipeCategory.findFirstOrThrow({
-      where: { homeId: home.id, name: recipe.category },
+    const categories = await db.recipeCategory.findMany({
+      where: { homeId: home.id, name: { in: recipe.categories } },
+      select: { id: true },
     });
     await db.recipe.create({
       data: {
         homeId: home.id,
         createdById: owner.id,
-        categoryId: category.id,
+        categories: { create: categories.map(({ id }) => ({ categoryId: id })) },
         title: recipe.title,
         description: recipe.description ?? null,
         ingredients: recipe.ingredients ?? "",
@@ -65,9 +72,9 @@ test.describe("the recipes page", () => {
   test.beforeEach(async ({ loginAs, page }) => {
     await loginAs(ACCOUNTS.member);
     await seedRecipes([
-      { title: "Sourdough", category: "Baking", ingredients: "Flour\nWater\nSalt" },
-      { title: "Cinnamon buns", category: "Baking", ingredients: "Flour\nCinnamon" },
-      { title: "Feta pasta", category: "Weeknight", ingredients: "Feta\nTomatoes\nPasta" },
+      { title: "Sourdough", categories: ["Baking"], ingredients: "Flour\nWater\nSalt" },
+      { title: "Cinnamon buns", categories: ["Baking"], ingredients: "Flour\nCinnamon" },
+      { title: "Feta pasta", categories: ["Weeknight"], ingredients: "Feta\nTomatoes\nPasta" },
     ]);
     await page.goto("/recipes");
   });
@@ -78,6 +85,27 @@ test.describe("the recipes page", () => {
     const baking = page.locator("section").filter({ has: page.getByRole("heading", { name: "Baking" }) });
     await expect(baking.getByText("Sourdough")).toBeVisible();
     await expect(baking.getByText("Feta pasta")).toHaveCount(0);
+  });
+
+  test("a recipe filed under two headings is shown under both", async ({ page }) => {
+    await seedRecipes([{ title: "Lasagne", categories: ["Baking", "Weeknight"] }]);
+    await page.reload();
+
+    // It counts under each heading, so the numbers match what pressing them shows
+    // rather than adding up to the number of recipes in the house.
+    expect(await headings(page)).toEqual(["Baking 3", "Weeknight 2"]);
+
+    for (const name of ["Baking", "Weeknight"]) {
+      const section = page
+        .locator("section")
+        .filter({ has: page.getByRole("heading", { name }) });
+      await expect(section.getByText("Lasagne")).toBeVisible();
+    }
+
+    await retry(async () => {
+      await page.getByRole("button", { name: "Weeknight, 2 recipes" }).click();
+      await expect.poll(() => shownSorted(page), { timeout: 1000 }).toEqual(["Feta pasta", "Lasagne"]);
+    });
   });
 
   test("a category filter narrows the page to that category", async ({ page }) => {
@@ -145,7 +173,7 @@ test.describe("maintaining the categories", () => {
     await expect(page.getByText("Category added.")).toBeVisible();
 
     await page.goto("/recipes/new");
-    await expect(page.getByLabel("Category").getByRole("option", { name: "Desserts" })).toHaveCount(1);
+    await expect(page.getByRole("checkbox", { name: "Desserts", exact: true })).toHaveCount(1);
   });
 
   test("a name the home already uses is reported rather than added twice", async ({ page }) => {
@@ -158,7 +186,7 @@ test.describe("maintaining the categories", () => {
   });
 
   test("renaming a category renames it everywhere", async ({ page }) => {
-    await seedRecipes([{ title: "Sourdough", category: "Baking" }]);
+    await seedRecipes([{ title: "Sourdough", categories: ["Baking"] }]);
     await page.reload();
 
     const row = categoryRow(page, "Baking");
@@ -176,7 +204,7 @@ test.describe("maintaining the categories", () => {
    * also answers why it is missing.
    */
   test("a category holding recipes offers no menu, an empty one does", async ({ page }) => {
-    await seedRecipes([{ title: "Sourdough", category: "Baking" }]);
+    await seedRecipes([{ title: "Sourdough", categories: ["Baking"] }]);
     await page.reload();
 
     await expect(page.getByRole("button", { name: "Actions for Baking" })).toHaveCount(0);

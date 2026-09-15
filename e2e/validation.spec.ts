@@ -90,9 +90,9 @@ test.describe("a rejected recipe", () => {
     await page.goto("/recipes/new");
 
     await page.getByLabel("Title").fill("Pasta");
-    // A category is required, and the browser would block the submission before the
-    // server ever got to judge the video link.
-    await page.getByLabel("Category").selectOption({ label: CATEGORIES[0] });
+    // A category is required, and the action would refuse the recipe over that before
+    // it ever got to judge the video link.
+    await page.getByRole("checkbox", { name: CATEGORIES[0], exact: true }).check({ force: true });
     await forceValue(
       page.getByLabel("Video link (Instagram, YouTube, TikTok…)"),
       "ftp://example.com/clip",

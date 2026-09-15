@@ -43,7 +43,8 @@ test("a phone-sized picture is shrunk in the browser and shown on the recipe", a
   await page.goto("/recipes/new");
 
   await page.getByLabel("Title").fill("Pancakes");
-  await page.getByLabel("Category").selectOption({ label: CATEGORIES[0] });
+  // The box itself is off screen — the chip beside it is what a person presses.
+  await page.getByRole("checkbox", { name: CATEGORIES[0], exact: true }).check({ force: true });
   await attachPicture(page, "Picture");
   await page.getByRole("button", { name: "Save recipe" }).click();
 
@@ -79,7 +80,8 @@ test("the picture is shown on the recipe's card in the directory", async ({ page
   await page.goto("/recipes/new");
 
   await page.getByLabel("Title").fill("Pancakes");
-  await page.getByLabel("Category").selectOption({ label: CATEGORIES[0] });
+  // The box itself is off screen — the chip beside it is what a person presses.
+  await page.getByRole("checkbox", { name: CATEGORIES[0], exact: true }).check({ force: true });
   await attachPicture(page, "Picture");
   await page.getByRole("button", { name: "Save recipe" }).click();
   await expect(page).toHaveURL(/\/recipes\/[a-z0-9]+$/);

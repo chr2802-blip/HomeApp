@@ -90,14 +90,19 @@ describe("a member of one home cannot touch another home's data", () => {
   });
 
   it("cannot edit or delete another home's recipe", async () => {
-    const recipe = await createRecipe({ homeId: victimHome.id, createdById: victimOwner.id });
+    const category = await createRecipeCategory({ homeId: victimHome.id, name: "Theirs" });
+    const recipe = await createRecipe({
+      homeId: victimHome.id,
+      createdById: victimOwner.id,
+      categoryIds: [category.id],
+    });
 
     await expectDenied(() =>
       updateRecipe(
         undefined,
         formData({
           recipeId: recipe.id,
-          categoryId: recipe.categoryId,
+          categoryIds: [category.id],
           title: "Hacked",
           ingredients: "",
           instructions: "",
@@ -129,10 +134,10 @@ describe("a member of one home cannot touch another home's data", () => {
 
     const result = await saveRecipe(
       undefined,
-      formData({ title: "Trojan", categoryId: category.id, ingredients: "", instructions: "" }),
+      formData({ title: "Trojan", categoryIds: [category.id], ingredients: "", instructions: "" }),
     );
 
-    expect(result).toEqual({ ok: false, error: "Choose a category for this recipe." });
+    expect(result).toEqual({ ok: false, error: "Choose at least one category for this recipe." });
     expect(await prisma.recipe.count()).toBe(0);
   });
 

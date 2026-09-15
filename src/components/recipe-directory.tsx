@@ -11,7 +11,8 @@ import { PhotoCover } from "@/components/photo";
 export type RecipeSummary = {
   id: string;
   title: string;
-  categoryId: string;
+  /** Every heading it is filed under. A recipe under two appears under both. */
+  categoryIds: string[];
   /** The recipe's picture, if it has one. Only the id: the card fetches the thumbnail. */
   photoId: string | null;
   description: string | null;
@@ -52,7 +53,9 @@ export function RecipeDirectory({
 
   const matches = useMemo(() => {
     const inCategory =
-      categoryId === ALL ? recipes : recipes.filter((recipe) => recipe.categoryId === categoryId);
+      categoryId === ALL
+        ? recipes
+        : recipes.filter((recipe) => recipe.categoryIds.includes(categoryId));
     if (!needle) return inCategory;
 
     return inCategory.filter((recipe) =>
@@ -64,11 +67,16 @@ export function RecipeDirectory({
   }, [recipes, categoryId, needle]);
 
   // Headings in the categories' own order, and only those with something under them:
-  // a page of empty headings tells the reader nothing about what is in the house.
+  // a page of empty headings tells the reader nothing about what is in the house. A
+  // recipe filed under several appears under each of them, which is the point of
+  // letting it carry more than one — except while a filter is on, where the chosen
+  // heading is the only one the reader asked about and seeing the recipe again under
+  // its other ones would read as the filter having been ignored.
   const groups = categories
+    .filter((category) => categoryId === ALL || category.id === categoryId)
     .map((category) => ({
       category,
-      recipes: matches.filter((recipe) => recipe.categoryId === category.id),
+      recipes: matches.filter((recipe) => recipe.categoryIds.includes(category.id)),
     }))
     .filter((group) => group.recipes.length > 0);
 
@@ -82,9 +90,13 @@ export function RecipeDirectory({
     );
   }
 
+  // One recipe counts once under every heading it is filed under, so the numbers on
+  // the filters match what pressing them shows rather than adding up to the total.
   const counts = new Map(categories.map((category) => [category.id, 0]));
   for (const recipe of recipes) {
-    counts.set(recipe.categoryId, (counts.get(recipe.categoryId) ?? 0) + 1);
+    for (const id of recipe.categoryIds) {
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
   }
 
   return (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Modal } from "@/components/modal";
+import { Modal, ModalBody, ModalFooter } from "@/components/modal";
 import { Button, IconButton } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
 import type { FormAction } from "@/lib/action-result";
@@ -56,19 +56,23 @@ export function DialogForm({
   const { state, pending, handleSubmit } = useFormAction(action, { onSuccess: onDone });
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {children}
-      {state?.ok === false && (
-        <p role="alert" className="text-sm text-red-600">
-          {state.error}
-        </p>
-      )}
-      <div className="flex gap-2 pt-2">
-        <DialogSubmitButton label={submitLabel} pending={pending} />
-        <Button type="button" variant="secondary" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
+    <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+      <ModalBody className="space-y-4">{children}</ModalBody>
+      {/* The reason a submission was refused belongs beside the button that will be
+          pressed again, not at the bottom of a form that may be scrolled away from. */}
+      <ModalFooter>
+        {state?.ok === false && (
+          <p role="alert" className="mb-3 text-sm text-red-600">
+            {state.error}
+          </p>
+        )}
+        <div className="flex gap-2">
+          <DialogSubmitButton label={submitLabel} pending={pending} />
+          <Button type="button" variant="secondary" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      </ModalFooter>
     </form>
   );
 }

@@ -125,27 +125,27 @@ export function createRecipeCategory(options: { homeId: string; name?: string })
 }
 
 /**
- * Every recipe needs a category, so one is made alongside unless the caller names the
- * category it belongs in — which keeps the tests that do not care about categories from
- * having to mention them.
+ * Every recipe is filed under at least one category, so one is made alongside unless
+ * the caller names the headings it belongs under — which keeps the tests that do not
+ * care about categories from having to mention them.
  */
 export async function createRecipe(options: {
   homeId: string;
   createdById: string;
-  categoryId?: string;
+  categoryIds?: string[];
   title?: string;
   description?: string | null;
   ingredients?: string;
   videoUrl?: string | null;
 }) {
-  const categoryId =
-    options.categoryId ?? (await createRecipeCategory({ homeId: options.homeId })).id;
+  const categoryIds =
+    options.categoryIds ?? [(await createRecipeCategory({ homeId: options.homeId })).id];
 
   return prisma.recipe.create({
     data: {
       homeId: options.homeId,
       createdById: options.createdById,
-      categoryId,
+      categories: { create: categoryIds.map((categoryId) => ({ categoryId })) },
       title: options.title ?? "Pancakes",
       description: options.description ?? null,
       ingredients: options.ingredients ?? "Flour\nMilk",
@@ -175,10 +175,16 @@ export function createPhoto(options: { homeId: string; createdAt?: Date }) {
   });
 }
 
-export function formData(fields: Record<string, string | undefined>) {
+/**
+ * A form as the browser would send it. A field given several values is repeated, which
+ * is how a group of checkboxes arrives — the recipe categories being the reason this
+ * takes a list at all.
+ */
+export function formData(fields: Record<string, string | string[] | undefined>) {
   const data = new FormData();
   for (const [key, value] of Object.entries(fields)) {
-    if (value !== undefined) data.set(key, value);
+    if (value === undefined) continue;
+    for (const one of Array.isArray(value) ? value : [value]) data.append(key, one);
   }
   return data;
 }
@@ -189,7 +195,7 @@ export function formData(fields: Record<string, string | undefined>) {
  */
 export function submit<R>(
   action: (previous: undefined, data: FormData) => Promise<R>,
-  fields: Record<string, string | undefined>,
+  fields: Record<string, string | string[] | undefined>,
 ) {
   return action(undefined, formData(fields));
 }
