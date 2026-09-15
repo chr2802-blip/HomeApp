@@ -1,6 +1,6 @@
 # HomeHub
 
-Lists, recurring tasks and recipes for a household. Multi-tenant: everything belongs to a
+Lists, tasks and recipes for a household. Multi-tenant: everything belongs to a
 **home**, and people belong to a home. Next.js App Router, Prisma, Postgres, on Vercel.
 
 Read this before changing anything. Most of what follows exists because the alternative
@@ -27,7 +27,7 @@ const lists = await homeDb(user.homeId).list.findMany({ orderBy: { createdAt: "d
 ```
 
 `src/lib/home-db.ts` carries the home into every query against a home-scoped model
-(List, RecurringTask, Recipe, Invite, User) and stamps it onto anything created. A query
+(List, Task, Recipe, Invite, User) and stamps it onto anything created. A query
 that forgets the home returns nothing rather than another household's rows.
 
 **Never hand-write `where: { homeId }` in a page or component.** A lint rule rejects
@@ -37,6 +37,30 @@ point — the reminder job, the super admin's system view — and say so in a co
 Permission checks live separately in `src/lib/access.ts`; `homeScoped` in
 `src/lib/scoped.ts` fetches a single record and asserts access. `homeDb` does not replace
 those — it removes the chance to ask the wrong question.
+
+### A task is one of two things, and `intervalDays` is which
+
+`null` is a one-off — done once and finished — and a number of days is the recurring
+kind, which books itself in again each time it is completed. There is no third column
+saying which: a flag beside the interval would be a second answer to the same question,
+and the one that quietly disagrees is the one every list is then wrong about.
+
+So "finished" means a one-off with `lastCompletedAt` set, and a recurring task is never
+finished however many times it has been done. `FINISHED` and `UNFINISHED` in
+`src/lib/tasks.ts` are that sentence as a `where` clause — **every query that means
+"still to do" uses one of them**: the tasks page, the dashboard, the reminder job, the
+overdue counts. A finished one-off keeps the date it was due, which is in the past for
+ever, so a query that forgets reminds the household about it every morning until
+somebody deletes it.
+
+`UNFINISHED` is written as `{ NOT: FINISHED }` rather than the `OR` it is equivalent to,
+because callers spread it beside clauses of their own and the reminder job already has
+an `OR`. One key cannot collide; an `OR` would silently replace theirs.
+
+Which kind is being written is submitted in its own field (`REPEAT_FIELD`), never
+inferred from a blank interval — a number that failed to arrive would otherwise turn a
+recurring task into a one-off with nobody saying so. A form that does not mention it is
+read as recurring, which is what every task was before one-offs existed.
 
 ### Dates go through `src/lib/time.ts`
 

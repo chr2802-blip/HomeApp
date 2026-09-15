@@ -3,6 +3,7 @@ import { timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { sendPushToUsers } from "@/lib/push";
 import { endOfDayInZone } from "@/lib/time";
+import { UNFINISHED } from "@/lib/tasks";
 import {
   REMINDER_JOB,
   finishCronRun,
@@ -51,13 +52,16 @@ async function sendDueReminders() {
   const now = new Date();
   const notifiedCutoff = new Date(now.getTime() - 20 * 60 * 60 * 1000);
 
-  const dueTasks = await prisma.recurringTask.findMany({
+  const dueTasks = await prisma.task.findMany({
     where: {
       // Anything due by the end of today, not just by the moment this job runs. The
       // schedule fires in the morning while tasks come due at 09:00 local, so comparing
       // against `now` skipped every task on its own due date and notified a day late.
       nextDueAt: { lte: endOfDayInZone(now) },
       OR: [{ lastNotifiedAt: null }, { lastNotifiedAt: { lt: notifiedCutoff } }],
+      // A one-off that has been done keeps the date it was due, which is now in the
+      // past — so without this it would be reminded about every day, for ever.
+      ...UNFINISHED,
     },
   });
 
@@ -93,7 +97,7 @@ async function sendDueReminders() {
   }
 
   // One write for the whole batch instead of one per task.
-  await prisma.recurringTask.updateMany({
+  await prisma.task.updateMany({
     where: { id: { in: dueTasks.map((task) => task.id) } },
     data: { lastNotifiedAt: now },
   });

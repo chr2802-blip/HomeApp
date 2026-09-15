@@ -7,7 +7,7 @@ import { prisma } from "./prisma";
  */
 const HOME_SCOPED = new Set([
   "List",
-  "RecurringTask",
+  "Task",
   "Recipe",
   "RecipeCategory",
   "Invite",
