@@ -1,4 +1,4 @@
-import { ACCOUNTS, clickAndConfirm, expect, openDialog, test } from "./helpers/fixtures";
+import { ACCOUNTS, clickAndConfirm, expect, openDialog, openMenu, test } from "./helpers/fixtures";
 
 test.beforeEach(async ({ loginAs, page }) => {
   await loginAs(ACCOUNTS.member);
@@ -112,6 +112,7 @@ test("a list can be renamed", async ({ page }) => {
   await page.getByRole("button", { name: "Create list" }).click();
   await page.waitForURL(/\/lists\/[a-z0-9]+$/);
 
+  await openMenu(page);
   await openDialog(page, "Edit");
   await page.getByLabel("List name").fill("New name");
   await page.getByRole("button", { name: "Save changes" }).click();
@@ -125,6 +126,7 @@ test("deleting a list returns to the index and the list is gone", async ({ page 
   await page.getByRole("button", { name: "Create list" }).click();
   await page.waitForURL(/\/lists\/[a-z0-9]+$/);
 
+  await openMenu(page);
   await clickAndConfirm(page, "Delete");
 
   await expect(page).toHaveURL(/\/lists$/);

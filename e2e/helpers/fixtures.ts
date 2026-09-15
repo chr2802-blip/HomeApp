@@ -43,10 +43,35 @@ test.afterAll(async () => {
   await disconnect();
 });
 
+/**
+ * A control by its name, whether it is a plain button or an entry in a three-dot menu —
+ * the same actions live in both places depending on the page.
+ */
+function control(scope: Page | Locator, name: string) {
+  return scope
+    .getByRole("button", { name, exact: true })
+    .or(scope.getByRole("menuitem", { name, exact: true }));
+}
+
 /** Opens a FormDialog by its trigger and waits for the modal to be usable. */
 export async function openDialog(page: Page, triggerName: string) {
-  await page.getByRole("button", { name: triggerName, exact: true }).first().click();
+  await control(page, triggerName).first().click();
   await expect(page.getByRole("dialog")).toBeVisible();
+}
+
+/**
+ * Opens an item's three-dot menu, where its Edit and Delete live. `within` narrows it
+ * to one card when a page shows several.
+ */
+export async function openMenu(page: Page, options: { within?: Locator; label?: string } = {}) {
+  const scope = options.within ?? page;
+  const name = options.label ? `Actions for ${options.label}` : /^Actions for /;
+  const trigger = scope.getByRole("button", { name }).first();
+  // Hydration has no signal of its own, so the menu emits one: pressing the button
+  // before React has attached to it does nothing, and looks exactly like a miss.
+  await expect(trigger).toHaveAttribute("data-ready", "true");
+  await trigger.click();
+  await expect(page.getByRole("menu").first()).toBeVisible();
 }
 
 /**
@@ -59,7 +84,7 @@ export async function clickAndConfirm(
   options: { within?: Locator; confirmLabel?: string } = {},
 ) {
   const scope = options.within ?? page;
-  await scope.getByRole("button", { name: triggerName, exact: true }).first().click();
+  await control(scope, triggerName).first().click();
 
   const sheet = page.getByRole("dialog");
   await expect(sheet).toBeVisible();

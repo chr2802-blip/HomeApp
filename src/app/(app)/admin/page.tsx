@@ -24,7 +24,7 @@ import { ActionForm } from "@/components/action-form";
 import { ReminderStatus } from "@/components/reminder-status";
 import { RecipeCategoriesAdmin } from "@/components/recipe-categories-admin";
 import { formatInZone } from "@/lib/time";
-import { ConfirmButton } from "@/components/confirm-button";
+import { ItemMenu } from "@/components/item-menu";
 import { PhotoField } from "@/components/photo-field";
 import { TestPushButton } from "@/components/notification-setup";
 
@@ -130,16 +130,19 @@ export default async function AdminPage() {
                     </Select>
                     <Button variant="secondary">Save</Button>
                   </form>
-                  <form action={removeMember}>
-                    <input type="hidden" name="userId" value={member.id} />
-                    <ConfirmButton
-                      title="Remove member"
-                      confirmLabel="Remove"
-                      message={`Remove ${member.name} from this home? Everything they created is removed too.`}
-                    >
-                      Remove
-                    </ConfirmButton>
-                  </form>
+                  {/* The role is changed in place beside this; the menu holds only
+                      what cannot be undone. */}
+                  <ItemMenu
+                    name="userId"
+                    id={member.id}
+                    label={member.name}
+                    deleteAction={removeMember}
+                    deleteTitle="Remove member"
+                    deleteLabel="Remove"
+                    deleteConfirmLabel="Remove"
+                    deleteMessage={`Remove ${member.name} from this home? Everything they created is removed too.`}
+                    className="-mr-2"
+                  />
                 </>
               )}
             </div>

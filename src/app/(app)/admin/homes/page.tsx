@@ -2,7 +2,7 @@ import { requireSuperAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createHome, deleteHome, switchHome } from "@/app/actions/admin";
 import { Badge, Button, Card, EmptyState, Input, Label, PageHeader } from "@/components/ui";
-import { ConfirmButton } from "@/components/confirm-button";
+import { ItemMenu } from "@/components/item-menu";
 import { ActionForm } from "@/components/action-form";
 
 export default async function HomesPage() {
@@ -63,14 +63,16 @@ export default async function HomesPage() {
                   <Button variant="secondary">Switch to</Button>
                 </form>
               )}
-              <form action={deleteHome}>
-                <input type="hidden" name="homeId" value={home.id} />
-                <ConfirmButton
-                  message={`Permanently delete "${home.name}"? Its ${home._count.users} members, ${home._count.lists} lists, ${home._count.tasks} tasks and ${home._count.recipes} recipes are removed too. This cannot be undone.`}
-                >
-                  Delete
-                </ConfirmButton>
-              </form>
+              {/* No Edit: a home is renamed from inside it, under Administration. */}
+              <ItemMenu
+                name="homeId"
+                id={home.id}
+                label={home.name}
+                deleteAction={deleteHome}
+                deleteTitle="Delete home"
+                deleteMessage={`Permanently delete "${home.name}"? Its ${home._count.users} members, ${home._count.lists} lists, ${home._count.tasks} tasks and ${home._count.recipes} recipes are removed too. This cannot be undone.`}
+                className="-mr-2"
+              />
             </Card>
           ))}
         </div>

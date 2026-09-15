@@ -1,4 +1,4 @@
-import { ACCOUNTS, clickAndConfirm, expect, openDialog, test } from "./helpers/fixtures";
+import { ACCOUNTS, clickAndConfirm, expect, openDialog, openMenu, test } from "./helpers/fixtures";
 import { CATEGORIES } from "./helpers/database";
 
 test.beforeEach(async ({ loginAs, page }) => {
@@ -92,6 +92,7 @@ test("a recipe can be edited from its page", async ({ page }) => {
   await page.getByRole("button", { name: "Save recipe" }).click();
   await page.waitForURL(/\/recipes\/[a-z0-9]+$/);
 
+  await openMenu(page);
   await openDialog(page, "Edit");
   await page.getByLabel("Title").fill("Polished recipe");
   await page.getByLabel("Ingredients").fill("Flour\nSalt");
@@ -106,6 +107,7 @@ test("a recipe can be deleted", async ({ page }) => {
   await page.getByRole("button", { name: "Save recipe" }).click();
   await page.waitForURL(/\/recipes\/[a-z0-9]+$/);
 
+  await openMenu(page);
   await clickAndConfirm(page, "Delete");
 
   await expect(page).toHaveURL(/\/recipes$/);

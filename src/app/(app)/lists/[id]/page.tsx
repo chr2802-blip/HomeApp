@@ -3,9 +3,8 @@ import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
 import { addListItem, deleteList, updateList } from "@/app/actions/lists";
 import { Card, Input, Label } from "@/components/ui";
-import { ConfirmButton } from "@/components/confirm-button";
 import { ListItems } from "@/components/list-items";
-import { FormDialog } from "@/components/form-dialog";
+import { ItemMenu } from "@/components/item-menu";
 import { AmountsField } from "@/components/amounts-field";
 import { FavoriteButton } from "@/components/favorite-button";
 import { AddItemForm } from "@/components/add-item-form";
@@ -34,40 +33,34 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
     <>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-1">
+          {/* Decorative: the title is right beside it. */}
+          <PhotoThumb photoId={list.photoId} alt="" className="mr-3 h-11 w-11" />
+          <h1 className="min-w-0 text-2xl font-semibold tracking-tight">{list.title}</h1>
+          {/* After the title rather than before it: the star belongs to the list it
+              names, and reading the name first is what makes that plain. */}
           <FavoriteButton
             listId={list.id}
             title={list.title}
             favorite={list.favorites.length > 0}
-            className="-ml-2"
           />
-          {/* Decorative: the title is right beside it. */}
-          <PhotoThumb photoId={list.photoId} alt="" className="mr-1 h-11 w-11" />
-          <h1 className="text-2xl font-semibold tracking-tight">{list.title}</h1>
         </div>
-        <div className="flex gap-2">
-          <FormDialog
-            triggerLabel="Edit"
-            triggerVariant="secondary"
-            triggerIcon="pencil"
-            title="Edit list"
-            submitLabel="Save changes"
-            action={updateList}
-          >
-            <input type="hidden" name="listId" value={list.id} />
-            <div className="space-y-1">
-              <Label htmlFor="title">List name</Label>
-              <Input id="title" name="title" defaultValue={list.title} required autoFocus />
-            </div>
-            <AmountsField defaultChecked={list.trackAmounts} />
-            <PhotoField defaultPhotoId={list.photoId} />
-          </FormDialog>
-          <form action={deleteList}>
-            <input type="hidden" name="listId" value={list.id} />
-            <ConfirmButton message={`Delete "${list.title}" and all its items?`}>
-              Delete
-            </ConfirmButton>
-          </form>
-        </div>
+        <ItemMenu
+          name="listId"
+          id={list.id}
+          label={list.title}
+          editTitle="Edit list"
+          editAction={updateList}
+          deleteAction={deleteList}
+          deleteMessage={`Delete "${list.title}" and all its items?`}
+          className="-mr-2"
+        >
+          <div className="space-y-1">
+            <Label htmlFor="title">List name</Label>
+            <Input id="title" name="title" defaultValue={list.title} required autoFocus />
+          </div>
+          <AmountsField defaultChecked={list.trackAmounts} />
+          <PhotoField defaultPhotoId={list.photoId} />
+        </ItemMenu>
       </div>
 
       <Card className="mb-4">

@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { deleteRecipe, updateRecipe } from "@/app/actions/recipes";
 import { Card, EmptyState, Input } from "@/components/ui";
+import { ItemMenu } from "@/components/item-menu";
+import { RecipeFields } from "@/components/recipe-fields";
 import { PhotoCover } from "@/components/photo";
 
 export type RecipeSummary = {
@@ -12,8 +15,10 @@ export type RecipeSummary = {
   /** The recipe's picture, if it has one. Only the id: the card fetches the thumbnail. */
   photoId: string | null;
   description: string | null;
-  /** Kept only to search on — the card shows the title and description. */
+  /** Searched on, and handed to the edit sheet the card's own menu opens. */
   ingredients: string;
+  instructions: string;
+  videoUrl: string | null;
   hasVideo: boolean;
 };
 
@@ -143,21 +148,21 @@ export function RecipeDirectory({
               </h2>
               <div className="grid gap-3 sm:grid-cols-2">
                 {group.recipes.map((recipe, index) => (
-                  <Link
+                  <Card
                     key={recipe.id}
-                    href={`/recipes/${recipe.id}`}
-                    prefetch
-                    className="pressable animate-row-in block active:scale-[0.98]"
+                    padded={false}
+                    className="animate-row-in relative h-full overflow-hidden transition-colors duration-150 hover:border-slate-400"
                     style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
                   >
-                    <Card
-                      padded={false}
-                      className="h-full overflow-hidden transition-colors duration-150 hover:border-slate-400"
+                    <Link
+                      href={`/recipes/${recipe.id}`}
+                      prefetch
+                      className="pressable block h-full active:scale-[0.98]"
                     >
                       {/* Decorative: the recipe's own title is directly below it. */}
                       <PhotoCover photoId={recipe.photoId} alt="" />
                       <div className="p-5">
-                        <p className="font-medium">{recipe.title}</p>
+                        <p className="pr-9 font-medium">{recipe.title}</p>
                         {recipe.description && (
                           <p className="mt-1 line-clamp-2 text-sm text-slate-600">
                             {recipe.description}
@@ -167,8 +172,23 @@ export function RecipeDirectory({
                           <p className="mt-2 text-xs text-slate-500">Includes a video</p>
                         )}
                       </div>
-                    </Card>
-                  </Link>
+                    </Link>
+                    {/* Over the card rather than in it: the card is one link, and a
+                        button inside a link is neither valid nor pressable without
+                        following it. The backdrop keeps the dots legible on a photo. */}
+                    <ItemMenu
+                      name="recipeId"
+                      id={recipe.id}
+                      label={recipe.title}
+                      editTitle="Edit recipe"
+                      editAction={updateRecipe}
+                      deleteAction={deleteRecipe}
+                      deleteMessage={`Delete the recipe "${recipe.title}"?`}
+                      className="absolute top-2 right-2 bg-white/80 backdrop-blur-sm"
+                    >
+                      <RecipeFields recipe={recipe} categories={categories} />
+                    </ItemMenu>
+                  </Card>
                 ))}
               </div>
             </section>

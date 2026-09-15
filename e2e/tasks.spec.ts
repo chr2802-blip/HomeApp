@@ -1,10 +1,13 @@
-import { ACCOUNTS, expect, openDialog, test } from "./helpers/fixtures";
+import { ACCOUNTS, clickAndConfirm, expect, openDialog, openMenu, test } from "./helpers/fixtures";
 import type { Page } from "@playwright/test";
 import { dueAtDaysFrom, formatInZone } from "../src/lib/time";
 
-/** A task is edited by pressing its card, which is a button naming the task. */
+/**
+ * A task is edited by pressing its card, which is a button whose name starts with the
+ * task's own. Anchored, because the card's three-dot menu is named after it too.
+ */
 async function openTask(page: Page, title: string) {
-  await page.getByRole("button", { name: new RegExp(title) }).click();
+  await page.getByRole("button", { name: new RegExp(`^${title}`) }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
 }
 
@@ -67,12 +70,11 @@ test("a task can be edited", async ({ page }) => {
   await expect(page.getByText(/Every 14 days/)).toBeVisible();
 });
 
-test("a task can be deleted from its own sheet", async ({ page }) => {
+test("a task can be deleted from its own menu", async ({ page }) => {
   await addTask(page, { title: "Doomed task" });
 
-  await openTask(page, "Doomed task");
-  await page.getByRole("button", { name: "Delete task", exact: true }).click();
-  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await openMenu(page, { label: "Doomed task" });
+  await clickAndConfirm(page, "Delete");
 
   await expect(page.getByText("No recurring tasks yet.")).toBeVisible();
 });
