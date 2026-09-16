@@ -1,6 +1,14 @@
 import { ACCOUNTS, clickAndConfirm, expect, openMenu, rowWith, test } from "./helpers/fixtures";
 import { HOME_NAME, OTHER_HOME_NAME, prisma } from "./helpers/database";
 
+/** What somebody may do in one named home — where a role lives now that homes are plural. */
+async function memberRoleIn(homeName: string, email: string) {
+  const membership = await prisma().homeMember.findFirst({
+    where: { home: { name: homeName }, user: { email } },
+  });
+  return membership?.role ?? null;
+}
+
 test.describe("as a home admin", () => {
   test.beforeEach(async ({ loginAs, page }) => {
     await loginAs(ACCOUNTS.admin);
@@ -31,17 +39,20 @@ test.describe("as a home admin", () => {
     await memberRow.getByRole("button", { name: "Save" }).click();
 
     await expect(async () => {
-      const updated = await prisma().user.findUnique({ where: { email: ACCOUNTS.member.email } });
-      expect(updated?.role).toBe("ADMIN");
+      expect(await memberRoleIn(HOME_NAME, ACCOUNTS.member.email)).toBe("ADMIN");
     }).toPass();
   });
 
-  test("a member can be removed", async ({ page }) => {
+  test("a member can be removed without losing their account", async ({ page }) => {
     await openMenu(page, { label: ACCOUNTS.member.name });
     await clickAndConfirm(page, "Remove");
 
     await expect(page.getByText(ACCOUNTS.member.email)).toBeHidden();
-    expect(await prisma().user.findUnique({ where: { email: ACCOUNTS.member.email } })).toBeNull();
+    expect(await memberRoleIn(HOME_NAME, ACCOUNTS.member.email)).toBeNull();
+    // They are out of the household, not off the installation.
+    expect(
+      await prisma().user.findUnique({ where: { email: ACCOUNTS.member.email } }),
+    ).not.toBeNull();
   });
 
   test("an admin has no role or remove control on their own row", async ({ page }) => {
@@ -74,11 +85,18 @@ test.describe("as a home admin", () => {
     expect(await prisma().invite.count()).toBe(0);
   });
 
-  test("inviting an address that already has an account is refused", async ({ page }) => {
+  test("inviting somebody already in this home is refused", async ({ page }) => {
     await page.getByLabel("Email to invite").fill(ACCOUNTS.member.email);
     await page.getByRole("button", { name: "Create invite" }).click();
 
-    await expect(page.getByText("That email already has an account.")).toBeVisible();
+    await expect(page.getByText("They are already in this home.")).toBeVisible();
+  });
+
+  test("somebody with an account in another home can be invited", async ({ page }) => {
+    await page.getByLabel("Email to invite").fill(ACCOUNTS.outsider.email);
+    await page.getByRole("button", { name: "Create invite" }).click();
+
+    await expect(page.getByText(`Invitation ready for ${ACCOUNTS.outsider.email}`)).toBeVisible();
   });
 
   test("the admin can change their own name", async ({ page }) => {
@@ -140,14 +158,18 @@ test.describe("as a super admin", () => {
     await expect(page.getByText(`Managing ${OTHER_HOME_NAME}`)).toBeVisible();
   });
 
-  test("deleting a home takes its members and content with it", async ({ page }) => {
+  test("deleting a home takes its content, and empties it of members", async ({ page }) => {
     await page.goto("/admin/homes");
 
     await openMenu(page, { label: HOME_NAME });
     await clickAndConfirm(page, "Delete");
 
     await expect(page.getByText(HOME_NAME)).toBeHidden();
-    expect(await prisma().user.findUnique({ where: { email: ACCOUNTS.member.email } })).toBeNull();
+    // Its people keep their accounts; what they lose is this household.
+    expect(
+      await prisma().user.findUnique({ where: { email: ACCOUNTS.member.email } }),
+    ).not.toBeNull();
+    expect(await memberRoleIn(OTHER_HOME_NAME, ACCOUNTS.outsider.email)).toBe("ADMIN");
     // The other home is untouched.
     expect(await prisma().home.count()).toBe(1);
   });

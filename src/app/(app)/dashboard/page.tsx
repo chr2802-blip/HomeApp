@@ -53,9 +53,9 @@ export default async function DashboardPage() {
       <>
         <PageHeader title="No home selected" description="Pick a home to work in." />
         <EmptyState>
-          <p>You are a super admin without an active home.</p>
-          <ButtonLink href="/admin/homes" className="mt-4">
-            Go to homes
+          <p>You are not in a home at the moment.</p>
+          <ButtonLink href="/homes" className="mt-4">
+            Go to your homes
           </ButtonLink>
         </EmptyState>
       </>

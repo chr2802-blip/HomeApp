@@ -43,9 +43,19 @@ const eslintConfig = [
         "error",
         {
           selector:
-            "MemberExpression[object.name='prisma'][property.name=/^(list|listItem|recipe|recipeCategory|task|invite|user|photo)$/]",
+            "MemberExpression[object.name='prisma'][property.name=/^(list|listItem|recipe|recipeCategory|task|invite|homeMember|photo)$/]",
           message:
             "Read home-scoped models through homeDb(homeId) so the home cannot be left out. Use prisma directly only where crossing homes is the point.",
+        },
+        {
+          /*
+           * User is not home-scoped: somebody belongs to several homes, so there is no
+           * homeId on the row for homeDb to carry. A page that asks prisma.user for a
+           * home's people is asking for every account on the installation.
+           */
+          selector: "MemberExpression[object.name='prisma'][property.name='user']",
+          message:
+            "A user belongs to several homes, so there is no such thing as this home's users. Read the roster as homeDb(homeId).homeMember and the person as an include on it.",
         },
         {
           /*

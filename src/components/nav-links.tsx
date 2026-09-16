@@ -2,17 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { Role } from "@prisma/client";
 import { navItemsFor } from "./nav-items";
 import { LinkPending } from "./link-pending";
 
 /** Desktop navigation. On mobile the same destinations live in `BottomNav`. */
-export function NavLinks({ role }: { role: Role }) {
+export function NavLinks({ showAdmin }: { showAdmin: boolean }) {
   const pathname = usePathname();
 
   return (
     <nav className="hidden items-center gap-1 text-sm md:flex">
-      {navItemsFor(role).map((item) => {
+      {navItemsFor(showAdmin).map((item) => {
         const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
         return (
           <Link

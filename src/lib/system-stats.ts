@@ -50,9 +50,9 @@ export async function getHomeReminderStatus(homeId: string, now: Date = new Date
   const db = homeDb(homeId);
 
   const [memberCount, subscriptions, lastNotified, overdue, nextDue] = await Promise.all([
-    db.user.count(),
+    db.homeMember.count(),
     // Push subscriptions hang off a user, not a home, so this one names the home itself.
-    prisma.pushSubscription.count({ where: { user: { homeId } } }),
+    prisma.pushSubscription.count({ where: { user: { memberships: { some: { homeId } } } } }),
     db.task.findFirst({
       where: { lastNotifiedAt: { not: null } },
       orderBy: { lastNotifiedAt: "desc" },

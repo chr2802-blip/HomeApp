@@ -17,6 +17,7 @@ import {
   createTask as seedTask,
   createUser,
   formData,
+  joinHome,
   signIn,
   signOut,
   submit,
@@ -193,6 +194,19 @@ describe("serving", () => {
     signOut();
 
     expect((await serve(photo.id)).status).toBe(404);
+  });
+
+  it("serves a picture from another of the caller's homes", async () => {
+    // The header's switcher draws them, so a picture is reachable from any home
+    // somebody belongs to rather than only the one they are reading.
+    const { home, member } = await createHomeWithMembers();
+    const second = await createHome();
+    await joinHome({ userId: member.id, homeId: second.id });
+    const photo = await createPhoto({ homeId: second.id });
+    await signIn(member);
+
+    expect((await serve(photo.id)).status).toBe(200);
+    expect(home.id).not.toBe(second.id);
   });
 
   it("does not find anything for a super admin with no home chosen", async () => {

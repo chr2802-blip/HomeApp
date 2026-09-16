@@ -60,6 +60,16 @@ const acceptSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters."),
 });
 
+/**
+ * Joining a home, whether or not the person has been here before.
+ *
+ * An invitation used to be a way to make an account, so an email that already had one
+ * was turned away. Somebody can be in several homes now, so the same code is also how
+ * an existing account joins its second household — and the password field means "the
+ * one on that account" rather than "choose one" when there is an account to match it
+ * against. Getting it wrong is refused, so an invitation to an address cannot be used
+ * to walk into the account behind it.
+ */
 export async function acceptInvite(_prev: FormState, formData: FormData): Promise<FormState> {
   const parsed = acceptSchema.safeParse({
     email: formData.get("email"),
@@ -82,10 +92,6 @@ export async function acceptInvite(_prev: FormState, formData: FormData): Promis
     };
   }
 
-  if (await prisma.user.findUnique({ where: { email } })) {
-    return { error: "An account with that email already exists. Try logging in." };
-  }
-
   const invites = await prisma.invite.findMany({
     where: { email, acceptedAt: null, expiresAt: { gt: new Date() } },
   });
@@ -95,14 +101,37 @@ export async function acceptInvite(_prev: FormState, formData: FormData): Promis
     return { error: "That email and code don't match an open invitation." };
   }
 
-  const user = await prisma.user.create({
-    data: {
-      email,
-      name: parsed.data.name.trim(),
-      passwordHash: await hashPassword(parsed.data.password),
-      role: invite.role,
-      homeId: invite.homeId,
-    },
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing && !(await verifyPassword(parsed.data.password, existing.passwordHash))) {
+    await recordFailedAttempt("invite", email);
+    return { error: "That email already has an account. Enter its password to join this home." };
+  }
+
+  const user =
+    existing ??
+    (await prisma.user.create({
+      data: {
+        email,
+        name: parsed.data.name.trim(),
+        passwordHash: await hashPassword(parsed.data.password),
+      },
+    }));
+
+  // The membership is the joining, and the role on the invitation is a role in this
+  // home only — being an admin here says nothing about the other homes they are in.
+  // Upserted rather than created: an invitation accepted twice must not fail on the
+  // second go, it has simply already been honoured.
+  await prisma.homeMember.upsert({
+    where: { userId_homeId: { userId: user.id, homeId: invite.homeId } },
+    update: { role: invite.role },
+    create: { userId: user.id, homeId: invite.homeId, role: invite.role },
+  });
+
+  // They land in the home they just accepted rather than wherever they were, which is
+  // the one thing they have said they wanted.
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { activeHomeId: invite.homeId },
   });
 
   await prisma.invite.update({

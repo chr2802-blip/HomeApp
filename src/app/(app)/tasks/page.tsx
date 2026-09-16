@@ -149,15 +149,22 @@ export default async function TasksPage() {
    * history of one-offs, and there is no reason to carry years of finished jobs across
    * just to put them in the second list.
    */
-  const [todo, done, members] = await Promise.all([
+  const [todo, done, memberships] = await Promise.all([
     db.task.findMany({ where: UNFINISHED, orderBy: { nextDueAt: "asc" }, include: assignee }),
     db.task.findMany({
       where: FINISHED,
       orderBy: { lastCompletedAt: "desc" },
       include: assignee,
     }),
-    db.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    // Who is in this home is its memberships, not its users: somebody in two homes is
+    // one account and belongs on both rosters.
+    db.homeMember.findMany({
+      orderBy: { user: { name: "asc" } },
+      select: { user: { select: { id: true, name: true } } },
+    }),
   ]);
+
+  const members = memberships.map((membership) => membership.user);
 
   return (
     <>

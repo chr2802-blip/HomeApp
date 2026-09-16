@@ -64,7 +64,7 @@ test.describe("the system page", () => {
     await loginAs(ACCOUNTS.superAdmin);
     await prisma().user.update({
       where: { email: ACCOUNTS.superAdmin.email },
-      data: { homeId: (await prisma().home.findFirstOrThrow()).id },
+      data: { activeHomeId: (await prisma().home.findFirstOrThrow()).id },
     });
 
     await page.goto("/admin");
@@ -113,7 +113,9 @@ test.describe("a home admin's reminder status", () => {
 
   test("counts only this home's people, never another home's", async ({ page, loginAs }) => {
     const other = await prisma().home.findFirstOrThrow({ where: { name: "Neighbour House" } });
-    const outsider = await prisma().user.findFirstOrThrow({ where: { homeId: other.id } });
+    const outsider = await prisma().user.findFirstOrThrow({
+      where: { memberships: { some: { homeId: other.id } } },
+    });
     await prisma().pushSubscription.create({
       data: {
         userId: outsider.id,

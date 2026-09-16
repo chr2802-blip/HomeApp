@@ -131,9 +131,11 @@ test.describe("a super admin", () => {
     const { list, otherHome } = await seedOtherHomeContent();
 
     await loginAs(ACCOUNTS.superAdmin);
+    // Reading a home, without joining it: what a super admin may reach is not a
+    // membership, which is the whole difference between them and everybody else.
     await prisma().user.update({
       where: { email: ACCOUNTS.superAdmin.email },
-      data: { homeId: otherHome.id },
+      data: { activeHomeId: otherHome.id },
     });
 
     await page.goto(`/lists/${list.id}`);

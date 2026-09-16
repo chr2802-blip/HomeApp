@@ -3,10 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import type { Role } from "@prisma/client";
+import type { MemberRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireSuperAdmin, requireUser, hashPassword } from "@/lib/auth";
-import { assertHomeAdmin, canAdministerHome } from "@/lib/access";
+import { assertHomeAdmin, canAccessHome, canAdministerHome } from "@/lib/access";
 import { generateInviteCode, hashInviteCode } from "@/lib/invite-code";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { optionalText, readForm, requiredText } from "@/lib/form";
@@ -50,8 +50,15 @@ export async function createInvite(_prev: InviteState, formData: FormData): Prom
   if (!form.ok) return { ok: false, error: form.error };
 
   const email = form.fields.email.toLowerCase();
-  if (await prisma.user.findUnique({ where: { email } })) {
-    return { ok: false, error: "That email already has an account." };
+  // An account elsewhere on the installation is no longer in the way: somebody can be
+  // in several homes, and inviting them into this one is how they get here. Only being
+  // in *this* home already is a reason to refuse.
+  const existing = await prisma.user.findUnique({
+    where: { email },
+    select: { memberships: { where: { homeId }, select: { homeId: true } } },
+  });
+  if (existing && existing.memberships.length > 0) {
+    return { ok: false, error: "They are already in this home." };
   }
 
   const code = generateInviteCode();
@@ -62,7 +69,7 @@ export async function createInvite(_prev: InviteState, formData: FormData): Prom
     data: {
       email,
       homeId,
-      role: form.fields.role as Role,
+      role: form.fields.role as MemberRole,
       codeHash: hashInviteCode(code),
       expiresAt,
       createdById: user.id,
@@ -117,34 +124,58 @@ export async function updateHome(_prev: ActionResult, formData: FormData): Promi
   return ok();
 }
 
+/**
+ * The membership a member-shaped form names. Both actions below act on one person in
+ * one home, so both are given the pair — a user id on its own stopped being an answer
+ * the moment somebody could be in more than one household.
+ */
+function membershipFrom(formData: FormData) {
+  return prisma.homeMember.findUnique({
+    where: {
+      userId_homeId: {
+        userId: String(formData.get("userId")),
+        homeId: String(formData.get("homeId")),
+      },
+    },
+    include: { user: { select: { role: true } } },
+  });
+}
+
 export async function updateMemberRole(formData: FormData) {
   const actor = await requireAdmin();
-  const member = await prisma.user.findUnique({
-    where: { id: String(formData.get("userId")) },
-  });
-  if (!member?.homeId) return;
-  assertHomeAdmin(actor, member.homeId);
-  if (member.role === "SUPER_ADMIN") return;
-  if (member.id === actor.id) return;
+  const membership = await membershipFrom(formData);
+  if (!membership) return;
+  assertHomeAdmin(actor, membership.homeId);
+  if (membership.user.role === "SUPER_ADMIN") return;
+  if (membership.userId === actor.id) return;
 
   const role = String(formData.get("role"));
   if (role !== "ADMIN" && role !== "USER") return;
 
-  await prisma.user.update({ where: { id: member.id }, data: { role: role as Role } });
+  await prisma.homeMember.update({
+    where: { userId_homeId: { userId: membership.userId, homeId: membership.homeId } },
+    data: { role },
+  });
   revalidatePath("/admin");
 }
 
+/**
+ * Takes somebody out of one home. The membership goes and nothing else does: their
+ * account stands, so do the other homes they are in, and so does everything they wrote
+ * in this one — a departing housemate does not take the shopping list with them.
+ */
 export async function removeMember(formData: FormData) {
   const actor = await requireAdmin();
-  const member = await prisma.user.findUnique({
-    where: { id: String(formData.get("userId")) },
-  });
-  if (!member?.homeId) return;
-  assertHomeAdmin(actor, member.homeId);
-  if (member.role === "SUPER_ADMIN" || member.id === actor.id) return;
+  const membership = await membershipFrom(formData);
+  if (!membership) return;
+  assertHomeAdmin(actor, membership.homeId);
+  if (membership.user.role === "SUPER_ADMIN" || membership.userId === actor.id) return;
 
-  await prisma.user.delete({ where: { id: member.id } });
+  await prisma.homeMember.delete({
+    where: { userId_homeId: { userId: membership.userId, homeId: membership.homeId } },
+  });
   revalidatePath("/admin");
+  revalidatePath("/homes");
 }
 
 export async function createHome(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
@@ -161,19 +192,28 @@ export async function deleteHome(formData: FormData) {
   await requireSuperAdmin();
   const homeId = String(formData.get("homeId") ?? "");
 
+  // Its members keep their accounts and their other homes; what goes is this household.
   await prisma.home.delete({ where: { id: homeId } });
+  revalidatePath("/", "layout");
   revalidatePath("/admin/homes");
+  revalidatePath("/homes");
 }
 
-/** Super admins browse a home by making it their active home. */
+/**
+ * Moving between homes: anybody picks one of theirs, and a super admin may also look
+ * into a household they are not in. Nothing but the pointer changes — what somebody may
+ * reach is their memberships, so switching grants nothing and losing the switch costs
+ * nothing.
+ */
 export async function switchHome(formData: FormData) {
-  const user = await requireSuperAdmin();
-  const homeIdRaw = String(formData.get("homeId") ?? "");
-  const homeId = homeIdRaw || null;
+  const user = await requireUser();
+  const homeId = String(formData.get("homeId") ?? "");
+  if (!homeId || !canAccessHome(user, homeId)) return;
 
-  if (homeId && !(await prisma.home.findUnique({ where: { id: homeId } }))) return;
+  // A super admin passes the check above for a home that does not exist, too.
+  if (!(await prisma.home.findUnique({ where: { id: homeId }, select: { id: true } }))) return;
 
-  await prisma.user.update({ where: { id: user.id }, data: { homeId } });
+  await prisma.user.update({ where: { id: user.id }, data: { activeHomeId: homeId } });
   revalidatePath("/", "layout");
   redirect("/dashboard");
 }

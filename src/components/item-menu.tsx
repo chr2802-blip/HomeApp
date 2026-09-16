@@ -30,6 +30,7 @@ export function ItemMenu({
   deleteConfirmLabel = "Delete",
   deleteMessage,
   deleteAction,
+  extraFields,
   className = "",
   children,
 }: {
@@ -48,6 +49,11 @@ export function ItemMenu({
   deleteConfirmLabel?: string;
   deleteMessage: string;
   deleteAction: (formData: FormData) => void | Promise<void>;
+  /**
+   * Hidden fields both actions need beyond the id — a member is named by their user and
+   * the home they are in, because they may be in several.
+   */
+  extraFields?: React.ReactNode;
   className?: string;
   /** The edit form's fields. */
   children?: React.ReactNode;
@@ -77,6 +83,7 @@ export function ItemMenu({
             onCancel={() => setEditing(false)}
           >
             <input type="hidden" name={name} value={id} />
+            {extraFields}
             {children}
           </DialogForm>
         </Modal>
@@ -91,6 +98,7 @@ export function ItemMenu({
         action={deleteAction}
       >
         <input type="hidden" name={name} value={id} />
+        {extraFields}
       </ConfirmDialog>
     </>
   );

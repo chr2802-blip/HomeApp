@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
+import { canAdministerHome } from "@/lib/access";
 import { prisma } from "@/lib/prisma";
 import { homeDb } from "@/lib/home-db";
 import {
@@ -46,11 +48,18 @@ export default async function AdminPage() {
   }
 
   const homeId = user.homeId;
+  // requireAdmin only says they run *a* home. Running one household is no licence over
+  // the next, so the one on screen is checked in its own right.
+  if (!canAdministerHome(user, homeId)) redirect("/dashboard");
+
   const db = homeDb(homeId);
 
   const [home, members, invites] = await Promise.all([
     prisma.home.findUnique({ where: { id: homeId } }),
-    db.user.findMany({ orderBy: { createdAt: "asc" } }),
+    db.homeMember.findMany({
+      orderBy: { createdAt: "asc" },
+      include: { user: { select: { id: true, name: true, email: true, role: true } } },
+    }),
     db.invite.findMany({ where: { acceptedAt: null }, orderBy: { createdAt: "desc" } }),
   ]);
 
@@ -107,7 +116,7 @@ export default async function AdminPage() {
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Members</h2>
         <Card className="divide-y divide-slate-100 p-0">
-          {members.map((member) => (
+          {members.map(({ user: member, role }) => (
             <div key={member.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
               <div className="min-w-0 flex-1">
                 <p className="font-medium">
@@ -116,15 +125,19 @@ export default async function AdminPage() {
                 </p>
                 <p className="text-xs text-slate-500">{member.email}</p>
               </div>
+              {/* The role shown is the one they hold here. A super admin's is not a role
+                  in this home at all — it is what they are everywhere — so it is named
+                  rather than offered as something to change. */}
               {member.role === "SUPER_ADMIN" || member.id === user.id ? (
                 <Badge tone={member.role === "SUPER_ADMIN" ? "green" : "neutral"}>
-                  {member.role.replace("_", " ").toLowerCase()}
+                  {member.role === "SUPER_ADMIN" ? "super admin" : role.toLowerCase()}
                 </Badge>
               ) : (
                 <>
                   <form action={updateMemberRole} className="flex items-center gap-2">
                     <input type="hidden" name="userId" value={member.id} />
-                    <Select name="role" defaultValue={member.role}>
+                    <input type="hidden" name="homeId" value={home.id} />
+                    <Select name="role" defaultValue={role}>
                       <option value="USER">User</option>
                       <option value="ADMIN">Admin</option>
                     </Select>
@@ -140,7 +153,8 @@ export default async function AdminPage() {
                     deleteTitle="Remove member"
                     deleteLabel="Remove"
                     deleteConfirmLabel="Remove"
-                    deleteMessage={`Remove ${member.name} from this home? Everything they created is removed too.`}
+                    deleteMessage={`Remove ${member.name} from this home? They keep their account and any other homes they are in, and what they have written here stays.`}
+                    extraFields={<input type="hidden" name="homeId" value={home.id} />}
                     className="-mr-2"
                   />
                 </>

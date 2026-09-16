@@ -65,8 +65,7 @@ test.describe("accepting an invite", () => {
     const code = (await page.locator("p.font-mono").innerText()).trim();
     expect(code).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
 
-    // The invitee arrives as a fresh visitor. Wait for the logout to land, because
-    // /accept-invite sends anyone with a live session back to the dashboard.
+    // The invitee arrives as a fresh visitor: nobody signed in, and no account yet.
     await page.getByRole("button", { name: "Log out" }).click();
     await page.waitForURL(/\/login$/);
 

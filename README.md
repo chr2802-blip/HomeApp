@@ -1,7 +1,8 @@
 # HomeHub
 
-Lists, tasks and recipes for your home. Multi-tenant: every home is isolated, and
-users belong to exactly one home.
+Lists, tasks and recipes for your home. Multi-tenant: every home is isolated, and a
+person belongs to as many of them as they have been invited into — the flat and the
+summer house — reading one at a time and switching between them from the header.
 
 Next.js 15 (App Router) · Prisma · PostgreSQL · Tailwind · Web Push
 
@@ -65,10 +66,15 @@ const lists = await homeDb(user.homeId).list.findMany({ orderBy: { createdAt: "d
 ```
 
 [`src/lib/home-db.ts`](src/lib/home-db.ts) carries the home into every query against a
-home-scoped model — lists, tasks, recipes, invites and members — and stamps it onto
+home-scoped model — lists, tasks, recipes, invites and memberships — and stamps it onto
 anything created. A query that forgets the home returns nothing instead of somebody
 else's rows, and a record cannot be filed under the wrong home. Models that belong to
 nobody in particular, such as push subscriptions, pass through untouched.
+
+A user is not one of them. Somebody belongs to several homes, so their row carries no
+home to scope by, and a household's roster is its `HomeMember` rows with the person read
+through each. Asking `homeDb` for a user is refused outright rather than answered with
+every account on the installation.
 
 A lint rule keeps pages and components on that path. Reaching for `prisma.list` in a
 page is an error with a message saying why; `prisma` directly is for the places where
@@ -131,24 +137,38 @@ a developer's laptop. Anything that decides or displays a date goes through `src
 rather than using `new Date(...)` arithmetic directly. If the household moves, change that one
 constant.
 
-## Roles
+## Homes and roles
+
+A person belongs to any number of homes. **Your homes** (`/homes`) lists them, and where
+there is more than one the home's name in the header becomes the way between them; what is
+on screen is one household at a time.
+
+Running a home is a property of the membership, not of the person, so somebody can be the
+admin of the flat and an ordinary member of the summer house. The Administration tab
+follows the home on screen rather than the person.
 
 | Role | Can do |
 | --- | --- |
-| Super admin | Everything; creates homes, switches between any home to administer it |
-| Admin | Manages their own home: settings, members, roles, invitations |
-| User | Creates and edits lists, tasks and recipes in their own home |
+| Super admin | Everything; creates homes, and reads any home without joining it |
+| Admin *(of one home)* | Manages that home: settings, members, roles, invitations |
+| User *(of one home)* | Creates and edits lists, tasks and recipes in that home |
 
-Every home member shares that home's lists, tasks and recipes. No one can reach another home's
-data — requests for another home's records return 404.
+Everybody in a home shares its lists, tasks and recipes. No one can reach a home they are
+not in — requests for its records return 404.
+
+Removing somebody from a home removes the membership and nothing else: their account
+stands, so do their other homes, and what they wrote stays with the household. Deleting a
+home removes its contents and empties it of members, who keep their accounts.
 
 ## Invitations
 
 There is no mail server. An admin creates an invitation for a specific email address and the app
 generates a one-time code. The admin passes that code on however they like (text, chat, in
 person). The invitee goes to `/accept-invite` and must supply **both** the exact invited email
-**and** the code to create their account. Codes are stored hashed, expire after 14 days, and are
-displayed only once — create a new invitation if one is lost.
+**and** the code. Somebody new gets an account; somebody who already has one joins the home
+with it, giving their existing password rather than choosing a new one. Codes are stored
+hashed, expire after 14 days, and are displayed only once — create a new invitation if one
+is lost.
 
 ## Local setup
 
@@ -183,7 +203,8 @@ npm run dev
 ```
 
 Log in at `/login` with the super admin credentials, create a home under **Admin → All homes**,
-switch into it, and invite the rest of the household.
+switch into it, and invite the rest of the household. Inviting somebody who already has an
+account here adds them to this home as well; they keep the ones they were in.
 
 ## Tests
 

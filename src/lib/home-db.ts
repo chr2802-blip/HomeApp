@@ -11,9 +11,25 @@ const HOME_SCOPED = new Set([
   "Recipe",
   "RecipeCategory",
   "Invite",
-  "User",
+  "HomeMember",
   "Photo",
 ]);
+
+/**
+ * Models that carry no homeId and so cannot be scoped, but read as though they could.
+ * Passing one through untouched is the failure this whole module exists to prevent, so
+ * it is refused instead: each is reached through something that does carry the home.
+ *
+ * User is here because it used to be scoped. Somebody belongs to several homes now, so
+ * a query for "the users of this home" is a query for its HomeMember rows — and a
+ * `homeDb(id).user.findMany()` left behind by that change would quietly return every
+ * account on the installation.
+ */
+const UNSCOPABLE: Record<string, string> = {
+  User: "a user belongs to several homes; ask homeMember, and read the user through it",
+  ListFavorite: "reached through its list",
+  RecipeCategoryLink: "reached through its recipe",
+};
 
 /** Operations that select rows. Prisma accepts a non-unique field here as well. */
 const FILTERED = new Set([
@@ -51,6 +67,10 @@ export function homeDb(homeId: string) {
     query: {
       $allModels: {
         async $allOperations({ model, operation, args, query }) {
+          const unscopable = UNSCOPABLE[model];
+          if (unscopable) {
+            throw new Error(`homeDb cannot scope ${model}: it carries no homeId — ${unscopable}.`);
+          }
           if (!HOME_SCOPED.has(model)) return query(args);
 
           const scoped = { ...(args as Args) };

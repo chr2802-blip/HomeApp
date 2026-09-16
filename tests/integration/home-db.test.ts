@@ -53,7 +53,7 @@ describe("reading", () => {
     expect(found).toHaveLength(1);
   });
 
-  it("scopes tasks, recipes and members the same way", async () => {
+  it("scopes tasks, recipes and memberships the same way", async () => {
     const { ours, theirs, us, them } = await twoHomes();
     await createTask({ homeId: ours.id, createdById: us.id });
     await createTask({ homeId: theirs.id, createdById: them.id });
@@ -63,7 +63,16 @@ describe("reading", () => {
     const db = homeDb(ours.id);
     expect(await db.task.count()).toBe(1);
     expect(await db.recipe.count()).toBe(1);
-    expect(await db.user.count()).toBe(1);
+    expect(await db.homeMember.count()).toBe(1);
+  });
+
+  it("refuses the models it cannot scope rather than passing them through", async () => {
+    const { ours } = await twoHomes();
+
+    // User carries no homeId now that somebody can be in several homes, so a query for
+    // "this home's users" would quietly be a query for every account on the
+    // installation. Being refused is the point: the roster is homeMember.
+    await expect(homeDb(ours.id).user.count()).rejects.toThrow("cannot scope User");
   });
 });
 

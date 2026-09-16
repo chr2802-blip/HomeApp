@@ -10,8 +10,20 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-enum Role {
+/**
+ * What somebody may do across the whole installation, which is now the one question:
+ * are they the super admin who looks after every household, or an ordinary person?
+ *
+ * Being an admin is no longer answered here. It is answered per home, on HomeMember,
+ * because somebody can run one household and merely live in another.
+ */
+enum PlatformRole {
   SUPER_ADMIN
+  USER
+}
+
+/// What somebody may do inside one home they belong to.
+enum MemberRole {
   ADMIN
   USER
 }
@@ -24,7 +36,13 @@ model Home {
   photoId   String?
   createdAt DateTime @default(now())
 
-  users            User[]
+  /// Everybody who belongs to this home, and what each of them may do in it.
+  members          HomeMember[]
+  /**
+   * The people looking at this home right now. SetNull rather than Cascade: deleting a
+   * home empties the households of the people who were in it, it does not delete them.
+   */
+  activeFor        User[]           @relation("ActiveHome")
   invites          Invite[]
   lists            List[]
   tasks            Task[]
@@ -35,16 +53,32 @@ model Home {
   photo            Photo?           @relation("HomePhoto", fields: [photoId], references: [id], onDelete: SetNull)
 }
 
+/**
+ * One person, who may belong to any number of homes.
+ *
+ * Which homes those are is `memberships`. `activeHomeId` is only which of them they
+ * are looking at now — a pointer into that set, never the set itself.
+ *
+ * So what somebody may reach is answered from `memberships`; asking `activeHomeId`
+ * would answer "the one home they happen to have open", which is a different question
+ * wearing the same clothes.
+ */
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id           String       @id @default(cuid())
+  email        String       @unique
   name         String
   passwordHash String
-  role         Role     @default(USER)
-  homeId       String?
-  createdAt    DateTime @default(now())
+  role         PlatformRole @default(USER)
+  /**
+   * The home being looked at now, or null for somebody who is in no home at all. Held
+   * loosely: a membership can be revoked while its owner is looking elsewhere, so this
+   * is read as a preference and checked against `memberships` rather than trusted.
+   */
+  activeHomeId String?
+  createdAt    DateTime     @default(now())
 
-  home              Home?              @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  activeHome        Home?              @relation("ActiveHome", fields: [activeHomeId], references: [id], onDelete: SetNull)
+  memberships       HomeMember[]
   pushSubscriptions PushSubscription[]
   favoriteLists     ListFavorite[]
   lists             List[]
@@ -53,19 +87,45 @@ model User {
   recipes           Recipe[]
   invitesCreated    Invite[]           @relation("InviteCreatedBy")
 
+  @@index([activeHomeId])
+}
+
+/**
+ * One person in one home, and what they may do there.
+ *
+ * This is the row that says somebody is part of a household, so a person in three
+ * homes has three of them and is an admin in exactly the ones that say so. It is what
+ * homeDb scopes when a page asks who is in a home — User is not home-scoped any more,
+ * because a user is not in one home.
+ *
+ * Cascaded from both sides: deleting the account takes its memberships with it, and
+ * deleting a home takes them too. Either way what goes is the belonging, not the
+ * account, and not the lists, tasks and recipes that person wrote in other homes.
+ */
+model HomeMember {
+  userId    String
+  homeId    String
+  role      MemberRole @default(USER)
+  createdAt DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  home Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
+
+  // One membership per person per home, and the lookup that asks who is in a home.
+  @@id([userId, homeId])
   @@index([homeId])
 }
 
 model Invite {
-  id          String    @id @default(cuid())
+  id          String     @id @default(cuid())
   email       String
   homeId      String
-  role        Role      @default(USER)
+  role        MemberRole @default(USER)
   codeHash    String
   expiresAt   DateTime
   acceptedAt  DateTime?
   createdById String
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime   @default(now())
 
   home      Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
   createdBy User @relation("InviteCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)

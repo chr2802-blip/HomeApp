@@ -104,45 +104,28 @@ export async function resetAndSeed() {
     data: CATEGORIES.map((name) => ({ homeId: home.id, name })),
   });
 
-  await db.user.create({
-    data: {
-      email: ACCOUNTS.superAdmin.email,
-      name: ACCOUNTS.superAdmin.name,
-      passwordHash: await hash(ACCOUNTS.superAdmin.password),
-      role: "SUPER_ADMIN",
-      homeId: null,
-    },
-  });
+  // A home is joined rather than pointed at: the membership says somebody is in it, and
+  // the active home only says which of theirs they are reading.
+  const account = async (
+    who: (typeof ACCOUNTS)[keyof typeof ACCOUNTS],
+    membership: { homeId: string; role: "ADMIN" | "USER" } | null,
+    superAdmin = false,
+  ) =>
+    db.user.create({
+      data: {
+        email: who.email,
+        name: who.name,
+        passwordHash: await hash(who.password),
+        role: superAdmin ? "SUPER_ADMIN" : "USER",
+        activeHomeId: membership?.homeId ?? null,
+        ...(membership ? { memberships: { create: { homeId: membership.homeId, role: membership.role } } } : {}),
+      },
+    });
 
-  await db.user.create({
-    data: {
-      email: ACCOUNTS.admin.email,
-      name: ACCOUNTS.admin.name,
-      passwordHash: await hash(ACCOUNTS.admin.password),
-      role: "ADMIN",
-      homeId: home.id,
-    },
-  });
-
-  await db.user.create({
-    data: {
-      email: ACCOUNTS.member.email,
-      name: ACCOUNTS.member.name,
-      passwordHash: await hash(ACCOUNTS.member.password),
-      role: "USER",
-      homeId: home.id,
-    },
-  });
-
-  await db.user.create({
-    data: {
-      email: ACCOUNTS.outsider.email,
-      name: ACCOUNTS.outsider.name,
-      passwordHash: await hash(ACCOUNTS.outsider.password),
-      role: "ADMIN",
-      homeId: otherHome.id,
-    },
-  });
+  await account(ACCOUNTS.superAdmin, null, true);
+  await account(ACCOUNTS.admin, { homeId: home.id, role: "ADMIN" });
+  await account(ACCOUNTS.member, { homeId: home.id, role: "USER" });
+  await account(ACCOUNTS.outsider, { homeId: otherHome.id, role: "ADMIN" });
 
   return { home, otherHome };
 }

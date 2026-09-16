@@ -161,14 +161,18 @@ describe("a member of one home cannot touch another home's data", () => {
 
   it("cannot change a role or remove a member in another home", async () => {
     const victimMember = await createUser({ homeId: victimHome.id, role: "USER" });
+    const membership = { userId_homeId: { userId: victimMember.id, homeId: victimHome.id } };
 
     await expectDenied(() =>
-      updateMemberRole(formData({ userId: victimMember.id, role: "ADMIN" })),
+      updateMemberRole(formData({ userId: victimMember.id, homeId: victimHome.id, role: "ADMIN" })),
     );
-    await expectDenied(() => removeMember(formData({ userId: victimMember.id })));
+    await expectDenied(() =>
+      removeMember(formData({ userId: victimMember.id, homeId: victimHome.id })),
+    );
 
-    const after = await prisma.user.findUnique({ where: { id: victimMember.id } });
-    expect(after).toMatchObject({ role: "USER" });
+    expect(await prisma.homeMember.findUnique({ where: membership })).toMatchObject({
+      role: "USER",
+    });
   });
 });
 
@@ -184,7 +188,7 @@ describe("a super admin reaches every home", () => {
     expect((await prisma.home.findUnique({ where: { id: home.id } }))?.name).toBe(
       "Renamed By Super Admin",
     );
-    expect(owner.homeId).toBe(home.id);
+    expect(owner.activeHomeId).toBe(home.id);
   });
 
   it("can act on another home's task", async () => {
@@ -192,8 +196,10 @@ describe("a super admin reaches every home", () => {
     const owner = await createUser({ homeId: home.id });
     const task = await createTask({ homeId: home.id, createdById: owner.id });
 
-    // A super admin browsing a home has that home as their active home.
-    const superAdmin = await createUser({ role: "SUPER_ADMIN", homeId: home.id });
+    // Browsing a home without belonging to it: the active home is set directly, since
+    // joining would make this a test of membership rather than of being a super admin.
+    const superAdmin = await createUser({ role: "SUPER_ADMIN", homeId: null });
+    await prisma.user.update({ where: { id: superAdmin.id }, data: { activeHomeId: home.id } });
     await signIn(superAdmin);
 
     await completeTask(formData({ taskId: task.id }));

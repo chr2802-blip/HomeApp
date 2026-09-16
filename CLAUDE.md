@@ -1,7 +1,8 @@
 # HomeHub
 
 Lists, tasks and recipes for a household. Multi-tenant: everything belongs to a
-**home**, and people belong to a home. Next.js App Router, Prisma, Postgres, on Vercel.
+**home**, and people belong to as many homes as they have been invited into. Next.js App
+Router, Prisma, Postgres, on Vercel.
 
 Read this before changing anything. Most of what follows exists because the alternative
 was tried and caused a bug.
@@ -20,6 +21,30 @@ Integration and browser tests need the local Postgres: `docker start homehub-pg`
 
 ## Conventions that are not optional
 
+### A person belongs to homes, and reads one of them
+
+`HomeMember` is the belonging: one row per person per home, carrying what they may do
+**there**. Somebody in three homes has three of them, and is an admin in exactly the ones
+that say so — running the flat is no licence over the summer house. `User.role` answers
+only the remaining question, whether they look after the whole installation
+(`PlatformRole`), because that one is not about any home.
+
+`User.activeHomeId` is which of their homes is on screen and nothing more. It is a
+pointer into the set, never the set itself, so **what somebody may reach is answered from
+`user.homes`** — `canAccessHome` and `canAdministerHome` in `src/lib/access.ts` do exactly
+that. Asking the active home instead answers "the one they happen to have open", which
+looks like the same question and refuses the two homes they merely do not have open.
+
+It is held loosely on purpose: a membership can be revoked while its owner is reading
+somewhere else, so `getCurrentUser` checks it against the memberships and falls back to
+the first home they joined. It writes nothing back — a page render is no place to start
+correcting the database, and the next switch fixes it anyway.
+
+Switching is `switchHome`, which moves the pointer and grants nothing. The header's name
+becomes a menu once there is more than one to go to, `/homes` lists them, and that page is
+also where somebody with no home at all is sent, because it is the only page with
+anything to tell them.
+
 ### Home-scoped data goes through `homeDb`
 
 ```ts
@@ -27,12 +52,18 @@ const lists = await homeDb(user.homeId).list.findMany({ orderBy: { createdAt: "d
 ```
 
 `src/lib/home-db.ts` carries the home into every query against a home-scoped model
-(List, Task, Recipe, Invite, User) and stamps it onto anything created. A query
-that forgets the home returns nothing rather than another household's rows.
+(List, Task, Recipe, Invite, HomeMember, Photo) and stamps it onto anything created. A
+query that forgets the home returns nothing rather than another household's rows.
 
 **Never hand-write `where: { homeId }` in a page or component.** A lint rule rejects
 `prisma.list` and friends there. Use `prisma` directly only where crossing homes is the
 point — the reminder job, the super admin's system view — and say so in a comment.
+
+**User is not home-scoped, and `homeDb` refuses it** along with `ListFavorite` and
+`RecipeCategoryLink`. None of the three carries a `homeId`, so scoping would pass the
+query straight through — and `homeDb(id).user.findMany()`, which used to mean "this
+home's people", would now hand back every account on the installation. A household's
+roster is `homeDb(id).homeMember.findMany({ include: { user: … } })`.
 
 Permission checks live separately in `src/lib/access.ts`; `homeScoped` in
 `src/lib/scoped.ts` fetches a single record and asserts access. `homeDb` does not replace

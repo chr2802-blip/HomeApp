@@ -1,4 +1,4 @@
-import type { Role } from "@prisma/client";
+import type { MemberRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createSession, hashPassword } from "@/lib/auth";
 import { generateInviteCode, hashInviteCode } from "@/lib/invite-code";
@@ -21,21 +21,45 @@ export function createHome(overrides: { name?: string; address?: string | null }
 
 export async function createUser(
   options: {
+    /** A home to join, which becomes their active one. `joinHome` adds any others. */
     homeId?: string | null;
-    role?: Role;
+    /**
+     * Who they are: a super admin of the installation, or their role in `homeId`. The
+     * two were one column before homes became plural and still read as one question in
+     * a test. A super admin given a home joins it as its admin, which is what the
+     * migration did with the ones that already existed.
+     */
+    role?: MemberRole | "SUPER_ADMIN";
     email?: string;
     name?: string;
     password?: string;
   } = {},
 ) {
-  return prisma.user.create({
+  const superAdmin = options.role === "SUPER_ADMIN";
+  const homeRole: MemberRole =
+    options.role && options.role !== "SUPER_ADMIN" ? options.role : superAdmin ? "ADMIN" : "USER";
+
+  const user = await prisma.user.create({
     data: {
       email: options.email ?? `user-${unique()}@example.com`,
       name: options.name ?? "Test User",
       passwordHash: await hashPassword(options.password ?? TEST_PASSWORD),
-      role: options.role ?? "USER",
-      homeId: options.homeId ?? null,
+      role: superAdmin ? "SUPER_ADMIN" : "USER",
+      activeHomeId: options.homeId ?? null,
     },
+  });
+
+  if (options.homeId) {
+    await joinHome({ userId: user.id, homeId: options.homeId, role: homeRole });
+  }
+
+  return user;
+}
+
+/** Puts somebody in another home, which is what being in several of them is made of. */
+export function joinHome(options: { userId: string; homeId: string; role?: MemberRole }) {
+  return prisma.homeMember.create({
+    data: { userId: options.userId, homeId: options.homeId, role: options.role ?? "USER" },
   });
 }
 
@@ -60,7 +84,7 @@ export async function createInviteFor(options: {
   email: string;
   homeId: string;
   createdById: string;
-  role?: Role;
+  role?: MemberRole;
   expiresAt?: Date;
   acceptedAt?: Date | null;
 }) {

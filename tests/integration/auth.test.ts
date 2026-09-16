@@ -126,6 +126,14 @@ describe("login throttling", () => {
 });
 
 describe("acceptInvite", () => {
+  /** What somebody may do in one named home, which is where a role lives. */
+  async function roleIn(userId: string, homeId: string) {
+    const membership = await prisma.homeMember.findUnique({
+      where: { userId_homeId: { userId, homeId } },
+    });
+    return membership?.role ?? null;
+  }
+
   async function openInvite(
     overrides: { email?: string; role?: "ADMIN" | "USER"; expiresAt?: Date } = {},
   ) {
@@ -158,7 +166,8 @@ describe("acceptInvite", () => {
     expect(destination).toBe("/dashboard");
 
     const created = await prisma.user.findUnique({ where: { email: "newcomer@example.com" } });
-    expect(created).toMatchObject({ name: "Newcomer", homeId: home.id, role: "USER" });
+    expect(created).toMatchObject({ name: "Newcomer", activeHomeId: home.id, role: "USER" });
+    expect(await roleIn(created!.id, home.id)).toBe("USER");
     expect((await getCurrentUser())?.id).toBe(created!.id);
 
     const used = await prisma.invite.findUnique({ where: { id: invite.id } });
@@ -166,7 +175,7 @@ describe("acceptInvite", () => {
   });
 
   it("grants the role the invite was created with", async () => {
-    const { code } = await openInvite({ role: "ADMIN" });
+    const { home, code } = await openInvite({ role: "ADMIN" });
 
     await captureRedirect(() =>
       acceptInvite(
@@ -181,7 +190,9 @@ describe("acceptInvite", () => {
     );
 
     const created = await prisma.user.findUnique({ where: { email: "newcomer@example.com" } });
-    expect(created?.role).toBe("ADMIN");
+    // In this home. The account itself is nobody's admin — that is not a thing to be.
+    expect(await roleIn(created!.id, home.id)).toBe("ADMIN");
+    expect(created?.role).toBe("USER");
   });
 
   it("accepts the code however it is typed", async () => {
@@ -264,13 +275,43 @@ describe("acceptInvite", () => {
     await captureRedirect(() => acceptInvite(undefined, formData(fields)));
     const second = await acceptInvite(undefined, formData(fields));
 
-    expect(second?.error).toContain("already exists");
+    // The invitation is spent, so there is nothing left for the code to match.
+    expect(second?.error).toContain("don't match an open invitation");
     expect(await prisma.user.count()).toBe(3);
   });
 
-  it("tells someone with an account to log in instead", async () => {
-    const { code } = await openInvite();
-    await createUser({ email: "newcomer@example.com" });
+  it("joins an existing account to the home, with no second account made", async () => {
+    const { home, code } = await openInvite();
+    const elsewhere = await createHome();
+    const neighbour = await createUser({ email: "newcomer@example.com", homeId: elsewhere.id });
+
+    await expectRedirect(
+      () =>
+        acceptInvite(
+          undefined,
+          formData({
+            email: "newcomer@example.com",
+            code,
+            name: "Ignored",
+            password: TEST_PASSWORD,
+          }),
+        ),
+      "/dashboard",
+    );
+
+    expect(await prisma.user.count()).toBe(3);
+    expect(await roleIn(neighbour.id, home.id)).toBe("USER");
+    // Both homes, and the one they just accepted is the one they land in.
+    expect(await roleIn(neighbour.id, elsewhere.id)).toBe("USER");
+    const joined = await prisma.user.findUniqueOrThrow({ where: { id: neighbour.id } });
+    expect(joined.activeHomeId).toBe(home.id);
+    expect(joined.name).toBe(neighbour.name);
+  });
+
+  it("refuses an existing account when the password is wrong", async () => {
+    const { home, code } = await openInvite();
+    const elsewhere = await createHome();
+    const neighbour = await createUser({ email: "newcomer@example.com", homeId: elsewhere.id });
 
     const result = await acceptInvite(
       undefined,
@@ -278,11 +319,12 @@ describe("acceptInvite", () => {
         email: "newcomer@example.com",
         code,
         name: "Newcomer",
-        password: "a-good-password",
+        password: "not-their-password",
       }),
     );
 
-    expect(result?.error).toContain("already exists");
+    expect(result?.error).toContain("Enter its password");
+    expect(await roleIn(neighbour.id, home.id)).toBeNull();
   });
 
   it("requires a password of at least eight characters", async () => {
@@ -344,6 +386,7 @@ describe("acceptInvite", () => {
     );
 
     const created = await prisma.user.findUnique({ where: { email: "newcomer@example.com" } });
-    expect(created?.homeId).toBe(home.id);
+    expect(await roleIn(created!.id, home.id)).toBe("USER");
+    expect(await roleIn(created!.id, otherHome.id)).toBeNull();
   });
 });

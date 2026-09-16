@@ -21,6 +21,7 @@ import {
   createList,
   createUser,
   formData,
+  joinHome,
   signIn,
 } from "../helpers/factories";
 import { expectRedirect } from "../helpers/expect";
@@ -88,17 +89,31 @@ describe("createInvite", () => {
     expect(inviteCodeMatches(newCode, invites[0]!.codeHash)).toBe(true);
   });
 
-  it("refuses to invite an email that already has an account", async () => {
+  it("invites somebody who already has an account in another home", async () => {
     const { home, admin } = await createHomeWithMembers();
-    await createUser({ email: "taken@example.com" });
+    const elsewhere = await seedHome();
+    await createUser({ email: "neighbour@example.com", homeId: elsewhere.id });
     await signIn(admin);
 
     const result = await createInvite(
       undefined,
-      formData({ homeId: home.id, email: "taken@example.com", role: "USER" }),
+      formData({ homeId: home.id, email: "neighbour@example.com", role: "USER" }),
     );
 
-    expect(result).toEqual({ ok: false, error: "That email already has an account." });
+    expect(result).toMatchObject({ ok: true, email: "neighbour@example.com" });
+    expect(await prisma.invite.count()).toBe(1);
+  });
+
+  it("refuses to invite somebody who is already in this home", async () => {
+    const { home, admin, member } = await createHomeWithMembers();
+    await signIn(admin);
+
+    const result = await createInvite(
+      undefined,
+      formData({ homeId: home.id, email: member.email, role: "USER" }),
+    );
+
+    expect(result).toEqual({ ok: false, error: "They are already in this home." });
     expect(await prisma.invite.count()).toBe(0);
   });
 
@@ -167,25 +182,64 @@ describe("updateHome", () => {
   });
 });
 
+/** What somebody may do in one named home, which is where a role lives now. */
+async function roleIn(userId: string, homeId: string) {
+  const membership = await prisma.homeMember.findUnique({
+    where: { userId_homeId: { userId, homeId } },
+  });
+  return membership?.role ?? null;
+}
+
 describe("updateMemberRole", () => {
   it("promotes and demotes a member", async () => {
-    const { admin, member } = await createHomeWithMembers();
+    const { home, admin, member } = await createHomeWithMembers();
     await signIn(admin);
 
-    await updateMemberRole(formData({ userId: member.id, role: "ADMIN" }));
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: member.id } })).role).toBe("ADMIN");
+    await updateMemberRole(formData({ userId: member.id, homeId: home.id, role: "ADMIN" }));
+    expect(await roleIn(member.id, home.id)).toBe("ADMIN");
 
-    await updateMemberRole(formData({ userId: member.id, role: "USER" }));
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: member.id } })).role).toBe("USER");
+    await updateMemberRole(formData({ userId: member.id, homeId: home.id, role: "USER" }));
+    expect(await roleIn(member.id, home.id)).toBe("USER");
+  });
+
+  it("changes the role in the named home only", async () => {
+    const { home, admin, member } = await createHomeWithMembers();
+    const second = await seedHome();
+    await joinHome({ userId: member.id, homeId: second.id, role: "ADMIN" });
+    await signIn(admin);
+
+    await updateMemberRole(formData({ userId: member.id, homeId: home.id, role: "ADMIN" }));
+
+    expect(await roleIn(member.id, home.id)).toBe("ADMIN");
+    expect(await roleIn(member.id, second.id)).toBe("ADMIN");
+
+    await updateMemberRole(formData({ userId: member.id, homeId: home.id, role: "USER" }));
+
+    expect(await roleIn(member.id, home.id)).toBe("USER");
+    // Untouched: this admin has no say in the other household.
+    expect(await roleIn(member.id, second.id)).toBe("ADMIN");
+  });
+
+  it("refuses an admin of another home", async () => {
+    const { home, member } = await createHomeWithMembers();
+    const elsewhere = await seedHome();
+    const outsider = await createUser({ homeId: elsewhere.id, role: "ADMIN" });
+    await signIn(outsider);
+
+    await expect(
+      updateMemberRole(formData({ userId: member.id, homeId: home.id, role: "ADMIN" })),
+    ).rejects.toThrow("Not allowed");
+
+    expect(await roleIn(member.id, home.id)).toBe("USER");
   });
 
   it("will not let an admin change their own role", async () => {
-    const { admin } = await createHomeWithMembers();
+    const { home, admin } = await createHomeWithMembers();
     await signIn(admin);
 
-    await updateMemberRole(formData({ userId: admin.id, role: "USER" }));
+    await updateMemberRole(formData({ userId: admin.id, homeId: home.id, role: "USER" }));
 
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: admin.id } })).role).toBe("ADMIN");
+    expect(await roleIn(admin.id, home.id)).toBe("ADMIN");
   });
 
   it("will not touch a super admin", async () => {
@@ -193,34 +247,48 @@ describe("updateMemberRole", () => {
     const superAdmin = await createUser({ homeId: home.id, role: "SUPER_ADMIN" });
     await signIn(admin);
 
-    await updateMemberRole(formData({ userId: superAdmin.id, role: "USER" }));
+    await updateMemberRole(formData({ userId: superAdmin.id, homeId: home.id, role: "USER" }));
 
+    expect(await roleIn(superAdmin.id, home.id)).toBe("ADMIN");
     expect((await prisma.user.findUniqueOrThrow({ where: { id: superAdmin.id } })).role).toBe(
       "SUPER_ADMIN",
     );
   });
 
   it("ignores a role that is not admin or user", async () => {
-    const { admin, member } = await createHomeWithMembers();
+    const { home, admin, member } = await createHomeWithMembers();
     await signIn(admin);
 
-    await updateMemberRole(formData({ userId: member.id, role: "SUPER_ADMIN" }));
+    await updateMemberRole(formData({ userId: member.id, homeId: home.id, role: "SUPER_ADMIN" }));
 
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: member.id } })).role).toBe("USER");
+    expect(await roleIn(member.id, home.id)).toBe("USER");
   });
 });
 
 describe("removeMember", () => {
-  it("removes a member and the content they created", async () => {
+  it("takes the member out of the home, leaving their account and their work", async () => {
     const { home, admin, member } = await createHomeWithMembers();
     await createList({ homeId: home.id, createdById: member.id });
     await signIn(admin);
 
-    await removeMember(formData({ userId: member.id }));
+    await removeMember(formData({ userId: member.id, homeId: home.id }));
 
-    expect(await prisma.user.findUnique({ where: { id: member.id } })).toBeNull();
-    expect(await prisma.list.count()).toBe(0);
-    expect(await prisma.home.findUnique({ where: { id: home.id } })).not.toBeNull();
+    expect(await roleIn(member.id, home.id)).toBeNull();
+    expect(await prisma.user.findUnique({ where: { id: member.id } })).not.toBeNull();
+    // The household keeps the list they wrote: it was the home's, not theirs.
+    expect(await prisma.list.count()).toBe(1);
+  });
+
+  it("leaves the other homes they are in alone", async () => {
+    const { home, admin, member } = await createHomeWithMembers();
+    const second = await seedHome();
+    await joinHome({ userId: member.id, homeId: second.id });
+    await signIn(admin);
+
+    await removeMember(formData({ userId: member.id, homeId: home.id }));
+
+    expect(await roleIn(member.id, home.id)).toBeNull();
+    expect(await roleIn(member.id, second.id)).toBe("USER");
   });
 
   it("will not let an admin remove themselves or a super admin", async () => {
@@ -228,11 +296,11 @@ describe("removeMember", () => {
     const superAdmin = await createUser({ homeId: home.id, role: "SUPER_ADMIN" });
     await signIn(admin);
 
-    await removeMember(formData({ userId: admin.id }));
-    await removeMember(formData({ userId: superAdmin.id }));
+    await removeMember(formData({ userId: admin.id, homeId: home.id }));
+    await removeMember(formData({ userId: superAdmin.id, homeId: home.id }));
 
-    expect(await prisma.user.findUnique({ where: { id: admin.id } })).not.toBeNull();
-    expect(await prisma.user.findUnique({ where: { id: superAdmin.id } })).not.toBeNull();
+    expect(await roleIn(admin.id, home.id)).toBe("ADMIN");
+    expect(await roleIn(superAdmin.id, home.id)).toBe("ADMIN");
   });
 });
 
@@ -268,7 +336,9 @@ describe("homes are provisioned by the super admin only", () => {
 
     expect(await prisma.home.count()).toBe(0);
     expect(await prisma.list.count()).toBe(0);
-    expect(await prisma.user.count()).toBe(1); // the super admin survives
+    // Its people stand: what a home holds is its contents, not its members' accounts.
+    expect(await prisma.user.count()).toBe(3);
+    expect(await prisma.homeMember.count()).toBe(0);
   });
 
   it("turns an ordinary admin away from creating or deleting homes", async () => {
@@ -283,38 +353,53 @@ describe("homes are provisioned by the super admin only", () => {
 });
 
 describe("switchHome", () => {
-  it("moves the super admin's active home", async () => {
+  const activeHomeOf = async (id: string) =>
+    (await prisma.user.findUniqueOrThrow({ where: { id } })).activeHomeId;
+
+  it("moves somebody between the homes they belong to", async () => {
+    const { home, member } = await createHomeWithMembers();
+    const second = await seedHome({ name: "Summer House" });
+    await joinHome({ userId: member.id, homeId: second.id });
+    await signIn(member);
+
+    await expectRedirect(() => switchHome(formData({ homeId: second.id })), "/dashboard");
+    expect(await activeHomeOf(member.id)).toBe(second.id);
+
+    await expectRedirect(() => switchHome(formData({ homeId: home.id })), "/dashboard");
+    expect(await activeHomeOf(member.id)).toBe(home.id);
+  });
+
+  it("refuses a home they are not in", async () => {
+    const { home, member } = await createHomeWithMembers();
+    const elsewhere = await seedHome({ name: "Not Theirs" });
+    await signIn(member);
+
+    await switchHome(formData({ homeId: elsewhere.id }));
+
+    expect(await activeHomeOf(member.id)).toBe(home.id);
+  });
+
+  it("lets a super admin into a home they are not in", async () => {
     const target = await seedHome({ name: "Target" });
     const superAdmin = await createUser({ role: "SUPER_ADMIN", homeId: null });
     await signIn(superAdmin);
 
     await expectRedirect(() => switchHome(formData({ homeId: target.id })), "/dashboard");
 
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: superAdmin.id } })).homeId).toBe(
-      target.id,
-    );
+    expect(await activeHomeOf(superAdmin.id)).toBe(target.id);
+    // Reading a home is not joining it.
+    expect(await prisma.homeMember.count()).toBe(0);
   });
 
-  it("clears the active home when given no id", async () => {
+  it("ignores a blank id and a home that does not exist", async () => {
     const home = await seedHome();
     const superAdmin = await createUser({ role: "SUPER_ADMIN", homeId: home.id });
     await signIn(superAdmin);
 
-    await expectRedirect(() => switchHome(formData({ homeId: "" })), "/dashboard");
-
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: superAdmin.id } })).homeId).toBeNull();
-  });
-
-  it("ignores a home that does not exist", async () => {
-    const home = await seedHome();
-    const superAdmin = await createUser({ role: "SUPER_ADMIN", homeId: home.id });
-    await signIn(superAdmin);
-
+    await switchHome(formData({ homeId: "" }));
     await switchHome(formData({ homeId: "missing" }));
 
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: superAdmin.id } })).homeId).toBe(
-      home.id,
-    );
+    expect(await activeHomeOf(superAdmin.id)).toBe(home.id);
   });
 });
 

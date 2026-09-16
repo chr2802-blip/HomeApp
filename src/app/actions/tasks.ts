@@ -73,8 +73,8 @@ async function readAssignee(formData: FormData, homeId: string) {
   const id = String(formData.get("assigneeId") ?? "").trim();
   if (!id) return { ok: true as const, assigneeId: null };
 
-  const member = await homeDb(homeId).user.findUnique({ where: { id } });
-  return member ? { ok: true as const, assigneeId: member.id } : { ok: false as const };
+  const member = await homeDb(homeId).homeMember.findFirst({ where: { userId: id } });
+  return member ? { ok: true as const, assigneeId: member.userId } : { ok: false as const };
 }
 
 const NOT_A_MEMBER = "That person is not in this home.";

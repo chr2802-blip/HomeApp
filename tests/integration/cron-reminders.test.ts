@@ -292,7 +292,9 @@ describe("who an assigned task reaches", () => {
       assigneeId: leaver.id,
     });
 
-    await prisma.user.update({ where: { id: leaver.id }, data: { homeId: null } });
+    await prisma.homeMember.delete({
+      where: { userId_homeId: { userId: leaver.id, homeId: home.id } },
+    });
 
     await GET(request(CRON_SECRET));
 

@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { Role } from "@prisma/client";
 import { navItemsFor } from "./nav-items";
 import { LinkPending } from "./link-pending";
 
-export function BottomNav({ role }: { role: Role }) {
+export function BottomNav({ showAdmin }: { showAdmin: boolean }) {
   const pathname = usePathname();
-  const items = navItemsFor(role);
+  const items = navItemsFor(showAdmin);
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/85 backdrop-blur-lg md:hidden">

@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
-import type { Role } from "@prisma/client";
+import type { MemberRole, PlatformRole } from "@prisma/client";
 import { prisma } from "./prisma";
 
 const COOKIE = "homehub_session";
@@ -45,15 +45,34 @@ export async function destroySession() {
   store.delete(COOKIE);
 }
 
+/** One of the homes somebody belongs to, as the switcher and the checks need it. */
+export type Membership = {
+  id: string;
+  name: string;
+  photoId: string | null;
+  role: MemberRole;
+};
+
 export type SessionUser = {
   id: string;
   email: string;
   name: string;
-  role: Role;
+  role: PlatformRole;
+  /**
+   * Every home this person belongs to, in the order they joined them. This is what
+   * says where they may go — `homeId` below only says where they are.
+   */
+  homes: Membership[];
+  /** The home being read right now, drawn from `homes`. */
   homeId: string | null;
   homeName: string | null;
   /** The home's own picture, shown wherever the home is named. */
   homePhotoId: string | null;
+  /**
+   * What they may do in that home, or null when it is not one of theirs — which only
+   * a super admin, looking into a household they are not in, ever is.
+   */
+  homeRole: MemberRole | null;
 };
 
 /**
@@ -76,18 +95,42 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { home: true },
+    include: {
+      activeHome: { select: { id: true, name: true, photoId: true } },
+      memberships: {
+        orderBy: { createdAt: "asc" },
+        select: { role: true, home: { select: { id: true, name: true, photoId: true } } },
+      },
+    },
   });
   if (!user) return null;
+
+  const homes: Membership[] = user.memberships.map((membership) => ({
+    ...membership.home,
+    role: membership.role,
+  }));
+
+  // The stored choice is a preference, not a permission. It stands while it is still
+  // one of their homes — or, for a super admin, still a home at all — and otherwise
+  // they land in the first one they joined. Nothing is written back: a membership
+  // revoked while somebody was reading another home would otherwise wait to surprise
+  // them, and a page render is no place to start correcting the database.
+  const active =
+    homes.find((home) => home.id === user.activeHomeId) ??
+    (user.role === "SUPER_ADMIN" ? user.activeHome : null) ??
+    homes[0] ??
+    null;
 
   return {
     id: user.id,
     email: user.email,
     name: user.name,
     role: user.role,
-    homeId: user.homeId,
-    homeName: user.home?.name ?? null,
-    homePhotoId: user.home?.photoId ?? null,
+    homes,
+    homeId: active?.id ?? null,
+    homeName: active?.name ?? null,
+    homePhotoId: active?.photoId ?? null,
+    homeRole: homes.find((home) => home.id === active?.id)?.role ?? null,
   };
 });
 
@@ -97,10 +140,14 @@ export async function requireUser(): Promise<SessionUser> {
   return user;
 }
 
-/** A user scoped to a home — everything except a super admin who has not picked a home. */
+/**
+ * A user reading one of their homes. Somebody in no home at all — a super admin before
+ * they have looked into one, or a person whose last membership was revoked — is sent to
+ * the list of their homes, which is the only page that has anything to tell them.
+ */
 export async function requireHomeUser(): Promise<SessionUser & { homeId: string }> {
   const user = await requireUser();
-  if (!user.homeId) redirect("/admin/homes");
+  if (!user.homeId) redirect("/homes");
   return user as SessionUser & { homeId: string };
 }
 
@@ -110,8 +157,16 @@ export async function requireSuperAdmin(): Promise<SessionUser> {
   return user;
 }
 
+/**
+ * Somebody who runs at least one home — the gate on the actions that administer one.
+ * Which home is theirs to run is a second question, asked per home by `assertHomeAdmin`
+ * against the id the action was given: being an admin of one household says nothing
+ * about the next.
+ */
 export async function requireAdmin(): Promise<SessionUser> {
   const user = await requireUser();
-  if (user.role !== "SUPER_ADMIN" && user.role !== "ADMIN") redirect("/dashboard");
+  if (user.role !== "SUPER_ADMIN" && !user.homes.some((home) => home.role === "ADMIN")) {
+    redirect("/dashboard");
+  }
   return user;
 }

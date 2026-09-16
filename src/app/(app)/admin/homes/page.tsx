@@ -11,7 +11,7 @@ export default async function HomesPage() {
   const homes = await prisma.home.findMany({
     orderBy: { createdAt: "asc" },
     include: {
-      _count: { select: { users: true, lists: true, tasks: true, recipes: true } },
+      _count: { select: { members: true, lists: true, tasks: true, recipes: true } },
     },
   });
 
@@ -53,8 +53,8 @@ export default async function HomesPage() {
                 </div>
                 {home.address && <p className="text-xs text-slate-500">{home.address}</p>}
                 <p className="mt-1 text-xs text-slate-500">
-                  {home._count.users} members · {home._count.lists} lists · {home._count.tasks} tasks
-                  · {home._count.recipes} recipes
+                  {home._count.members} members · {home._count.lists} lists ·{" "}
+                  {home._count.tasks} tasks · {home._count.recipes} recipes
                 </p>
               </div>
               {home.id !== user.homeId && (
@@ -70,7 +70,7 @@ export default async function HomesPage() {
                 label={home.name}
                 deleteAction={deleteHome}
                 deleteTitle="Delete home"
-                deleteMessage={`Permanently delete "${home.name}"? Its ${home._count.users} members, ${home._count.lists} lists, ${home._count.tasks} tasks and ${home._count.recipes} recipes are removed too. This cannot be undone.`}
+                deleteMessage={`Permanently delete "${home.name}"? Its ${home._count.lists} lists, ${home._count.tasks} tasks and ${home._count.recipes} recipes go with it, and its ${home._count.members} members lose this home. This cannot be undone.`}
                 className="-mr-2"
               />
             </Card>
@@ -79,7 +79,8 @@ export default async function HomesPage() {
       )}
 
       <p className="mt-6 text-xs text-slate-500">
-        Deleting a home permanently removes its members, lists, tasks and recipes.
+        Deleting a home permanently removes its lists, tasks and recipes. Its members keep
+        their accounts and whatever other homes they are in.
       </p>
     </>
   );

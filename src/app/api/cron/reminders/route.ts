@@ -74,17 +74,16 @@ async function sendDueReminders() {
   // a home with several tasks due on the same morning asked for the same rows again
   // and again.
   const homeIds = [...new Set(dueTasks.map((task) => task.homeId))];
-  const members = await prisma.user.findMany({
+  const members = await prisma.homeMember.findMany({
     where: { homeId: { in: homeIds } },
-    select: { id: true, homeId: true },
+    select: { userId: true, homeId: true },
   });
 
   const membersByHome = new Map<string, string[]>();
   for (const member of members) {
-    if (!member.homeId) continue;
     const existing = membersByHome.get(member.homeId);
-    if (existing) existing.push(member.id);
-    else membersByHome.set(member.homeId, [member.id]);
+    if (existing) existing.push(member.userId);
+    else membersByHome.set(member.homeId, [member.userId]);
   }
 
   let delivered = 0;
@@ -112,10 +111,10 @@ async function sendDueReminders() {
  * nobody.
  *
  * The named member is looked up in the home's roster rather than trusted outright. An
- * assignment can outlive the membership it was made under — a super admin moves
- * themselves between homes without anything clearing the tasks they were handed — and a
- * task whose one recipient has left would otherwise go quiet with nobody noticing. Then
- * it falls back to the household, which is where an unnamed task already sends it.
+ * assignment outlives the membership it was made under — somebody removed from a home
+ * keeps the tasks they were handed there, as they keep everything else they touched —
+ * and a task whose one recipient has left would otherwise go quiet with nobody noticing.
+ * Then it falls back to the household, which is where an unnamed task already sends it.
  */
 function recipientsFor(task: { assigneeId: string | null }, members: string[]) {
   if (!task.assigneeId) return members;

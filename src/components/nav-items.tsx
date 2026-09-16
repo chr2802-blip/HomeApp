@@ -1,5 +1,3 @@
-import type { Role } from "@prisma/client";
-
 export type NavItem = {
   href: string;
   label: string;
@@ -71,6 +69,11 @@ const ADMIN_ITEM: NavItem = {
   ),
 };
 
-export function navItemsFor(role: Role) {
-  return role === "USER" ? NAV_ITEMS : [...NAV_ITEMS, ADMIN_ITEM];
+/**
+ * Administration is a tab only for somebody who runs the home on screen. It is asked as
+ * a yes or no rather than as a role, because being an admin is no longer a property of
+ * the person — they may run this household and merely live in the next.
+ */
+export function navItemsFor(showAdmin: boolean) {
+  return showAdmin ? [...NAV_ITEMS, ADMIN_ITEM] : NAV_ITEMS;
 }
