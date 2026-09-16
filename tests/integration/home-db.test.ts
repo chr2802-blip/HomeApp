@@ -74,6 +74,26 @@ describe("reading", () => {
     // installation. Being refused is the point: the roster is homeMember.
     await expect(homeDb(ours.id).user.count()).rejects.toThrow("cannot scope User");
   });
+
+  /**
+   * The three that read as though they belong to a home and do not. Each is reached
+   * through the record that carries the home, so scoping would pass the query straight
+   * through — `homeDb(id).listItem.findMany()` would hand back every household's
+   * shopping, which is the exact failure this module exists to prevent.
+   */
+  it.each([
+    ["listItem", (id: string) => homeDb(id).listItem.count(), "cannot scope ListItem"],
+    ["listFavorite", (id: string) => homeDb(id).listFavorite.count(), "cannot scope ListFavorite"],
+    [
+      "recipeCategoryLink",
+      (id: string) => homeDb(id).recipeCategoryLink.count(),
+      "cannot scope RecipeCategoryLink",
+    ],
+  ])("refuses %s, which is reached through the record carrying the home", async (_name, ask, message) => {
+    const { ours } = await twoHomes();
+
+    await expect(ask(ours.id)).rejects.toThrow(message);
+  });
 });
 
 describe("writing", () => {

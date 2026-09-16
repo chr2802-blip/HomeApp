@@ -27,6 +27,7 @@ const HOME_SCOPED = new Set([
  */
 const UNSCOPABLE: Record<string, string> = {
   User: "a user belongs to several homes; ask homeMember, and read the user through it",
+  ListItem: "reached through its list",
   ListFavorite: "reached through its list",
   RecipeCategoryLink: "reached through its recipe",
 };

@@ -12,6 +12,7 @@ import {
   createRecipeCategory as seedCategory,
   createUser,
   formData,
+  joinHome,
   signIn,
   submit,
 } from "../helpers/factories";
@@ -219,5 +220,62 @@ describe("a super admin with an active home", () => {
     expect(await submit(createRecipeCategory, { name: "Baking" })).toEqual({ ok: true });
 
     expect((await prisma.recipeCategory.findFirstOrThrow()).homeId).toBe(home.id);
+  });
+});
+
+/**
+ * Running one household is no licence over the next.
+ *
+ * These actions take their home from the session rather than the form, so the question
+ * they have to ask is whether the home *on screen* is theirs to run. Asking instead
+ * whether the person runs any home at all passes somebody who is an admin of the flat
+ * and a plain member of the summer house — and then writes to the summer house, which
+ * is the one they are reading. The forms are only drawn for an admin of the home on
+ * screen, but a form is not a gate: these call the actions directly, as a posted
+ * request does.
+ */
+describe("an admin of one home, reading another", () => {
+  /** Admin of their own home, plain member of this one, with this one open. */
+  async function adminElsewhere() {
+    const theirOwn = await createHome({ name: "The flat" });
+    const person = await createUser({ homeId: theirOwn.id, role: "ADMIN" });
+    await joinHome({ userId: person.id, homeId: home.id, role: "USER" });
+    await prisma.user.update({ where: { id: person.id }, data: { activeHomeId: home.id } });
+    await signIn(person);
+    return person;
+  }
+
+  it("cannot add a category to the home they merely live in", async () => {
+    await adminElsewhere();
+
+    await expectRedirect(() => submit(createRecipeCategory, { name: "Snuck in" }), "/dashboard");
+
+    expect(await prisma.recipeCategory.count({ where: { homeId: home.id } })).toBe(0);
+  });
+
+  it("cannot rename that home's categories", async () => {
+    const category = await seedCategory({ homeId: home.id, name: "Baking" });
+    await adminElsewhere();
+
+    await expectRedirect(
+      () => submit(renameRecipeCategory, { categoryId: category.id, name: "Renamed" }),
+      "/dashboard",
+    );
+
+    expect((await prisma.recipeCategory.findUniqueOrThrow({ where: { id: category.id } })).name).toBe(
+      "Baking",
+    );
+  });
+
+  it("cannot delete that home's categories", async () => {
+    const category = await seedCategory({ homeId: home.id, name: "Baking" });
+    await adminElsewhere();
+
+    await expectRedirect(
+      () => deleteRecipeCategory(formData({ categoryId: category.id })),
+      "/dashboard",
+    );
+
+    expect(await prisma.recipeCategory.count({ where: { id: category.id } })).toBe(1);
   });
 });
