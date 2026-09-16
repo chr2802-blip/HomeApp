@@ -91,12 +91,13 @@ test.describe("the system page is not for home admins", () => {
     await expect(page).toHaveURL(/\/dashboard$/);
   });
 
-  test("a home admin sees no link to it", async ({ page, loginAs }) => {
+  test("a home admin is offered no way to it", async ({ page, loginAs }) => {
     await loginAs(ACCOUNTS.admin);
 
-    await page.goto("/admin");
+    await page.goto("/settings");
 
     await expect(page.getByRole("link", { name: "System" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Admin" })).toHaveCount(0);
   });
 });
 
@@ -104,7 +105,7 @@ test.describe("a home admin's reminder status", () => {
   test("warns when nobody has notifications enabled", async ({ page, loginAs }) => {
     await loginAs(ACCOUNTS.admin);
 
-    await page.goto("/admin");
+    await page.goto("/settings");
 
     await expect(page.getByText("no one will be notified")).toBeVisible();
     await expect(page.getByText("0 of 2 people have turned reminders on.")).toBeVisible();
@@ -126,7 +127,7 @@ test.describe("a home admin's reminder status", () => {
     });
 
     await loginAs(ACCOUNTS.admin);
-    await page.goto("/admin");
+    await page.goto("/settings");
 
     // The neighbour's subscription must not be counted here.
     await expect(page.getByText("0 of 2 people have turned reminders on.")).toBeVisible();
@@ -146,7 +147,7 @@ test.describe("a home admin's reminder status", () => {
     });
 
     await loginAs(ACCOUNTS.admin);
-    await page.goto("/admin");
+    await page.goto("/settings");
 
     await expect(page.getByText("1 task is overdue in this home.")).toBeVisible();
   });

@@ -71,6 +71,8 @@ export type SessionUser = {
   homeName: string | null;
   /** The home's own picture, shown wherever the home is named. */
   homePhotoId: string | null;
+  /** Their own picture, shown wherever they are named. */
+  photoId: string | null;
   /**
    * The colour that home is dressed in, which the root layout puts on the document so
    * the whole app — sheets and menus included — is wearing it.
@@ -141,6 +143,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     homeId: active?.id ?? null,
     homeName: active?.name ?? null,
     homePhotoId: active?.photoId ?? null,
+    photoId: user.photoId,
     // Somebody between homes, or on a page that belongs to none, gets the app's own
     // colours rather than the last home's.
     homeTheme: active?.theme ?? DEFAULT_THEME,

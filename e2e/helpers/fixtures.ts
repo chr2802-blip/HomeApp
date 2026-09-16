@@ -75,6 +75,18 @@ export async function openMenu(page: Page, options: { within?: Locator; label?: 
 }
 
 /**
+ * Opens the header's home menu — the home's picture and name, which hold this home's
+ * settings, your profile and the way into your other homes.
+ */
+export async function openHomeMenu(page: Page) {
+  const trigger = page.getByRole("button", { name: /— home menu$/ });
+  // Hydration has no signal of its own; the trigger grows one when it is ready.
+  await expect(trigger).toHaveAttribute("data-ready", "true");
+  await trigger.click();
+  await expect(page.getByRole("menu", { name: "This home and you" })).toBeVisible();
+}
+
+/**
  * Clicks a destructive button and agrees to the sheet it raises. `within` narrows the
  * trigger to one row when a page shows several.
  */

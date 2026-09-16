@@ -91,7 +91,7 @@ chance to ask the wrong question.
 database is reachable and how fast it responds, when reminders last went out, the last few runs
 with their counts, content totals, and the slowest database calls of the last day.
 
-**Admin → Reminders** (every home admin) answers the same question for one household: how many
+**Settings → Reminders** (every home admin) answers the same question for one household: how many
 people have notifications switched on, when a reminder last went out, and what is overdue.
 Nothing there reveals another home.
 
@@ -144,8 +144,13 @@ there is more than one the home's name in the header becomes the way between the
 on screen is one household at a time.
 
 Running a home is a property of the membership, not of the person, so somebody can be the
-admin of the flat and an ordinary member of the summer house. The Administration tab
-follows the home on screen rather than the person.
+admin of the flat and an ordinary member of the summer house. A home is run from its own
+**Settings**, behind the home's picture and name in the header, so what is offered follows
+the home on screen rather than the person. The same menu holds **Profile** — your name,
+your password, your picture and your notifications — and the way to your other homes.
+
+The **Admin** tab is the super admin's alone, because what is behind it is the installation
+rather than a household: **System** and **Homes**.
 
 | Role | Can do |
 | --- | --- |
@@ -202,7 +207,7 @@ npm run db:seed
 npm run dev
 ```
 
-Log in at `/login` with the super admin credentials, create a home under **Admin → All homes**,
+Log in at `/login` with the super admin credentials, create a home under **Admin → Homes**,
 switch into it, and invite the rest of the household. Inviting somebody who already has an
 account here adds them to this home as well; they keep the ones they were in.
 
@@ -373,7 +378,7 @@ Once deployed, run the seed once from your machine against the production databa
 DATABASE_URL="<direct-url>" DIRECT_URL="<direct-url>" SUPER_ADMIN_EMAIL="you@example.com" SUPER_ADMIN_PASSWORD="<a strong password>" npm run db:seed
 ```
 
-Log in, create a home under **Admin → All homes**, switch into it, and invite the household.
+Log in, create a home under **Admin → Homes**, switch into it, and invite the household.
 
 ### Notes
 

@@ -14,7 +14,13 @@ function urlBase64ToUint8Array(base64: string) {
 
 type Status = "loading" | "unsupported" | "unconfigured" | "off" | "on" | "blocked";
 
-export function NotificationSetup() {
+/**
+ * The offer to turn task reminders on, which is also the only place their state is
+ * visible. It says nothing on the dashboard once they are on — there is nothing left to
+ * ask for — but the profile page passes `showEnabled`, because a page *about* your
+ * notifications that goes blank when they work reads as a page that is broken.
+ */
+export function NotificationSetup({ showEnabled = false }: { showEnabled?: boolean }) {
   const [status, setStatus] = useState<Status>("loading");
   const [busy, setBusy] = useState(false);
 
@@ -66,7 +72,19 @@ export function NotificationSetup() {
     }
   }
 
-  if (status === "loading" || status === "unconfigured" || status === "on") return null;
+  if (status === "loading" || status === "unconfigured") return null;
+
+  if (status === "on") {
+    if (!showEnabled) return null;
+    return (
+      <Card className="border-slate-300 bg-slate-100">
+        <p className="font-medium">Task reminders</p>
+        <p className="text-sm text-slate-600">
+          Reminders are on in this browser. Each browser and phone is asked separately.
+        </p>
+      </Card>
+    );
+  }
 
   return (
     <Card className="flex flex-wrap items-center justify-between gap-3 border-slate-300 bg-slate-100">

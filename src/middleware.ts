@@ -28,5 +28,7 @@ export const config = {
     "/tasks/:path*",
     "/recipes/:path*",
     "/admin/:path*",
+    "/settings/:path*",
+    "/profile/:path*",
   ],
 };

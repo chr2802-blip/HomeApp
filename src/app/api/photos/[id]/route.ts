@@ -30,6 +30,27 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const reachable = (homeId: string) =>
     homeId === user.homeId || user.homes.some((home) => home.id === homeId);
 
+  /*
+   * A person's own picture is the one photograph here that is not really the home's.
+   * It is filed under whichever home they were reading when they chose it — an upload
+   * has to be filed somewhere — and the people who share a *different* home with them
+   * would otherwise be served a 404 where their housemate's face should be. So a
+   * picture somebody is using as their own is reachable by anyone they share a home
+   * with, which includes themselves. Asked only once the home check has already failed,
+   * so the ordinary case still costs one query.
+   */
+  const isHousematesOwnPicture = async (id: string) => {
+    if (user.homes.length === 0) return false;
+    const owner = await prisma.user.findFirst({
+      where: {
+        photoId: id,
+        memberships: { some: { homeId: { in: user.homes.map((home) => home.id) } } },
+      },
+      select: { id: true },
+    });
+    return owner !== null;
+  };
+
   const thumb = new URL(request.url).searchParams.get("size") === "thumb";
 
   // Only the copy being served is selected: the other one is the same picture again,
@@ -43,7 +64,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         where: { id },
         select: { homeId: true, contentType: true, bytes: true },
       });
-  if (!photo || !reachable(photo.homeId)) return new Response("Not found", { status: 404 });
+  if (!photo) return new Response("Not found", { status: 404 });
+  if (!reachable(photo.homeId) && !(await isHousematesOwnPicture(id))) {
+    return new Response("Not found", { status: 404 });
+  }
 
   const bytes = "thumbBytes" in photo ? photo.thumbBytes : photo.bytes;
 

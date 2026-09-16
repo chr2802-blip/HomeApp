@@ -1,4 +1,4 @@
-import { ACCOUNTS, expect, test } from "./helpers/fixtures";
+import { ACCOUNTS, expect, openHomeMenu, test } from "./helpers/fixtures";
 import { HOME_NAME, OTHER_HOME_NAME, prisma } from "./helpers/database";
 import type { Page } from "@playwright/test";
 
@@ -21,7 +21,7 @@ async function alsoJoin(email: string, homeName: string) {
   return home;
 }
 
-/** Dresses a home directly, standing in for an admin who has already been to /admin. */
+/** Dresses a home directly, standing in for an admin who has already been to Settings. */
 function dress(homeName: string, theme: "OCEAN" | "PLUM" | "SAND") {
   return prisma().home.updateMany({ where: { name: homeName }, data: { theme } });
 }
@@ -39,7 +39,7 @@ const barOf = (page: Page) => page.locator('meta[name="theme-color"]');
 test.describe("as a home admin", () => {
   test("picks the colour the whole household is then dressed in", async ({ page, loginAs }) => {
     await loginAs(ACCOUNTS.admin);
-    await page.goto("/admin");
+    await page.goto("/settings");
 
     // Every home starts in the app's own colours.
     await expect(themeOf(page)).toHaveAttribute("data-theme", "SLATE");
@@ -78,14 +78,11 @@ test.describe("somebody in two homes", () => {
     await loginAs(ACCOUNTS.member);
     await expect(themeOf(page)).toHaveAttribute("data-theme", "PLUM");
 
-    const trigger = page.getByRole("button", { name: /switch home$/ });
-    // Hydration has no signal of its own; the trigger grows one when it is ready.
-    await expect(trigger).toHaveAttribute("data-ready", "true");
-    await trigger.click();
+    await openHomeMenu(page);
     await page.getByRole("menuitem", { name: OTHER_HOME_NAME }).click();
 
     await expect(
-      page.getByRole("button", { name: `${OTHER_HOME_NAME} — switch home` }),
+      page.getByRole("button", { name: `${OTHER_HOME_NAME} — home menu` }),
     ).toBeVisible();
     await expect(themeOf(page)).toHaveAttribute("data-theme", "SAND");
     await expect(barOf(page)).toHaveAttribute("content", "#fafaf9");

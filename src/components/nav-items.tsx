@@ -70,9 +70,13 @@ const ADMIN_ITEM: NavItem = {
 };
 
 /**
- * Administration is a tab only for somebody who runs the home on screen. It is asked as
- * a yes or no rather than as a role, because being an admin is no longer a property of
- * the person — they may run this household and merely live in the next.
+ * Admin is a tab only for the super admin, because what is behind it is the
+ * installation: every home on it, and how the deployment itself is doing. Running a
+ * single household is not here — it is that household's Settings, behind its name in
+ * the header, where the person who runs it already looks.
+ *
+ * It is passed as a yes or no rather than as a role, so the tabs stay a list of
+ * destinations and the question of who may see one is answered where the session is.
  */
 export function navItemsFor(showAdmin: boolean) {
   return showAdmin ? [...NAV_ITEMS, ADMIN_ITEM] : NAV_ITEMS;

@@ -6,7 +6,8 @@ test.describe("signing in", () => {
     await loginAs(ACCOUNTS.member);
 
     await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByRole("link", { name: HOME_NAME })).toBeVisible();
+    // The home's name in the header, which is also the menu holding their profile.
+    await expect(page.getByRole("button", { name: `${HOME_NAME} — home menu` })).toBeVisible();
     await expect(page.getByText(ACCOUNTS.member.name)).toBeVisible();
   });
 
@@ -45,7 +46,7 @@ test.describe("signing in", () => {
 });
 
 test.describe("pages that need a session", () => {
-  for (const path of ["/dashboard", "/lists", "/tasks", "/recipes", "/admin"]) {
+  for (const path of ["/dashboard", "/lists", "/tasks", "/recipes", "/admin", "/settings", "/profile"]) {
     test(`${path} redirects a signed-out visitor to the login page`, async ({ page }) => {
       await page.goto(path);
       await expect(page).toHaveURL(/\/login$/);
@@ -56,7 +57,7 @@ test.describe("pages that need a session", () => {
 test.describe("accepting an invite", () => {
   test("an admin issues a code and the invitee signs up with it", async ({ page, loginAs }) => {
     await loginAs(ACCOUNTS.admin);
-    await page.goto("/admin");
+    await page.goto("/settings");
 
     await page.getByLabel("Email to invite").fill("newcomer@e2e.test");
     await page.getByRole("button", { name: "Create invite" }).click();

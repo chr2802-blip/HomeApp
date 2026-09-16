@@ -161,7 +161,7 @@ test.describe("the recipes page", () => {
 test.describe("maintaining the categories", () => {
   test.beforeEach(async ({ loginAs, page }) => {
     await loginAs(ACCOUNTS.admin);
-    await page.goto("/admin");
+    await page.goto("/settings");
   });
 
   const categoryRow = (page: Page, name: string) =>

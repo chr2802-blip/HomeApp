@@ -74,6 +74,10 @@ test.describe("a member of one home", () => {
 
     await page.goto("/admin/homes");
     await expect(page).toHaveURL(/\/dashboard$/);
+
+    // Nor the home's own settings, which are the admin's rather than every member's.
+    await page.goto("/settings");
+    await expect(page).toHaveURL(/\/dashboard$/);
   });
 });
 
@@ -83,7 +87,7 @@ test.describe("an admin of a different home", () => {
   });
 
   test("administers only their own home", async ({ page }) => {
-    await page.goto("/admin");
+    await page.goto("/settings");
 
     await expect(page.getByText(`Managing ${OTHER_HOME_NAME}`)).toBeVisible();
     await expect(page.getByText(`Managing ${HOME_NAME}`)).toBeHidden();

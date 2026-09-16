@@ -19,6 +19,7 @@ import {
   createHomeWithMembers,
   createInviteFor,
   createList,
+  createPhoto,
   createUser,
   formData,
   joinHome,
@@ -501,6 +502,68 @@ describe("updateOwnProfile", () => {
     const updated = await prisma.user.findUniqueOrThrow({ where: { id: member.id } });
     expect(await verifyPassword("a-brand-new-password", updated.passwordHash)).toBe(true);
     expect(await verifyPassword(TEST_PASSWORD, updated.passwordHash)).toBe(false);
+  });
+
+  it("attaches a picture chosen in the home on screen", async () => {
+    const { home, member } = await createHomeWithMembers();
+    const picture = await createPhoto({ homeId: home.id });
+    await signIn(member);
+
+    const result = await updateOwnProfile(
+      undefined,
+      formData({ name: member.name, photoId: picture.id }),
+    );
+
+    expect(result).toEqual({ ok: true });
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: member.id } })).photoId).toBe(
+      picture.id,
+    );
+  });
+
+  it("refuses a picture belonging to a home they are not in", async () => {
+    const { member } = await createHomeWithMembers();
+    const neighbour = await seedHome();
+    const theirs = await createPhoto({ homeId: neighbour.id });
+    await signIn(member);
+
+    const result = await updateOwnProfile(
+      undefined,
+      formData({ name: member.name, photoId: theirs.id }),
+    );
+
+    expect(result).toMatchObject({ ok: false });
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: member.id } })).photoId).toBeNull();
+  });
+
+  it("discards the picture it replaces, and the one taken off", async () => {
+    const { home, member } = await createHomeWithMembers();
+    const [first, second] = await Promise.all([
+      createPhoto({ homeId: home.id }),
+      createPhoto({ homeId: home.id }),
+    ]);
+    await signIn(member);
+
+    await updateOwnProfile(undefined, formData({ name: member.name, photoId: first.id }));
+    await updateOwnProfile(undefined, formData({ name: member.name, photoId: second.id }));
+
+    expect(await prisma.photo.findUnique({ where: { id: first.id } })).toBeNull();
+
+    await updateOwnProfile(undefined, formData({ name: member.name, photoId: "" }));
+
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: member.id } })).photoId).toBeNull();
+    expect(await prisma.photo.findUnique({ where: { id: second.id } })).toBeNull();
+  });
+
+  it("leaves the picture alone when the form does not carry the field", async () => {
+    const { home, member } = await createHomeWithMembers();
+    const picture = await createPhoto({ homeId: home.id });
+    await signIn(member);
+
+    await updateOwnProfile(undefined, formData({ name: member.name, photoId: picture.id }));
+    await updateOwnProfile(undefined, formData({ name: "Renamed" }));
+
+    const updated = await prisma.user.findUniqueOrThrow({ where: { id: member.id } });
+    expect(updated).toMatchObject({ name: "Renamed", photoId: picture.id });
   });
 
   it("refuses a blank name instead of ignoring the whole submission", async () => {

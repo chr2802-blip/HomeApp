@@ -122,7 +122,7 @@ test("a list keeps a picture, and taking it off removes it", async ({ page, logi
 
 test("the home's own picture reaches the header and the dashboard", async ({ page, loginAs }) => {
   await loginAs(ACCOUNTS.admin);
-  await page.goto("/admin");
+  await page.goto("/settings");
 
   await page.getByLabel("Home picture").setInputFiles(original());
   await expect(page.getByAltText("The picture you chose")).toBeVisible();

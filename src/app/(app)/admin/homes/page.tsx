@@ -63,7 +63,7 @@ export default async function HomesPage() {
                   <Button variant="secondary">Switch to</Button>
                 </form>
               )}
-              {/* No Edit: a home is renamed from inside it, under Administration. */}
+              {/* No Edit: a home is renamed from inside it, under its own Settings. */}
               <ItemMenu
                 name="homeId"
                 id={home.id}

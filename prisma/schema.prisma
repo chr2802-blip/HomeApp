@@ -99,9 +99,18 @@ model User {
    * is read as a preference and checked against `memberships` rather than trusted.
    */
   activeHomeId String?
+  /**
+   * This person's own picture, shown where they are named. It is a Photo like any
+   * other, so it is filed under whichever home they were reading when they chose it —
+   * the only home the upload could be filed under. What that costs is explained on
+   * Photo.users, and it is why the picture route will serve a member's picture to the
+   * people who share a home with them wherever it happens to be filed.
+   */
+  photoId      String?
   createdAt    DateTime     @default(now())
 
   activeHome        Home?              @relation("ActiveHome", fields: [activeHomeId], references: [id], onDelete: SetNull)
+  photo             Photo?             @relation("UserPhoto", fields: [photoId], references: [id], onDelete: SetNull)
   memberships       HomeMember[]
   pushSubscriptions PushSubscription[]
   favoriteLists     ListFavorite[]
@@ -112,6 +121,7 @@ model User {
   invitesCreated    Invite[]           @relation("InviteCreatedBy")
 
   @@index([activeHomeId])
+  @@index([photoId])
 }
 
 /**
@@ -370,6 +380,15 @@ model Photo {
   lists   List[]
   tasks   Task[]
   recipes Recipe[]
+  /**
+   * The people using this one as their own picture. A person is not home-scoped and
+   * this picture is, so the two disagree: somebody in three homes has their picture
+   * filed under one of them. Nothing breaks — the picture route serves a member's
+   * picture to anybody who shares a home with them — but the relation has to be here
+   * all the same, or the sweep below would count an avatar as an upload nobody
+   * finished and delete it an hour after it was chosen.
+   */
+  users   User[]          @relation("UserPhoto")
 
   @@index([homeId])
   // The sweep for unreferenced uploads asks for one home's oldest pictures.
