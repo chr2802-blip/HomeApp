@@ -10,7 +10,7 @@ export function BottomNav({ showAdmin }: { showAdmin: boolean }) {
   const items = navItemsFor(showAdmin);
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/85 backdrop-blur-lg md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--accent-line)] bg-[var(--accent-soft)] backdrop-blur-lg md:hidden">
       <ul className="mx-auto flex max-w-lg items-stretch pb-[env(safe-area-inset-bottom)]">
         {items.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -37,14 +37,16 @@ export function BottomNav({ showAdmin }: { showAdmin: boolean }) {
                             the pill snapping to size. */}
                         <span
                           className={`flex h-7 w-12 items-center justify-center rounded-full transition-[background-color,color,scale] duration-200 ease-out ${
-                            lit ? "scale-110 bg-slate-900 text-white" : "scale-100 text-slate-400"
+                            lit
+                              ? "scale-110 bg-[var(--accent)] text-white"
+                              : "scale-100 text-slate-400"
                           } ${pending && !active ? "animate-pulse" : ""}`}
                         >
                           <Icon className="h-[18px] w-[18px]" />
                         </span>
                         <span
                           className={`text-[11px] leading-none font-medium transition-colors duration-150 ${
-                            lit ? "text-slate-900" : "text-slate-400"
+                            lit ? "text-[var(--accent-text)]" : "text-slate-400"
                           }`}
                         >
                           {item.label}

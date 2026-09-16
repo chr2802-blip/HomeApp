@@ -2,10 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import type { HomeTheme } from "@prisma/client";
 import { switchHome } from "@/app/actions/admin";
 import { PhotoAvatar } from "./photo";
+import { HomeDot } from "./home-dot";
 
-export type HomeOption = { id: string; name: string; photoId: string | null };
+export type HomeOption = {
+  id: string;
+  name: string;
+  photoId: string | null;
+  theme: HomeTheme;
+};
 
 /**
  * Which household you are reading, and the way into the others you belong to.
@@ -65,7 +72,7 @@ export function HomeSwitcher({
         aria-label={`${label} — switch home`}
         data-ready={ready ? "true" : undefined}
         onClick={() => setOpen((was) => !was)}
-        className="pressable flex min-w-0 items-center gap-1 rounded-lg text-lg font-semibold tracking-tight transition active:scale-95"
+        className="pressable flex min-w-0 items-center gap-1 rounded-lg text-lg font-semibold tracking-tight text-[var(--accent-text)] transition active:scale-95"
       >
         <span className="truncate">{label}</span>
         <svg
@@ -98,6 +105,9 @@ export function HomeSwitcher({
                 className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
               >
                 <PhotoAvatar photoId={home.photoId} alt="" className="h-6 w-6" />
+                {/* The colour the app will be wearing once this one is chosen, so the
+                    move is aimed at rather than read. */}
+                <HomeDot theme={home.theme} />
                 <span className="truncate">{home.name}</span>
                 {home.id === currentId && (
                   <span className="ml-auto shrink-0 text-xs font-normal text-slate-400">Current</span>

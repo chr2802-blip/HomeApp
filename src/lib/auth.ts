@@ -3,8 +3,9 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
-import type { MemberRole, PlatformRole } from "@prisma/client";
+import type { HomeTheme, MemberRole, PlatformRole } from "@prisma/client";
 import { prisma } from "./prisma";
+import { DEFAULT_THEME } from "./theme";
 
 const COOKIE = "homehub_session";
 const MAX_AGE = 60 * 60 * 24 * 30;
@@ -50,6 +51,8 @@ export type Membership = {
   id: string;
   name: string;
   photoId: string | null;
+  /** The colour it is dressed in, so a home is recognised in the list before it is read. */
+  theme: HomeTheme;
   role: MemberRole;
 };
 
@@ -68,6 +71,11 @@ export type SessionUser = {
   homeName: string | null;
   /** The home's own picture, shown wherever the home is named. */
   homePhotoId: string | null;
+  /**
+   * The colour that home is dressed in, which the root layout puts on the document so
+   * the whole app — sheets and menus included — is wearing it.
+   */
+  homeTheme: HomeTheme;
   /**
    * What they may do in that home, or null when it is not one of theirs — which only
    * a super admin, looking into a household they are not in, ever is.
@@ -96,10 +104,13 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
-      activeHome: { select: { id: true, name: true, photoId: true } },
+      activeHome: { select: { id: true, name: true, photoId: true, theme: true } },
       memberships: {
         orderBy: { createdAt: "asc" },
-        select: { role: true, home: { select: { id: true, name: true, photoId: true } } },
+        select: {
+          role: true,
+          home: { select: { id: true, name: true, photoId: true, theme: true } },
+        },
       },
     },
   });
@@ -130,6 +141,9 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     homeId: active?.id ?? null,
     homeName: active?.name ?? null,
     homePhotoId: active?.photoId ?? null,
+    // Somebody between homes, or on a page that belongs to none, gets the app's own
+    // colours rather than the last home's.
+    homeTheme: active?.theme ?? DEFAULT_THEME,
     homeRole: homes.find((home) => home.id === active?.id)?.role ?? null,
   };
 });

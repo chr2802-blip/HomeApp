@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/auth";
 import { switchHome } from "@/app/actions/admin";
 import { Badge, Button, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 import { PhotoAvatar } from "@/components/photo";
+import { HomeDot } from "@/components/home-dot";
 
 /**
  * Every home this person belongs to, and the way between them.
@@ -39,6 +40,7 @@ export default async function HomesPage() {
               <PhotoAvatar photoId={home.photoId} alt="" className="h-10 w-10" />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
+                  <HomeDot theme={home.theme} />
                   <p className="font-medium">{home.name}</p>
                   {home.id === user.homeId && <Badge tone="green">Active</Badge>}
                 </div>

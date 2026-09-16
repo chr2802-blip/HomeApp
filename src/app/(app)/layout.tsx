@@ -17,7 +17,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/85 backdrop-blur-lg">
+      {/* Tinted in the home's own colour, which is the point of the colour: the band
+          across the top of every screen is the one thing always in view. */}
+      <header className="sticky top-0 z-30 border-b border-[var(--accent-line)] bg-[var(--accent-soft)] backdrop-blur-lg">
         <div className="mx-auto flex max-w-5xl items-center gap-x-6 px-4 py-3">
           <div className="flex min-w-0 items-center gap-1.5">
             <BackButton />
@@ -26,7 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <PhotoAvatar
               photoId={user.homePhotoId}
               alt=""
-              className="mr-1 h-7 w-7"
+              className="mr-1 h-7 w-7 ring-2 ring-[var(--accent-line)]"
             />
             {/* The household's own name, not the product's: everyone here knows what
                 the app is, and somebody between homes is told which one they are in —
@@ -39,7 +41,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 label={user.homeName ?? "HomeHub"}
               />
             ) : (
-              <Link href="/dashboard" className="truncate text-lg font-semibold tracking-tight">
+              <Link
+                href="/dashboard"
+                className="truncate text-lg font-semibold tracking-tight text-[var(--accent-text)]"
+              >
                 {user.homeName ?? "HomeHub"}
               </Link>
             )}

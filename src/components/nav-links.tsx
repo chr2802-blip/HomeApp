@@ -26,7 +26,7 @@ export function NavLinks({ showAdmin }: { showAdmin: boolean }) {
                 <span
                   className={`block rounded-lg px-3 py-1.5 transition-colors duration-150 ${
                     active || pending
-                      ? "bg-slate-900 text-white"
+                      ? "bg-[var(--accent)] text-white"
                       : "text-slate-600 hover:bg-slate-100"
                   } ${pending && !active ? "animate-pulse" : ""}`}
                 >

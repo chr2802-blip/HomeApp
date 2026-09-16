@@ -28,10 +28,17 @@ function user(
     email: "u@example.com",
     name: "U",
     role: options.superAdmin ? "SUPER_ADMIN" : "USER",
-    homes: homes.map((home) => ({ id: home.id, name: home.id, photoId: null, role: home.role })),
+    homes: homes.map((home) => ({
+      id: home.id,
+      name: home.id,
+      photoId: null,
+      theme: "SLATE" as const,
+      role: home.role,
+    })),
     homeId: active,
     homeName: null,
     homePhotoId: null,
+    homeTheme: "SLATE",
     homeRole: homes.find((home) => home.id === active)?.role ?? null,
   };
 }

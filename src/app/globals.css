@@ -7,6 +7,80 @@ body {
 }
 
 /*
+ * What a home is dressed in.
+ *
+ * The colour is set once, as `data-theme` on <html>, and everything that wears it reads
+ * these variables. Not a class on a wrapper: sheets and the three-dot panel are drawn
+ * through a portal into <body>, so anything scoped to a div inside the app would leave
+ * every dialog in the previous home's colours.
+ *
+ * Each theme is five values and no more, because a home's colour dresses the frame —
+ * the header, the tab bar, the button that saves — and not the meanings inside it.
+ * Green still means added, red about to be deleted and amber overdue, in every home,
+ * which is why none of these is any of those.
+ *
+ *   --accent        a filled control: the primary button, the tab that is lit
+ *   --accent-hover  the same under the pointer
+ *   --accent-text   the colour as words on white, dark enough to read as words
+ *   --accent-soft   the header and tab bar, translucent because they blur what scrolls
+ *                   beneath them
+ *   --accent-line   the rule under the header, and any hairline drawn in the colour
+ *
+ * White on --accent and --accent-text on white both clear 4.5:1 in all six. SLATE is
+ * the app as it was before homes had colours, and stays the default for a home whose
+ * people never chose one — and for the pages outside a home entirely, where :root is
+ * all there is.
+ */
+:root,
+[data-theme="SLATE"] {
+  --accent: #0f172a;
+  --accent-hover: #334155;
+  --accent-text: #0f172a;
+  --accent-soft: rgb(255 255 255 / 0.85);
+  --accent-line: #e2e8f0;
+}
+
+[data-theme="OCEAN"] {
+  --accent: #0369a1;
+  --accent-hover: #075985;
+  --accent-text: #075985;
+  --accent-soft: rgb(240 249 255 / 0.85);
+  --accent-line: #bae6fd;
+}
+
+[data-theme="INDIGO"] {
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-text: #4338ca;
+  --accent-soft: rgb(238 242 255 / 0.85);
+  --accent-line: #c7d2fe;
+}
+
+[data-theme="VIOLET"] {
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
+  --accent-text: #6d28d9;
+  --accent-soft: rgb(245 243 255 / 0.85);
+  --accent-line: #ddd6fe;
+}
+
+[data-theme="PLUM"] {
+  --accent: #a21caf;
+  --accent-hover: #86198f;
+  --accent-text: #86198f;
+  --accent-soft: rgb(253 244 255 / 0.85);
+  --accent-line: #f5d0fe;
+}
+
+[data-theme="SAND"] {
+  --accent: #57534e;
+  --accent-hover: #44403c;
+  --accent-text: #44403c;
+  --accent-soft: rgb(250 250 249 / 0.85);
+  --accent-line: #e7e5e4;
+}
+
+/*
  * Anything tappable. `touch-action: manipulation` drops the browser's wait-and-see for a
  * double-tap zoom, and the short movement duration means the press reads instantly while
  * colour still eases.

@@ -164,7 +164,10 @@ describe("updateHome", () => {
     const { home, admin } = await createHomeWithMembers();
     await signIn(admin);
 
-    await updateHome(undefined, formData({ homeId: home.id, name: "The Nest", address: "  " }));
+    await updateHome(
+      undefined,
+      formData({ homeId: home.id, name: "The Nest", address: "  ", theme: "SLATE" }),
+    );
 
     expect(await prisma.home.findUniqueOrThrow({ where: { id: home.id } })).toMatchObject({
       name: "The Nest",
@@ -176,9 +179,79 @@ describe("updateHome", () => {
     const { home, admin } = await createHomeWithMembers();
     await signIn(admin);
 
-    await updateHome(undefined, formData({ homeId: home.id, name: "   " }));
+    await updateHome(undefined, formData({ homeId: home.id, name: "   ", theme: "SLATE" }));
 
     expect((await prisma.home.findUniqueOrThrow({ where: { id: home.id } })).name).toBe(home.name);
+  });
+
+  it("dresses the home in the colour that was picked", async () => {
+    const { home, admin } = await createHomeWithMembers();
+    await signIn(admin);
+
+    const result = await updateHome(
+      undefined,
+      formData({ homeId: home.id, name: home.name, theme: "OCEAN" }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect((await prisma.home.findUniqueOrThrow({ where: { id: home.id } })).theme).toBe("OCEAN");
+  });
+
+  it("starts a new home in the app's own colours", async () => {
+    const home = await seedHome();
+
+    expect(home.theme).toBe("SLATE");
+  });
+
+  /**
+   * The colour is a choice from a fixed set, and the set is what the stylesheet can
+   * draw. A value from outside it would be stored happily by a text column and then
+   * leave the home wearing whichever colours the page already had.
+   */
+  it("refuses a colour that is not one of the ones offered, keeping the one it had", async () => {
+    const { home, admin } = await createHomeWithMembers();
+    await signIn(admin);
+    await updateHome(undefined, formData({ homeId: home.id, name: home.name, theme: "PLUM" }));
+
+    const result = await updateHome(
+      undefined,
+      formData({ homeId: home.id, name: "Renamed too", theme: "#ff0000" }),
+    );
+
+    expect(result).toMatchObject({ ok: false });
+    // The whole submission is refused, so the name it arrived with is not saved either.
+    expect(await prisma.home.findUniqueOrThrow({ where: { id: home.id } })).toMatchObject({
+      name: home.name,
+      theme: "PLUM",
+    });
+  });
+
+  it("leaves the colour alone when the form does not mention one", async () => {
+    const { home, admin } = await createHomeWithMembers();
+    await signIn(admin);
+    await updateHome(undefined, formData({ homeId: home.id, name: home.name, theme: "VIOLET" }));
+
+    const result = await updateHome(undefined, formData({ homeId: home.id, name: "Renamed" }));
+
+    expect(result).toMatchObject({ ok: true });
+    expect(await prisma.home.findUniqueOrThrow({ where: { id: home.id } })).toMatchObject({
+      name: "Renamed",
+      theme: "VIOLET",
+    });
+  });
+
+  it("is refused for a home somebody merely lives in", async () => {
+    const { home } = await createHomeWithMembers();
+    const elsewhere = await seedHome();
+    const outsider = await createUser({ homeId: elsewhere.id, role: "ADMIN" });
+    await joinHome({ userId: outsider.id, homeId: home.id, role: "USER" });
+    await signIn(outsider);
+
+    await expect(
+      updateHome(undefined, formData({ homeId: home.id, name: "Mine now", theme: "PLUM" })),
+    ).rejects.toThrow("Not allowed");
+
+    expect((await prisma.home.findUniqueOrThrow({ where: { id: home.id } })).theme).toBe("SLATE");
   });
 });
 

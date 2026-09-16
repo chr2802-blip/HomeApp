@@ -28,6 +28,7 @@ import { RecipeCategoriesAdmin } from "@/components/recipe-categories-admin";
 import { formatInZone } from "@/lib/time";
 import { ItemMenu } from "@/components/item-menu";
 import { PhotoField } from "@/components/photo-field";
+import { ThemeField } from "@/components/theme-field";
 import { TestPushButton } from "@/components/notification-setup";
 
 export default async function AdminPage() {
@@ -103,6 +104,11 @@ export default async function AdminPage() {
                 label="Home picture"
                 hint="Shown beside the home's name and across the top of the dashboard."
               />
+            </div>
+            {/* The colour belongs with the name and the picture: all three are what this
+                household looks like, and all three are saved by the one button. */}
+            <div className="sm:col-span-2">
+              <ThemeField defaultTheme={home.theme} />
             </div>
           </ActionForm>
         </Card>

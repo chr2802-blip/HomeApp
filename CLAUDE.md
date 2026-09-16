@@ -45,6 +45,36 @@ becomes a menu once there is more than one to go to, `/homes` lists them, and th
 also where somebody with no home at all is sent, because it is the only page with
 anything to tell them.
 
+### A home is dressed in a colour, and it dresses the frame only
+
+`Home.theme` is one of a fixed set (`HomeTheme`), picked by that household's admins in
+the Home card on `/admin`. Now that somebody is in several homes, the header saying
+which one is open is the difference between adding milk to the right shopping list and
+the wrong one.
+
+What each colour *is* lives in **`globals.css` and nowhere else**, as a block of five
+variables per theme keyed by `[data-theme="NAME"]`. `src/lib/theme.ts` holds only what
+they are called. Anything showing a colour — a swatch in the picker, a dot beside a home
+in the switcher — carries that home's `data-theme` and reads `var(--accent)`, so it *is*
+the colour rather than a copy that drifts. `tests/unit/theme.test.ts` reads the
+stylesheet and fails if a theme has no block: an undefined variable leaves the element
+wearing whatever the page already had, which looks like a theme that works.
+
+The attribute goes on `<html>`, set by the **root layout** from the session. Not on a
+wrapper inside the app: sheets and the three-dot panel are portalled into `<body>`, so
+anything scoped to a div would leave every dialog in the previous home's colours.
+
+**The colour dresses the frame, never the meanings inside it.** The header, the tab bar,
+the active nav pill, the primary button and the focus ring — and nothing else. Green is
+still "added", red "about to be deleted", amber "overdue", in every home; a household
+dressed in one of those would be saying it on every screen, which is why none of the
+themes is any of them and why `create` and `danger` keep their own colours.
+
+The picker submits `THEME_FIELD`, checked against the set by `updateHome`. It is
+optional there — a colour not mentioned is a colour left alone — because the other ways
+into that action (a picture being replaced, a rename) are not about the colour. Unlike
+`REPEAT_FIELD`, silence here changes nothing about what the record means.
+
 ### Home-scoped data goes through `homeDb`
 
 ```ts

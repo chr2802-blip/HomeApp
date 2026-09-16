@@ -28,13 +28,37 @@ enum MemberRole {
   USER
 }
 
+/**
+ * The colour a home is dressed in, so the household on screen is known at a glance
+ * rather than read off the header.
+ *
+ * A fixed set rather than a colour of one's own: every one of these is checked against
+ * white text and against the page behind it, and a free choice is a household one
+ * afternoon away from a header nobody can read. What each one looks like is in
+ * globals.css, keyed by these names; `src/lib/theme.ts` is only what they are called.
+ *
+ * None of them is green, red or amber. Those three already say something here — added,
+ * about to be deleted, overdue — and a home dressed in one would be saying it on every
+ * screen.
+ */
+enum HomeTheme {
+  SLATE
+  OCEAN
+  INDIGO
+  VIOLET
+  PLUM
+  SAND
+}
+
 model Home {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
   address   String?
   /// The household's own picture, shown in the header and on the dashboard.
   photoId   String?
-  createdAt DateTime @default(now())
+  /// The colour this home is dressed in, chosen by the people who run it.
+  theme     HomeTheme @default(SLATE)
+  createdAt DateTime  @default(now())
 
   /// Everybody who belongs to this home, and what each of them may do in it.
   members          HomeMember[]

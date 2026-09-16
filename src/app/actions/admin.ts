@@ -11,10 +11,30 @@ import { generateInviteCode, hashInviteCode } from "@/lib/invite-code";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { optionalText, readForm, requiredText } from "@/lib/form";
 import { discardReplaced, readPhotoChoice } from "@/lib/photos";
+import { THEMES, THEME_FIELD } from "@/lib/theme";
 
 const homeSchema = z.object({
   name: requiredText("Give the home a name."),
   address: optionalText,
+});
+
+/**
+ * What a home already has, plus the colour it is dressed in.
+ *
+ * The colour is a choice from a fixed set and never one typed in, so it is checked
+ * against that set: a value from outside it would be stored happily and then draw
+ * nothing, leaving the home in whichever colours the page already had.
+ *
+ * Optional, because a colour that was not mentioned is a colour left alone — unlike a
+ * task's interval, where saying nothing would silently change what the record means.
+ * The picker lives in the home's own settings, and the other ways here (a picture being
+ * replaced, a home being renamed from the list of them) are not about the colour.
+ *
+ * A new home is not asked at all: it starts in the app's own colours and is dressed
+ * from inside it, which is why this extends the create schema rather than replacing it.
+ */
+const editHomeSchema = homeSchema.extend({
+  [THEME_FIELD]: z.enum(THEMES, { error: "Pick one of the colours offered." }).optional(),
 });
 
 const profileSchema = z.object({
@@ -97,7 +117,7 @@ export async function updateHome(_prev: ActionResult, formData: FormData): Promi
   const homeId = String(formData.get("homeId") ?? "");
   assertHomeAdmin(user, homeId);
 
-  const form = readForm(homeSchema, formData);
+  const form = readForm(editHomeSchema, formData);
   if (!form.ok) return fail(form.error);
 
   const photo = await readPhotoChoice(formData, homeId);
@@ -117,7 +137,7 @@ export async function updateHome(_prev: ActionResult, formData: FormData): Promi
   // holding a picture that has already gone.
   await discardReplaced(homeId, previous?.photoId ?? null, photo.photoId);
 
-  // The home's picture sits in the header, which every page renders.
+  // The home's picture and its colour both sit in the chrome, which every page renders.
   revalidatePath("/", "layout");
   revalidatePath("/admin");
   revalidatePath("/admin/homes");
