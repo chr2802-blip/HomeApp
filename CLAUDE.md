@@ -163,6 +163,13 @@ Only the arriving page is animated; the one being left is gone the moment the ro
 it. Everything here is CSS, and everything is switched off under `prefers-reduced-motion`
 by the one rule at the end of `globals.css`.
 
+Movement that arrives with the element — a page, a sheet, a row, a menu — is a **keyframe
+animation**, not a transition between two sets of classes, because a transition only runs
+from a state the browser has already painted and there is no paint between a sheet being
+mounted and being opened. Which one a sheet plays is a media query in `globals.css`, not
+`sm:` classes on the element. `e2e/animation.spec.ts` records what actually ran: a CSS
+animation that quietly does nothing looks exactly like one that works.
+
 ### Forms submit through `useFormAction`, not the `action` prop
 
 `src/components/use-form-action.ts`. React 19 clears an uncontrolled form once its action
@@ -213,6 +220,11 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
 
 ## Traps worth knowing
 
+- **Tailwind v4 writes movement as `translate`, `scale` and `rotate` — not `transform`.**
+  So `scale-110` changes the `scale` property, and anything easing only `transform` eases
+  nothing while looking entirely correct: `transition` and `transition-transform` name all
+  four and are safe, but an arbitrary `transition-[…]` list, or a hand-written `transition`
+  in `globals.css` such as `.pressable`, has to name the property that actually changes.
 - **Hydration has no DOM signal.** A widget's markup looks identical before and after
   React attaches listeners. Browser tests of interactive widgets must wait on something
   the widget itself emits — the drag tests wait on dnd-kit's announcements, and a context

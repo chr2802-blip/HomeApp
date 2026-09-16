@@ -8,14 +8,23 @@ body {
 
 /*
  * Anything tappable. `touch-action: manipulation` drops the browser's wait-and-see for a
- * double-tap zoom, and the short transform duration means the press reads instantly while
+ * double-tap zoom, and the short movement duration means the press reads instantly while
  * colour still eases.
+ *
+ * All four movement properties are named, not just `transform`: Tailwind v4 writes
+ * `scale-95` as `scale: 95%` and `translate-y-2` as `translate: 0 0.5rem` — their own
+ * properties, which `transition: transform` does not cover. Listing only `transform`
+ * leaves every `active:scale-*` in the app snapping instead of easing, which is a
+ * transition that silently is not one.
  */
 .pressable {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   transition:
     transform 90ms ease-out,
+    translate 90ms ease-out,
+    scale 90ms ease-out,
+    rotate 90ms ease-out,
     background-color 150ms ease-out,
     border-color 150ms ease-out,
     color 150ms ease-out,
@@ -76,6 +85,130 @@ body {
   to {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/*
+ * Sheets.
+ *
+ * Keyframes rather than a transition between two sets of classes. A transition only runs
+ * when the browser has already painted the state being moved from, and a sheet is
+ * inserted and opened inside the same frame, so that paint never happens and the sheet
+ * simply appears — which is what it did. An animation runs from the moment the element
+ * is in the document, which is exactly when a sheet opens.
+ *
+ * On a phone the sheet is the whole screen, so it slides up from the bottom edge and
+ * does not fade: fading it would only make the slide harder to see. On a desktop it is a
+ * panel over a page that stays put, so it scales up out of a fade instead. The exit is
+ * shorter than the entrance in both cases, which is what a dismissal feels like.
+ */
+@keyframes sheet-in {
+  from {
+    translate: 0 100%;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+
+@keyframes sheet-out {
+  from {
+    translate: 0 0;
+  }
+  to {
+    translate: 0 100%;
+  }
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    scale: 0.95;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes panel-out {
+  from {
+    opacity: 1;
+    scale: 1;
+  }
+  to {
+    opacity: 0;
+    scale: 0.95;
+  }
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.animate-sheet-in,
+.animate-sheet-out,
+.animate-backdrop-in,
+.animate-backdrop-out {
+  /* Held at the far end afterwards: an exit has to stay off screen for the fifth of a
+     second between the animation ending and the sheet being unmounted. */
+  animation-fill-mode: both;
+}
+
+.animate-sheet-in,
+.animate-sheet-out {
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.animate-backdrop-in,
+.animate-backdrop-out {
+  animation-timing-function: ease-out;
+}
+
+.animate-sheet-in {
+  animation-name: sheet-in;
+  animation-duration: 300ms;
+}
+
+.animate-sheet-out {
+  animation-name: sheet-out;
+  animation-duration: 200ms;
+}
+
+.animate-backdrop-in {
+  animation-name: backdrop-in;
+  animation-duration: 300ms;
+}
+
+.animate-backdrop-out {
+  animation-name: backdrop-out;
+  animation-duration: 200ms;
+}
+
+/* From the width at which the sheet stops being the screen and becomes a panel — the
+   same breakpoint `Modal` uses for its `sm:` classes, read from the theme so the two
+   cannot drift apart. */
+@media (width >= theme(--breakpoint-sm)) {
+  .animate-sheet-in {
+    animation-name: panel-in;
+  }
+
+  .animate-sheet-out {
+    animation-name: panel-out;
   }
 }
 
