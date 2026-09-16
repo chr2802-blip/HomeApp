@@ -68,6 +68,8 @@ export type SessionUser = {
   homeName: string | null;
   /** The home's own picture, shown wherever the home is named. */
   homePhotoId: string | null;
+  /** Their own picture, shown wherever they are named. */
+  photoId: string | null;
   /**
    * What they may do in that home, or null when it is not one of theirs — which only
    * a super admin, looking into a household they are not in, ever is.
@@ -130,6 +132,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     homeId: active?.id ?? null,
     homeName: active?.name ?? null,
     homePhotoId: active?.photoId ?? null,
+    photoId: user.photoId,
     homeRole: homes.find((home) => home.id === active?.id)?.role ?? null,
   };
 });

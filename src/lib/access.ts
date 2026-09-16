@@ -26,8 +26,10 @@ export function assertHomeAdmin(user: SessionUser, homeId: string) {
 }
 
 /**
- * Whether the Administration tab is theirs: they run the home on screen. A super admin
- * keeps it with no home open, because that is where the list of every home is reached.
+ * Whether this home's Settings are theirs: they run the home on screen. It is asked of
+ * the home being read rather than of the person, because somebody may run this
+ * household and merely live in the next — the header's menu offers Settings in one and
+ * not the other. A super admin runs every home, with none open included.
  */
 export function canAdministerCurrentHome(user: SessionUser) {
   if (user.role === "SUPER_ADMIN") return true;

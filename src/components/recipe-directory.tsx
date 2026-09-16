@@ -84,7 +84,7 @@ export function RecipeDirectory({
     return (
       <EmptyState>
         {categories.length === 0
-          ? "No recipe categories yet — an admin adds them under Administration, and then recipes can be saved."
+          ? "No recipe categories yet — an admin adds them under Settings, and then recipes can be saved."
           : "No recipes saved yet."}
       </EmptyState>
     );

@@ -45,8 +45,8 @@ function CategoryField({
         <legend className="block text-sm font-medium text-slate-700">Categories</legend>
         <p className="rounded-lg border border-dashed border-slate-300 p-3 text-sm text-slate-500">
           This home has no recipe categories yet. An admin can add them under{" "}
-          <Link href="/admin" className="font-medium text-slate-900 underline">
-            Administration
+          <Link href="/settings" className="font-medium text-slate-900 underline">
+            Settings
           </Link>
           .
         </p>

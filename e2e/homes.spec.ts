@@ -1,4 +1,4 @@
-import { ACCOUNTS, expect, test } from "./helpers/fixtures";
+import { ACCOUNTS, expect, openHomeMenu, test } from "./helpers/fixtures";
 import { HOME_NAME, OTHER_HOME_NAME, prisma } from "./helpers/database";
 import type { Page } from "@playwright/test";
 
@@ -22,25 +22,25 @@ async function alsoJoin(email: string, homeName: string, role: "ADMIN" | "USER" 
  * switch is a form submission, so the next page is not there the moment it is clicked.
  */
 async function switchTo(page: Page, homeName: string) {
-  const trigger = page.getByRole("button", { name: /switch home$/ });
-  // Hydration has no signal of its own; the trigger grows one when it is ready.
-  await expect(trigger).toHaveAttribute("data-ready", "true");
-  await trigger.click();
-  await expect(page.getByRole("menu", { name: "Your homes" })).toBeVisible();
+  await openHomeMenu(page);
 
   await page.getByRole("menuitem", { name: homeName }).click();
-  await expect(page.getByRole("button", { name: `${homeName} — switch home` })).toBeVisible();
+  await expect(page.getByRole("button", { name: `${homeName} — home menu` })).toBeVisible();
 }
 
 test.describe("somebody in one home", () => {
-  test("is offered no switcher, because there is nothing to switch to", async ({
+  test("is offered no other home in the menu, because there is none to go to", async ({
     page,
     loginAs,
   }) => {
     await loginAs(ACCOUNTS.member);
+    await openHomeMenu(page);
 
-    await expect(page.getByRole("link", { name: HOME_NAME })).toBeVisible();
-    await expect(page.getByRole("button", { name: /switch home$/ })).toHaveCount(0);
+    // The menu is still there — it holds their profile — but a chooser with a single
+    // choice is furniture, so the home they are in is not listed as somewhere to go.
+    await expect(page.getByRole("menuitem", { name: "Profile" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: HOME_NAME })).toHaveCount(0);
+    await expect(page.getByRole("menuitem", { name: OTHER_HOME_NAME })).toHaveCount(0);
   });
 
   test("still reaches the list of their homes", async ({ page, loginAs }) => {
@@ -95,7 +95,9 @@ test.describe("somebody in two homes", () => {
     await page.getByRole("button", { name: "Switch to" }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByRole("button", { name: `${OTHER_HOME_NAME} — switch home` })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: `${OTHER_HOME_NAME} — home menu` }),
+    ).toBeVisible();
   });
 });
 
@@ -105,7 +107,7 @@ test.describe("joining a second home", () => {
     loginAs,
   }) => {
     await loginAs(ACCOUNTS.admin);
-    await page.goto("/admin");
+    await page.goto("/settings");
     await page.getByLabel("Email to invite").fill(ACCOUNTS.outsider.email);
     await page.getByRole("button", { name: "Create invite" }).click();
     await expect(page.getByText(`Invitation ready for ${ACCOUNTS.outsider.email}`)).toBeVisible();
@@ -125,7 +127,7 @@ test.describe("joining a second home", () => {
     await page.getByRole("button", { name: "Join home" }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByRole("button", { name: `${HOME_NAME} — switch home` })).toBeVisible();
+    await expect(page.getByRole("button", { name: `${HOME_NAME} — home menu` })).toBeVisible();
 
     await page.goto("/homes");
     const listed = page.getByRole("main");
@@ -144,16 +146,17 @@ test.describe("an admin of one home and a member of another", () => {
   });
 
   test("administers only the home they run", async ({ page }) => {
-    // Running one household is no licence over the next, so the tab follows the home
+    // Running one household is no licence over the next, so Settings follows the home
     // on screen rather than the person.
-    await expect(page.getByRole("link", { name: "Admin" })).toHaveCount(0);
-    await page.goto("/admin");
+    await openHomeMenu(page);
+    await expect(page.getByRole("menuitem", { name: "Settings" })).toHaveCount(0);
+    await page.goto("/settings");
     await expect(page).toHaveURL(/\/dashboard$/);
 
     await switchTo(page, OTHER_HOME_NAME);
 
-    await expect(page.getByRole("link", { name: "Admin" })).toBeVisible();
-    await page.goto("/admin");
+    await openHomeMenu(page);
+    await page.getByRole("menuitem", { name: "Settings" }).click();
     await expect(page.getByText(`Managing ${OTHER_HOME_NAME}`)).toBeVisible();
   });
 });

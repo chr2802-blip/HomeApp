@@ -45,6 +45,27 @@ becomes a menu once there is more than one to go to, `/homes` lists them, and th
 also where somebody with no home at all is sent, because it is the only page with
 anything to tell them.
 
+### Administration is two different things, in two different places
+
+**Admin** is a tab, and it is the super admin's alone: `/admin` holds the installation —
+**System** (how the deployment itself is doing) and **Homes** (create, switch into, delete).
+`requireSuperAdmin` guards all three pages.
+
+Running one household is not that. It is `/settings`, reached from the home's own picture
+and name in the header, and it follows the home on screen rather than the person:
+`canAdministerCurrentHome`. Somebody who runs the flat and merely lives in the summer
+house is offered Settings in one and not the other, and a tab would have been a tab
+leading to a page they cannot open half the time.
+
+`/profile` is the third thing, and it belongs to nobody's home: a person's name,
+password, picture and notifications, one page however many households they are in. It is
+in the same menu because that menu is "this home, and me in it".
+
+**The header's name is a menu for everybody**, not only for somebody with a home to switch
+to — it is how Settings and Profile are reached. `HomeMenu` in
+`src/components/home-menu.tsx` draws it; the list of other homes appears inside it only
+when there is more than one, because a chooser with a single choice is furniture.
+
 ### Home-scoped data goes through `homeDb`
 
 ```ts
@@ -123,6 +144,14 @@ swept up by the next upload from that home.
 
 Pages read `photoId` and nothing else. **Never `include: { photo: true }`** — that pulls
 both copies of the bytes into a page that only needs a URL.
+
+A person's own picture is the one that does not fit: `User` is not home-scoped and a
+`Photo` is, so an avatar is filed under whichever home they were reading when they chose
+it. Two things follow, and both are load-bearing. `Photo.users` exists so the sweep does
+not take an avatar for an upload nobody finished and delete it an hour later. And
+`/api/photos/<id>` serves a picture somebody is using as their own to anyone who shares a
+home with them, wherever it happens to be filed — otherwise a housemate met in a second
+home would see a broken image.
 
 ### Form actions report what happened
 

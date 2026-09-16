@@ -104,15 +104,15 @@ test.describe("a rejected recipe", () => {
   });
 });
 
-test.describe("the account form", () => {
+test.describe("the profile form", () => {
   test.beforeEach(async ({ loginAs, page }) => {
     await loginAs(ACCOUNTS.admin);
-    await page.goto("/admin");
+    await page.goto("/profile");
   });
 
   test("confirms a successful change", async ({ page }) => {
     await page.getByLabel("Name", { exact: true }).fill("Ada Renamed");
-    await page.getByRole("button", { name: "Update account" }).click();
+    await page.getByRole("button", { name: "Save profile" }).click();
 
     await expect(page.getByText("Saved.")).toBeVisible();
   });
@@ -120,7 +120,7 @@ test.describe("the account form", () => {
   test("rejects a short password and keeps the stored name", async ({ page }) => {
     await page.getByLabel("Name", { exact: true }).fill("Ada Renamed");
     await forceValue(page.getByLabel("New password"), "short");
-    await page.getByRole("button", { name: "Update account" }).click();
+    await page.getByRole("button", { name: "Save profile" }).click();
 
     await expect(page.getByText("A new password must be at least 8 characters.")).toBeVisible();
 
@@ -129,6 +129,14 @@ test.describe("the account form", () => {
       where: { email: ACCOUNTS.admin.email },
     });
     expect(stored.name).toBe(ACCOUNTS.admin.name);
+  });
+
+});
+
+test.describe("the home form", () => {
+  test.beforeEach(async ({ loginAs, page }) => {
+    await loginAs(ACCOUNTS.admin);
+    await page.goto("/settings");
   });
 
   test("reports a blank home name", async ({ page }) => {

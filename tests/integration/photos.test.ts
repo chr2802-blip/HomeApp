@@ -209,6 +209,36 @@ describe("serving", () => {
     expect(home.id).not.toBe(second.id);
   });
 
+  /*
+   * A person's own picture is filed under whichever home they were reading when they
+   * chose it, and the people they share a *different* home with would otherwise be
+   * served a 404 where their housemate's face should be.
+   */
+  it("serves a housemate's own picture, wherever it happens to be filed", async () => {
+    const { home, member } = await createHomeWithMembers();
+    const elsewhere = await createHome();
+    await joinHome({ userId: member.id, homeId: elsewhere.id });
+    const picture = await createPhoto({ homeId: elsewhere.id });
+    await prisma.user.update({ where: { id: member.id }, data: { photoId: picture.id } });
+
+    const housemate = await createUser({ homeId: home.id });
+    await signIn(housemate);
+
+    expect((await serve(picture.id)).status).toBe(200);
+  });
+
+  it("does not find the own picture of somebody sharing no home with the caller", async () => {
+    const theirs = await createHome();
+    const stranger = await createUser({ homeId: theirs.id });
+    const picture = await createPhoto({ homeId: theirs.id });
+    await prisma.user.update({ where: { id: stranger.id }, data: { photoId: picture.id } });
+
+    const { member } = await createHomeWithMembers();
+    await signIn(member);
+
+    expect((await serve(picture.id)).status).toBe(404);
+  });
+
   it("does not find anything for a super admin with no home chosen", async () => {
     const home = await createHome();
     const photo = await createPhoto({ homeId: home.id });
@@ -454,6 +484,17 @@ describe("sweeping up uploads nobody finished", () => {
 
     expect(await sweepUnclaimedPhotos(home.id)).toBe(0);
     expect(await prisma.photo.count()).toBe(4);
+  });
+
+  it("leaves alone a picture somebody is using as their own", async () => {
+    // Without the relation behind this, an avatar is an upload nobody finished: it
+    // belongs to no home, list, task or recipe, and would go an hour after it was picked.
+    const { home, member } = await createHomeWithMembers();
+    const picture = await createPhoto({ homeId: home.id, createdAt: hoursAgo(3) });
+    await prisma.user.update({ where: { id: member.id }, data: { photoId: picture.id } });
+
+    expect(await sweepUnclaimedPhotos(home.id)).toBe(0);
+    expect(await prisma.photo.findUnique({ where: { id: picture.id } })).not.toBeNull();
   });
 
   it("never reaches into another home", async () => {

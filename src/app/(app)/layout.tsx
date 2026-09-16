@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { canAdministerCurrentHome } from "@/lib/access";
 import { logout } from "@/app/actions/auth";
@@ -6,14 +5,15 @@ import { NavLinks } from "@/components/nav-links";
 import { BottomNav } from "@/components/bottom-nav";
 import { PageTransition } from "@/components/page-transition";
 import { BackButton } from "@/components/back-button";
-import { PhotoAvatar } from "@/components/photo";
-import { HomeSwitcher } from "@/components/home-switcher";
+import { HomeMenu } from "@/components/home-menu";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  // The Administration tab administers the home on screen, so it appears for the people
-  // who run that one — not for an admin of some other household they also belong to.
-  const showAdmin = canAdministerCurrentHome(user);
+  // Admin is the installation, not a household: the list of every home and how the
+  // deployment itself is doing. Running a home is administered from that home's own
+  // Settings, behind its name in the header, so the tab belongs to the one person the
+  // whole installation is for.
+  const showAdmin = user.role === "SUPER_ADMIN";
 
   return (
     <div className="min-h-screen">
@@ -21,28 +21,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="mx-auto flex max-w-5xl items-center gap-x-6 px-4 py-3">
           <div className="flex min-w-0 items-center gap-1.5">
             <BackButton />
-            {/* The household's own picture, next to its name. A home without one
-                simply has no avatar rather than a placeholder standing in for it. */}
-            <PhotoAvatar
+            {/* The household's own picture and name, not the product's: everyone here
+                knows what the app is, and somebody between homes is told which one they
+                are in — or, with none, what they are looking at. Pressing the pair is
+                also the way to this home's settings, to your own profile, and to the
+                other homes you are in. */}
+            <HomeMenu
+              homes={user.homes}
+              currentId={user.homeId}
+              label={user.homeName ?? "HomeHub"}
               photoId={user.homePhotoId}
-              alt=""
-              className="mr-1 h-7 w-7"
+              canAdminister={canAdministerCurrentHome(user)}
             />
-            {/* The household's own name, not the product's: everyone here knows what
-                the app is, and somebody between homes is told which one they are in —
-                or, with none, what they are looking at. Where there are others to go
-                to, the name is also the way there. */}
-            {user.homes.length > 1 ? (
-              <HomeSwitcher
-                homes={user.homes}
-                currentId={user.homeId}
-                label={user.homeName ?? "HomeHub"}
-              />
-            ) : (
-              <Link href="/dashboard" className="truncate text-lg font-semibold tracking-tight">
-                {user.homeName ?? "HomeHub"}
-              </Link>
-            )}
           </div>
           <NavLinks showAdmin={showAdmin} />
           <div className="ml-auto flex items-center gap-3 text-sm">

@@ -32,6 +32,7 @@ function user(
     homeId: active,
     homeName: null,
     homePhotoId: null,
+    photoId: null,
     homeRole: homes.find((home) => home.id === active)?.role ?? null,
   };
 }

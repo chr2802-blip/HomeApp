@@ -1,4 +1,12 @@
-import { ACCOUNTS, clickAndConfirm, expect, openMenu, rowWith, test } from "./helpers/fixtures";
+import {
+  ACCOUNTS,
+  clickAndConfirm,
+  expect,
+  openHomeMenu,
+  openMenu,
+  rowWith,
+  test,
+} from "./helpers/fixtures";
 import { HOME_NAME, OTHER_HOME_NAME, prisma } from "./helpers/database";
 
 /** What somebody may do in one named home — where a role lives now that homes are plural. */
@@ -12,7 +20,7 @@ async function memberRoleIn(homeName: string, email: string) {
 test.describe("as a home admin", () => {
   test.beforeEach(async ({ loginAs, page }) => {
     await loginAs(ACCOUNTS.admin);
-    await page.goto("/admin");
+    await page.goto("/settings");
   });
 
   test("the home's details can be edited", async ({ page }) => {
@@ -99,13 +107,22 @@ test.describe("as a home admin", () => {
     await expect(page.getByText(`Invitation ready for ${ACCOUNTS.outsider.email}`)).toBeVisible();
   });
 
-  test("the admin can change their own name", async ({ page }) => {
-    // exact, or this also matches the "Home name" field.
-    await page.getByLabel("Name", { exact: true }).fill("Ada Renamed");
-    await page.getByRole("button", { name: "Update account" }).click();
+  test("settings are reached from the home's own name in the header", async ({ page }) => {
+    await page.goto("/dashboard");
+    await openHomeMenu(page);
+    await page.getByRole("menuitem", { name: "Settings" }).click();
 
-    await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Ada Renamed");
-    await expect(page.getByText("Ada Renamed (you)")).toBeVisible();
+    await expect(page).toHaveURL(/\/settings$/);
+    await expect(page.getByText(`Managing ${HOME_NAME}`)).toBeVisible();
+  });
+
+  test("a home admin has no Admin tab, and is turned away from it", async ({ page }) => {
+    // Admin is the installation — every home on it, and how the deployment is doing —
+    // which is the super admin's business. Running this household is Settings.
+    await expect(page.getByRole("link", { name: "Admin" })).toHaveCount(0);
+
+    await page.goto("/admin");
+    await expect(page).toHaveURL(/\/dashboard$/);
   });
 
   test("a home admin sees no link to all homes", async ({ page }) => {
@@ -123,9 +140,18 @@ test.describe("as a super admin", () => {
     await loginAs(ACCOUNTS.superAdmin);
   });
 
-  test("with no home selected, the admin page asks for one", async ({ page }) => {
-    await page.goto("/admin");
+  test("with no home selected, the settings page asks for one", async ({ page }) => {
+    await page.goto("/settings");
     await expect(page.getByText("Select a home first.")).toBeVisible();
+  });
+
+  test("the Admin tab leads to the installation, not to a household", async ({ page }) => {
+    await page.goto("/dashboard");
+    await page.getByRole("link", { name: "Admin" }).click();
+
+    await expect(page).toHaveURL(/\/admin$/);
+    await page.getByRole("link", { name: "Homes" }).click();
+    await expect(page).toHaveURL(/\/admin\/homes$/);
   });
 
   test("every home is listed with its contents counted", async ({ page }) => {
@@ -154,7 +180,7 @@ test.describe("as a super admin", () => {
     await otherRow.getByRole("button", { name: "Switch to" }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/);
-    await page.goto("/admin");
+    await page.goto("/settings");
     await expect(page.getByText(`Managing ${OTHER_HOME_NAME}`)).toBeVisible();
   });
 

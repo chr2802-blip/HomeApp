@@ -76,7 +76,7 @@ export async function createInvite(_prev: InviteState, formData: FormData): Prom
     },
   });
 
-  revalidatePath("/admin");
+  revalidatePath("/settings");
   return { ok: true, email, code };
 }
 
@@ -89,7 +89,7 @@ export async function revokeInvite(formData: FormData) {
   assertHomeAdmin(user, invite.homeId);
 
   await prisma.invite.delete({ where: { id: invite.id } });
-  revalidatePath("/admin");
+  revalidatePath("/settings");
 }
 
 export async function updateHome(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
@@ -119,7 +119,7 @@ export async function updateHome(_prev: ActionResult, formData: FormData): Promi
 
   // The home's picture sits in the header, which every page renders.
   revalidatePath("/", "layout");
-  revalidatePath("/admin");
+  revalidatePath("/settings");
   revalidatePath("/admin/homes");
   return ok();
 }
@@ -156,7 +156,7 @@ export async function updateMemberRole(formData: FormData) {
     where: { userId_homeId: { userId: membership.userId, homeId: membership.homeId } },
     data: { role },
   });
-  revalidatePath("/admin");
+  revalidatePath("/settings");
 }
 
 /**
@@ -174,7 +174,7 @@ export async function removeMember(formData: FormData) {
   await prisma.homeMember.delete({
     where: { userId_homeId: { userId: membership.userId, homeId: membership.homeId } },
   });
-  revalidatePath("/admin");
+  revalidatePath("/settings");
   revalidatePath("/homes");
 }
 
@@ -218,6 +218,10 @@ export async function switchHome(formData: FormData) {
   redirect("/dashboard");
 }
 
+/**
+ * A person's own details, which belong to them rather than to any of their homes: the
+ * name every household sees, the password they sign in with, and their picture.
+ */
 export async function updateOwnProfile(
   _prev: ActionResult,
   formData: FormData,
@@ -228,6 +232,19 @@ export async function updateOwnProfile(
   const form = readForm(profileSchema, formData);
   if (!form.ok) return fail(form.error);
 
+  // A picture is filed under a home, and the home on screen is the only one an upload
+  // of theirs could have gone to. Somebody in no home at all is shown no picture field,
+  // so there is nothing here to read.
+  const photo = user.homeId
+    ? await readPhotoChoice(formData, user.homeId)
+    : ({ ok: true, photoId: undefined } as const);
+  if (!photo.ok) return fail(photo.error);
+
+  const previous = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { photoId: true },
+  });
+
   const { name, password } = form.fields;
 
   await prisma.user.update({
@@ -235,9 +252,19 @@ export async function updateOwnProfile(
     data: {
       name,
       ...(password ? { passwordHash: await hashPassword(password) } : {}),
+      photoId: photo.photoId,
     },
   });
 
+  // Only once the row no longer points at it, so a failed update cannot leave somebody
+  // holding a picture that has already gone. Discarded through the home on screen: a
+  // picture chosen in another home and replaced here is simply left, and that home's
+  // next upload sweeps it up as one nothing points at.
+  if (user.homeId) await discardReplaced(user.homeId, previous?.photoId ?? null, photo.photoId);
+
+  // Their name and picture are drawn in the header and beside them on the members list.
   revalidatePath("/", "layout");
+  revalidatePath("/profile");
+  revalidatePath("/settings");
   return ok();
 }

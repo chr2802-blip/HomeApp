@@ -120,6 +120,7 @@ export async function sweepUnclaimedPhotos(homeId: string) {
       lists: { none: {} },
       tasks: { none: {} },
       recipes: { none: {} },
+      users: { none: {} },
     },
     select: { id: true },
     take: SWEEP_LIMIT,
