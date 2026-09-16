@@ -319,8 +319,17 @@ project are frozen snapshots of one build and will show stale commits forever. T
 deployed commit is shown on **Admin → System**.
 
 Migrations run inside the production build (`prisma migrate deploy`). A bad migration
-therefore presents as a failed build, and there is no rollback path — worth changing if it
-ever bites.
+therefore presents as a failed build, on a commit already on `main`, and there is no
+rollback path.
+
+`npm run db:check` closes the cheap half of that: it replays the migrations into a
+throwaway `_shadow` database and fails if `prisma/schema.prisma` says anything they do
+not. It runs in the pre-push hook and in CI, takes about two seconds, and catches a
+schema edited without a migration — which the test suites only catch where a test
+happens to touch the model. What it cannot catch is a migration that is valid against an
+empty database and fails against a full one (a `NOT NULL` column on a populated table, a
+unique index over values already duplicated); both suites migrate from empty, so one of
+those still wants trying against a copy of production first.
 
 ## Observability
 

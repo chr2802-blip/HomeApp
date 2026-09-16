@@ -300,6 +300,26 @@ Pushing to `main` is what triggers a Vercel deploy, so the tests gate the push:
    build fails on Vercel even if the first two were bypassed. (Integration tests are left out
    here: the build has no test database, and it must never touch the production one.)
 
+### The migration that cannot be taken back
+
+The build runs `prisma migrate deploy`, so a migration is applied by the deploy that ships it.
+A bad one therefore presents as a failed build, on a commit that is already on `main`, with no
+rollback path — the one failure in this project that cannot be fixed by reverting.
+
+`npm run db:check` is the cheap half of that problem. It replays the migrations into a
+throwaway `_shadow` database and compares the result against `prisma/schema.prisma`, so a
+schema edited without a migration to match is caught in about two seconds. It runs in the
+pre-push hook and in CI, and it is worth running by hand after any schema change.
+
+The integration suite catches some of this already, but only where a test happens to touch the
+model: the generated client asks for a column the database has not got, and the query errors. A
+field on a model no test exercises reaches the deploy. This asks the question directly.
+
+What it does **not** check is a migration that is valid against an empty database and fails
+against a full one — a `NOT NULL` column added to a populated table, a unique index over values
+that are already duplicated. Both suites migrate from empty. Until that gap is closed, a
+migration of that shape is worth applying to a copy of production by hand before it is merged.
+
 ### Only `main` deploys
 
 `vercel.json` disables automatic deployments for every branch except `main`:

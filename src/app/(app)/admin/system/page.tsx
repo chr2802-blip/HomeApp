@@ -49,14 +49,46 @@ export default async function SystemPage() {
             <p className="font-medium">{VERDICT[health.status]}</p>
           </div>
           <p className="mt-1 text-xs text-slate-500">
-            {health.environment}
-            {health.version ? ` · ${health.version}` : ""} · database{" "}
+            {health.environment} · database{" "}
             {health.database.reachable
               ? `reachable in ${health.database.latencyMs} ms`
               : "unreachable"}
           </p>
         </div>
       </Card>
+
+      {/* What is actually live. Drawn only where there is a commit to name: on a laptop
+          there is no deployment, and an empty card saying so would be furniture. */}
+      {health.deployment.version && (
+        <Card className="mb-8">
+          <h2 className="text-sm font-semibold text-slate-500 uppercase">Deployed</h2>
+          <p className="mt-2 font-medium break-words">
+            {health.deployment.message ?? "No commit message recorded."}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            {health.deployment.url ? (
+              <a
+                href={health.deployment.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="font-mono underline underline-offset-2"
+              >
+                {health.deployment.version}
+              </a>
+            ) : (
+              <span className="font-mono">{health.deployment.version}</span>
+            )}
+            {health.deployment.ref ? ` · ${health.deployment.ref}` : ""}
+          </p>
+          {/* Only main deploys — vercel.json disables every other branch — so a build
+              from anywhere else is worth seeing rather than reading past. */}
+          {health.deployment.ref && health.deployment.ref !== "main" && (
+            <p className="mt-2 text-xs text-amber-700">
+              This build did not come from main.
+            </p>
+          )}
+        </Card>
+      )}
 
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Reminders</h2>

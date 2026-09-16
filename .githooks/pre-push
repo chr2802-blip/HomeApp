@@ -3,9 +3,10 @@
 # Pushing to GitHub is what triggers a Vercel deploy, so the checks run here.
 #
 # What runs depends on what changed. Lint, types and the unit tests always run — they
-# need nothing and take seconds. The integration and browser suites need Postgres and a
-# production build, so they run only when something they could possibly exercise has
-# changed. Editing a README should not cost three minutes and a Next.js build.
+# need nothing and take seconds. The schema check, the integration suite and the browser
+# suite need Postgres and a production build, so they run only when something they could
+# possibly exercise has changed. Editing a README should not cost three minutes and a
+# Next.js build.
 #
 # When in doubt this runs everything: an unrecognised push, no range to compare, or any
 # change outside the known-safe set. CI runs the full suite on the server regardless, so
@@ -72,6 +73,10 @@ run "" npm run --silent typecheck
 run "running unit tests..." npm run --silent test:unit
 
 if [ "$needs_everything" = "1" ]; then
+  # First, because it takes two seconds and the alternative to finding out here is a
+  # failed production build with no rollback: migrations run inside that build, so a
+  # schema edited without a migration to match deploys nothing and cannot be undone.
+  run "checking migrations match the schema..." npm run --silent db:check
   run "running integration tests..." npm run --silent test:integration
   run "running browser tests..." npm run --silent e2e
 else

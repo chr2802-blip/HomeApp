@@ -44,6 +44,12 @@ jobs:
 
       - run: npx prisma generate
 
+      # Two seconds, and it fails here rather than as a failed production build: a
+      # schema edit with no migration to match runs `prisma migrate deploy` inside the
+      # Vercel build, where there is no rollback.
+      - name: Check migrations match the schema
+        run: npm run db:check
+
       - run: npm run lint
 
       - run: npm run typecheck
