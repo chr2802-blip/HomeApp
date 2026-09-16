@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { timingSafeEqual } from "crypto";
 import { getHealth } from "@/lib/observability";
+import { presentsCronSecret } from "@/lib/cron-secret";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   const health = await getHealth();
   const httpStatus = health.status === "down" ? 503 : 200;
 
-  if (!authorized(request)) {
+  if (!presentsCronSecret(request)) {
     return NextResponse.json(
       { status: health.status, at: new Date().toISOString() },
       { status: httpStatus, headers: { "cache-control": "no-store" } },
@@ -26,15 +26,4 @@ export async function GET(request: Request) {
     { ...health, at: new Date().toISOString() },
     { status: httpStatus, headers: { "cache-control": "no-store" } },
   );
-}
-
-function authorized(request: Request) {
-  const expected = process.env.CRON_SECRET;
-  if (!expected) return false;
-
-  const header = request.headers.get("authorization") ?? "";
-  const provided = header.startsWith("Bearer ") ? header.slice(7) : "";
-  const a = Buffer.from(provided);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
 }

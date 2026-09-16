@@ -57,6 +57,14 @@ and name in the header, and it follows the home on screen rather than the person
 house is offered Settings in one and not the other, and a tab would have been a tab
 leading to a page they cannot open half the time.
 
+An action is gated the same way, and this is where it is easy to get wrong.
+`requireAdmin` answers only "do they run *a* home" — it is the gate on being offered
+administration at all, never the answer to whether *this* home is theirs. An action
+given a home id checks that id with `assertHomeAdmin`; an action that takes its home
+from the session instead (the recipe-category ones do) asks `canAdministerCurrentHome`.
+**Never pair `requireAdmin` with the active home**: that combination reads as a check
+and admits an admin of the flat to everything in the summer house.
+
 `/profile` is the third thing, and it belongs to nobody's home: a person's name,
 password, picture and notifications, one page however many households they are in. It is
 in the same menu because that menu is "this home, and me in it".
@@ -113,18 +121,27 @@ const lists = await homeDb(user.homeId).list.findMany({ orderBy: { createdAt: "d
 ```
 
 `src/lib/home-db.ts` carries the home into every query against a home-scoped model
-(List, Task, Recipe, Invite, HomeMember, Photo) and stamps it onto anything created. A
-query that forgets the home returns nothing rather than another household's rows.
+(List, Task, Recipe, RecipeCategory, Invite, HomeMember, Photo) and stamps it onto
+anything created. A query that forgets the home returns nothing rather than another
+household's rows.
 
 **Never hand-write `where: { homeId }` in a page or component.** A lint rule rejects
 `prisma.list` and friends there. Use `prisma` directly only where crossing homes is the
 point — the reminder job, the super admin's system view — and say so in a comment.
 
-**User is not home-scoped, and `homeDb` refuses it** along with `ListFavorite` and
-`RecipeCategoryLink`. None of the three carries a `homeId`, so scoping would pass the
-query straight through — and `homeDb(id).user.findMany()`, which used to mean "this
-home's people", would now hand back every account on the installation. A household's
-roster is `homeDb(id).homeMember.findMany({ include: { user: … } })`.
+**User is not home-scoped, and `homeDb` refuses it** along with `ListItem`,
+`ListFavorite` and `RecipeCategoryLink`. None of the four carries a `homeId`, so scoping
+would pass the query straight through — and `homeDb(id).user.findMany()`, which used to
+mean "this home's people", would now hand back every account on the installation. A
+household's roster is `homeDb(id).homeMember.findMany({ include: { user: … } })`, and a
+list's items are an `include` on a list query that went through `homeDb`.
+
+Being refused is the point, and the refusal is the whole protection: a model that reads
+as though it belongs to a home but carries no `homeId` is passed through *unscoped* if
+`homeDb` does not name it. `ListItem` was in exactly that position and
+`homeDb(id).listItem.findMany()` returned every household's shopping. **Anything added
+to the schema without a `homeId` belongs in one of the two lists in `home-db.ts` before
+it is queried anywhere.**
 
 Permission checks live separately in `src/lib/access.ts`; `homeScoped` in
 `src/lib/scoped.ts` fetches a single record and asserts access. `homeDb` does not replace
@@ -302,8 +319,17 @@ project are frozen snapshots of one build and will show stale commits forever. T
 deployed commit is shown on **Admin → System**.
 
 Migrations run inside the production build (`prisma migrate deploy`). A bad migration
-therefore presents as a failed build, and there is no rollback path — worth changing if it
-ever bites.
+therefore presents as a failed build, on a commit already on `main`, and there is no
+rollback path.
+
+`npm run db:check` closes the cheap half of that: it replays the migrations into a
+throwaway `_shadow` database and fails if `prisma/schema.prisma` says anything they do
+not. It runs in the pre-push hook and in CI, takes about two seconds, and catches a
+schema edited without a migration — which the test suites only catch where a test
+happens to touch the model. What it cannot catch is a migration that is valid against an
+empty database and fails against a full one (a `NOT NULL` column on a populated table, a
+unique index over values already duplicated); both suites migrate from empty, so one of
+those still wants trying against a copy of production first.
 
 ## Observability
 

@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireHomeUser } from "@/lib/auth";
+import { requireHomeUser } from "@/lib/auth";
+import { canAdministerCurrentHome } from "@/lib/access";
 import { homeDb } from "@/lib/home-db";
 import { readForm, requiredText } from "@/lib/form";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
@@ -16,11 +18,19 @@ const categorySchema = z.object({ name: requiredText("Give the category a name."
  *
  * Taken from the session rather than the form, unlike `updateHome` — there is no home
  * id to cross-check because the form never sends one, which is one fewer thing to get
- * wrong. `requireAdmin` turns a plain member away before this returns.
+ * wrong.
+ *
+ * Asked of the home on screen, and not of the person. `requireAdmin` answers "do they
+ * run *a* home", which is a different question wearing the same clothes: somebody who
+ * runs the flat and merely lives in the summer house passes it, and these actions then
+ * act on whichever home they have open. Running one household is no licence over the
+ * next, so the home being administered is the one that has to be theirs to run — the
+ * same check `/settings` makes before drawing the page these forms live on.
  */
 async function adminHomeId() {
-  await requireAdmin();
-  return (await requireHomeUser()).homeId;
+  const user = await requireHomeUser();
+  if (!canAdministerCurrentHome(user)) redirect("/dashboard");
+  return user.homeId;
 }
 
 /**

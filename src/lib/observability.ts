@@ -14,6 +14,28 @@ export const METRIC_RETENTION_DAYS = 7;
 
 export type HealthStatus = "ok" | "degraded" | "down";
 
+/**
+ * Which commit is actually serving this page.
+ *
+ * A seven-character hash answers "is this the build I pushed" and nothing else. When
+ * something looks wrong the next question is always what that commit *was*, and
+ * answering it meant leaving the page to go and look the hash up. So the subject line
+ * and the branch come with it, and the hash links to the commit itself.
+ *
+ * Every field is null off Vercel — a laptop has no deployment — which is why the page
+ * draws this block only when there is a commit to name.
+ */
+export type Deployment = {
+  /** Short hash, as a person recognises a commit. */
+  version: string | null;
+  /** First line of the commit message: what shipped, in the words it was written in. */
+  message: string | null;
+  /** The branch it was built from. Only `main` deploys, so anything else is a surprise. */
+  ref: string | null;
+  /** The commit on GitHub, or null when the repository is not known. */
+  url: string | null;
+};
+
 export type Health = {
   status: HealthStatus;
   database: { reachable: boolean; latencyMs: number | null };
@@ -25,8 +47,36 @@ export type Health = {
     error: string | null;
   };
   version: string | null;
+  deployment: Deployment;
   environment: string;
 };
+
+/**
+ * What the platform says about the commit it built.
+ *
+ * Vercel sets these for the build and for the running function alike; anywhere else
+ * they are simply absent, and every field falls to null rather than to a placeholder
+ * that would read like a real answer.
+ */
+export function deploymentInfo(
+  // Read as the loose bag of strings it is, rather than as NodeJS.ProcessEnv: this
+  // touches five keys and never NODE_ENV, and insisting on the fuller type only forces
+  // a cast on every caller that has not got one.
+  env: Record<string, string | undefined> = process.env,
+): Deployment {
+  const sha = env.VERCEL_GIT_COMMIT_SHA ?? null;
+  const owner = env.VERCEL_GIT_REPO_OWNER;
+  const slug = env.VERCEL_GIT_REPO_SLUG;
+
+  return {
+    version: sha?.slice(0, 7) ?? null,
+    // The subject line only. A commit body runs to paragraphs here and the card is one
+    // line telling somebody what is live, not a place to read a commit in full.
+    message: env.VERCEL_GIT_COMMIT_MESSAGE?.split("\n")[0]?.trim() || null,
+    ref: env.VERCEL_GIT_COMMIT_REF ?? null,
+    url: sha && owner && slug ? `https://github.com/${owner}/${slug}/commit/${sha}` : null,
+  };
+}
 
 /** Round-trips the database so the check fails when the connection is gone. */
 async function pingDatabase() {
@@ -57,6 +107,8 @@ export async function getHealth(now: Date = new Date()): Promise<Health> {
   // No run at all is not yet a fault: a freshly deployed app has never had one.
   const stale = ageHours !== null && ageHours > REMINDER_STALE_AFTER_HOURS;
 
+  const deployment = deploymentInfo();
+
   const status: HealthStatus = !database.reachable
     ? "down"
     : stale || lastRun?.ok === false
@@ -73,7 +125,11 @@ export async function getHealth(now: Date = new Date()): Promise<Health> {
       stale,
       error: lastRun?.error ?? null,
     },
-    version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
+    // Kept beside `deployment` rather than replaced by it: `/api/health` is read by
+    // things outside this repository, and moving a field they already parse is a
+    // breaking change for the sake of tidiness.
+    version: deployment.version,
+    deployment,
     environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "unknown",
   };
 }

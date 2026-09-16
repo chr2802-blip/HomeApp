@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { sendPushToUsers } from "@/lib/push";
 import { endOfDayInZone } from "@/lib/time";
 import { UNFINISHED } from "@/lib/tasks";
+import { presentsCronSecret } from "@/lib/cron-secret";
 import {
   REMINDER_JOB,
   finishCronRun,
@@ -13,20 +13,9 @@ import {
 
 export const dynamic = "force-dynamic";
 
-function authorized(request: Request) {
-  const expected = process.env.CRON_SECRET;
-  if (!expected) return false;
-
-  const header = request.headers.get("authorization") ?? "";
-  const provided = header.startsWith("Bearer ") ? header.slice(7) : "";
-  const a = Buffer.from(provided);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 /** Notifies each home's members once per day about tasks that are due or overdue. */
 export async function GET(request: Request) {
-  if (!authorized(request)) {
+  if (!presentsCronSecret(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
