@@ -7,6 +7,10 @@ import { createPortal } from "react-dom";
  * How long the closing animation runs. The sheet stays mounted for exactly this long
  * after `open` goes false, so it is seen leaving rather than vanishing — and a shorter
  * exit than entrance is what a dismissal feels like on a phone.
+ *
+ * Must match the duration of `animate-sheet-out` and `animate-backdrop-out` in
+ * globals.css: unmounting early cuts the exit short, unmounting late leaves the sheet
+ * sitting off screen with the page behind it unusable.
  */
 const EXIT_MS = 200;
 
@@ -17,7 +21,10 @@ const EXIT_MS = 200;
  * The sheet arrives the way the platform it is on does: up from the bottom edge on a
  * phone, where it fills the screen, and a scale-and-fade on a desktop, where it is a
  * panel over the page. Both curves are weighted towards the end of the movement, which
- * is what makes a sheet read as thrown rather than dragged.
+ * is what makes a sheet read as thrown rather than dragged. The movement itself is a
+ * keyframe animation in globals.css rather than a transition between two class names —
+ * a transition needs the state it starts from to have been painted, and nothing is
+ * painted between a sheet being mounted and being opened.
  *
  * Its contents are laid out top to bottom: `ModalBody` scrolls, `ModalFooter` does not,
  * so a form's buttons stay on screen however long the form is. A dialog whose Save
@@ -35,15 +42,18 @@ export function Modal({
   children: React.ReactNode;
 }) {
   const [mounted, setMounted] = useState(false);
-  const [shown, setShown] = useState(false);
+  const [closing, setClosing] = useState(false);
 
+  // Opening needs no second step: the entrance is an animation, which runs from the
+  // moment the sheet is in the document. Closing does, because the sheet has to outlive
+  // the `open` that dismissed it for as long as its exit takes.
   useEffect(() => {
     if (open) {
       setMounted(true);
-      const frame = requestAnimationFrame(() => setShown(true));
-      return () => cancelAnimationFrame(frame);
+      setClosing(false);
+      return;
     }
-    setShown(false);
+    setClosing(true);
     const timer = setTimeout(() => setMounted(false), EXIT_MS);
     return () => clearTimeout(timer);
   }, [open]);
@@ -69,8 +79,8 @@ export function Modal({
       <div
         aria-hidden
         onClick={onClose}
-        className={`absolute inset-0 bg-slate-900/50 backdrop-blur-[3px] transition-opacity ease-out ${
-          shown ? "opacity-100 duration-300" : "opacity-0 duration-200"
+        className={`absolute inset-0 bg-slate-900/50 backdrop-blur-[3px] ${
+          closing ? "animate-backdrop-out" : "animate-backdrop-in"
         }`}
       />
 
@@ -78,13 +88,11 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`relative flex w-full flex-col overflow-hidden bg-white shadow-2xl transition-[transform,opacity] ease-[cubic-bezier(0.32,0.72,0,1)] sm:max-h-[85vh] sm:max-w-lg sm:rounded-2xl ${
-          shown
-            ? "translate-y-0 duration-300 sm:scale-100 sm:opacity-100"
-            : // Off the bottom edge on a phone, where the sheet is the whole screen and
-              // fading it would only make the slide harder to see; in place but small
-              // and faint on a desktop, where it is a panel over a page that stays put.
-              "translate-y-full duration-200 sm:translate-y-0 sm:scale-95 sm:opacity-0"
+        // Which way it moves, and how far, is the animation's business: up from the
+        // bottom edge on a phone and a scale-and-fade from `sm` up, chosen by the one
+        // media query in globals.css rather than by `sm:` classes here.
+        className={`relative flex w-full flex-col overflow-hidden bg-white shadow-2xl sm:max-h-[85vh] sm:max-w-lg sm:rounded-2xl ${
+          closing ? "animate-sheet-out" : "animate-sheet-in"
         }`}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">

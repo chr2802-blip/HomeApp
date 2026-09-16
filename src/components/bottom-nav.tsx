@@ -32,9 +32,12 @@ export function BottomNav({ role }: { role: Role }) {
                     return (
                       <>
                         {/* The pill grows as it lights up, so the tab that was just
-                            pressed is the thing that moved on the screen. */}
+                            pressed is the thing that moved on the screen. The property
+                            being eased is `scale`, not `transform`: that is what
+                            Tailwind's scale-* writes, and naming the other one leaves
+                            the pill snapping to size. */}
                         <span
-                          className={`flex h-7 w-12 items-center justify-center rounded-full transition-[background-color,color,transform] duration-200 ease-out ${
+                          className={`flex h-7 w-12 items-center justify-center rounded-full transition-[background-color,color,scale] duration-200 ease-out ${
                             lit ? "scale-110 bg-slate-900 text-white" : "scale-100 text-slate-400"
                           } ${pending && !active ? "animate-pulse" : ""}`}
                         >
