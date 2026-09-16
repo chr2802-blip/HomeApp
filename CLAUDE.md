@@ -137,11 +137,22 @@ household's roster is `homeDb(id).homeMember.findMany({ include: { user: … } }
 list's items are an `include` on a list query that went through `homeDb`.
 
 Being refused is the point, and the refusal is the whole protection: a model that reads
-as though it belongs to a home but carries no `homeId` is passed through *unscoped* if
-`homeDb` does not name it. `ListItem` was in exactly that position and
-`homeDb(id).listItem.findMany()` returned every household's shopping. **Anything added
-to the schema without a `homeId` belongs in one of the two lists in `home-db.ts` before
-it is queried anywhere.**
+as though it belongs to a home but carries no `homeId` would be passed through
+*unscoped*. `ListItem` was in exactly that position and `homeDb(id).listItem.findMany()`
+returned every household's shopping.
+
+So `home-db.ts` no longer keeps a list of what to scope. **Which models carry a home is
+read from the schema** — a model has a `homeId` column or it does not, and Prisma
+already knows — so that half can no longer drift. What remains by hand is `NO_HOME_ID`,
+the judgement the column cannot express: of the models with no `homeId`, which read as
+though they belong to a home (`refuse: true`) and which genuinely have nothing to do
+with one (`refuse: false`).
+
+**A model in neither is an error, not a default.** Adding one to the schema without
+classifying it fails `tests/unit/home-scoping.test.ts` — no database, seconds, naming
+the model and the decision — rather than silently returning another household's rows at
+the first query. That test walks the schema rather than a list of its own, which is what
+stops the list and the schema parting company again.
 
 Permission checks live separately in `src/lib/access.ts`; `homeScoped` in
 `src/lib/scoped.ts` fetches a single record and asserts access. `homeDb` does not replace
