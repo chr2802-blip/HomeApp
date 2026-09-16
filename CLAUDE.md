@@ -64,6 +64,16 @@ The attribute goes on `<html>`, set by the **root layout** from the session. Not
 wrapper inside the app: sheets and the three-dot panel are portalled into `<body>`, so
 anything scoped to a div would leave every dialog in the previous home's colours.
 
+The one exception to "only globals.css" is the phone's status bar: `generateViewport`
+in the root layout hands the browser a `theme-color`, and a meta tag takes a literal and
+not a variable. So `THEME_BAR` in `src/lib/theme.ts` repeats each theme's `--accent-soft`
+as an opaque hex — and `tests/unit/theme.test.ts` parses both and fails if they ever stop
+agreeing, because the drift shows only as the strip above the header no longer matching
+the header. **Any new theme needs a `THEME_BAR` entry as well as a CSS block.** The
+manifest's own `theme_color` cannot be one of these: it is read once when the app is
+installed, so it stays the default, and the document's tag takes over the moment a page
+renders.
+
 **The colour dresses the frame, never the meanings inside it.** The header, the tab bar,
 the active nav pill, the primary button and the focus ring — and nothing else. Green is
 still "added", red "about to be deleted", amber "overdue", in every home; a household

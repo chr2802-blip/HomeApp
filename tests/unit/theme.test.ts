@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_THEME, THEMES, THEME_LABELS } from "@/lib/theme";
+import { DEFAULT_THEME, THEMES, THEME_BAR, THEME_LABELS } from "@/lib/theme";
 
 /**
  * A home's colour is named in TypeScript and drawn in CSS, and nothing but this holds
@@ -54,6 +54,25 @@ describe("home themes", () => {
     // person between homes are not left with no colours at all.
     const root = stylesheet.match(/:root,\s*\[data-theme="(\w+)"\]/);
     expect(root?.[1]).toBe(DEFAULT_THEME);
+  });
+
+  /**
+   * The phone's status bar is the one thing a stylesheet cannot colour, so its hex is
+   * written in TypeScript — and is therefore the one colour in the app that could come
+   * to disagree with the stylesheet. It disagrees silently: the bar simply stops being
+   * the same colour as the header a millimetre below it. So it is checked rather than
+   * trusted.
+   */
+  it.each(THEMES)("hands the browser %s's header band, opaque", (theme) => {
+    const soft = blockFor(theme)?.match(/--accent-soft:\s*rgb\(([^)]*)\)/)?.[1];
+    expect(soft, `no --accent-soft for ${theme}`).toBeTruthy();
+
+    const [red, green, blue] = soft!.split("/")[0].trim().split(/\s+/).map(Number);
+    const hex = `#${[red, green, blue]
+      .map((channel) => channel.toString(16).padStart(2, "0"))
+      .join("")}`;
+
+    expect(THEME_BAR[theme]).toBe(hex);
   });
 
   it("keeps the colours that already mean something out of the palette", () => {

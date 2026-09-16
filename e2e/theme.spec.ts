@@ -28,6 +28,14 @@ function dress(homeName: string, theme: "OCEAN" | "PLUM" | "SAND") {
 
 const themeOf = (page: Page) => page.locator("html");
 
+/**
+ * What the phone paints its status bar with. Read from the document rather than from
+ * the palette, because the point of the assertion is that the tag is there at all and
+ * carries this home's band — a meta tag that quietly stopped being rendered looks, from
+ * every other test, exactly like one that works.
+ */
+const barOf = (page: Page) => page.locator('meta[name="theme-color"]');
+
 test.describe("as a home admin", () => {
   test("picks the colour the whole household is then dressed in", async ({ page, loginAs }) => {
     await loginAs(ACCOUNTS.admin);
@@ -40,6 +48,9 @@ test.describe("as a home admin", () => {
     await page.getByRole("button", { name: "Save home" }).click();
 
     await expect(themeOf(page)).toHaveAttribute("data-theme", "OCEAN");
+    // The phone's own bar above the header moves with it, so the top of the screen is
+    // one colour rather than two.
+    await expect(barOf(page)).toHaveAttribute("content", "#f0f9ff");
     // Stored, not merely on screen: it survives the page being asked for again.
     await page.reload();
     await expect(themeOf(page)).toHaveAttribute("data-theme", "OCEAN");
@@ -77,6 +88,7 @@ test.describe("somebody in two homes", () => {
       page.getByRole("button", { name: `${OTHER_HOME_NAME} — switch home` }),
     ).toBeVisible();
     await expect(themeOf(page)).toHaveAttribute("data-theme", "SAND");
+    await expect(barOf(page)).toHaveAttribute("content", "#fafaf9");
   });
 });
 
@@ -85,4 +97,5 @@ test("the login page wears the app's own colours, belonging to no home", async (
   await page.goto("/login");
 
   await expect(themeOf(page)).toHaveAttribute("data-theme", "SLATE");
+  await expect(barOf(page)).toHaveAttribute("content", "#ffffff");
 });
