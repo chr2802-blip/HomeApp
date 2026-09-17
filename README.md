@@ -284,21 +284,25 @@ other's suite — usually as a null-constraint violation in a model neither bran
 
 ## Blocking a bad deploy
 
-Pushing to `main` is what triggers a Vercel deploy, so the tests gate the push:
+Merging to `main` is what triggers a Vercel deploy, and a ruleset is what stands in
+front of it:
 
-1. **Before the push.** `npm install` points git at `.githooks`, where a `pre-push` hook
-   checks the change. Lint, types and the unit tests always run — seconds, and they need
-   nothing running. The integration and browser suites run only when something they could
-   exercise has changed, so editing a README costs about ten seconds rather than three
-   minutes and a full build; anything unrecognised runs everything. If a check fails,
-   nothing is pushed and nothing deploys. In a genuine emergency, `git push --no-verify`
-   skips it.
-2. **In CI.** `.github/workflows/test.yml` runs the same checks on GitHub against a throwaway
-   Postgres, on every push and pull request. A failing browser test uploads its Playwright
-   report as a build artifact.
-3. **During the build.** `npm run build` runs the unit tests before `next build`, so a broken
-   build fails on Vercel even if the first two were bypassed. (Integration tests are left out
-   here: the build has no test database, and it must never touch the production one.)
+1. **The ruleset on `main`.** It requires a pull request and a passing
+   **Lint, types and tests** check, so nothing merges — and nothing deploys — until CI
+   is green. Nobody can push to `main` directly, including in an emergency. This is the
+   gate; everything below is convenience.
+2. **Before the push.** `npm install` points git at `.githooks`, where a `pre-push` hook
+   runs lint, types and the unit tests, plus the schema check when `prisma/` changed.
+   Seconds, and it catches the ordinary mistake without a five-minute round trip. It is
+   deliberately *not* the full suite: that would duplicate CI in the slower place.
+   `git push --no-verify` skips it and is harmless, because the ruleset still holds.
+3. **In CI.** `.github/workflows/test.yml` runs the whole suite on GitHub against a throwaway
+   Postgres, on every push and pull request — lint, types, the schema check, both vitest
+   suites and the browser suite against its own Playwright browser. A failing browser test
+   uploads its report as a build artifact. This is the check the ruleset requires.
+4. **During the build.** `npm run build` runs the unit tests before `next build`, so a broken
+   build fails on Vercel even if the rest were somehow bypassed. (Integration tests are left
+   out here: the build has no test database, and it must never touch the production one.)
 
 ### The migration that cannot be taken back
 

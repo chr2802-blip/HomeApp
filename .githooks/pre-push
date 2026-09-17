@@ -1,25 +1,35 @@
 #!/bin/sh
 #
-# Pushing to GitHub is what triggers a Vercel deploy, so the checks run here.
+# A fast check before the push, not the gate.
 #
-# What runs depends on what changed. Lint, types and the unit tests always run — they
-# need nothing and take seconds. The schema check, the integration suite and the browser
-# suite need Postgres and a production build, so they run only when something they could
-# possibly exercise has changed. Editing a README should not cost three minutes and a
-# Next.js build.
+# The gate is CI. A ruleset on `main` requires a pull request and a green
+# "Lint, types and tests" before anything can merge, so nothing reaches the deploy
+# without the full suite having passed on the server. This hook exists to catch the
+# ordinary mistake in seconds rather than in a five-minute round trip — which is a
+# different job, and a much cheaper one.
 #
-# When in doubt this runs everything: an unrecognised push, no range to compare, or any
-# change outside the known-safe set. CI runs the full suite on the server regardless, so
-# the worst case here is finding out a minute later rather than a minute earlier.
+# It used to be the only thing standing between a mistake and production, because
+# pushing to `main` deployed and nothing checked the push. That is why it ran a
+# production build and the whole browser suite on every change to src/, and why every
+# push cost minutes. With the ruleset in place that work is duplicated, and duplicated
+# in the slower of the two places.
 #
-# To push anyway in an emergency: git push --no-verify
+# So: lint, types and the unit tests always, because they need nothing and take
+# seconds. The schema check when the schema moved, because a bad migration is the one
+# failure with no rollback and asking costs two seconds. The integration and browser
+# suites belong to CI now.
+#
+# Run everything locally yourself with: npm run verify
+# To skip this hook in a hurry: git push --no-verify
+#   (the ruleset still holds — an unmergeable PR is the worst you can do)
 
 set -e
 
 ZERO=0000000000000000000000000000000000000000
 
-# Paths where a change could affect the app itself, its tests, or how either is built.
-CODE_PATHS='^(src/|prisma/|tests/|e2e/|scripts/|package\.json|package-lock\.json|tsconfig\.json|(next|vitest|playwright|postcss|eslint)\.config\.[a-z]+)'
+# Where a change could alter the database schema, and so the migrations that ship with
+# it. Narrower than the old set on purpose: this now guards one specific failure.
+SCHEMA_PATHS='^prisma/'
 
 changed=""
 saw_range=0
@@ -45,12 +55,14 @@ $(git diff --name-only "$base" "$local_sha")"
   saw_range=1
 done
 
-needs_everything=1
+# When in doubt, check: an unrecognised push or no range to compare against is worth
+# two seconds rather than a guess.
+needs_schema_check=1
 if [ "$saw_range" = "1" ] && [ -n "$(printf %s "$changed" | tr -d '[:space:]')" ]; then
-  if printf %s "$changed" | grep -qE "$CODE_PATHS"; then
-    needs_everything=1
+  if printf %s "$changed" | grep -qE "$SCHEMA_PATHS"; then
+    needs_schema_check=1
   else
-    needs_everything=0
+    needs_schema_check=0
   fi
 fi
 
@@ -59,11 +71,10 @@ run() {
   shift
   if ! "$@"; then
     echo ""
-    echo "pre-push: FAILED — nothing was pushed, so nothing will deploy."
-    echo "  Integration and browser tests need the local Postgres running:"
+    echo "pre-push: FAILED — nothing was pushed."
+    echo "  The schema check needs the local Postgres running:"
     echo "    docker start homehub-pg"
-    echo "  Re-run everything with: npm run verify"
-    echo "  Browser failures leave a report: npm run e2e:report"
+    echo "  Run the full suite the way CI does: npm run verify"
     exit 1
   fi
 }
@@ -72,16 +83,13 @@ run "checking lint and types..." npm run --silent lint
 run "" npm run --silent typecheck
 run "running unit tests..." npm run --silent test:unit
 
-if [ "$needs_everything" = "1" ]; then
-  # First, because it takes two seconds and the alternative to finding out here is a
-  # failed production build with no rollback: migrations run inside that build, so a
-  # schema edited without a migration to match deploys nothing and cannot be undone.
+if [ "$needs_schema_check" = "1" ]; then
+  # Two seconds, and the alternative to finding out here is a failed production build
+  # with no rollback: migrations run inside that build, so a schema edited without a
+  # migration to match deploys nothing and cannot be undone. CI checks this too, but
+  # this is the one failure worth catching before it is ever pushed.
   run "checking migrations match the schema..." npm run --silent db:check
-  run "running integration tests..." npm run --silent test:integration
-  run "running browser tests..." npm run --silent e2e
-else
-  echo "pre-push: no application, test or build files changed — skipping the"
-  echo "          integration and browser suites. CI still runs them in full."
 fi
 
-echo "pre-push: all checks passed."
+echo "pre-push: passed. CI runs the integration and browser suites, and the ruleset"
+echo "          on main will not let a red pull request merge."

@@ -11,7 +11,7 @@ was tried and caused a bug.
 
 ```bash
 npm run dev          # local dev server
-npm run verify       # lint + types + all tests — what the pre-push hook runs
+npm run verify       # lint + types + all tests — the whole of what CI will run
 npm test             # vitest (unit + integration)
 npm run e2e          # Playwright (builds the app first)
 npm run db:studio    # browse the database
@@ -308,11 +308,20 @@ hook uses `onSubmit` so values survive an error; only a successful add to a list
 
 ### Tests gate everything
 
-`.githooks/pre-push` checks the change before it leaves: lint, types and unit tests
-always; the integration and browser suites only when `src/`, `prisma/`, `tests/`, `e2e/`,
-`scripts/`, a lockfile or a build config changed. CI runs the full suite regardless, and
-`npm run build` runs the unit tests. Pushing to `main` deploys, so a failing suite must
-not reach the remote.
+**CI is the gate.** A ruleset on `main` requires a pull request and a green
+"Lint, types and tests" before anything merges, so the full suite has passed on the
+server before a deploy can happen. Nothing can be pushed straight to `main` any more.
+
+`.githooks/pre-push` is therefore a fast check rather than the gate: lint, types and the
+unit tests always, plus `db:check` when `prisma/` changed — seconds, not minutes. The
+integration and browser suites belong to CI. The hook ran them once because it was the
+only thing between a mistake and production; with the ruleset that work is duplicated in
+the slower place. `git push --no-verify` skips the hook and costs nothing, because the
+ruleset still holds.
+
+`npm run verify` is the full local run — lint, types, both vitest suites and the browser
+suite — for when you want what CI will see before you push. `npm run build` runs the
+unit tests.
 
 Integration and E2E use **separate** databases (`homehub_test`, `homehub_e2e`), created
 automatically. They truncate between tests, and refuse to run against a database whose
