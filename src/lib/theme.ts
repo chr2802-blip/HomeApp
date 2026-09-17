@@ -32,34 +32,21 @@ export const THEME_LABELS: Record<HomeTheme, string> = {
 export const THEMES = Object.keys(THEME_LABELS) as [HomeTheme, ...HomeTheme[]];
 
 /**
- * The band across the top of the screen, as the browser wants it: a literal.
+ * The band, as the browser and the manifest want it: a literal.
  *
  * The one place a colour is written down outside globals.css, because it is the one
- * place CSS cannot reach: `<meta name="theme-color">` colours a browser's own chrome,
- * and a meta tag takes a literal and not a variable. Without it the bar above the header
- * stays the colour it was while the header below it changes, which is a seam exactly
- * where the home's colour is supposed to be saying which household this is.
+ * place CSS cannot reach — `<meta name="theme-color">` and `manifest.webmanifest` both
+ * take a literal, and neither takes a variable. It is a copy of `--band`, checked
+ * against the stylesheet and against the manifest by `tests/unit/theme.test.ts`.
  *
- * Each of these is a copy of that theme's `--accent-soft` — the same flat colour the
- * header, the tab bar and the document behind them are painted in, character for
- * character. That the band is opaque is what makes the copy possible at all: a frosted
- * header is a different colour every time something else scrolls under it, and a strip
- * the phone paints can follow none of that. `tests/unit/theme.test.ts` reads the
- * stylesheet and fails if the two stop agreeing, which keeps this a copy that cannot
- * drift rather than a second opinion.
- *
- * It is also not what an installed app paints its status bar with — a home screen app
- * has no chrome for a theme colour to colour, and takes that strip from the document's
- * own background instead. That is why `html` is given the same band in globals.css.
+ * One colour rather than one per home, and the reason is Android. An installed app there
+ * is a WebAPK whose status bar *and* gesture bar are painted from the manifest's
+ * `theme_color`, read once when it is installed — the meta tag is ignored in an app with
+ * no chrome to tint. So a phone has exactly one of these, chosen before anybody picked a
+ * household colour, and a band that followed the household would be one the phone's own
+ * bars contradict. What a home is dressed in is the controls below the band instead.
  */
-export const THEME_BAR: Record<HomeTheme, string> = {
-  SLATE: "#ffffff",
-  OCEAN: "#f0f9ff",
-  INDIGO: "#eef2ff",
-  VIOLET: "#f5f3ff",
-  PLUM: "#fdf4ff",
-  SAND: "#fafaf9",
-};
+export const APP_BAND = "#ffffff";
 
 /** The colour a home with no choice of its own wears, and the app's own look. */
 export const DEFAULT_THEME: HomeTheme = "SLATE";

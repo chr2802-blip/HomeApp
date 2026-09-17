@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { getCurrentUser } from "@/lib/auth";
-import { DEFAULT_THEME, THEME_BAR } from "@/lib/theme";
+import { APP_BAND, DEFAULT_THEME } from "@/lib/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -11,9 +11,9 @@ export const metadata: Metadata = {
   /*
    * Installed from Safari, the app runs with no chrome of its own and the strip above it
    * holds the clock and the battery. `default` is what puts the phone's own dark glyphs
-   * there, which is the only readable choice against six pale bands — the translucent
-   * style would hand the strip to the app and turn those glyphs white. What it is
-   * painted with is the document's background, set from the home's band in globals.css.
+   * there, which is the only readable choice against a white band — the translucent
+   * style would hand the strip to the app and turn those glyphs white on white. What it
+   * is painted with is the document's background, which carries the band in globals.css.
    */
   appleWebApp: { capable: true, title: "HomeHub", statusBarStyle: "default" },
 };
@@ -21,28 +21,20 @@ export const metadata: Metadata = {
 /**
  * The browser's own chrome, above the header.
  *
- * Worked out per request rather than declared once, so it is the colour of the home
- * being read: left fixed it stays one colour while the header underneath it changes
- * with the household, which reads as a mistake rather than as a border.
+ * The band, so a tab's toolbar continues the app rather than sitting on top of it. It no
+ * longer depends on who is asking — the band is the app's own colour now, for the reason
+ * given in `lib/theme.ts` — so this is declared rather than worked out per request, and
+ * the session is read once by the layout below instead of twice.
  *
- * This is the colour a browser tints its address bar with. An installed app has no
- * address bar and takes its status bar from the document's background instead, which is
- * why `html` carries the same band in globals.css — the tag alone left the strip on a
- * home screen app the colour of the page. Both are the header's own flat colour, so
- * whichever of them a phone uses, the top of the screen is one bar.
- *
- * `getCurrentUser` is cached per request, so this and the layout below share the one
- * lookup, and somebody on the login page finds nobody and gets the app's own colour.
+ * An installed app has no chrome for this to colour: on iOS the strip above the header
+ * comes from the document's background, and on Android from the manifest. All three are
+ * the same colour, which is the point.
  */
-export async function generateViewport(): Promise<Viewport> {
-  const user = await getCurrentUser();
-
-  return {
-    themeColor: THEME_BAR[user?.homeTheme ?? DEFAULT_THEME],
-    width: "device-width",
-    initialScale: 1,
-  };
-}
+export const viewport: Viewport = {
+  themeColor: APP_BAND,
+  width: "device-width",
+  initialScale: 1,
+};
 
 /**
  * The colour goes on the document itself rather than on a wrapper inside the app.
