@@ -8,15 +8,27 @@ export const metadata: Metadata = {
   title: "HomeHub",
   description: "Lists, recurring tasks and recipes for your home.",
   manifest: "/manifest.webmanifest",
+  /*
+   * Installed from Safari, the app runs with no chrome of its own and the strip above it
+   * holds the clock and the battery. `default` is what puts the phone's own dark glyphs
+   * there, which is the only readable choice against six pale bands — the translucent
+   * style would hand the strip to the app and turn those glyphs white. What it is
+   * painted with is the document's background, set from the home's band in globals.css.
+   */
+  appleWebApp: { capable: true, title: "HomeHub", statusBarStyle: "default" },
 };
 
 /**
- * The phone's own status bar, above the header.
+ * The browser's own chrome, above the header.
  *
  * Worked out per request rather than declared once, so it is the colour of the home
- * being read: installed on a phone the app has no address bar of its own, and that strip
- * is the top of the screen. Left fixed it stays one colour while the header underneath
- * it changes with the household, which reads as a mistake rather than as a border.
+ * being read: left fixed it stays one colour while the header underneath it changes
+ * with the household, which reads as a mistake rather than as a border.
+ *
+ * This is the colour a browser tints its address bar with. An installed app has no
+ * address bar and takes its status bar from the document's background instead, which is
+ * why `html` carries the same band in globals.css — the tag alone left the strip on a
+ * home screen app the colour of the page.
  *
  * `getCurrentUser` is cached per request, so this and the layout below share the one
  * lookup, and somebody on the login page finds nobody and gets the app's own colour.
@@ -46,7 +58,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="en" data-theme={user?.homeTheme ?? DEFAULT_THEME}>
-      <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
+      {/* The page's own colour is in globals.css, beside the band the canvas behind it
+          wears: the two are a pair, and a class here would put half of it elsewhere. */}
+      <body className="min-h-screen text-slate-900 antialiased">
         {children}
         <Analytics />
       </body>
