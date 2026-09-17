@@ -212,7 +212,9 @@ test("a one-off is added with no interval to give", async ({ page }) => {
   await expect(page.getByText("Due today")).toBeVisible();
 });
 
-test("the done list stays away until a one-off is finished", async ({ page }) => {
+test("the done list stays away until a one-off is finished, and then stays folded", async ({
+  page,
+}) => {
   await addTask(page, { title: "Book the plumber", once: true });
 
   await expect(page.getByRole("heading", { name: "Done" })).toBeHidden();
@@ -221,6 +223,15 @@ test("the done list stays away until a one-off is finished", async ({ page }) =>
 
   await expect(page.getByRole("heading", { name: "Done" })).toBeVisible();
   await expect(page.getByText("Nothing left to do.")).toBeVisible();
+
+  // What is finished is kept, not shown: it opens on request rather than pushing what
+  // is still to do down the page.
+  const section = page.getByRole("button", { name: "Done (1)" });
+  await expect(section).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByText("Book the plumber", { exact: true })).toBeHidden();
+
+  await section.click();
+  await expect(page.getByText("Book the plumber", { exact: true })).toBeVisible();
 });
 
 test("a finished one-off can be brought back exactly as it was", async ({ page }) => {
@@ -228,6 +239,8 @@ test("a finished one-off can be brought back exactly as it was", async ({ page }
   await page.getByRole("button", { name: "Mark done" }).click();
   await expect(page.getByRole("heading", { name: "Done" })).toBeVisible();
 
+  // The way back is inside the folded section, with the task it belongs to.
+  await page.getByRole("button", { name: "Done (1)" }).click();
   await page.getByRole("button", { name: "Reopen" }).click();
 
   await expect(page.getByRole("heading", { name: "Done" })).toBeHidden();

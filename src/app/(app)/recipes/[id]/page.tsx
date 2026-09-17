@@ -7,7 +7,10 @@ import { ItemMenu } from "@/components/item-menu";
 import { RecipeFields } from "@/components/recipe-fields";
 import { safeExternalHref, toEmbed } from "@/lib/embed";
 import { PhotoBanner } from "@/components/photo";
+import { AddToListMenu } from "@/components/add-to-list-menu";
+import { ingredientLines } from "@/lib/recipes";
 
+/** Instructions are written the same way ingredients are: one step to a line. */
 function lines(value: string) {
   return value
     .split("\n")
@@ -23,7 +26,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
 
   // Scoped to the caller's home, so another home's id simply finds nothing —
   // indistinguishable from a record that never existed, which is the point.
-  const [recipe, categories] = await Promise.all([
+  const [recipe, categories, lists] = await Promise.all([
     db.recipe.findUnique({
       where: { id },
       // Alphabetical, like the picker and the headings on the recipes page: the order
@@ -36,12 +39,22 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
       },
     }),
     db.recipeCategory.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    /*
+     * Every list in the home, for the "Add to list" menu. Alphabetical rather than
+     * newest first: this is a chooser, and a chooser whose order changes as lists are
+     * made is one you have to read every time. Only what is still outstanding is
+     * counted — a list of forty ticked-off items is an empty list to anybody shopping.
+     */
+    db.list.findMany({
+      orderBy: { title: "asc" },
+      select: { id: true, title: true, _count: { select: { items: { where: { done: false } } } } },
+    }),
   ]);
   if (!recipe) notFound();
 
   const embed = toEmbed(recipe.videoUrl);
   const originalHref = safeExternalHref(recipe.videoUrl);
-  const ingredients = lines(recipe.ingredients);
+  const ingredients = ingredientLines(recipe.ingredients);
   const instructions = lines(recipe.instructions);
 
   return (
@@ -117,7 +130,21 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
 
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <Card>
-          <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Ingredients</h2>
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <h2 className="mt-2 text-sm font-semibold text-slate-500 uppercase">Ingredients</h2>
+            {/* Only where there is something to add. A recipe still being written would
+                otherwise offer to put nothing on a list. */}
+            {ingredients.length > 0 && (
+              <AddToListMenu
+                recipeId={recipe.id}
+                lists={lists.map((list) => ({
+                  id: list.id,
+                  title: list.title,
+                  open: list._count.items,
+                }))}
+              />
+            )}
+          </div>
           {ingredients.length === 0 ? (
             <p className="text-sm text-slate-500">None listed.</p>
           ) : (

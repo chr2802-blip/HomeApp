@@ -132,8 +132,8 @@ household's rows.
 point — the reminder job, the super admin's system view — and say so in a comment.
 
 **User is not home-scoped, and `homeDb` refuses it** along with `ListItem`,
-`ListFavorite` and `RecipeCategoryLink`. None of the four carries a `homeId`, so scoping
-would pass the query straight through — and `homeDb(id).user.findMany()`, which used to
+`ListItemSource`, `ListFavorite` and `RecipeCategoryLink`. None of the five carries a
+`homeId`, so scoping would pass the query straight through — and `homeDb(id).user.findMany()`, which used to
 mean "this home's people", would now hand back every account on the installation. A
 household's roster is `homeDb(id).homeMember.findMany({ include: { user: … } })`, and a
 list's items are an `include` on a list query that went through `homeDb`.
@@ -273,6 +273,33 @@ household's recipes.
 A category that still holds recipes cannot be deleted, by the action and by the foreign
 key both. Untick it on those recipes first.
 
+### An item can say which recipe put it there
+
+`ListItemSource` pairs a list item with a recipe, and "Add to list" on a recipe page
+writes them: every ingredient line goes onto the chosen list, and each item it touched
+then names the recipe underneath itself. An item nobody attached to a recipe — typed
+into the add box — has no row and says nothing, which is what makes the note worth
+reading where it does appear.
+
+Three rules decide what adding means, and they are what the integration tests pin down.
+A line already on the list is **wanted once more**, so the amount goes up by one rather
+than a second row appearing; a line **ticked off earlier comes back at one**, because
+what a ticked row carries is what was bought last time; and the pairing is **one row per
+(item, recipe)**, so the same recipe added twice bumps the amounts and still names
+itself once while two recipes wanting onions name both.
+
+**The note goes when the item is ticked off**, in `toggleListItem`. It answers "why is
+this on my list", which is a question about the shop still to do — once the thing is in
+the basket the recipe has been dealt with, and the row is only next week's vocabulary.
+Putting the item back therefore brings back the item and not the note. The rows also go
+with the recipe (`onDelete: Cascade`): a note pointing at a recipe that no longer exists
+has nothing left to say.
+
+Like `ListItem` it carries no `homeId`, so `homeDb` refuses it and pages read it as an
+include on a list query that went through `homeDb`. Both ids the action is given — the
+recipe's and the list's — are checked against the caller's homes, because one press
+sends both.
+
 ### A sheet's actions stay on screen
 
 `Modal` lays its contents out as a column: `ModalBody` scrolls, `ModalFooter` does not.
@@ -280,6 +307,24 @@ Every dialog puts its buttons — and the reason a submission was refused — in
 so they are in view from the moment it opens. **Never put a form's buttons inside
 `ModalBody`.** On a phone the sheet is the whole screen and the longer forms run well past
 it; a Save button below the fold is a form people abandon believing it did not work.
+
+### What is finished folds away
+
+`Collapsible` (`src/components/collapsible.tsx`) is the heading that hides what is
+behind it: a list's ticked-off items, the tasks a household has already done. Both are
+worth keeping — one is next week's vocabulary, the other is the record that the job was
+done — and neither is worth the screen it takes above what is still outstanding. It
+always says how much is in there, because a heading hiding an unknown quantity is one
+nobody opens, and it starts shut on every visit rather than remembering: what is
+outstanding is what the page is for.
+
+Pass `headingClassName` where what folds is a section of the page rather than part of a
+card, and the trigger is wrapped in an `<h2>` — the page's outline must not depend on
+whether the section happens to be open.
+
+For the same reason a list card counts **open items, not all of them**. A shopping list
+keeps everything ticked off, so a total climbs for ever and says the same thing about a
+finished list as about one nobody has started.
 
 ### Movement says where you are going
 

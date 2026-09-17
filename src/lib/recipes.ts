@@ -23,3 +23,18 @@ export function readCategoryChoice(formData: FormData) {
 
   return [...new Set(chosen)];
 }
+
+/**
+ * A recipe's ingredients as separate lines, trimmed, with the blank ones dropped.
+ *
+ * Ingredients are stored as one block of text — a cook writes them the way they would
+ * on paper — so every reader of them has to split it the same way: the recipe page
+ * drawing the list, and the action putting those lines on a shopping list. Doing it
+ * here means the two cannot disagree about what counts as a line.
+ */
+export function ingredientLines(ingredients: string) {
+  return ingredients
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}

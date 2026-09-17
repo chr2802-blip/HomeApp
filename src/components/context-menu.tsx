@@ -36,11 +36,24 @@ const EDGE = 8;
 
 export function ContextMenu({
   label,
+  trigger,
   className = "",
   children,
 }: {
-  /** What this menu acts on, e.g. the list's title — it names the button. */
+  /**
+   * What this menu is called. The three dots have no words of their own, so they are
+   * announced as "Actions for " and this — the list's title, the task's. A menu with a
+   * face of its own is announced as what its face says, and this names the panel.
+   */
   label: string;
+  /**
+   * What the button shows, for the one menu that is not the three dots: "Add to list"
+   * on a recipe opens a menu rather than a sheet, because what it needs is a choice
+   * from a short list and nothing else. Such a button says what it is in words, so it
+   * is left to name itself rather than being given a label that disagrees. A menu given
+   * its own face styles it too — the dots' padding and colours belong to the dots.
+   */
+  trigger?: React.ReactNode;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -128,7 +141,7 @@ export function ContextMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         data-ready={ready ? "true" : undefined}
-        aria-label={`Actions for ${label}`}
+        aria-label={trigger ? undefined : `Actions for ${label}`}
         onClick={() => {
           if (open) {
             setOpen(false);
@@ -137,13 +150,19 @@ export function ContextMenu({
           place();
           setOpen(true);
         }}
-        className={`pressable shrink-0 rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-900 active:scale-90 ${className}`}
+        className={
+          trigger
+            ? className
+            : `pressable shrink-0 rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-900 active:scale-90 ${className}`
+        }
       >
-        <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor" aria-hidden="true">
-          <circle cx="10" cy="4" r="1.6" />
-          <circle cx="10" cy="10" r="1.6" />
-          <circle cx="10" cy="16" r="1.6" />
-        </svg>
+        {trigger ?? (
+          <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor" aria-hidden="true">
+            <circle cx="10" cy="4" r="1.6" />
+            <circle cx="10" cy="10" r="1.6" />
+            <circle cx="10" cy="16" r="1.6" />
+          </svg>
+        )}
       </button>
 
       {open && position && typeof document !== "undefined"
@@ -151,7 +170,7 @@ export function ContextMenu({
             <div
               ref={panelRef}
               role="menu"
-              aria-label={`Actions for ${label}`}
+              aria-label={trigger ? label : `Actions for ${label}`}
               style={{ top: position.top, right: position.right }}
               className="animate-row-in fixed z-50 min-w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
             >
@@ -167,6 +186,7 @@ export function ContextMenu({
 const ICONS = {
   pencil: "M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z",
   bin: "M5 7h14M9 7V5h6v2M7 7l1 12h8l1-12",
+  list: "M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01",
 } as const;
 
 /**

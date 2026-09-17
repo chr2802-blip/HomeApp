@@ -8,11 +8,18 @@ import { requireHomeUser } from "@/lib/auth";
 import { assertHomeAccess } from "@/lib/access";
 import { homeScoped } from "@/lib/scoped";
 import { readForm, requiredText } from "@/lib/form";
-import { clampAmount } from "@/lib/amount";
+import { clampAmount, MIN_AMOUNT } from "@/lib/amount";
+import { ingredientLines } from "@/lib/recipes";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 
 const listInScope = homeScoped("List", (id) => prisma.list.findUnique({ where: { id } }));
+/**
+ * The recipe an ingredient run is copying from, checked the same way a list is. Both
+ * ids arrive from the same press, so both are checked against the caller's homes: a
+ * recipe from one household must not be able to write into another's shopping.
+ */
+const recipeInScope = homeScoped("Recipe", (id) => prisma.recipe.findUnique({ where: { id } }));
 
 /** An absent amount means one, which is what a list that ignores them always sends. */
 const amount = z
@@ -230,11 +237,24 @@ async function itemInScope(itemId: string) {
   return item;
 }
 
+/**
+ * Ticks an item off, or puts it back.
+ *
+ * Ticking it off also drops whatever recipe put it there. The note under an item
+ * answers "why is this on my list", which is a question about the shop still to do —
+ * once the thing is in the basket the recipe has been dealt with, and a ticked row is
+ * only next week's vocabulary. Putting it back therefore brings back the item and not
+ * the note, which is the same as anything else added by hand.
+ */
 export async function toggleListItem(formData: FormData) {
   const item = await itemInScope(String(formData.get("itemId")));
   if (!item) return;
 
-  await prisma.listItem.update({ where: { id: item.id }, data: { done: !item.done } });
+  await prisma.$transaction([
+    prisma.listItem.update({ where: { id: item.id }, data: { done: !item.done } }),
+    ...(item.done ? [] : [prisma.listItemSource.deleteMany({ where: { itemId: item.id } })]),
+  ]);
+
   revalidatePath(`/lists/${item.listId}`);
 }
 
@@ -260,4 +280,88 @@ export async function setListItemAmount(formData: FormData) {
     data: { amount: clampAmount(formData.get("amount")) },
   });
   revalidatePath(`/lists/${item.listId}`);
+}
+
+/**
+ * Puts a recipe's ingredients on one of the home's lists.
+ *
+ * What it means to "add the lasagne" is that every line of its ingredients should be on
+ * the list, so a line already there is not a clash to report — it is the same
+ * ingredient wanted once more, and the amount goes up by one. A line ticked off earlier
+ * comes back at one: what is on a ticked row is what was bought last time, not what
+ * this recipe needs now.
+ *
+ * Each item then carries a note saying which recipe asked for it, so twenty lines of
+ * shopping still read as "these three are the lasagne". Adding the same recipe twice
+ * bumps the amounts and leaves one note; two recipes wanting onions leave two.
+ *
+ * Unlike the other actions that report, this one takes the form data alone: it is not
+ * submitted by a form but pressed in a menu, so there is no previous state for React to
+ * hand it. It still reports, because there are two things worth saying — a recipe with
+ * nothing listed, and a list that was written to.
+ */
+export async function addRecipeIngredients(formData: FormData): Promise<ActionResult> {
+  const recipe = await recipeInScope(String(formData.get("recipeId")));
+  const list = await listInScope(String(formData.get("listId")));
+
+  // Deduplicated against itself as well as against the list: a recipe that says "salt"
+  // twice means salt, not two salts.
+  const wanted = new Map<string, string>();
+  for (const line of ingredientLines(recipe.ingredients)) {
+    if (!wanted.has(line.toLowerCase())) wanted.set(line.toLowerCase(), line);
+  }
+  if (wanted.size === 0) return fail("This recipe has no ingredients to add yet.");
+
+  const onList = await prisma.listItem.findMany({
+    where: { listId: list.id },
+    // An open row wins over a ticked one where a list somehow holds both: what is still
+    // outstanding is what the cook will be looking at.
+    orderBy: { done: "asc" },
+  });
+  const byText = new Map<string, (typeof onList)[number]>();
+  for (const item of onList) {
+    if (!byText.has(item.text.toLowerCase())) byText.set(item.text.toLowerCase(), item);
+  }
+
+  let position = await nextPosition(list.id);
+
+  /*
+   * One transaction: a half-added recipe is a shopping list nobody can trust, and the
+   * cook has no way of telling which half arrived.
+   */
+  await prisma.$transaction(async (tx) => {
+    for (const [key, text] of wanted) {
+      const existing = byText.get(key);
+
+      const itemId = existing
+        ? (
+            await tx.listItem.update({
+              where: { id: existing.id, listId: list.id },
+              data: existing.done
+                ? { done: false, amount: MIN_AMOUNT, position: position++ }
+                : { amount: clampAmount(existing.amount + 1) },
+              select: { id: true },
+            })
+          ).id
+        : (
+            await tx.listItem.create({
+              data: { listId: list.id, text, amount: MIN_AMOUNT, position: position++ },
+              select: { id: true },
+            })
+          ).id;
+
+      // One row per pairing, so the second run finds it already there and the item
+      // still names the recipe once.
+      await tx.listItemSource.upsert({
+        where: { itemId_recipeId: { itemId, recipeId: recipe.id } },
+        create: { itemId, recipeId: recipe.id },
+        update: {},
+      });
+    }
+  });
+
+  revalidatePath(`/lists/${list.id}`);
+  revalidatePath("/lists");
+  revalidatePath("/dashboard");
+  return ok();
 }

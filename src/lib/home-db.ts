@@ -34,6 +34,7 @@ const NO_HOME_ID: Record<string, { refuse: true; because: string } | { refuse: f
     because: "a user belongs to several homes; ask homeMember, and read the user through it",
   },
   ListItem: { refuse: true, because: "reached through its list" },
+  ListItemSource: { refuse: true, because: "reached through its list item" },
   ListFavorite: { refuse: true, because: "reached through its list" },
   RecipeCategoryLink: { refuse: true, because: "reached through its recipe" },
 
