@@ -93,15 +93,26 @@ The attribute goes on `<html>`, set by the **root layout** from the session. Not
 wrapper inside the app: sheets and the three-dot panel are portalled into `<body>`, so
 anything scoped to a div would leave every dialog in the previous home's colours.
 
-The one exception to "only globals.css" is the phone's status bar: `generateViewport`
-in the root layout hands the browser a `theme-color`, and a meta tag takes a literal and
-not a variable. So `THEME_BAR` in `src/lib/theme.ts` repeats each theme's `--accent-soft`
-as an opaque hex — and `tests/unit/theme.test.ts` parses both and fails if they ever stop
-agreeing, because the drift shows only as the strip above the header no longer matching
-the header. **Any new theme needs a `THEME_BAR` entry as well as a CSS block.** The
-manifest's own `theme_color` cannot be one of these: it is read once when the app is
-installed, so it stays the default, and the document's tag takes over the moment a page
-renders.
+**The top of the screen is coloured twice, because two different things paint it.** A
+browser tints its own chrome from `<meta name="theme-color">`, which `generateViewport`
+in the root layout writes per request from `THEME_BAR` — a meta tag takes a literal and
+not a variable, which is why that one copy of the colour lives in TypeScript. An
+installed app has no chrome for the tag to colour: the strip holding the clock and the
+battery comes from the **document's own background**, so `html` is given
+`--accent-bar` in globals.css. Set only the tag and the phone's bar stays the colour of
+the page while the header below it wears the household's, which is the seam the colour
+exists to close.
+
+`--accent-bar` is the band as it actually renders — `--accent-soft` is translucent, so
+it composites over `--page` — and `THEME_BAR` is a copy of that. `tests/unit/theme.test.ts`
+does the arithmetic itself and fails if the three stop agreeing, because the drift shows
+only as a strip a shade off the header. **Any new theme needs an `--accent-bar` and a
+`THEME_BAR` entry as well as the rest of its block.** The manifest's own `theme_color`
+cannot follow the household — it is read once, when the app is installed, and the
+document's tag takes over the moment a page renders — so it is the default theme's band,
+which the same test checks. On iOS the strip's glyphs are the phone's own dark ones,
+from `appleWebApp.statusBarStyle: "default"`: the translucent style hands the strip to
+the app and turns them white, which no pale band can carry.
 
 **The colour dresses the frame, never the meanings inside it.** The header, the tab bar,
 the active nav pill, the primary button and the focus ring — and nothing else. Green is
