@@ -9,6 +9,26 @@ import { dueLabel, dueTone } from "@/lib/due";
 import { UNFINISHED, repeatLabel } from "@/lib/tasks";
 import { PhotoBanner, PhotoThumb } from "@/components/photo";
 
+/**
+ * What a list card says about a list: how much of it is still to do.
+ *
+ * Only the open items are counted. A shopping list keeps everything ticked off as next
+ * week's vocabulary, so the total climbs for ever and says the same thing about a list
+ * that is finished as about one nobody has started. The total is still fetched, but
+ * only to tell an empty list from a finished one — "All done" on a list that has never
+ * had anything on it would be a lie told cheerfully.
+ */
+const LIST_COUNTS = {
+  _count: { select: { items: true } },
+  items: { where: { done: false }, select: { id: true } },
+} as const;
+
+function itemsLine(list: { _count: { items: number }; items: unknown[] }) {
+  if (list._count.items === 0) return "Nothing on it yet";
+  if (list.items.length === 0) return "All done";
+  return `${list.items.length} open`;
+}
+
 type DueTaskRow = {
   id: string;
   title: string;
@@ -79,12 +99,12 @@ export default async function DashboardPage() {
     db.list.findMany({
       where: { favorites: { some: { userId: user.id } } },
       orderBy: { title: "asc" },
-      include: { _count: { select: { items: true } } },
+      include: LIST_COUNTS,
     }),
     db.list.findMany({
       orderBy: { createdAt: "desc" },
       take: 5,
-      include: { _count: { select: { items: true } } },
+      include: LIST_COUNTS,
     }),
   ]);
 
@@ -173,7 +193,7 @@ export default async function DashboardPage() {
                   <PhotoThumb photoId={list.photoId} alt="" className="h-11 w-11" />
                   <div className="min-w-0">
                     <p className="font-medium">{list.title}</p>
-                    <p className="text-xs text-slate-500">{list._count.items} items</p>
+                    <p className="text-xs text-slate-500">{itemsLine(list)}</p>
                   </div>
                 </Card>
               </Link>

@@ -20,7 +20,17 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   const list = await homeDb(user.homeId).list.findUnique({
     where: { id },
     include: {
-      items: { orderBy: [{ done: "asc" }, { position: "asc" }] },
+      items: {
+        orderBy: [{ done: "asc" }, { position: "asc" }],
+        // Which recipes put each item here, oldest first, so an item wanted by two
+        // recipes names them in the order they asked for it.
+        include: {
+          sources: {
+            orderBy: { createdAt: "asc" },
+            select: { recipe: { select: { id: true, title: true } } },
+          },
+        },
+      },
       // Only the caller's own star — favourites are personal.
       favorites: { where: { userId: user.id }, select: { userId: true } },
     },
@@ -73,7 +83,14 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
       </Card>
 
       <Card className="divide-y divide-slate-100 p-0">
-        <ListItems listId={list.id} items={list.items} trackAmounts={list.trackAmounts} />
+        <ListItems
+          listId={list.id}
+          items={list.items.map((item) => ({
+            ...item,
+            sources: item.sources.map((source) => source.recipe),
+          }))}
+          trackAmounts={list.trackAmounts}
+        />
       </Card>
     </>
   );

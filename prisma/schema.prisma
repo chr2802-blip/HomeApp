@@ -217,8 +217,43 @@ model ListItem {
   position Int     @default(0)
 
   list List @relation(fields: [listId], references: [id], onDelete: Cascade)
+  /// The recipes that put this item on the list, if any did.
+  sources ListItemSource[]
 
   @@index([listId])
+}
+
+/**
+ * One list item, and a recipe whose ingredients asked for it.
+ *
+ * It exists so a shopping list can say where a line came from: three items in among
+ * twenty read differently once the list says they are the lasagne. A line nobody
+ * attached to a recipe — typed into the add box — has no row here and says nothing,
+ * which is what keeps the note meaningful where it does appear.
+ *
+ * One row per pairing rather than one per addition, so a recipe added twice bumps the
+ * amount and still names itself once: "Lasagne, Lasagne" under an onion tells nobody
+ * anything. Two different recipes wanting the same onion are two rows, and the item
+ * names both.
+ *
+ * The rows go when the item is ticked off, in `toggleListItem`: the note is about what
+ * is still to buy, and a ticked item is next week's vocabulary rather than this week's
+ * lasagne. They also go with the recipe itself — a note pointing at a recipe that no
+ * longer exists has nothing left to say — and with the item, whichever is deleted.
+ * Like ListItem it carries no homeId: it is reached through the item, which is reached
+ * through the list, which is what carries the home.
+ */
+model ListItemSource {
+  itemId    String
+  recipeId  String
+  createdAt DateTime @default(now())
+
+  item   ListItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  recipe Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  // One row per pairing, and the lookup that asks what a recipe put on a list.
+  @@id([itemId, recipeId])
+  @@index([recipeId])
 }
 
 /**
@@ -285,6 +320,8 @@ model Recipe {
   photo      Photo?               @relation(fields: [photoId], references: [id], onDelete: SetNull)
   /// Every heading this recipe is filed under; at least one, often more.
   categories RecipeCategoryLink[]
+  /// The list items this recipe's ingredients have been added to.
+  listItems  ListItemSource[]
 
   @@index([homeId])
 }

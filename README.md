@@ -11,11 +11,13 @@ Next.js 15 (App Router) · Prisma · PostgreSQL · Tailwind · Web Push
 **Lists** — Create any number of lists (shopping, to-do, packing). Add, tick off, remove and
 clear items. Rename or delete a whole list. Drag items into the order you shop in, and
 when you type something that was ticked off earlier it is offered back rather than
-duplicated — so next week's list is mostly rebuilt from last week's.
+duplicated — so next week's list is mostly rebuilt from last week's. Ticked-off items fold
+away into a "Completed" section, and the dashboard counts what is still open rather than
+everything a list has ever held.
 
 **Tasks** — A task happens once or over and over, and the repeat picker is where you say which.
-A one-off is finished when you mark it done: it moves to a "Done" list at the bottom of the page,
-where it can be brought back if the wrong card was pressed. A recurring task is given an interval
+A one-off is finished when you mark it done: it moves to a folded-away "Done" section at the
+bottom of the page, where it can be brought back if the wrong card was pressed. A recurring task is given an interval
 in days, and marking it done reschedules it that many days out. Either can be handed to one member
 of the home, and either can be edited into the other kind later. Overdue and due-today tasks are
 highlighted on the dashboard, and a daily job sends a push notification for anything due — a
@@ -24,6 +26,11 @@ one-off that has been done is out of all of that for good.
 **Recipes** — Title, description, ingredients and instructions (one per line). Paste an
 Instagram, YouTube, TikTok, Vimeo or Facebook link and the video is embedded on the recipe page.
 Links from any other host are shown as a plain "open in new tab" link rather than embedded.
+**Add to list** puts every ingredient onto whichever of the home's lists you pick: anything
+already on it is wanted one more time rather than written twice, anything ticked off comes
+back, and each line then says which recipe asked for it — two recipes wanting onions name
+both. Ticking an item off drops the note, because the question it answers is about the shop
+still to do.
 
 **Pictures** — The home has one of its own, shown beside its name and across the top of the
 dashboard, and so can each list, task and recipe. Taking a photo on a phone and
