@@ -1,6 +1,30 @@
 @import "tailwindcss";
 
+/** The page behind the cards, and what `--accent-bar` is the header composited over. */
+:root {
+  --page: #f8fafc;
+}
+
+/*
+ * The canvas wears the home's band, and the page is painted over it.
+ *
+ * Installed on a phone the app has no address bar, and the strip holding the clock and
+ * the battery is drawn from the document's own background rather than from anything the
+ * page lays out — `<meta name="theme-color">` colours a browser's chrome, but a home
+ * screen app has none for it to colour. Left to itself that background falls through to
+ * the body's, so the strip came out the colour of the page while the header a millimetre
+ * below it wore the household's, which reads as two apps stacked rather than one.
+ *
+ * Only the strip and the overscroll at either end ever show it: `body` covers the
+ * viewport, and the bar at the bottom wears the same band, so the rubber band at both
+ * edges continues the frame rather than flashing the page.
+ */
+html {
+  background-color: var(--accent-bar);
+}
+
 body {
+  background-color: var(--page);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
@@ -14,7 +38,7 @@ body {
  * through a portal into <body>, so anything scoped to a div inside the app would leave
  * every dialog in the previous home's colours.
  *
- * Each theme is five values and no more, because a home's colour dresses the frame —
+ * Each theme is six values and no more, because a home's colour dresses the frame —
  * the header, the tab bar, the button that saves — and not the meanings inside it.
  * Green still means added, red about to be deleted and amber overdue, in every home,
  * which is why none of these is any of those.
@@ -25,6 +49,9 @@ body {
  *   --accent-soft   the header and tab bar, translucent because they blur what scrolls
  *                   beneath them
  *   --accent-line   the rule under the header, and any hairline drawn in the colour
+ *   --accent-bar    that same band as an opaque colour, for the two places a
+ *                   translucent one cannot go: the canvas behind the page, and the
+ *                   phone's status bar via THEME_BAR
  *
  * White on --accent and --accent-text on white both clear 4.5:1 in all six. SLATE is
  * the app as it was before homes had colours, and stays the default for a home whose
@@ -38,6 +65,7 @@ body {
   --accent-text: #0f172a;
   --accent-soft: rgb(255 255 255 / 0.85);
   --accent-line: #e2e8f0;
+  --accent-bar: #fefeff;
 }
 
 [data-theme="OCEAN"] {
@@ -46,6 +74,7 @@ body {
   --accent-text: #075985;
   --accent-soft: rgb(240 249 255 / 0.85);
   --accent-line: #bae6fd;
+  --accent-bar: #f1f9ff;
 }
 
 [data-theme="INDIGO"] {
@@ -54,6 +83,7 @@ body {
   --accent-text: #4338ca;
   --accent-soft: rgb(238 242 255 / 0.85);
   --accent-line: #c7d2fe;
+  --accent-bar: #f0f3ff;
 }
 
 [data-theme="VIOLET"] {
@@ -62,6 +92,7 @@ body {
   --accent-text: #6d28d9;
   --accent-soft: rgb(245 243 255 / 0.85);
   --accent-line: #ddd6fe;
+  --accent-bar: #f5f4ff;
 }
 
 [data-theme="PLUM"] {
@@ -70,6 +101,7 @@ body {
   --accent-text: #86198f;
   --accent-soft: rgb(253 244 255 / 0.85);
   --accent-line: #f5d0fe;
+  --accent-bar: #fcf5ff;
 }
 
 [data-theme="SAND"] {
@@ -78,6 +110,7 @@ body {
   --accent-text: #44403c;
   --accent-soft: rgb(250 250 249 / 0.85);
   --accent-line: #e7e5e4;
+  --accent-bar: #fafaf9;
 }
 
 /*

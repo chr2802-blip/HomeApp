@@ -36,6 +36,23 @@ const themeOf = (page: Page) => page.locator("html");
  */
 const barOf = (page: Page) => page.locator('meta[name="theme-color"]');
 
+/**
+ * What the document itself is painted in, which is what a home screen app paints the
+ * strip holding the clock and the battery with — it has no chrome for the tag above to
+ * colour. Asserted beside the tag rather than instead of it: the two colour the top of
+ * the screen on different phones, and the seam is either of them going its own way.
+ */
+const canvasOf = (page: Page) =>
+  page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
+
+/** `rgb(240, 249, 255)` as `#f0f9ff`, so a computed colour can be read against a hex. */
+function asHex(colour: string) {
+  const [red, green, blue] = colour.match(/\d+/g)!.map(Number);
+  return `#${[red, green, blue]
+    .map((channel) => channel!.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
 test.describe("as a home admin", () => {
   test("picks the colour the whole household is then dressed in", async ({ page, loginAs }) => {
     await loginAs(ACCOUNTS.admin);
@@ -48,9 +65,11 @@ test.describe("as a home admin", () => {
     await page.getByRole("button", { name: "Save home" }).click();
 
     await expect(themeOf(page)).toHaveAttribute("data-theme", "OCEAN");
-    // The phone's own bar above the header moves with it, so the top of the screen is
-    // one colour rather than two.
-    await expect(barOf(page)).toHaveAttribute("content", "#f0f9ff");
+    // The bar above the header moves with it, so the top of the screen is one colour
+    // rather than two — in a browser, which tints its chrome from the tag, and in an
+    // installed app, which takes that strip from the document's own background.
+    await expect(barOf(page)).toHaveAttribute("content", "#f1f9ff");
+    expect(asHex(await canvasOf(page))).toBe("#f1f9ff");
     // Stored, not merely on screen: it survives the page being asked for again.
     await page.reload();
     await expect(themeOf(page)).toHaveAttribute("data-theme", "OCEAN");
@@ -86,6 +105,7 @@ test.describe("somebody in two homes", () => {
     ).toBeVisible();
     await expect(themeOf(page)).toHaveAttribute("data-theme", "SAND");
     await expect(barOf(page)).toHaveAttribute("content", "#fafaf9");
+    expect(asHex(await canvasOf(page))).toBe("#fafaf9");
   });
 });
 
@@ -94,5 +114,6 @@ test("the login page wears the app's own colours, belonging to no home", async (
   await page.goto("/login");
 
   await expect(themeOf(page)).toHaveAttribute("data-theme", "SLATE");
-  await expect(barOf(page)).toHaveAttribute("content", "#ffffff");
+  await expect(barOf(page)).toHaveAttribute("content", "#fefeff");
+  expect(asHex(await canvasOf(page))).toBe("#fefeff");
 });
