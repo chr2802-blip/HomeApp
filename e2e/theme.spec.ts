@@ -88,6 +88,12 @@ test.describe("as a home admin", () => {
     // Every home starts in the app's own colours.
     await expect(themeOf(page)).toHaveAttribute("data-theme", "SLATE");
 
+    // A marker that only survives if the document is never torn down, so what follows
+    // is the colour arriving in the page that is already open rather than in a new one.
+    await page.evaluate(() => {
+      (window as unknown as { __alive?: boolean }).__alive = true;
+    });
+
     await page.getByRole("radio", { name: "Ocean" }).check();
     await page.getByRole("button", { name: "Save home" }).click();
 
@@ -95,6 +101,12 @@ test.describe("as a home admin", () => {
     // The frame goes with the controls: picking Ocean repaints the header, the tab bar
     // and the tag the phone reads, all in the one colour.
     await expectOneBand(page, "#f0f9ff");
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { __alive?: boolean }).__alive === true,
+      ),
+      "the page reloaded, so this says nothing about the tag changing",
+    ).toBe(true);
     // Stored, not merely on screen: it survives the page being asked for again.
     await page.reload();
     await expect(themeOf(page)).toHaveAttribute("data-theme", "OCEAN");
