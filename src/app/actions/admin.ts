@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { MemberRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireSuperAdmin, requireUser, hashPassword } from "@/lib/auth";
+import { requireAnyHomeAdmin, requireSuperAdmin, requireUser, hashPassword } from "@/lib/auth";
 import { assertHomeAdmin, canAccessHome, canAdministerHome } from "@/lib/access";
 import { generateInviteCode, hashInviteCode } from "@/lib/invite-code";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
@@ -56,7 +56,7 @@ export type InviteState =
   | undefined;
 
 export async function createInvite(_prev: InviteState, formData: FormData): Promise<InviteState> {
-  const user = await requireAdmin();
+  const user = await requireAnyHomeAdmin();
   const homeId = String(formData.get("homeId") ?? "");
   if (!canAdministerHome(user, homeId)) return { ok: false, error: "Not allowed." };
 
@@ -101,7 +101,7 @@ export async function createInvite(_prev: InviteState, formData: FormData): Prom
 }
 
 export async function revokeInvite(formData: FormData) {
-  const user = await requireAdmin();
+  const user = await requireAnyHomeAdmin();
   const invite = await prisma.invite.findUnique({
     where: { id: String(formData.get("inviteId")) },
   });
@@ -113,7 +113,7 @@ export async function revokeInvite(formData: FormData) {
 }
 
 export async function updateHome(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  const user = await requireAdmin();
+  const user = await requireAnyHomeAdmin();
   const homeId = String(formData.get("homeId") ?? "");
   assertHomeAdmin(user, homeId);
 
@@ -162,7 +162,7 @@ function membershipFrom(formData: FormData) {
 }
 
 export async function updateMemberRole(formData: FormData) {
-  const actor = await requireAdmin();
+  const actor = await requireAnyHomeAdmin();
   const membership = await membershipFrom(formData);
   if (!membership) return;
   assertHomeAdmin(actor, membership.homeId);
@@ -185,7 +185,7 @@ export async function updateMemberRole(formData: FormData) {
  * in this one — a departing housemate does not take the shopping list with them.
  */
 export async function removeMember(formData: FormData) {
-  const actor = await requireAdmin();
+  const actor = await requireAnyHomeAdmin();
   const membership = await membershipFrom(formData);
   if (!membership) return;
   assertHomeAdmin(actor, membership.homeId);

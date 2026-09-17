@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { requireAdmin } from "@/lib/auth";
+import { requireAnyHomeAdmin } from "@/lib/auth";
 import { canAdministerHome } from "@/lib/access";
 import { prisma } from "@/lib/prisma";
 import { homeDb } from "@/lib/home-db";
@@ -35,7 +35,7 @@ import { ThemeField } from "@/components/theme-field";
  * profile, one entry above this in the same menu.
  */
 export default async function SettingsPage() {
-  const user = await requireAdmin();
+  const user = await requireAnyHomeAdmin();
 
   if (!user.homeId) {
     return (
@@ -52,8 +52,8 @@ export default async function SettingsPage() {
   }
 
   const homeId = user.homeId;
-  // requireAdmin only says they run *a* home. Running one household is no licence over
-  // the next, so the one on screen is checked in its own right.
+  // requireAnyHomeAdmin only says they run *a* home. Running one household is no
+  // licence over the next, so the one on screen is checked in its own right.
   if (!canAdministerHome(user, homeId)) redirect("/dashboard");
 
   const db = homeDb(homeId);

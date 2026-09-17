@@ -20,10 +20,10 @@ const categorySchema = z.object({ name: requiredText("Give the category a name."
  * id to cross-check because the form never sends one, which is one fewer thing to get
  * wrong.
  *
- * Asked of the home on screen, and not of the person. `requireAdmin` answers "do they
- * run *a* home", which is a different question wearing the same clothes: somebody who
- * runs the flat and merely lives in the summer house passes it, and these actions then
- * act on whichever home they have open. Running one household is no licence over the
+ * Asked of the home on screen, and not of the person. `requireAnyHomeAdmin` answers
+ * "do they run *a* home", which is a different question wearing the same clothes:
+ * somebody who runs the flat and merely lives in the summer house passes it, and these
+ * actions would then act on whichever home they have open. Running one household is no licence over the
  * next, so the home being administered is the one that has to be theirs to run — the
  * same check `/settings` makes before drawing the page these forms live on.
  */
