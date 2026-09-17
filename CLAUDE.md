@@ -425,6 +425,14 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
   sound — replacing a picture writes a new row with a new id — but it means a browser can
   answer a repeat request out of its own cache, so a test about what the *server* will
   serve has to ask with `cache: "no-store"`.
+- **The unit tests read the schema through the generated client, so `prisma generate`
+  runs first in `npm run build`.** `home-scoping.test.ts` walks `Prisma.dmmf`, which is
+  whatever was last generated — and Vercel restores `node_modules` from the previous
+  deployment's cache and skips the install scripts, so without generating first the
+  tests are asked about the *previous* commit's schema. That fails the build on a test
+  naming a model sitting right there in `schema.prisma`, which reads like a bad test
+  rather than a stale client. It is also why the failure cannot happen locally: a
+  checkout that has run `npm ci` has generated from the schema in front of it.
 - **`vercel.json` is schema-validated.** An unknown key can fail the deploy; keep
   explanations in the README.
 - **On Windows, `npx.cmd` cannot be spawned without a shell.** Invoke a CLI's entry point
