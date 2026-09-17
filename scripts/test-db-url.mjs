@@ -55,6 +55,25 @@ export function e2eDatabaseName(urlString) {
   return assertSuffix(urlString, "_e2e");
 }
 
+/**
+ * The database belonging to one worker, given something that tells it apart from the
+ * others running at the same time.
+ *
+ * The plain name — "homehub_test", "homehub_e2e" — is not one of these. It is the
+ * template: migrated once, never run against, and copied to make each of these. So a
+ * worker never shares, and never has to be told which migrations it is meant to have.
+ *
+ * The key goes *before* the suffix because the suffix is the whole guard: every entry
+ * point refuses a database whose name does not end in "_test" or "_e2e", and a worker's
+ * database has to be refused on the same terms as the template it came from.
+ */
+export function workerDatabaseUrl(urlString, key) {
+  const url = new URL(urlString);
+  const name = url.pathname.replace(/^\//, "");
+  url.pathname = `/${name.replace(/(_test|_e2e)$/, `_w${key}$1`)}`;
+  return url.toString();
+}
+
 /** The same server, but connected to the default "postgres" database. */
 export function adminDatabaseUrl(urlString) {
   const url = new URL(urlString);

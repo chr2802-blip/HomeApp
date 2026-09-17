@@ -54,10 +54,12 @@ export default defineConfig({
           name: "integration",
           include: ["tests/integration/**/*.test.ts"],
           environment: "node",
-          setupFiles: ["./tests/setup/integration.ts"],
+          // worker-db.ts comes first: it picks this worker's database, and must run
+          // before anything constructs a Prisma client.
+          setupFiles: ["./tests/setup/worker-db.ts", "./tests/setup/integration.ts"],
           globalSetup: ["./tests/setup/global.ts"],
-          // One shared database, so files must not race each other.
-          fileParallelism: false,
+          // A database each — see tests/setup/worker-db.ts — so the files can run at
+          // the same time.
           testTimeout: 20_000,
           hookTimeout: 30_000,
         },
