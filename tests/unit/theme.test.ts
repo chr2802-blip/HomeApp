@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { APP_BAND, DEFAULT_THEME, THEMES, THEME_LABELS } from "@/lib/theme";
+import { APP_BAND, BANDS, DEFAULT_THEME, THEMES, THEME_LABELS } from "@/lib/theme";
 
 /**
  * A home's colour is named in TypeScript and drawn in CSS, and nothing but this holds
@@ -20,6 +20,7 @@ const stylesheet = readFileSync(
 
 /** Every variable a theme has to define; anything that wears the colour reads these. */
 const VARIABLES = [
+  "--band",
   "--accent",
   "--accent-hover",
   "--accent-text",
@@ -56,47 +57,86 @@ describe("home themes", () => {
   });
 
   /**
-   * The band: one colour, in all four places that paint the top and bottom of the
-   * screen. The header and the tab bar wear `--band`; so does the document behind them,
-   * which is what an installed app on iOS paints its status bar from; `APP_BAND` repeats
-   * it for `<meta name="theme-color">`, which is what a browser tints its chrome with;
-   * and the manifest repeats it again for Android, where a WebAPK's status bar and
-   * gesture bar are painted from `theme_color` at install and the meta tag is ignored.
+   * The band, and the four painters of the screen's edges that have to agree about it.
    *
-   * Opaque, and that is load-bearing rather than a matter of taste. A frosted band is a
-   * different colour every time something else scrolls under it, and a strip the phone
-   * paints can follow none of that: near enough still reads as two bars meeting. So the
-   * alpha is checked as strictly as the hex.
+   * The header, the tab bar and the document behind them read `--band` straight out of
+   * the stylesheet, so the only one that can drift is the copy in TypeScript — which is
+   * the one the phone's status bar is tinted from, and the one nothing on a desktop ever
+   * shows. A `BANDS` entry a shade away from its `--band` renders perfectly in a browser
+   * and is a seam a millimetre above the header on a phone.
+   *
+   * Opaque, in every theme, and that is load-bearing rather than a matter of taste. A
+   * frosted band is a different colour every time something scrolls under it, and a
+   * strip the phone paints can follow none of that: near enough still reads as two bars
+   * meeting. So the alpha is checked as strictly as the hex.
    */
-  it("paints the band as one flat colour every painter of it can carry", () => {
-    const band = stylesheet.match(/--band:\s*([^;]+);/)?.[1].trim();
+  it.each(THEMES)("gives %s a band the stylesheet and the meta tag both carry", (theme) => {
+    const band = blockFor(theme)?.match(/--band:\s*([^;]+);/)?.[1].trim();
 
-    expect(band, "no --band in globals.css").toMatch(/^#[0-9a-f]{6}$/);
-    expect(APP_BAND).toBe(band);
+    expect(band, `no --band in [data-theme="${theme}"]`).toMatch(/^#[0-9a-f]{6}$/);
+    expect(BANDS[theme]).toBe(band);
+  });
 
+  /**
+   * The manifest is the painter that cannot follow anybody: an installed app reads
+   * `theme_color` once, when it is installed, and shows it on the splash screen before
+   * the app has said a word. So it is the band of a page belonging to no home.
+   */
+  it("gives the manifest the band of no home in particular", () => {
     const manifest = JSON.parse(
       readFileSync(path.join(process.cwd(), "public/manifest.webmanifest"), "utf8"),
     );
-    expect(manifest.theme_color).toBe(band);
+
+    expect(APP_BAND).toBe(BANDS[DEFAULT_THEME]);
+    expect(manifest.theme_color).toBe(APP_BAND);
   });
 
   /**
    * The canvas is what an installed app on iOS paints the strip holding the clock and
-   * the battery with, so a document that does not carry the band leaves that strip the
-   * colour of the page — the seam the band exists to close, and invisible in a browser.
+   * the battery with — iOS reads no meta tag for it — so a document that does not carry
+   * the band leaves that strip the colour of the page. That is the seam the band exists
+   * to close, and it is invisible in a browser.
    */
   it("gives the document itself the band, not just the header", () => {
     expect(stylesheet).toMatch(/html\s*\{[^}]*background-color:\s*var\(--band\)/);
   });
 
   /**
-   * And no theme may take the band back. A `--accent-soft` in one block would dress that
-   * household's header in a colour the phone's own bars cannot be told about, which is
-   * exactly the arrangement this replaced.
+   * And the band is the only thing a household is allowed to repaint the frame with. An
+   * `--accent-soft` beside it would be a second colour for the same strip, and the one
+   * the phone is told about is whichever of the two the header did not use.
    */
-  it.each(THEMES)("leaves the band alone in %s", (theme) => {
-    expect(blockFor(theme)).not.toContain("--band:");
+  it.each(THEMES)("keeps %s to the one colour for the frame", (theme) => {
     expect(blockFor(theme)).not.toContain("--accent-soft:");
+  });
+
+  /**
+   * The bottom of the screen is the app's own, and three files have to agree for it.
+   *
+   * The viewport is laid out under the phone's bars, the tab bar pads itself past the
+   * gesture bar and paints the band behind it, and what scrolls clears both. Drop the
+   * viewport line and the insets are zero everywhere — the layout still looks right, and
+   * the strip at the bottom goes back to being a colour the manifest chose at install.
+   * Drop either padding and the insets are not zero and nothing accounts for them, which
+   * puts the tabs under the gesture bar. Neither shows up in a desktop browser, where
+   * every inset is zero either way.
+   */
+  it("lays the app out under the phone's bars, and pads for them", () => {
+    const read = (file: string) =>
+      readFileSync(path.join(process.cwd(), file), "utf8");
+
+    expect(read("src/app/layout.tsx")).toMatch(/viewportFit:\s*"cover"/);
+
+    // The tab bar leaves the gesture bar its room, and its background — the band —
+    // is what fills it.
+    const nav = read("src/components/bottom-nav.tsx");
+    expect(nav).toContain("pb-[env(safe-area-inset-bottom)]");
+    expect(nav).toContain("bg-[var(--band)]");
+
+    // And the frame around the page accounts for both ends.
+    const app = read("src/app/(app)/layout.tsx");
+    expect(app).toContain("pt-[env(safe-area-inset-top)]");
+    expect(app).toContain("pb-[calc(7rem+env(safe-area-inset-bottom))]");
   });
 
   it("keeps the colours that already mean something out of the palette", () => {
