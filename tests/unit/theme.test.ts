@@ -60,8 +60,11 @@ describe("home themes", () => {
    * screen. The header and the tab bar wear `--band`; so does the document behind them,
    * which is what an installed app on iOS paints its status bar from; `APP_BAND` repeats
    * it for `<meta name="theme-color">`, which is what a browser tints its chrome with;
-   * and the manifest repeats it again for Android, where a WebAPK's status bar and
-   * gesture bar are painted from `theme_color` at install and the meta tag is ignored.
+   * and the manifest repeats it again for Android, where an installed app's status bar
+   * is painted from `theme_color` at install and the meta tag never reaches it. The
+   * bottom of the screen is the app's own — the tab bar paints the gesture bar — which
+   * is precisely why all four have to carry the same colour: one end of the frame
+   * follows the stylesheet and the other was agreed with the phone months ago.
    *
    * Opaque, and that is load-bearing rather than a matter of taste. A frosted band is a
    * different colour every time something else scrolls under it, and a strip the phone
@@ -97,6 +100,35 @@ describe("home themes", () => {
   it.each(THEMES)("leaves the band alone in %s", (theme) => {
     expect(blockFor(theme)).not.toContain("--band:");
     expect(blockFor(theme)).not.toContain("--accent-soft:");
+  });
+
+  /**
+   * The bottom of the screen is the app's own, and three files have to agree for it.
+   *
+   * The viewport is laid out under the phone's bars, the tab bar pads itself past the
+   * gesture bar and paints the band behind it, and what scrolls clears both. Drop the
+   * viewport line and the insets are zero everywhere — the layout still looks right, and
+   * the strip at the bottom goes back to being a colour the manifest chose at install.
+   * Drop either padding and the insets are not zero and nothing accounts for them, which
+   * puts the tabs under the gesture bar. Neither shows up in a desktop browser, where
+   * every inset is zero either way.
+   */
+  it("lays the app out under the phone's bars, and pads for them", () => {
+    const read = (file: string) =>
+      readFileSync(path.join(process.cwd(), file), "utf8");
+
+    expect(read("src/app/layout.tsx")).toMatch(/viewportFit:\s*"cover"/);
+
+    // The tab bar leaves the gesture bar its room, and its background — the band —
+    // is what fills it.
+    const nav = read("src/components/bottom-nav.tsx");
+    expect(nav).toContain("pb-[env(safe-area-inset-bottom)]");
+    expect(nav).toContain("bg-[var(--band)]");
+
+    // And the frame around the page accounts for both ends.
+    const app = read("src/app/(app)/layout.tsx");
+    expect(app).toContain("pt-[env(safe-area-inset-top)]");
+    expect(app).toContain("pb-[calc(7rem+env(safe-area-inset-bottom))]");
   });
 
   it("keeps the colours that already mean something out of the palette", () => {

@@ -11,6 +11,11 @@ export function BottomNav({ showAdmin }: { showAdmin: boolean }) {
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--accent-line)] bg-[var(--band)] md:hidden">
+      {/* The tabs sit above the phone's gesture bar and the band behind them runs on
+          underneath it: the page is laid out to the bottom edge of the screen, so this
+          padding is the only thing keeping the row off the bar, and the strip it leaves
+          is what makes the phone's own bottom bar the app's colour rather than the
+          manifest's. */}
       <ul className="mx-auto flex max-w-lg items-stretch pb-[env(safe-area-inset-bottom)]">
         {items.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);

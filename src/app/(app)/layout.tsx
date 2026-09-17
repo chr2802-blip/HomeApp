@@ -19,8 +19,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="min-h-screen">
       {/* Tinted in the home's own colour, which is the point of the colour: the band
           across the top of every screen is the one thing always in view. */}
-      <header className="sticky top-0 z-30 border-b border-[var(--accent-line)] bg-[var(--band)]">
-        <div className="mx-auto flex max-w-5xl items-center gap-x-6 px-4 py-3">
+      {/* The band starts at the very top of the screen, not below the clock: the page
+          is laid out under the phone's bars (`viewportFit` in the root layout), so the
+          header pads itself past the top inset and paints the strip above its own row.
+          Without that padding the name and the back arrow sit under the clock. */}
+      <header className="sticky top-0 z-30 border-b border-[var(--accent-line)] bg-[var(--band)] pt-[env(safe-area-inset-top)]">
+        <div className="mx-auto flex max-w-5xl items-center gap-x-6 py-3 pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))]">
           <div className="flex min-w-0 items-center gap-1.5">
             <BackButton />
             {/* The household's own picture and name, not the product's: everyone here
@@ -49,7 +53,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 pt-8 pb-28 md:pb-10">
+      {/* The tab bar is as tall as it was plus whatever the phone's gesture bar takes,
+          so what clears it has to be too — a fixed 7rem leaves the last card under the
+          tabs on a phone that reserves anything at the bottom. */}
+      <main className="mx-auto max-w-5xl pt-8 pb-[calc(7rem+env(safe-area-inset-bottom))] pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))] md:pb-10">
         <PageTransition>{children}</PageTransition>
       </main>
 

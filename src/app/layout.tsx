@@ -34,6 +34,21 @@ export const viewport: Viewport = {
   themeColor: APP_BAND,
   width: "device-width",
   initialScale: 1,
+  /*
+   * The app is laid out to the edges of the screen, under the phone's own bars.
+   *
+   * Without this the viewport stops above the gesture bar, and the strip the phone
+   * draws there is the phone's — painted, on Android, from the manifest at install and
+   * from nothing the page can say afterwards. With it the strip is inside the viewport
+   * and the tab bar's own band reaches it, so the bottom of the screen is the app's
+   * pixels rather than a colour agreed with the phone beforehand.
+   *
+   * What it costs is that the layout is now responsible for the insets it just took on:
+   * `env(safe-area-inset-*)` is no longer zero, the header pads by the top one and the
+   * tab bar by the bottom one, and a form's buttons already did (`ModalFooter`). Get
+   * one wrong and the content sits under a system bar rather than beside it.
+   */
+  viewportFit: "cover",
 };
 
 /**

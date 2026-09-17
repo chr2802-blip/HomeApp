@@ -99,15 +99,25 @@ name="theme-color">` and the manifest repeats it again — four painters of the 
 bottom of the screen, carrying one hex between them, checked by the unit test against
 the stylesheet and by the browser test in a real browser.
 
-**It does not follow the household, and that is Android's doing rather than a
-preference.** An installed app there is compiled into a WebAPK whose status bar *and*
-gesture bar are painted from the manifest's `theme_color`, read once at install; the
-document's meta tag is ignored in an app with no chrome to tint. So a phone has exactly
-one such colour, chosen before anybody picked a household colour — a band that followed
-the home would be one the phone's own bars contradict in five homes out of six. On iOS
-that strip comes from the document's background instead, which is why `html` carries the
-band too, and its glyphs stay the phone's own dark ones through
+**The two ends of the screen are painted by different hands, and that is why there is
+one colour.** The app is laid out under the phone's own bars —
+`viewportFit: "cover"` in the root layout — so the gesture bar at the bottom is inside
+the viewport and the tab bar's band reaches it: that end is the app's own pixels and
+follows the stylesheet immediately. The top is not. An installed app on Android is a
+WebAPK whose status bar is painted from the manifest's `theme_color`, read once at
+install, and the document's meta tag does not reach a window with no chrome to tint. So
+a band that followed the household would be one the top of the screen contradicts in
+five homes out of six, while the bottom followed along — the frame would stop matching
+itself. On iOS the strip comes from the document's background instead, which is why
+`html` carries the band too, and its glyphs stay the phone's own dark ones through
 `appleWebApp.statusBarStyle: "default"`.
+
+Laying out under the bars is a debt the layout pays back in three places, and
+`tests/unit/theme.test.ts` holds all three together: the header pads past
+`env(safe-area-inset-top)` so its row clears the clock, the tab bar pads past
+`env(safe-area-inset-bottom)` so the tabs clear the gesture bar while the band behind
+them fills it, and `main` clears both. Every inset is zero on a desktop, so getting one
+wrong is invisible in a browser and obvious on a phone.
 
 **The band is opaque, and that is load-bearing.** It was `rgb(… / 0.85)` so the header
 could frost what scrolled under it — and a frosted header is a different colour every

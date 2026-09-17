@@ -4,18 +4,21 @@
  * The two colours the app itself is, whichever home is open.
  *
  * `--band` is the frame: the header, the tab bar, the document behind them — and
- * therefore the phone's own status bar and gesture bar, which an installed app paints
- * from the manifest. `--page` is what the cards sit on.
+ * therefore the phone's own status bar and gesture bar. `--page` is what the cards sit
+ * on.
  *
- * The band does not follow the household, and that is Android's doing rather than a
- * preference. An installed app there is compiled into a WebAPK whose system bars are
- * painted from the manifest's `theme_color`, read once when it is installed: the
- * document's `<meta name="theme-color">` is ignored, so there is exactly one such colour
- * per installation and it cannot be per home. A band that changed with the household
- * would therefore be a band the phone's own bars disagree with in five homes out of six.
- * One continuous colour across the top of the screen is worth more than a band that
- * names the home — which the header does in words, with the household's picture beside
- * them and its colour on every control below.
+ * The two ends of the screen are painted by different hands, which is why the band is
+ * one colour rather than the household's. The app is laid out to the bottom edge
+ * (`viewportFit: "cover"`), so the gesture bar is *inside* the viewport and the tab
+ * bar's own band reaches it — that end follows whatever this file says, immediately.
+ * The top does not: an installed app on Android is a WebAPK whose status bar is painted
+ * from the manifest's `theme_color`, read once when it is installed, and the document's
+ * `<meta name="theme-color">` does not reach a window with no chrome to tint. So a
+ * band that changed with the household would be one the top of the screen disagreed
+ * with in five homes out of six, and the two ends of the same frame would stop matching
+ * each other. One continuous colour is worth more than a band that names the home —
+ * which the header does in words, with the household's picture beside them and its
+ * colour on every control below.
  */
 :root {
   --page: #f8fafc;
