@@ -1,26 +1,47 @@
 @import "tailwindcss";
 
-/** The page behind the cards, and what `--accent-bar` is the header composited over. */
+/**
+ * The two colours the app itself is, whichever home is open.
+ *
+ * `--band` is the frame: the header, the tab bar, the document behind them — and
+ * therefore the phone's own status bar and gesture bar, which an installed app paints
+ * from the manifest. `--page` is what the cards sit on.
+ *
+ * The band does not follow the household, and that is Android's doing rather than a
+ * preference. An installed app there is compiled into a WebAPK whose system bars are
+ * painted from the manifest's `theme_color`, read once when it is installed: the
+ * document's `<meta name="theme-color">` is ignored, so there is exactly one such colour
+ * per installation and it cannot be per home. A band that changed with the household
+ * would therefore be a band the phone's own bars disagree with in five homes out of six.
+ * One continuous colour across the top of the screen is worth more than a band that
+ * names the home — which the header does in words, with the household's picture beside
+ * them and its colour on every control below.
+ */
 :root {
   --page: #f8fafc;
+  --band: #ffffff;
 }
 
 /*
- * The canvas wears the home's band, and the page is painted over it.
+ * The canvas wears the band, and the page is painted over it.
  *
  * Installed on a phone the app has no address bar, and the strip holding the clock and
  * the battery is drawn from the document's own background rather than from anything the
- * page lays out — `<meta name="theme-color">` colours a browser's chrome, but a home
- * screen app has none for it to colour. Left to itself that background falls through to
- * the body's, so the strip came out the colour of the page while the header a millimetre
- * below it wore the household's, which reads as two apps stacked rather than one.
+ * page lays out. Left to itself that background falls through to the body's, so the
+ * strip came out the colour of the page while the header a millimetre below it wore
+ * another, which reads as two apps stacked rather than one.
  *
- * Only the strip and the overscroll at either end ever show it: `body` covers the
- * viewport, and the bar at the bottom wears the same band, so the rubber band at both
- * edges continues the frame rather than flashing the page.
+ * It is opaque for the same reason the header is. Frosted, the header is a different
+ * colour every time something else scrolls under it, and a strip the phone paints can
+ * follow none of that — near enough is still two bars. One flat colour is a colour the
+ * header, the tab bar, this canvas, the meta tag and the manifest can all carry exactly.
+ *
+ * Only that strip and the overscroll at either end ever show the canvas: `body` covers
+ * the viewport, and the bar at the bottom wears the same band, so the rubber band at
+ * both edges continues the frame rather than flashing the page.
  */
 html {
-  background-color: var(--accent-bar);
+  background-color: var(--band);
 }
 
 body {
@@ -38,20 +59,17 @@ body {
  * through a portal into <body>, so anything scoped to a div inside the app would leave
  * every dialog in the previous home's colours.
  *
- * Each theme is six values and no more, because a home's colour dresses the frame —
- * the header, the tab bar, the button that saves — and not the meanings inside it.
- * Green still means added, red about to be deleted and amber overdue, in every home,
- * which is why none of these is any of those.
+ * Each theme is four values and no more, because a home's colour dresses the controls —
+ * the button that saves, the tab that is lit, the hairline under the header — and not
+ * the meanings inside them. Green still means added, red about to be deleted and amber
+ * overdue, in every home, which is why none of these is any of those. The band itself is
+ * the app's, not the household's: see `--band` at the top of this file.
  *
  *   --accent        a filled control: the primary button, the tab that is lit
  *   --accent-hover  the same under the pointer
  *   --accent-text   the colour as words on white, dark enough to read as words
- *   --accent-soft   the header and tab bar, translucent because they blur what scrolls
- *                   beneath them
- *   --accent-line   the rule under the header, and any hairline drawn in the colour
- *   --accent-bar    that same band as an opaque colour, for the two places a
- *                   translucent one cannot go: the canvas behind the page, and the
- *                   phone's status bar via THEME_BAR
+ *   --accent-line   the rule under the header and above the tab bar, and any hairline
+ *                   drawn in the colour — the home's colour touching the band
  *
  * White on --accent and --accent-text on white both clear 4.5:1 in all six. SLATE is
  * the app as it was before homes had colours, and stays the default for a home whose
@@ -63,54 +81,42 @@ body {
   --accent: #0f172a;
   --accent-hover: #334155;
   --accent-text: #0f172a;
-  --accent-soft: rgb(255 255 255 / 0.85);
   --accent-line: #e2e8f0;
-  --accent-bar: #fefeff;
 }
 
 [data-theme="OCEAN"] {
   --accent: #0369a1;
   --accent-hover: #075985;
   --accent-text: #075985;
-  --accent-soft: rgb(240 249 255 / 0.85);
   --accent-line: #bae6fd;
-  --accent-bar: #f1f9ff;
 }
 
 [data-theme="INDIGO"] {
   --accent: #4f46e5;
   --accent-hover: #4338ca;
   --accent-text: #4338ca;
-  --accent-soft: rgb(238 242 255 / 0.85);
   --accent-line: #c7d2fe;
-  --accent-bar: #f0f3ff;
 }
 
 [data-theme="VIOLET"] {
   --accent: #7c3aed;
   --accent-hover: #6d28d9;
   --accent-text: #6d28d9;
-  --accent-soft: rgb(245 243 255 / 0.85);
   --accent-line: #ddd6fe;
-  --accent-bar: #f5f4ff;
 }
 
 [data-theme="PLUM"] {
   --accent: #a21caf;
   --accent-hover: #86198f;
   --accent-text: #86198f;
-  --accent-soft: rgb(253 244 255 / 0.85);
   --accent-line: #f5d0fe;
-  --accent-bar: #fcf5ff;
 }
 
 [data-theme="SAND"] {
   --accent: #57534e;
   --accent-hover: #44403c;
   --accent-text: #44403c;
-  --accent-soft: rgb(250 250 249 / 0.85);
   --accent-line: #e7e5e4;
-  --accent-bar: #fafaf9;
 }
 
 /*

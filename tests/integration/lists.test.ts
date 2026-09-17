@@ -502,11 +502,24 @@ describe("reorderListItems", () => {
 
     // The foreign id is dropped; the rest are renumbered in the order given.
     expect((await prisma.listItem.findUniqueOrThrow({ where: { id: foreign.id } })).position).toBe(1);
-    const inList = await prisma.listItem.findMany({
-      where: { listId: list.id },
-      orderBy: { position: "asc" },
-    });
-    expect(inList.map((item) => item.text).slice(0, 2)).toEqual(["Three", "One"]);
+
+    /*
+     * Read as positions rather than as an order, because a request naming only some of
+     * a list's items leaves the rest where they were: "Two" is still at 2 and "One" has
+     * just been moved to 2 as well, and two rows sharing a position come back from
+     * `orderBy: { position: "asc" }` in whichever order Postgres feels like. Asserting
+     * the order made this test a coin flip that landed the right way up for months.
+     *
+     * The tie is the test's own doing and not the app's: the page sends every open item
+     * it is showing, so a real drag renumbers all of them.
+     */
+    const positions = Object.fromEntries(
+      (await prisma.listItem.findMany({ where: { listId: list.id } })).map((item) => [
+        item.text,
+        item.position,
+      ]),
+    );
+    expect(positions).toEqual({ Three: 1, One: 2, Two: 2 });
   });
 
   it("does nothing when given no ids", async () => {

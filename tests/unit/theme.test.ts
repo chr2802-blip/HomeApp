@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_THEME, THEMES, THEME_BAR, THEME_LABELS } from "@/lib/theme";
+import { APP_BAND, DEFAULT_THEME, THEMES, THEME_LABELS } from "@/lib/theme";
 
 /**
  * A home's colour is named in TypeScript and drawn in CSS, and nothing but this holds
@@ -23,9 +23,7 @@ const VARIABLES = [
   "--accent",
   "--accent-hover",
   "--accent-text",
-  "--accent-soft",
   "--accent-line",
-  "--accent-bar",
 ];
 
 /** The declarations inside `[data-theme="NAME"] { … }`, or null when there is no block. */
@@ -58,61 +56,47 @@ describe("home themes", () => {
   });
 
   /**
-   * What the header actually renders as, which three separate things have to agree on:
-   * the header itself (`--accent-soft`, translucent so it can blur what scrolls under
-   * it), the canvas behind the page (`--accent-bar`, which is what an installed app
-   * paints its status bar from) and `THEME_BAR` (which is what a browser tints its
-   * chrome with, and cannot be a variable because a meta tag takes a literal).
+   * The band: one colour, in all four places that paint the top and bottom of the
+   * screen. The header and the tab bar wear `--band`; so does the document behind them,
+   * which is what an installed app on iOS paints its status bar from; `APP_BAND` repeats
+   * it for `<meta name="theme-color">`, which is what a browser tints its chrome with;
+   * and the manifest repeats it again for Android, where a WebAPK's status bar and
+   * gesture bar are painted from `theme_color` at install and the meta tag is ignored.
    *
-   * So the arithmetic is done here rather than trusted anywhere: the soft colour over
-   * the page is what somebody looking at the top of the screen sees, and both of the
-   * opaque copies have to be exactly that. They disagree silently — the strip simply
-   * stops being the colour of the header a millimetre below it.
+   * Opaque, and that is load-bearing rather than a matter of taste. A frosted band is a
+   * different colour every time something else scrolls under it, and a strip the phone
+   * paints can follow none of that: near enough still reads as two bars meeting. So the
+   * alpha is checked as strictly as the hex.
    */
-  it.each(THEMES)("paints %s's band, the page behind it and the bar alike", (theme) => {
-    const soft = blockFor(theme)?.match(/--accent-soft:\s*rgb\(([^)]*)\)/)?.[1];
-    expect(soft, `no --accent-soft for ${theme}`).toBeTruthy();
+  it("paints the band as one flat colour every painter of it can carry", () => {
+    const band = stylesheet.match(/--band:\s*([^;]+);/)?.[1].trim();
 
-    const [channels, alpha] = soft!.split("/");
-    const over = channels.trim().split(/\s+/).map(Number);
-    const opacity = Number(alpha);
+    expect(band, "no --band in globals.css").toMatch(/^#[0-9a-f]{6}$/);
+    expect(APP_BAND).toBe(band);
 
-    const page = stylesheet.match(/--page:\s*#([0-9a-f]{6})/)?.[1];
-    expect(page, "no --page in globals.css").toBeTruthy();
-    const behind = [0, 2, 4].map((at) => parseInt(page!.slice(at, at + 2), 16));
-
-    // What the browser composites: the header's colour at its own opacity, over the
-    // page it is drawn on top of.
-    const rendered = `#${over
-      .map((channel, index) => Math.round(opacity * channel + (1 - opacity) * behind[index]!))
-      .map((channel) => channel.toString(16).padStart(2, "0"))
-      .join("")}`;
-
-    expect(blockFor(theme)).toContain(`--accent-bar: ${rendered};`);
-    expect(THEME_BAR[theme]).toBe(rendered);
-  });
-
-  /**
-   * The canvas is what a home screen app paints the strip holding the clock and the
-   * battery with, so a document that does not carry the band leaves that strip the
-   * colour of the page — which is the seam the band exists to close.
-   */
-  it("gives the document itself the band, not just the header", () => {
-    expect(stylesheet).toMatch(/html\s*\{[^}]*background-color:\s*var\(--accent-bar\)/);
-  });
-
-  /**
-   * The manifest's own colour cannot follow the household: it is read once, when the app
-   * is installed, and the document's tag takes over the moment a page renders. So it has
-   * to be the default theme's band — anything else is a flash of the wrong colour every
-   * time the app is opened.
-   */
-  it("opens an installed app in the default theme's band", () => {
     const manifest = JSON.parse(
       readFileSync(path.join(process.cwd(), "public/manifest.webmanifest"), "utf8"),
     );
+    expect(manifest.theme_color).toBe(band);
+  });
 
-    expect(manifest.theme_color).toBe(THEME_BAR[DEFAULT_THEME]);
+  /**
+   * The canvas is what an installed app on iOS paints the strip holding the clock and
+   * the battery with, so a document that does not carry the band leaves that strip the
+   * colour of the page — the seam the band exists to close, and invisible in a browser.
+   */
+  it("gives the document itself the band, not just the header", () => {
+    expect(stylesheet).toMatch(/html\s*\{[^}]*background-color:\s*var\(--band\)/);
+  });
+
+  /**
+   * And no theme may take the band back. A `--accent-soft` in one block would dress that
+   * household's header in a colour the phone's own bars cannot be told about, which is
+   * exactly the arrangement this replaced.
+   */
+  it.each(THEMES)("leaves the band alone in %s", (theme) => {
+    expect(blockFor(theme)).not.toContain("--band:");
+    expect(blockFor(theme)).not.toContain("--accent-soft:");
   });
 
   it("keeps the colours that already mean something out of the palette", () => {

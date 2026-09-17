@@ -76,14 +76,14 @@ to — it is how Settings and Profile are reached. `HomeMenu` in
 `src/components/home-menu.tsx` draws it; the list of other homes appears inside it only
 when there is more than one, because a chooser with a single choice is furniture.
 
-### A home is dressed in a colour, and it dresses the frame only
+### A home is dressed in a colour, and it dresses the controls
 
 `Home.theme` is one of a fixed set (`HomeTheme`), picked by that household's admins in
-the Home card on `/settings`. Now that somebody is in several homes, the header saying
-which one is open is the difference between adding milk to the right shopping list and
-the wrong one.
+the Home card on `/settings`. Somebody in several homes needs to know which one is open
+before they add milk to the wrong shopping list — the header says so in words, with the
+household's picture beside them, and its colour is on every control below.
 
-What each colour *is* lives in **`globals.css` and nowhere else**, as a block of five
+What each colour *is* lives in **`globals.css` and nowhere else**, as a block of four
 variables per theme keyed by `[data-theme="NAME"]`. `src/lib/theme.ts` holds only what
 they are called. Anything showing a colour — a swatch in the picker, a dot beside a home
 in the header's menu — carries that home's `data-theme` and reads `var(--accent)`, so it *is*
@@ -95,32 +95,33 @@ The attribute goes on `<html>`, set by the **root layout** from the session. Not
 wrapper inside the app: sheets and the three-dot panel are portalled into `<body>`, so
 anything scoped to a div would leave every dialog in the previous home's colours.
 
-**The top of the screen is coloured twice, because two different things paint it.** A
-browser tints its own chrome from `<meta name="theme-color">`, which `generateViewport`
-in the root layout writes per request from `THEME_BAR` — a meta tag takes a literal and
-not a variable, which is why that one copy of the colour lives in TypeScript. An
-installed app has no chrome for the tag to colour: the strip holding the clock and the
-battery comes from the **document's own background**, so `html` is given
-`--accent-bar` in globals.css. Set only the tag and the phone's bar stays the colour of
-the page while the header below it wears the household's, which is the seam the colour
-exists to close.
+**The frame is the app's own, and it is one colour: `--band`.** The header, the tab bar
+and the document behind them wear it, `APP_BAND` repeats it for `<meta
+name="theme-color">` and the manifest repeats it again — four painters of the top and
+bottom of the screen, carrying one hex between them, checked by the unit test against
+the stylesheet and by the browser test in a real browser.
 
-`--accent-bar` is the band as it actually renders — `--accent-soft` is translucent, so
-it composites over `--page` — and `THEME_BAR` is a copy of that. `tests/unit/theme.test.ts`
-does the arithmetic itself and fails if the three stop agreeing, because the drift shows
-only as a strip a shade off the header. **Any new theme needs an `--accent-bar` and a
-`THEME_BAR` entry as well as the rest of its block.** The manifest's own `theme_color`
-cannot follow the household — it is read once, when the app is installed, and the
-document's tag takes over the moment a page renders — so it is the default theme's band,
-which the same test checks. On iOS the strip's glyphs are the phone's own dark ones,
-from `appleWebApp.statusBarStyle: "default"`: the translucent style hands the strip to
-the app and turns them white, which no pale band can carry.
+**It does not follow the household, and that is Android's doing rather than a
+preference.** An installed app there is compiled into a WebAPK whose status bar *and*
+gesture bar are painted from the manifest's `theme_color`, read once at install; the
+document's meta tag is ignored in an app with no chrome to tint. So a phone has exactly
+one such colour, chosen before anybody picked a household colour — a band that followed
+the home would be one the phone's own bars contradict in five homes out of six. On iOS
+that strip comes from the document's background instead, which is why `html` carries the
+band too, and its glyphs stay the phone's own dark ones through
+`appleWebApp.statusBarStyle: "default"`.
 
-**The colour dresses the frame, never the meanings inside it.** The header, the tab bar,
-the active nav pill, the primary button and the focus ring — and nothing else. Green is
-still "added", red "about to be deleted", amber "overdue", in every home; a household
-dressed in one of those would be saying it on every screen, which is why none of the
-themes is any of them and why `create` and `danger` keep their own colours.
+**The band is opaque, and that is load-bearing.** It was `rgb(… / 0.85)` so the header
+could frost what scrolled under it — and a frosted header is a different colour every
+time the page moves, which a strip the phone paints can follow none of. The unit test
+checks the alpha as strictly as the hex, and no theme block may define `--band` or bring
+back an `--accent-soft` of its own.
+
+**The colour dresses the controls, never the meanings inside them.** The primary button,
+the active nav pill, the focus ring and the hairline under the header — and nothing
+else. Green is still "added", red "about to be deleted", amber "overdue", in every home;
+a household dressed in one of those would be saying it on every screen, which is why
+none of the themes is any of them and why `create` and `danger` keep their own colours.
 
 The picker submits `THEME_FIELD`, checked against the set by `updateHome`. It is
 optional there — a colour not mentioned is a colour left alone — because the other ways
