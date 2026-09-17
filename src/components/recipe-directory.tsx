@@ -151,14 +151,26 @@ export function RecipeDirectory({
           {needle ? <>No recipe matches “{query.trim()}”.</> : "Nothing filed under this category yet."}
         </EmptyState>
       ) : (
-        <div className="space-y-6">
+        /*
+         * Keyed by the filter, so changing it remounts what is under it and every card
+         * plays its arrival again. The movement is the answer to the press: the cards
+         * that survive a filter would otherwise sit exactly where they were while the
+         * rest vanished, which reads as nothing having happened. A keyframe rather than
+         * a transition for the usual reason — there is no painted "before" for a card
+         * that has just been mounted. Only the category does this and not the search
+         * box: a re-entrance on every keystroke is a page that will not sit still.
+         */
+        <div key={categoryId} className="space-y-6">
           {groups.map((group) => (
             <section key={group.category.id}>
               <h2 className="mb-3 flex items-baseline gap-2 text-sm font-semibold text-slate-500 uppercase">
                 <span>{group.category.name}</span>
                 <span className="text-xs font-normal normal-case">{group.recipes.length}</span>
               </h2>
-              <div className="grid gap-3 sm:grid-cols-2">
+              {/* Two to a row at every width: a recipe card is a picture with a name
+                  under it, which stays recognisable small, and one per row on a phone
+                  turns a dozen recipes into a scroll nobody reaches the end of. */}
+              <div className="grid grid-cols-2 gap-3">
                 {group.recipes.map((recipe, index) => (
                   <Card
                     key={recipe.id}
@@ -173,8 +185,8 @@ export function RecipeDirectory({
                     >
                       {/* Decorative: the recipe's own title is directly below it. */}
                       <PhotoCover photoId={recipe.photoId} alt="" />
-                      <div className="p-5">
-                        <p className="pr-9 font-medium">{recipe.title}</p>
+                      <div className="p-3 sm:p-5">
+                        <p className="pr-7 font-medium sm:pr-9">{recipe.title}</p>
                         {recipe.description && (
                           <p className="mt-1 line-clamp-2 text-sm text-slate-600">
                             {recipe.description}

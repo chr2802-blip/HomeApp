@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { ACCOUNTS, expect, openDialog, test } from "./helpers/fixtures";
+import { CATEGORIES, HOME_NAME, prisma } from "./helpers/database";
 
 /*
  * Movement that silently is not movement.
@@ -151,5 +152,78 @@ test.describe("what eases rather than snapping", () => {
     const pressable = page.locator(".pressable").first();
     const eased = await pressable.evaluate((node) => getComputedStyle(node).transitionProperty);
     expect(eased).toContain("scale");
+  });
+});
+
+test.describe("the recipes page", () => {
+  /** A recipe filed under the first seeded category, and one under the second. */
+  async function seedRecipes() {
+    const home = await prisma().home.findFirstOrThrow({ where: { name: HOME_NAME } });
+    const owner = await prisma().user.findFirstOrThrow({ where: { email: ACCOUNTS.member.email } });
+
+    for (const [title, categoryName] of [
+      ["Pancakes", CATEGORIES[0]],
+      ["Carbonara", CATEGORIES[1]],
+    ] as const) {
+      const category = await prisma().recipeCategory.findFirstOrThrow({
+        where: { homeId: home.id, name: categoryName },
+      });
+      await prisma().recipe.create({
+        data: {
+          homeId: home.id,
+          createdById: owner.id,
+          title,
+          categories: { create: { categoryId: category.id } },
+        },
+      });
+    }
+  }
+
+  /**
+   * Presses a filter until it takes, then reports what ran because of it.
+   *
+   * The same hydration problem as every other client control: the chip is the same
+   * markup before and after React attaches to it, so the press is offered again until
+   * the chip says it is the one that is on. The recording is cleared inside the retry
+   * rather than before it, so what is asserted is what the press that actually worked
+   * caused — an earlier press that landed on unhydrated markup caused nothing at all.
+   */
+  async function pressFilter(page: Page, label: string) {
+    const chip = page.getByRole("button", { name: new RegExp(`^${label}, `) });
+    await expect(async () => {
+      await forget(page);
+      await chip.click();
+      await expect(chip).toHaveAttribute("aria-pressed", "true", { timeout: 1000 });
+    }).toPass({ timeout: 20_000 });
+  }
+
+  test("plays its cards in again when a category filter goes on and comes off", async ({
+    page,
+  }) => {
+    await seedRecipes();
+    await page.goto("/recipes");
+    await expect(page.getByText("Pancakes")).toBeVisible();
+
+    // Narrowing to one heading: the cards that survive it arrive rather than simply
+    // staying where they were while the rest vanished.
+    await pressFilter(page, CATEGORIES[0]);
+    await expectPlayed(page, "row-in");
+
+    // And widening again, which is the same movement in the other direction.
+    await pressFilter(page, "All");
+    await expectPlayed(page, "row-in");
+  });
+
+  test("shows its recipes two to a row on a phone", async ({ page }) => {
+    await seedRecipes();
+    await page.setViewportSize({ width: 390, height: 680 });
+    await page.goto("/recipes");
+    await expect(page.getByText("Pancakes")).toBeVisible();
+
+    const columns = await page
+      .locator("section .grid")
+      .first()
+      .evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(" ").length);
+    expect(columns).toBe(2);
   });
 });
