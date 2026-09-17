@@ -175,12 +175,17 @@ export async function requireSuperAdmin(): Promise<SessionUser> {
 }
 
 /**
- * Somebody who runs at least one home — the gate on the actions that administer one.
- * Which home is theirs to run is a second question, asked per home by `assertHomeAdmin`
- * against the id the action was given: being an admin of one household says nothing
- * about the next.
+ * Somebody who runs at least one home — the gate on being offered administration at
+ * all, and never the answer to whether a particular home is theirs.
+ *
+ * The name says "any" because the shorter one did not, and that cost us a bug: paired
+ * with the home on screen it reads like a permission check and is not one, which let an
+ * admin of the flat administer the summer house's recipe categories. Which home is
+ * theirs to run is the second question, asked per home by `assertHomeAdmin` against the
+ * id the action was given, or by `canAdministerCurrentHome` when the action takes its
+ * home from the session.
  */
-export async function requireAdmin(): Promise<SessionUser> {
+export async function requireAnyHomeAdmin(): Promise<SessionUser> {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN" && !user.homes.some((home) => home.role === "ADMIN")) {
     redirect("/dashboard");

@@ -58,12 +58,14 @@ house is offered Settings in one and not the other, and a tab would have been a 
 leading to a page they cannot open half the time.
 
 An action is gated the same way, and this is where it is easy to get wrong.
-`requireAdmin` answers only "do they run *a* home" — it is the gate on being offered
-administration at all, never the answer to whether *this* home is theirs. An action
-given a home id checks that id with `assertHomeAdmin`; an action that takes its home
-from the session instead (the recipe-category ones do) asks `canAdministerCurrentHome`.
-**Never pair `requireAdmin` with the active home**: that combination reads as a check
-and admits an admin of the flat to everything in the summer house.
+`requireAnyHomeAdmin` answers only "do they run *a* home" — it is the gate on being
+offered administration at all, never the answer to whether *this* home is theirs. An
+action given a home id checks that id with `assertHomeAdmin`; an action that takes its
+home from the session instead (the recipe-category ones do) asks
+`canAdministerCurrentHome`. **Never pair `requireAnyHomeAdmin` with the active home**:
+that combination reads as a check and admits an admin of the flat to everything in the
+summer house. It was called `requireAdmin` until that pairing caused exactly that bug;
+the name now says which question it answers.
 
 `/profile` is the third thing, and it belongs to nobody's home: a person's name,
 password, picture and notifications, one page however many households they are in. It is

@@ -217,7 +217,7 @@ describe("a plain member cannot administer their own home", () => {
     const other = await createUser({ homeId: home.id, role: "USER" });
     await signIn(member);
 
-    // requireAdmin sends a non-admin away rather than reporting a permission error.
+    // requireAnyHomeAdmin sends a non-admin away rather than reporting a permission error.
     await expectRedirect(
       () => updateMemberRole(formData({ userId: other.id, role: "ADMIN" })),
       "/dashboard",

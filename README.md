@@ -370,6 +370,23 @@ different strings are needed:
 - **Direct connection** (port `5432`) → `DIRECT_URL`. Migrations need a real session and cannot run
   through the pooler.
 
+### 1b. Turn off the Data API
+
+Supabase serves an auto-generated REST API (PostgREST) over the `public` schema, reachable by
+anyone holding the project's anon key and governed by Row-Level Security. **This app does not use
+it.** There is no `supabase-js` dependency, no anon key in the environment, and no client code that
+would call it — Prisma connects straight to Postgres over `DATABASE_URL`, as the table owner, which
+is not subject to RLS at all.
+
+So the Data API here is nothing but surface. Turn it off under **Project Settings → API → Exposed
+schemas** by removing `public` (or disable the Data API outright).
+
+This also settles Supabase's `rls_disabled_in_public` security advisory, which fires because none
+of these tables has RLS enabled. Enabling RLS instead would mean writing policies for sixteen
+tables that only one trusted connection ever reads — real work, no benefit here. If you ever *do*
+want the Data API, enable RLS first and treat every table as deny-by-default; do not simply switch
+the API back on.
+
 ### 2. Generate secrets
 
 ```bash
