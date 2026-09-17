@@ -45,13 +45,13 @@ function asHex(colour: string) {
 }
 
 /**
- * That the top of the screen is one bar and not two, which is three separate things
- * agreeing on one colour: the header, the document behind it — what a home screen app
- * paints the strip holding the clock and the battery with — and the tag a browser tints
- * its own chrome from. Any two of them could match while the third goes its own way, and
- * on a phone that shows up as a seam a millimetre above the header.
+ * That the top and the bottom of the screen are one band, whatever home is open: the
+ * header, the tab bar, the document behind them — which is what an installed app paints
+ * its status bar and gesture bar from — and the tag a browser tints its chrome with.
+ * Any of the four could go its own way, and on a phone that shows up as a seam a
+ * millimetre above the header or below the tabs.
  */
-async function expectOneBar(page: Page, hex: string) {
+async function expectOneBand(page: Page, hex: string) {
   await expect(barOf(page)).toHaveAttribute("content", hex);
 
   const canvas = await page.evaluate(
@@ -59,13 +59,23 @@ async function expectOneBar(page: Page, hex: string) {
   );
   expect(asHex(canvas)).toBe(hex);
 
-  const header = page.locator("header");
-  if ((await header.count()) > 0) {
-    const painted = await header.evaluate((element) => getComputedStyle(element).backgroundColor);
-    // Flat, not frosted: an `rgba(…, 0.85)` here is a header that changes colour as the
-    // page scrolls under it, which no status bar can follow.
-    expect(painted).not.toMatch(/rgba/);
-    expect(asHex(painted)).toBe(hex);
+  // Every frame that paints anything at all, which is the header and the tab bar — the
+  // desktop nav inside the header paints nothing and is left out by the filter rather
+  // than by a selector that would have to know which nav is which.
+  const { framed, painted } = await page.evaluate(() => ({
+    framed: document.querySelector("header") !== null,
+    painted: [...document.querySelectorAll("header, nav")]
+      .map((node) => getComputedStyle(node).backgroundColor)
+      .filter((colour) => colour !== "rgba(0, 0, 0, 0)" && colour !== "transparent"),
+  }));
+
+  // The header and the tab bar, on any page inside the app.
+  if (framed) expect(painted.length).toBeGreaterThanOrEqual(2);
+  for (const colour of painted) {
+    // Flat, not frosted: an `rgba(…, 0.85)` here is a band that changes colour as the
+    // page scrolls under it, which no system bar can follow.
+    expect(colour).not.toMatch(/rgba/);
+    expect(asHex(colour)).toBe(hex);
   }
 }
 
@@ -81,8 +91,9 @@ test.describe("as a home admin", () => {
     await page.getByRole("button", { name: "Save home" }).click();
 
     await expect(themeOf(page)).toHaveAttribute("data-theme", "OCEAN");
-    // The bar above the header moves with it, and is the same colour the header is.
-    await expectOneBar(page, "#f0f9ff");
+    // The colour is the household's, and the band is the app's: picking Ocean dresses
+    // the controls and leaves the top of the screen exactly where it was.
+    await expectOneBand(page, "#ffffff");
     // Stored, not merely on screen: it survives the page being asked for again.
     await page.reload();
     await expect(themeOf(page)).toHaveAttribute("data-theme", "OCEAN");
@@ -98,6 +109,22 @@ test.describe("as a home admin", () => {
     await loginAs(ACCOUNTS.member);
 
     await expect(themeOf(page)).toHaveAttribute("data-theme", "PLUM");
+  });
+
+  test("puts the household's colour on the controls, where the band used to be", async ({
+    page,
+    loginAs,
+  }) => {
+    await dress(HOME_NAME, "PLUM");
+    await loginAs(ACCOUNTS.member);
+    await page.goto("/lists");
+
+    // The tab that is lit is drawn in --accent, so this is the home's colour reaching
+    // the screen — a data-theme nothing reads would look identical from every other test.
+    const lit = page.locator("nav a[aria-current='page'] span").first();
+    const filled = await lit.evaluate((node) => getComputedStyle(node).backgroundColor);
+
+    expect(asHex(filled)).toBe("#a21caf");
   });
 });
 
@@ -117,7 +144,7 @@ test.describe("somebody in two homes", () => {
       page.getByRole("button", { name: `${OTHER_HOME_NAME} — home menu` }),
     ).toBeVisible();
     await expect(themeOf(page)).toHaveAttribute("data-theme", "SAND");
-    await expectOneBar(page, "#fafaf9");
+    await expectOneBand(page, "#ffffff");
   });
 });
 
@@ -126,5 +153,5 @@ test("the login page wears the app's own colours, belonging to no home", async (
   await page.goto("/login");
 
   await expect(themeOf(page)).toHaveAttribute("data-theme", "SLATE");
-  await expectOneBar(page, "#ffffff");
+  await expectOneBand(page, "#ffffff");
 });

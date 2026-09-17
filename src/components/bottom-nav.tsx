@@ -10,7 +10,7 @@ export function BottomNav({ showAdmin }: { showAdmin: boolean }) {
   const items = navItemsFor(showAdmin);
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--accent-line)] bg-[var(--accent-soft)] md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--accent-line)] bg-[var(--band)] md:hidden">
       <ul className="mx-auto flex max-w-lg items-stretch pb-[env(safe-area-inset-bottom)]">
         {items.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
