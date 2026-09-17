@@ -25,7 +25,6 @@ const VARIABLES = [
   "--accent-text",
   "--accent-soft",
   "--accent-line",
-  "--accent-bar",
 ];
 
 /** The declarations inside `[data-theme="NAME"] { … }`, or null when there is no block. */
@@ -58,47 +57,31 @@ describe("home themes", () => {
   });
 
   /**
-   * What the header actually renders as, which three separate things have to agree on:
-   * the header itself (`--accent-soft`, translucent so it can blur what scrolls under
-   * it), the canvas behind the page (`--accent-bar`, which is what an installed app
-   * paints its status bar from) and `THEME_BAR` (which is what a browser tints its
-   * chrome with, and cannot be a variable because a meta tag takes a literal).
+   * The one colour the top of the screen is, in all three places that paint it: the
+   * header and the tab bar (`--accent-soft`), the document behind them — which is what
+   * an installed app paints the strip holding the clock and the battery with — and
+   * `THEME_BAR`, which is what a browser tints its own chrome with and cannot be a
+   * variable because a meta tag takes a literal.
    *
-   * So the arithmetic is done here rather than trusted anywhere: the soft colour over
-   * the page is what somebody looking at the top of the screen sees, and both of the
-   * opaque copies have to be exactly that. They disagree silently — the strip simply
-   * stops being the colour of the header a millimetre below it.
+   * Opaque, and that is the load-bearing part rather than a detail of taste. A frosted
+   * band is a different colour every time something else scrolls under it, and a strip
+   * the phone paints can follow none of that: near enough still reads as two bars
+   * meeting. So the alpha is checked as strictly as the hex.
    */
-  it.each(THEMES)("paints %s's band, the page behind it and the bar alike", (theme) => {
-    const soft = blockFor(theme)?.match(/--accent-soft:\s*rgb\(([^)]*)\)/)?.[1];
-    expect(soft, `no --accent-soft for ${theme}`).toBeTruthy();
+  it.each(THEMES)("paints %s's band as one flat colour the phone can copy", (theme) => {
+    const band = blockFor(theme)?.match(/--accent-soft:\s*([^;]+);/)?.[1].trim();
 
-    const [channels, alpha] = soft!.split("/");
-    const over = channels.trim().split(/\s+/).map(Number);
-    const opacity = Number(alpha);
-
-    const page = stylesheet.match(/--page:\s*#([0-9a-f]{6})/)?.[1];
-    expect(page, "no --page in globals.css").toBeTruthy();
-    const behind = [0, 2, 4].map((at) => parseInt(page!.slice(at, at + 2), 16));
-
-    // What the browser composites: the header's colour at its own opacity, over the
-    // page it is drawn on top of.
-    const rendered = `#${over
-      .map((channel, index) => Math.round(opacity * channel + (1 - opacity) * behind[index]!))
-      .map((channel) => channel.toString(16).padStart(2, "0"))
-      .join("")}`;
-
-    expect(blockFor(theme)).toContain(`--accent-bar: ${rendered};`);
-    expect(THEME_BAR[theme]).toBe(rendered);
+    expect(band, `no --accent-soft for ${theme}`).toMatch(/^#[0-9a-f]{6}$/);
+    expect(THEME_BAR[theme]).toBe(band);
   });
 
   /**
-   * The canvas is what a home screen app paints the strip holding the clock and the
-   * battery with, so a document that does not carry the band leaves that strip the
-   * colour of the page — which is the seam the band exists to close.
+   * The canvas is what a home screen app paints that strip with, so a document that does
+   * not carry the band leaves the strip the colour of the page — which is the seam the
+   * band exists to close, and it is invisible in a browser.
    */
   it("gives the document itself the band, not just the header", () => {
-    expect(stylesheet).toMatch(/html\s*\{[^}]*background-color:\s*var\(--accent-bar\)/);
+    expect(stylesheet).toMatch(/html\s*\{[^}]*background-color:\s*var\(--accent-soft\)/);
   });
 
   /**

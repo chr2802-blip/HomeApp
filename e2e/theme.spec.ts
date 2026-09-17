@@ -36,21 +36,37 @@ const themeOf = (page: Page) => page.locator("html");
  */
 const barOf = (page: Page) => page.locator('meta[name="theme-color"]');
 
-/**
- * What the document itself is painted in, which is what a home screen app paints the
- * strip holding the clock and the battery with — it has no chrome for the tag above to
- * colour. Asserted beside the tag rather than instead of it: the two colour the top of
- * the screen on different phones, and the seam is either of them going its own way.
- */
-const canvasOf = (page: Page) =>
-  page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
-
 /** `rgb(240, 249, 255)` as `#f0f9ff`, so a computed colour can be read against a hex. */
 function asHex(colour: string) {
   const [red, green, blue] = colour.match(/\d+/g)!.map(Number);
   return `#${[red, green, blue]
     .map((channel) => channel!.toString(16).padStart(2, "0"))
     .join("")}`;
+}
+
+/**
+ * That the top of the screen is one bar and not two, which is three separate things
+ * agreeing on one colour: the header, the document behind it — what a home screen app
+ * paints the strip holding the clock and the battery with — and the tag a browser tints
+ * its own chrome from. Any two of them could match while the third goes its own way, and
+ * on a phone that shows up as a seam a millimetre above the header.
+ */
+async function expectOneBar(page: Page, hex: string) {
+  await expect(barOf(page)).toHaveAttribute("content", hex);
+
+  const canvas = await page.evaluate(
+    () => getComputedStyle(document.documentElement).backgroundColor,
+  );
+  expect(asHex(canvas)).toBe(hex);
+
+  const header = page.locator("header");
+  if ((await header.count()) > 0) {
+    const painted = await header.evaluate((element) => getComputedStyle(element).backgroundColor);
+    // Flat, not frosted: an `rgba(…, 0.85)` here is a header that changes colour as the
+    // page scrolls under it, which no status bar can follow.
+    expect(painted).not.toMatch(/rgba/);
+    expect(asHex(painted)).toBe(hex);
+  }
 }
 
 test.describe("as a home admin", () => {
@@ -65,11 +81,8 @@ test.describe("as a home admin", () => {
     await page.getByRole("button", { name: "Save home" }).click();
 
     await expect(themeOf(page)).toHaveAttribute("data-theme", "OCEAN");
-    // The bar above the header moves with it, so the top of the screen is one colour
-    // rather than two — in a browser, which tints its chrome from the tag, and in an
-    // installed app, which takes that strip from the document's own background.
-    await expect(barOf(page)).toHaveAttribute("content", "#f1f9ff");
-    expect(asHex(await canvasOf(page))).toBe("#f1f9ff");
+    // The bar above the header moves with it, and is the same colour the header is.
+    await expectOneBar(page, "#f0f9ff");
     // Stored, not merely on screen: it survives the page being asked for again.
     await page.reload();
     await expect(themeOf(page)).toHaveAttribute("data-theme", "OCEAN");
@@ -104,8 +117,7 @@ test.describe("somebody in two homes", () => {
       page.getByRole("button", { name: `${OTHER_HOME_NAME} — home menu` }),
     ).toBeVisible();
     await expect(themeOf(page)).toHaveAttribute("data-theme", "SAND");
-    await expect(barOf(page)).toHaveAttribute("content", "#fafaf9");
-    expect(asHex(await canvasOf(page))).toBe("#fafaf9");
+    await expectOneBar(page, "#fafaf9");
   });
 });
 
@@ -114,6 +126,5 @@ test("the login page wears the app's own colours, belonging to no home", async (
   await page.goto("/login");
 
   await expect(themeOf(page)).toHaveAttribute("data-theme", "SLATE");
-  await expect(barOf(page)).toHaveAttribute("content", "#fefeff");
-  expect(asHex(await canvasOf(page))).toBe("#fefeff");
+  await expectOneBar(page, "#ffffff");
 });
