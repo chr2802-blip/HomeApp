@@ -19,12 +19,21 @@ const variants = {
 
 type Variant = keyof typeof variants;
 
+/**
+ * The button look as a string, for the few controls that cannot be a `Button` because
+ * something else owns the element — a context menu builds its own trigger, so that it
+ * can hang the menu's state on it. Everything else uses the components below.
+ */
+export function buttonClass(variant: Variant = "primary", className = "") {
+  return `${base} ${variants[variant]} ${className}`;
+}
+
 export function Button({
   variant = "primary",
   className = "",
   ...props
 }: ComponentProps<"button"> & { variant?: Variant }) {
-  return <button className={`${base} ${variants[variant]} ${className}`} {...props} />;
+  return <button className={buttonClass(variant, className)} {...props} />;
 }
 
 export function ButtonLink({
@@ -32,7 +41,7 @@ export function ButtonLink({
   className = "",
   ...props
 }: ComponentProps<typeof Link> & { variant?: Variant }) {
-  return <Link className={`${base} ${variants[variant]} ${className}`} {...props} />;
+  return <Link className={buttonClass(variant, className)} {...props} />;
 }
 
 /**

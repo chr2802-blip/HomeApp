@@ -66,9 +66,9 @@ const eslintConfig = [
            * the advice above would not even have worked.
            */
           selector:
-            "MemberExpression[object.name='prisma'][property.name=/^(listItem|listFavorite)$/]",
+            "MemberExpression[object.name='prisma'][property.name=/^(listItem|listItemSource|listFavorite)$/]",
           message:
-            "Read a list's items and favourites as an include on a homeDb list query. Reaching them directly here would not be scoped to a home at all.",
+            "Read a list's items, the recipes that put them there and its favourites as an include on a homeDb list query. Reaching them directly here would not be scoped to a home at all.",
         },
         {
           /*

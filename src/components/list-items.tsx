@@ -1,6 +1,7 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
+import Link from "next/link";
+import { useOptimistic, useTransition } from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -26,8 +27,20 @@ import {
 } from "@/app/actions/lists";
 import { ConfirmButton } from "@/components/confirm-button";
 import { AmountPicker } from "@/components/amount-picker";
+import { Collapsible } from "@/components/collapsible";
 
-type Item = { id: string; text: string; amount: number; done: boolean; position: number };
+/** A recipe that asked for this item, as the row names it. */
+type Source = { id: string; title: string };
+
+type Item = {
+  id: string;
+  text: string;
+  amount: number;
+  done: boolean;
+  position: number;
+  /** The recipes this item came from, or nothing at all if it was typed in by hand. */
+  sources: Source[];
+};
 
 type Change =
   | { type: "toggle"; id: string }
@@ -37,7 +50,14 @@ type Change =
 
 function applyTo(items: Item[], change: Change): Item[] {
   if (change.type === "toggle") {
-    return items.map((item) => (item.id === change.id ? { ...item, done: !item.done } : item));
+    // Ticking something off drops the recipes that put it there, which is what the
+    // server is about to do — see toggleListItem. Putting it back brings back the item
+    // and not the note.
+    return items.map((item) =>
+      item.id === change.id
+        ? { ...item, done: !item.done, sources: item.done ? item.sources : [] }
+        : item,
+    );
   }
   if (change.type === "remove") {
     return items.filter((item) => item.id !== change.id);
@@ -119,12 +139,33 @@ function Row({
         >
           {item.done ? "✓" : ""}
         </button>
-        <span
-          className={`flex-1 text-left text-sm transition-colors duration-150 ${
-            item.done ? "text-slate-400 line-through" : ""
-          }`}
-        >
-          {item.text}
+        <span className="min-w-0 flex-1">
+          <span
+            className={`block text-left text-sm transition-colors duration-150 ${
+              item.done ? "text-slate-400 line-through" : ""
+            }`}
+          >
+            {item.text}
+          </span>
+          {/* Why this is on the list, when something other than a person put it there.
+              A line that was typed into the add box says nothing, which is what makes
+              this worth reading where it does appear. */}
+          {item.sources.length > 0 && (
+            <span className="mt-0.5 block text-xs text-slate-400">
+              From{" "}
+              {item.sources.map((source, index) => (
+                <span key={source.id}>
+                  {index > 0 && ", "}
+                  <Link
+                    href={`/recipes/${source.id}`}
+                    className="hover:text-slate-700 hover:underline"
+                  >
+                    {source.title}
+                  </Link>
+                </span>
+              ))}
+            </span>
+          )}
         </span>
       </form>
 
@@ -176,9 +217,6 @@ export function ListItems({
 }) {
   const [optimisticItems, applyChange] = useOptimistic(items, applyTo);
   const [, startTransition] = useTransition();
-  // Ticked items are the part of the list already dealt with. They start folded away
-  // and open on request, rather than pushing what is still outstanding down the screen.
-  const [showDone, setShowDone] = useState(false);
 
   const sensors = useSensors(
     // A little movement before a drag starts, so tapping the handle on a phone does
@@ -269,35 +307,13 @@ export function ListItems({
           cannot land somewhere the sort would immediately undo. */}
       {done.length > 0 && (
         <div className="border-t border-slate-100">
-          <button
-            type="button"
-            onClick={() => setShowDone((shown) => !shown)}
-            aria-expanded={showDone}
-            aria-controls="completed-items"
-            className="pressable flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium text-slate-500 hover:bg-slate-50"
+          <Collapsible
+            summary={`Completed (${done.length})`}
+            triggerClassName="w-full px-4 py-3 text-sm font-medium text-slate-500 hover:bg-slate-50"
+            panelClassName="divide-y divide-slate-100 border-t border-slate-100"
           >
-            <svg
-              viewBox="0 0 20 20"
-              className={`h-3.5 w-3.5 transition-transform duration-150 ${
-                showDone ? "rotate-90" : ""
-              }`}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              aria-hidden="true"
-            >
-              <path d="M7 4l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Completed ({done.length})
-          </button>
-          {showDone && (
-            <div
-              id="completed-items"
-              className="divide-y divide-slate-100 border-t border-slate-100"
-            >
-              {done.map((item) => rowFor(item, false))}
-            </div>
-          )}
+            {done.map((item) => rowFor(item, false))}
+          </Collapsible>
         </div>
       )}
     </>

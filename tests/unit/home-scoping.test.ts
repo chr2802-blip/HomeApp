@@ -41,11 +41,11 @@ describe("every model is classified", () => {
   });
 
   /**
-   * The three that read as though they belong to a home and do not. Spelled out rather
+   * The ones that read as though they belong to a home and do not. Spelled out rather
    * than derived, because "looks home-scoped but is reached through its parent" is
    * exactly the judgement no column can express — and getting it wrong is silent.
    */
-  it.each(["User", "ListItem", "ListFavorite", "RecipeCategoryLink"])(
+  it.each(["User", "ListItem", "ListItemSource", "ListFavorite", "RecipeCategoryLink"])(
     "refuses %s rather than passing it through unscoped",
     (name) => {
       const found = classifyModels().find((entry) => entry.model === name);

@@ -15,6 +15,7 @@ import { FormDialog } from "@/components/form-dialog";
 import { AssigneeField, type MemberOption } from "@/components/assignee-field";
 import { RepeatField } from "@/components/repeat-field";
 import { TaskCard } from "@/components/task-card";
+import { Collapsible } from "@/components/collapsible";
 import { PhotoField } from "@/components/photo-field";
 import { PhotoThumb } from "@/components/photo";
 
@@ -211,11 +212,19 @@ export default async function TasksPage() {
       )}
 
       {/* Only once something has been finished. A household that keeps no one-offs
-          would otherwise carry a permanently empty heading. */}
+          would otherwise carry a permanently empty heading.
+          Folded away, like a list's ticked-off items: a year of finished one-offs is
+          worth keeping and not worth scrolling past to reach what is still to do. */}
       {done.length > 0 && (
         <section className="mt-8">
-          <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Done</h2>
-          <TaskList tasks={done} members={members} now={now} />
+          <Collapsible
+            summary={`Done (${done.length})`}
+            headingClassName="mb-3 text-sm font-semibold text-slate-500 uppercase"
+            triggerClassName="hover:text-slate-700"
+            panelClassName="pb-1"
+          >
+            <TaskList tasks={done} members={members} now={now} />
+          </Collapsible>
         </section>
       )}
     </>
