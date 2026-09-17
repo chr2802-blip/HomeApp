@@ -32,7 +32,7 @@ export const THEME_LABELS: Record<HomeTheme, string> = {
 export const THEMES = Object.keys(THEME_LABELS) as [HomeTheme, ...HomeTheme[]];
 
 /**
- * The band across the top of the screen, as an opaque colour the browser can be handed.
+ * The band across the top of the screen, as the browser wants it: a literal.
  *
  * The one place a colour is written down outside globals.css, because it is the one
  * place CSS cannot reach: `<meta name="theme-color">` colours a browser's own chrome,
@@ -40,25 +40,24 @@ export const THEMES = Object.keys(THEME_LABELS) as [HomeTheme, ...HomeTheme[]];
  * stays the colour it was while the header below it changes, which is a seam exactly
  * where the home's colour is supposed to be saying which household this is.
  *
- * Each of these is a copy of that theme's `--accent-bar`: the header's band as it
- * actually renders, which is `--accent-soft` — translucent, so that the header can blur
- * what scrolls under it — composited over the page. Copying the soft colour instead
- * would be a shade lighter than the header everywhere, which is a seam of its own.
- * `tests/unit/theme.test.ts` reads the stylesheet, does that arithmetic and fails if the
- * three ever stop agreeing, which is what keeps this a copy that cannot drift rather
- * than a second opinion.
+ * Each of these is a copy of that theme's `--accent-soft` — the same flat colour the
+ * header, the tab bar and the document behind them are painted in, character for
+ * character. That the band is opaque is what makes the copy possible at all: a frosted
+ * header is a different colour every time something else scrolls under it, and a strip
+ * the phone paints can follow none of that. `tests/unit/theme.test.ts` reads the
+ * stylesheet and fails if the two stop agreeing, which keeps this a copy that cannot
+ * drift rather than a second opinion.
  *
- * It is not what an installed app paints its status bar with — a home screen app has no
- * chrome for a theme colour to colour, and takes that strip from the document's own
- * background instead. That is why `html` is given `--accent-bar` in globals.css, and why
- * the two have to be the same colour.
+ * It is also not what an installed app paints its status bar with — a home screen app
+ * has no chrome for a theme colour to colour, and takes that strip from the document's
+ * own background instead. That is why `html` is given the same band in globals.css.
  */
 export const THEME_BAR: Record<HomeTheme, string> = {
-  SLATE: "#fefeff",
-  OCEAN: "#f1f9ff",
-  INDIGO: "#f0f3ff",
-  VIOLET: "#f5f4ff",
-  PLUM: "#fcf5ff",
+  SLATE: "#ffffff",
+  OCEAN: "#f0f9ff",
+  INDIGO: "#eef2ff",
+  VIOLET: "#f5f3ff",
+  PLUM: "#fdf4ff",
   SAND: "#fafaf9",
 };
 
