@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="min-h-screen">
       {/* Tinted in the home's own colour, which is the point of the colour: the band
           across the top of every screen is the one thing always in view. */}
-      <header className="sticky top-0 z-30 border-b border-[var(--accent-line)] bg-[var(--accent-soft)] backdrop-blur-lg">
+      <header className="sticky top-0 z-30 border-b border-[var(--accent-line)] bg-[var(--accent-soft)]">
         <div className="mx-auto flex max-w-5xl items-center gap-x-6 px-4 py-3">
           <div className="flex min-w-0 items-center gap-1.5">
             <BackButton />

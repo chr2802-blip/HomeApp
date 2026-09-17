@@ -28,7 +28,8 @@ export const metadata: Metadata = {
  * This is the colour a browser tints its address bar with. An installed app has no
  * address bar and takes its status bar from the document's background instead, which is
  * why `html` carries the same band in globals.css — the tag alone left the strip on a
- * home screen app the colour of the page.
+ * home screen app the colour of the page. Both are the header's own flat colour, so
+ * whichever of them a phone uses, the top of the screen is one bar.
  *
  * `getCurrentUser` is cached per request, so this and the layout below share the one
  * lookup, and somebody on the login page finds nobody and gets the app's own colour.
