@@ -19,10 +19,14 @@ const FETCH_TIMEOUT_MS = 8000;
  */
 const REQUEST_HEADERS = {
   Accept: "text/html,application/xhtml+xml",
-  "Accept-Language": "en-US,en;q=0.9",
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
 };
+// Deliberately no Accept-Language: the link already says which page a cook wants, and
+// a site that negotiates by language rather than URL — some do, across country and
+// language domains — took an English preference here as a reason to swap in its
+// English site instead, which does not have a Danish recipe pasted from the Danish
+// one. Sending none asks for whatever the address itself already means.
 
 /**
  * Blocks the addresses a browser would never be steered toward by a recipe link: the
@@ -208,18 +212,18 @@ export async function fetchRecipeFromUrl(rawUrl: string): Promise<ImportOutcome>
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("html")) return { ok: false, error: GENERIC_ERROR };
 
-  let html: string;
+  let bytes: Uint8Array;
   try {
-    html = await readLimited(response.body, MAX_RESPONSE_BYTES);
+    bytes = await readLimited(response.body, MAX_RESPONSE_BYTES);
   } catch {
     return { ok: false, error: GENERIC_ERROR };
   }
 
-  const recipe = parseRecipeFromHtml(html);
+  const recipe = parseRecipeFromHtml(decodeHtml(bytes, contentType));
   return recipe ? { ok: true, recipe } : { ok: false, error: GENERIC_ERROR };
 }
 
-async function readLimited(body: ReadableStream<Uint8Array>, maxBytes: number): Promise<string> {
+async function readLimited(body: ReadableStream<Uint8Array>, maxBytes: number): Promise<Uint8Array> {
   const reader = body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -236,5 +240,31 @@ async function readLimited(body: ReadableStream<Uint8Array>, maxBytes: number): 
     reader.releaseLock();
   }
 
-  return Buffer.concat(chunks).toString("utf-8");
+  return Buffer.concat(chunks);
+}
+
+/**
+ * Decodes a page's bytes the way a browser would: by what the page itself says its
+ * encoding is, never by assuming UTF-8. Most sites are UTF-8 and this changes nothing
+ * for them, but the ones that are not are disproportionately the ones with characters
+ * outside plain English in the first place — æ, ø and å among them — so assuming wrong
+ * is exactly invisible on an English test page and wrong on every other kind.
+ */
+function decodeHtml(bytes: Uint8Array, contentType: string): string {
+  const declared =
+    /charset=([^;]+)/i.exec(contentType)?.[1] ??
+    // The HTML spec allows the charset to be declared in a <meta> tag instead of the
+    // response header, always within the first kilobyte — no need to read further.
+    /<meta[^>]+charset=["']?([a-z0-9_-]+)/i.exec(
+      Buffer.from(bytes.subarray(0, 1024)).toString("latin1"),
+    )?.[1];
+
+  if (declared) {
+    try {
+      return new TextDecoder(declared.trim().toLowerCase()).decode(bytes);
+    } catch {
+      // An unrecognised or misdeclared label — fall through to the default.
+    }
+  }
+  return new TextDecoder("utf-8").decode(bytes);
 }
