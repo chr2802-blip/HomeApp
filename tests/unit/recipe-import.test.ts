@@ -187,6 +187,32 @@ describe("fetchRecipeFromUrl", () => {
     expect((await fetchRecipeFromUrl("https://example.com/recipe")).ok).toBe(false);
   });
 
+  // fc00::/7 is a real IPv6 range worth refusing, but plenty of ordinary domains also
+  // start with "fc" or "fd" — a check that did not first confirm it was looking at an
+  // address, not a name, refused every one of them.
+  it.each(["https://fcbarcelona.com/recipe", "https://fdic.gov/recipe"])(
+    "fetches an ordinary domain that happens to start with fc or fd: %s",
+    async (url) => {
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(goodHtml));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const result = await fetchRecipeFromUrl(url);
+
+      expect(fetchMock).toHaveBeenCalled();
+      expect(result.ok).toBe(true);
+    },
+  );
+
+  it("sends a browser-like User-Agent, so an ordinary site does not just refuse a bare request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(htmlResponse(goodHtml));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchRecipeFromUrl("https://example.com/recipe");
+
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.headers["User-Agent"]).toMatch(/Mozilla/);
+  });
+
   it("refuses a response that is not HTML", async () => {
     vi.stubGlobal(
       "fetch",
