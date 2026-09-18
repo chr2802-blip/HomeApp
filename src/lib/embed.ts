@@ -1,4 +1,19 @@
-export type Embed = { src: string; aspect: "vertical" | "wide" };
+export type Embed = {
+  src: string;
+  aspect: "vertical" | "wide";
+  /**
+   * Instagram's own iframe has no parameter to leave off its header and its
+   * like/comment/share row — this app renders the iframe taller than its
+   * visible box and shifts it up by `top`, so only the video sits inside the
+   * box and the chrome above and below it is clipped by the box's own
+   * `overflow: hidden`. Both numbers are Instagram's fixed-pixel chrome,
+   * read off actual embeds rather than derived from anything documented —
+   * a redesign on their end can throw them off, in which case a sliver of
+   * chrome starts showing again and the fix is to nudge these two numbers,
+   * not to touch the rendering code that uses them.
+   */
+  crop?: { top: number; bottom: number };
+};
 
 /**
  * Only hosts on this allowlist are ever turned into an iframe, and the embed URL is
@@ -23,7 +38,11 @@ export function toEmbed(rawUrl: string | null | undefined): Embed | null {
     const kindIndex = segments.findIndex((s) => s === "reel" || s === "reels" || s === "p" || s === "tv");
     const code = kindIndex >= 0 ? segments[kindIndex + 1] : undefined;
     if (!code || !/^[A-Za-z0-9_-]+$/.test(code)) return null;
-    return { src: `https://www.instagram.com/p/${code}/embed`, aspect: "vertical" };
+    return {
+      src: `https://www.instagram.com/p/${code}/embed`,
+      aspect: "vertical",
+      crop: { top: 60, bottom: 60 },
+    };
   }
 
   if (host === "youtube.com" || host === "m.youtube.com") {
