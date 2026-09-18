@@ -1,4 +1,4 @@
-import { ACCOUNTS, clickAndConfirm, expect, openDialog, openMenu, test } from "./helpers/fixtures";
+import { ACCOUNTS, clickAndConfirm, expect, openDialog, openMenu, SAVED_RECIPE, test } from "./helpers/fixtures";
 import { CATEGORIES } from "./helpers/database";
 
 test.beforeEach(async ({ loginAs, page }) => {
@@ -41,7 +41,7 @@ test("a recipe is saved and shown with its ingredients and steps", async ({ page
   });
   await page.getByRole("button", { name: "Save recipe" }).click();
 
-  await expect(page).toHaveURL(/\/recipes\/[a-z0-9]+$/);
+  await expect(page).toHaveURL(SAVED_RECIPE);
   await expect(page.getByRole("heading", { name: "Pancakes" })).toBeVisible();
   await expect(page.getByText("Sunday breakfast")).toBeVisible();
   await expect(page.getByText("200 g flour")).toBeVisible();
@@ -54,7 +54,7 @@ test("a YouTube link is embedded as an iframe", async ({ page }) => {
     videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
   });
   await page.getByRole("button", { name: "Save recipe" }).click();
-  await page.waitForURL(/\/recipes\/[a-z0-9]+$/);
+  await page.waitForURL(SAVED_RECIPE);
 
   const frame = page.locator("iframe");
   await expect(frame).toHaveAttribute("src", "https://www.youtube.com/embed/dQw4w9WgXcQ");
@@ -67,7 +67,7 @@ test("an Instagram reel is embedded", async ({ page }) => {
     videoUrl: "https://www.instagram.com/reel/AbC123/",
   });
   await page.getByRole("button", { name: "Save recipe" }).click();
-  await page.waitForURL(/\/recipes\/[a-z0-9]+$/);
+  await page.waitForURL(SAVED_RECIPE);
 
   await expect(page.locator("iframe")).toHaveAttribute(
     "src",
@@ -81,7 +81,7 @@ test("a link that cannot be embedded falls back to opening in a new tab", async 
     videoUrl: "https://example.com/some/recipe",
   });
   await page.getByRole("button", { name: "Save recipe" }).click();
-  await page.waitForURL(/\/recipes\/[a-z0-9]+$/);
+  await page.waitForURL(SAVED_RECIPE);
 
   await expect(page.locator("iframe")).toHaveCount(0);
   const link = page.getByRole("link", { name: "Open the linked video" });
@@ -93,7 +93,7 @@ test("a link that cannot be embedded falls back to opening in a new tab", async 
 test("a recipe can be edited from its page", async ({ page }) => {
   await fillRecipe(page, { title: "Rough draft", ingredients: "Flour" });
   await page.getByRole("button", { name: "Save recipe" }).click();
-  await page.waitForURL(/\/recipes\/[a-z0-9]+$/);
+  await page.waitForURL(SAVED_RECIPE);
 
   await openMenu(page);
   await openDialog(page, "Edit");
@@ -108,7 +108,7 @@ test("a recipe can be edited from its page", async ({ page }) => {
 test("a recipe can be deleted", async ({ page }) => {
   await fillRecipe(page, { title: "Doomed recipe" });
   await page.getByRole("button", { name: "Save recipe" }).click();
-  await page.waitForURL(/\/recipes\/[a-z0-9]+$/);
+  await page.waitForURL(SAVED_RECIPE);
 
   await openMenu(page);
   await clickAndConfirm(page, "Delete");
@@ -120,7 +120,7 @@ test("a recipe can be deleted", async ({ page }) => {
 test("a recipe can be filed under several categories at once", async ({ page }) => {
   await fillRecipe(page, { title: "Lasagne", categories: [...CATEGORIES] });
   await page.getByRole("button", { name: "Save recipe" }).click();
-  await page.waitForURL(/\/recipes\/[a-z0-9]+$/);
+  await page.waitForURL(SAVED_RECIPE);
 
   // Both headings are named on the recipe itself…
   for (const name of CATEGORIES) {
@@ -148,7 +148,7 @@ test("a recipe cannot be saved with no category at all", async ({ page }) => {
 test("a recipe with no written steps says to follow the video", async ({ page }) => {
   await fillRecipe(page, { title: "Video only", videoUrl: "https://youtu.be/dQw4w9WgXcQ" });
   await page.getByRole("button", { name: "Save recipe" }).click();
-  await page.waitForURL(/\/recipes\/[a-z0-9]+$/);
+  await page.waitForURL(SAVED_RECIPE);
 
   await expect(page.getByText("None written — follow the video.")).toBeVisible();
   await expect(page.getByText("None listed.")).toBeVisible();

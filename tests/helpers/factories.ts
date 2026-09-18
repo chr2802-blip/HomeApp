@@ -10,6 +10,22 @@ const unique = () => `${Date.now().toString(36)}-${counter++}`;
 
 export const TEST_PASSWORD = "correct-horse-battery";
 
+// bcrypt at the cost the app uses takes about a tenth of a second, and the suite makes
+// hundreds of people whose password nobody varies — which was most of its running time.
+// The hash is the same work for the same password, so it is done once per password and
+// kept: every user still carries a real hash that `verifyPassword` accepts, and a test
+// that changes a password goes through the action as it always did.
+const hashes = new Map<string, Promise<string>>();
+
+function passwordHash(password: string) {
+  let hash = hashes.get(password);
+  if (!hash) {
+    hash = hashPassword(password);
+    hashes.set(password, hash);
+  }
+  return hash;
+}
+
 export function createHome(overrides: { name?: string; address?: string | null } = {}) {
   return prisma.home.create({
     data: {
@@ -43,7 +59,7 @@ export async function createUser(
     data: {
       email: options.email ?? `user-${unique()}@example.com`,
       name: options.name ?? "Test User",
-      passwordHash: await hashPassword(options.password ?? TEST_PASSWORD),
+      passwordHash: await passwordHash(options.password ?? TEST_PASSWORD),
       role: superAdmin ? "SUPER_ADMIN" : "USER",
       activeHomeId: options.homeId ?? null,
     },

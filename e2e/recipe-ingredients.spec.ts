@@ -1,4 +1,4 @@
-import { ACCOUNTS, expect, openDialog, test } from "./helpers/fixtures";
+import { ACCOUNTS, expect, openDialog, SAVED_RECIPE, test } from "./helpers/fixtures";
 import { CATEGORIES } from "./helpers/database";
 import type { Page } from "@playwright/test";
 
@@ -25,7 +25,7 @@ async function newRecipe(page: Page, title: string, ingredients: string) {
   await page.getByRole("checkbox", { name: CATEGORIES[0], exact: true }).check({ force: true });
   await page.getByLabel("Ingredients").fill(ingredients);
   await page.getByRole("button", { name: "Save recipe" }).click();
-  await page.waitForURL(/\/recipes\/[a-z0-9]+$/);
+  await page.waitForURL(SAVED_RECIPE);
 }
 
 /**

@@ -1,9 +1,11 @@
-import { ACCOUNTS, expect, test } from "./helpers/fixtures";
+import { ACCOUNTS, expect, logInThroughForm, test } from "./helpers/fixtures";
 import { HOME_NAME, prisma } from "./helpers/database";
 
 test.describe("signing in", () => {
-  test("a member logs in and lands on the dashboard", async ({ page, loginAs }) => {
-    await loginAs(ACCOUNTS.member);
+  test("a member logs in and lands on the dashboard", async ({ page }) => {
+    // The one test that is about the form itself, so it fills it in rather than
+    // starting from a session the way every other spec does.
+    await logInThroughForm(page, ACCOUNTS.member);
 
     await expect(page).toHaveURL(/\/dashboard$/);
     // The home's name in the header, which is also the menu holding their profile.

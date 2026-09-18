@@ -1,4 +1,4 @@
-import { ACCOUNTS, expect, openDialog, openMenu, test } from "./helpers/fixtures";
+import { ACCOUNTS, expect, openDialog, openMenu, SAVED_RECIPE, test } from "./helpers/fixtures";
 import { CATEGORIES, prisma } from "./helpers/database";
 import { pngBytes } from "../tests/helpers/images";
 
@@ -48,7 +48,7 @@ test("a phone-sized picture is shrunk in the browser and shown on the recipe", a
   await attachPicture(page, "Picture");
   await page.getByRole("button", { name: "Save recipe" }).click();
 
-  await expect(page).toHaveURL(/\/recipes\/[a-z0-9]+$/);
+  await expect(page).toHaveURL(SAVED_RECIPE);
   await expect(page.getByAltText("Pancakes")).toBeVisible();
 
   const recipe = await prisma().recipe.findFirstOrThrow();
@@ -84,7 +84,7 @@ test("the picture is shown on the recipe's card in the directory", async ({ page
   await page.getByRole("checkbox", { name: CATEGORIES[0], exact: true }).check({ force: true });
   await attachPicture(page, "Picture");
   await page.getByRole("button", { name: "Save recipe" }).click();
-  await expect(page).toHaveURL(/\/recipes\/[a-z0-9]+$/);
+  await expect(page).toHaveURL(SAVED_RECIPE);
 
   await page.goto("/recipes");
   const recipe = await prisma().recipe.findFirstOrThrow();

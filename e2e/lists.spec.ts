@@ -1,4 +1,5 @@
 import { ACCOUNTS, clickAndConfirm, expect, openDialog, openMenu, test } from "./helpers/fixtures";
+import { prisma } from "./helpers/database";
 
 test.beforeEach(async ({ loginAs, page }) => {
   await loginAs(ACCOUNTS.member);
@@ -145,8 +146,13 @@ test("the index shows open and total counts", async ({ page }) => {
     await expect(page.getByText(item, { exact: true })).toBeVisible();
   }
   await page.getByRole("button", { name: "Mark as done" }).first().click();
-  // The ticked item is folded away, which is how we know the tick landed.
+  // The ticked item is folded away, which is how we know the press was seen.
   await expect(page.getByRole("button", { name: "Completed (1)" })).toBeVisible();
+
+  // But a tick is optimistic: the item folds away the instant it is pressed, before the
+  // action has been answered. The page about to be opened counts the *stored* items, so
+  // what has to be waited on is the row — as the favourites do, and for the same reason.
+  await expect.poll(() => prisma().listItem.count({ where: { done: true } })).toBe(1);
 
   await page.goto("/lists");
   await expect(page.getByText("1 open · 2 total")).toBeVisible();
