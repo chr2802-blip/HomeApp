@@ -22,26 +22,41 @@ import type { ImportedRecipe } from "@/lib/recipe-import";
  * the field and starts the same fetch a press of the button would, once, on arrival —
  * a cook who copied a recipe's address specifically to paste it here should not have
  * to paste it by hand and press anything to prove it.
+ *
+ * `onNoRecipeFound` tells `NewRecipeDialog` when the page was reached but had nothing
+ * to cook from — a reel, a shop page, a site with none of the markup this reads — which
+ * is what puts a "Start from scratch" button beside the error. A mistyped address or a
+ * page that would not load is worth trying again as typed, so those do not trigger it;
+ * this one specifically means the link itself was never going to work, which matters
+ * most when the clipboard skipped the dialog straight to this step and there was no
+ * "choose" screen already behind it to fall back to.
  */
 export function RecipeImportField({
   onImported,
+  onNoRecipeFound,
   autoFetchUrl,
 }: {
   onImported: (recipe: ImportedRecipe) => void;
+  onNoRecipeFound?: (found: boolean) => void;
   autoFetchUrl?: string;
 }) {
   const [url, setUrl] = useState(autoFetchUrl ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  function setFetchError(message: string | null, notARecipe = false) {
+    setError(message);
+    onNoRecipeFound?.(notARecipe);
+  }
+
   function handleFetch(overrideUrl?: string) {
     const trimmed = (overrideUrl ?? url).trim();
     if (!trimmed) {
-      setError("Paste a link to a recipe first.");
+      setFetchError("Paste a link to a recipe first.");
       return;
     }
 
-    setError(null);
+    setFetchError(null);
     startTransition(async () => {
       const formData = new FormData();
       formData.set("importUrl", trimmed);
@@ -50,7 +65,7 @@ export function RecipeImportField({
         onImported(result.recipe);
         setUrl("");
       } else {
-        setError(result.error);
+        setFetchError(result.error, result.notARecipe);
       }
     });
   }

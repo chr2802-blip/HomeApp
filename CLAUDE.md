@@ -405,6 +405,17 @@ neither, or with a name but nothing to cook, is refused rather than guessed at f
 prose: a wrong guess dropped silently into the form is worse than a cook typing it in by
 hand, which is what happens either way once the fields are left blank.
 
+**A link that reaches a page with nothing to cook from is not a dead end.** `notARecipe`
+on `ImportOutcome` marks exactly that failure — a reel, a shop page, anything the parser
+above refuses — as distinct from a mistyped address or a page that would not load, which
+are worth retrying as typed rather than abandoning. `NewRecipeDialog` turns that flag into
+a "Start from scratch" button beside the error, which matters most when a clipboard link
+sent the dialog straight to the **url** step with no **choose** screen already behind it
+to fall back to. The flag, not the error string, is what the client checks:
+`recipe-import.ts` pulls in `sharp` for the image work below, which cannot be bundled into
+the client component showing the error, so nothing runtime from that module may be
+imported there — only its types already were.
+
 The link is fetched from this app's own server, not the cook's browser, so it is checked
 the way a server fetching an address it was merely handed has to be: `isBlockedHost`
 refuses the machine's own network (loopback, link-local, the private ranges) before

@@ -17,7 +17,19 @@ export type ImportedRecipe = {
   instructions: string;
   photoId: string | null;
 };
-export type ImportOutcome = { ok: true; recipe: ImportedRecipe } | { ok: false; error: string };
+/**
+ * `notARecipe` marks a failure where the page was reached fine and simply had nothing
+ * to cook from — a reel, a shop page, a site whose markup this cannot read — so that
+ * `RecipeImportField` can offer falling back to the plain create form for exactly this
+ * failure and not for a mistyped address or a page that would not load at all, which
+ * are worth retrying as typed. It is a flag rather than matching the error string on
+ * the client: this module pulls in `sharp` for the image work below, which cannot be
+ * bundled into the client component that shows the error, so nothing runtime from here
+ * may be imported there — only the types already were.
+ */
+export type ImportOutcome =
+  | { ok: true; recipe: ImportedRecipe }
+  | { ok: false; error: string; notARecipe?: boolean };
 
 const GENERIC_ERROR =
   "Couldn't read a recipe from that page. Check the link, or fill the form in by hand.";
@@ -335,24 +347,24 @@ export async function fetchRecipeFromUrl(rawUrl: string, homeId: string): Promis
   } catch {
     return { ok: false, error: "Couldn't reach that page. Check the link and try again." };
   }
-  if (!response.ok || !response.body) return { ok: false, error: GENERIC_ERROR };
+  if (!response.ok || !response.body) return { ok: false, error: GENERIC_ERROR, notARecipe: true };
 
   // The redirect this app actually followed is what has to be checked, not the link
   // that was typed — a page can redirect an outside address to an internal one.
-  if (isBlockedHost(new URL(response.url).hostname)) return { ok: false, error: GENERIC_ERROR };
+  if (isBlockedHost(new URL(response.url).hostname)) return { ok: false, error: GENERIC_ERROR, notARecipe: true };
 
   const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.includes("html")) return { ok: false, error: GENERIC_ERROR };
+  if (!contentType.includes("html")) return { ok: false, error: GENERIC_ERROR, notARecipe: true };
 
   let bytes: Uint8Array;
   try {
     bytes = await readLimited(response.body, MAX_RESPONSE_BYTES);
   } catch {
-    return { ok: false, error: GENERIC_ERROR };
+    return { ok: false, error: GENERIC_ERROR, notARecipe: true };
   }
 
   const parsed = parseRecipeFromHtml(decodeHtml(bytes, contentType));
-  if (!parsed) return { ok: false, error: GENERIC_ERROR };
+  if (!parsed) return { ok: false, error: GENERIC_ERROR, notARecipe: true };
 
   const photoId = await importRecipeImage(parsed.imageUrl, response.url, homeId);
   return {
