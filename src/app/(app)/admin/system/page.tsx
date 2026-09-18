@@ -187,6 +187,23 @@ export default async function SystemPage() {
           Failed requests are written to the platform logs rather than stored here.
         </p>
       </section>
+
+      {/* An installed app has no address bar, so a page reachable only by typing its
+          path is a page nobody on a phone can open. This is the way in, and it is here
+          because this is where the deployment is inspected — and it goes when the
+          readout does. */}
+      <section className="mt-10">
+        <h2 className="mb-3 text-lg font-semibold">This device</h2>
+        <Card>
+          <p className="text-sm text-slate-500">
+            What the phone reports about the frame — whether the app is drawn under the
+            status bar, and what colour it was told to paint.
+          </p>
+          <ButtonLink href="/bars" variant="secondary" className="mt-3">
+            Bars
+          </ButtonLink>
+        </Card>
+      </section>
     </>
   );
 }

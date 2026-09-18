@@ -88,6 +88,12 @@ test.describe("as a home admin", () => {
     // Every home starts in the app's own colours.
     await expect(themeOf(page)).toHaveAttribute("data-theme", "SLATE");
 
+    // A marker that only survives if the document is never torn down, so what follows
+    // is the colour arriving in the page that is already open rather than in a new one.
+    await page.evaluate(() => {
+      (window as unknown as { __alive?: boolean }).__alive = true;
+    });
+
     await page.getByRole("radio", { name: "Ocean" }).check();
     await page.getByRole("button", { name: "Save home" }).click();
 
@@ -95,6 +101,12 @@ test.describe("as a home admin", () => {
     // The frame goes with the controls: picking Ocean repaints the header, the tab bar
     // and the tag the phone reads, all in the one colour.
     await expectOneBand(page, "#f0f9ff");
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { __alive?: boolean }).__alive === true,
+      ),
+      "the page reloaded, so this says nothing about the tag changing",
+    ).toBe(true);
     // Stored, not merely on screen: it survives the page being asked for again.
     await page.reload();
     await expect(themeOf(page)).toHaveAttribute("data-theme", "OCEAN");
@@ -148,6 +160,52 @@ test.describe("somebody in two homes", () => {
     // The band came with them: the top of the screen is the home they switched into,
     // not the one they left.
     await expectOneBand(page, "#f5f5f4");
+  });
+
+  /**
+   * And the tag changes in the document that is already open, rather than in a new one.
+   *
+   * This is the whole mechanism by which a phone's status bar follows the household:
+   * switching home is a client-side navigation, so the tag is *mutated* where it stands
+   * and the phone is expected to notice. A reload would repaint the bar too, and would
+   * say nothing about whether mutation works — hence the marker on `window`, which only
+   * survives if the document was never torn down.
+   *
+   * The count is the other half. Anything that later writes the tag from the browser —
+   * the usual `document.createElement("meta")` recipe — leaves two of them, and the one
+   * the phone reads is whichever came first. One tag, rendered from the session, is the
+   * arrangement this app has.
+   */
+  test("repaints the top of the screen without reloading the page", async ({
+    page,
+    loginAs,
+  }) => {
+    await alsoJoin(ACCOUNTS.member.email, OTHER_HOME_NAME);
+    await dress(HOME_NAME, "PLUM");
+    await dress(OTHER_HOME_NAME, "SAND");
+
+    await loginAs(ACCOUNTS.member);
+    await expect(barOf(page)).toHaveAttribute("content", "#fdf4ff");
+
+    await page.evaluate(() => {
+      (window as unknown as { __alive?: boolean }).__alive = true;
+    });
+
+    await openHomeMenu(page);
+    await page.getByRole("menuitem", { name: OTHER_HOME_NAME }).click();
+    await expect(
+      page.getByRole("button", { name: `${OTHER_HOME_NAME} — home menu` }),
+    ).toBeVisible();
+
+    await expect(barOf(page)).toHaveAttribute("content", "#f5f5f4");
+    expect(await barOf(page).count()).toBe(1);
+
+    const alive = await page.evaluate(
+      () => (window as unknown as { __alive?: boolean }).__alive === true,
+    );
+    expect(alive, "the page reloaded, so this says nothing about the tag changing").toBe(
+      true,
+    );
   });
 });
 
