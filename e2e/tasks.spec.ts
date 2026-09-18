@@ -290,5 +290,5 @@ test("a one-off that has been done drops off the dashboard", async ({ page }) =>
   await page.goto("/dashboard");
 
   await expect(page.getByText("Book the plumber")).toBeHidden();
-  await expect(page.getByText("Nothing due for you in the next few days.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Due for you" })).toBeHidden();
 });

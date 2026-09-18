@@ -143,18 +143,20 @@ export default async function DashboardPage() {
 
       <NotificationSetup />
 
-      <section className="mt-6">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Due for you</h2>
-        {mine.length === 0 ? (
-          <EmptyState>Nothing due for you in the next few days.</EmptyState>
-        ) : (
+      {/*
+        Only when there is something due for you. A heading whose body is always
+        "nothing due" teaches nobody anything and costs everybody the scroll past it.
+      */}
+      {mine.length > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Due for you</h2>
           <div className="space-y-2">
             {mine.map((task) => (
               <DueTask key={task.id} task={task} now={now} />
             ))}
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
       {/*
         Only when somebody else has something due. A household where nobody assigns
