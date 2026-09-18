@@ -40,12 +40,15 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
     }),
     db.recipeCategory.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     /*
-     * Every list in the home, for the "Add to list" menu. Alphabetical rather than
-     * newest first: this is a chooser, and a chooser whose order changes as lists are
-     * made is one you have to read every time. Only what is still outstanding is
-     * counted — a list of forty ticked-off items is an empty list to anybody shopping.
+     * The home's lists that track amounts, for the "Add to list" menu — an ingredient
+     * line is a quantity, and a list that ignores amounts has nowhere to put it.
+     * Alphabetical rather than newest first: this is a chooser, and a chooser whose
+     * order changes as lists are made is one you have to read every time. Only what is
+     * still outstanding is counted — a list of forty ticked-off items is an empty list
+     * to anybody shopping.
      */
     db.list.findMany({
+      where: { trackAmounts: true },
       orderBy: { title: "asc" },
       select: { id: true, title: true, _count: { select: { items: { where: { done: false } } } } },
     }),
