@@ -9,6 +9,22 @@ const MAX_RESPONSE_BYTES = 3 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 8000;
 
 /**
+ * Node's `fetch` sends no `User-Agent` at all unless told to, which plenty of ordinary
+ * sites treat as reason enough to refuse the request or hand back a stripped page with
+ * none of the markup this is looking for — not because the request is doing anything
+ * untoward, but because "no browser looks like this" is a cheap first filter against
+ * bots that never got past this app fetching a page a person explicitly linked to. A
+ * browser's own string gets past that filter; it changes nothing about what is done
+ * with the page once it arrives.
+ */
+const REQUEST_HEADERS = {
+  Accept: "text/html,application/xhtml+xml",
+  "Accept-Language": "en-US,en;q=0.9",
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+};
+
+/**
  * Blocks the addresses a browser would never be steered toward by a recipe link: the
  * machine itself, its own network, and the link-local range cloud providers use for
  * instance metadata. This is a household app fetching a page somebody chose to paste,
@@ -32,11 +48,13 @@ function isBlockedHost(hostname: string): boolean {
     return false;
   }
 
-  // Any other bracketed literal is an IPv6 address; ::1 (loopback), fe80::/10
-  // (link-local) and fc00::/7 (unique local) are the ranges with the same reach as the
-  // IPv4 ones above.
-  if (host === "::1" || host.startsWith("fe80:") || host.startsWith("fc") || host.startsWith("fd")) {
-    return true;
+  // A URL's hostname never otherwise contains a colon, so this is the one case left:
+  // an IPv6 literal. ::1 (loopback), fe80::/10 (link-local) and fc00::/7 (unique local)
+  // are the ranges with the same reach as the IPv4 ones above. Checked only once it is
+  // known to be an address rather than a name — "fc" and "fd" are also how plenty of
+  // ordinary domains start, and matching those was refusing real sites outright.
+  if (host.includes(":")) {
+    return host === "::1" || host.startsWith("fe80:") || host.startsWith("fc") || host.startsWith("fd");
   }
 
   return false;
@@ -176,7 +194,7 @@ export async function fetchRecipeFromUrl(rawUrl: string): Promise<ImportOutcome>
     response = await fetch(url, {
       redirect: "follow",
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      headers: { Accept: "text/html" },
+      headers: REQUEST_HEADERS,
     });
   } catch {
     return { ok: false, error: "Couldn't reach that page. Check the link and try again." };
