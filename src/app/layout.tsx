@@ -53,6 +53,8 @@ export function generateViewport(): Viewport {
     themeColor: BAND,
     width: "device-width",
     initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
     /*
      * The app is laid out to the edges of the screen, under the phone's own bars.
      *

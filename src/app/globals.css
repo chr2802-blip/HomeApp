@@ -65,6 +65,20 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
+  /*
+   * A recipe's ingredients, instructions and description arrive from wherever the page
+   * that was imported wrote them — not from this app's own typing — and a single run
+   * with nowhere to break (a pasted URL, a stray tracking parameter, a compound word
+   * with no space) is one Tailwind's `break-words` was never asked to cover: that class
+   * sits on a handful of headings, not on the ingredient list or the description under
+   * a title. Without this, that one run doesn't just overflow its own card — a mobile
+   * browser with nothing forcing the page narrower widens the whole layout viewport to
+   * fit it, which pushes it past Tailwind's `md` breakpoint and hides the phone's own
+   * `md:hidden` tab bar along with it. `anywhere` rather than `break-word`: it also
+   * counts toward a flex or grid child's minimum size, which is what actually lets one
+   * of ours shrink instead of forcing the row wider.
+   */
+  overflow-wrap: anywhere;
 }
 
 /*
