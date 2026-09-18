@@ -11,7 +11,16 @@ import { homeDb } from "@/lib/home-db";
 import { readForm, requiredText } from "@/lib/form";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 
-const categorySchema = z.object({ name: requiredText("Give the category a name.") });
+/** An unticked checkbox is absent from the form rather than present and false. */
+const checkbox = z
+  .string()
+  .optional()
+  .transform((value) => value !== undefined);
+
+const categorySchema = z.object({
+  name: requiredText("Give the category a name."),
+  excludeFromSuggestion: checkbox,
+});
 
 /**
  * The home whose categories the caller may maintain.
@@ -64,7 +73,13 @@ export async function createRecipeCategory(
     // Written through plain prisma with the home spelled out, as createList and
     // createRecipe do: homeDb stamps the home on a create, but its types still ask for
     // the column, and an explicit id beside an explicit check reads plainly.
-    await prisma.recipeCategory.create({ data: { homeId, name: form.fields.name } });
+    await prisma.recipeCategory.create({
+      data: {
+        homeId,
+        name: form.fields.name,
+        excludeFromSuggestion: form.fields.excludeFromSuggestion,
+      },
+    });
   } catch (error) {
     return duplicate(error, form.fields.name);
   }
@@ -87,7 +102,7 @@ export async function renameRecipeCategory(
   try {
     await prisma.recipeCategory.update({
       where: { id: category.id },
-      data: { name: form.fields.name },
+      data: { name: form.fields.name, excludeFromSuggestion: form.fields.excludeFromSuggestion },
     });
   } catch (error) {
     return duplicate(error, form.fields.name);

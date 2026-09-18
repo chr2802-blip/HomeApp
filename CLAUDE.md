@@ -334,6 +334,52 @@ include on a list query that went through `homeDb`. Both ids the action is given
 recipe's and the list's — are checked against the caller's homes, because one press
 sends both.
 
+### Tonight's dinner is cached for the day, not recomputed on every visit
+
+`RecipeSuggestion` is one row per home: the recipe currently suggested, and the date (in
+the home's own zone) it was picked for. The dashboard reads it, and picks a fresh one
+only when that date is not today's — `src/lib/recipe-suggestion.ts` is the whole of that
+logic. Without the row, opening the dashboard twice in an evening would show two
+different dinners, which is not what "today's suggestion" means; a plain random pick on
+every render would be simpler code for a feature that has to look like it remembers.
+
+"Find new" replaces the stored pick rather than adding to it — `@id` on `homeId` makes
+that the only shape the row can take — and prefers whichever eligible recipe is not the
+one already showing, so the button visibly does something when there is anything else to
+offer. Deleting the suggested recipe takes the row with it (`onDelete: Cascade` on both
+sides), so a stale pointer is never left behind: the next visit just picks again, the
+same as any other day nothing was stored yet.
+
+A category's `excludeFromSuggestion` keeps its recipes out of the pool entirely — a
+recipe filed under an excluded heading and an ordinary one is still excluded, because a
+household that ticked "Baby food" for exactly this reason does not want it back for
+having a second category. The checkbox lives beside the name on both the add and rename
+forms in `RecipeCategoriesAdmin`, read the same way `List.trackAmounts` is: an unticked
+box is absent from the form rather than present and false.
+
+### Importing a recipe from a link reads the page's own structured data
+
+"Import from a link" on a new recipe (`src/lib/recipe-import.ts`) does not scrape the
+visible page — it reads the `schema.org/Recipe` JSON-LD block almost every recipe site
+already publishes for search engines, which is the same shape everywhere it appears,
+where the visible markup never is. A page with none, or one missing ingredients and
+instructions both, is refused rather than guessed at from prose: a wrong guess dropped
+silently into the form is worse than a cook typing it in by hand, which is what happens
+either way once the fields are left blank.
+
+The link is fetched from this app's own server, not the cook's browser, so it is checked
+the way a server fetching an address it was merely handed has to be: `isBlockedHost`
+refuses the machine's own network (loopback, link-local, the private ranges) before
+anything is requested, and the response's own `url` is checked again after redirects —
+a page can send an outside address to an inside one. Size and time are both bounded,
+because the page is whoever pasted the link's choice, not this app's.
+
+Only the title, ingredients and instructions are replaced; the picture, video link and
+categories stay whatever the cook already had, because those are this household's own
+choices and not something to overwrite from a stranger's page. `RecipeFields`' inputs
+are uncontrolled, so `RecipeForm` remounts them (via a `key` that changes on import)
+rather than trying to push new values into fields nothing is listening to.
+
 ### A sheet's actions stay on screen
 
 `Modal` lays its contents out as a column: `ModalBody` scrolls, `ModalFooter` does not.

@@ -8,6 +8,7 @@ import { NotificationSetup } from "@/components/notification-setup";
 import { dueLabel, dueTone } from "@/lib/due";
 import { UNFINISHED, repeatLabel } from "@/lib/tasks";
 import { PhotoBanner, PhotoThumb } from "@/components/photo";
+import { SuggestedRecipe } from "@/components/suggested-recipe";
 
 /**
  * What a list card says about a list: how much of it is still to do.
@@ -142,6 +143,8 @@ export default async function DashboardPage() {
       />
 
       <NotificationSetup />
+
+      <SuggestedRecipe homeId={user.homeId} />
 
       {/*
         Only when there is something due for you. A heading whose body is always

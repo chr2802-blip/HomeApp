@@ -158,9 +158,17 @@ export function createList(options: { homeId: string; createdById: string; title
   });
 }
 
-export function createRecipeCategory(options: { homeId: string; name?: string }) {
+export function createRecipeCategory(options: {
+  homeId: string;
+  name?: string;
+  excludeFromSuggestion?: boolean;
+}) {
   return prisma.recipeCategory.create({
-    data: { homeId: options.homeId, name: options.name ?? `Category ${unique()}` },
+    data: {
+      homeId: options.homeId,
+      name: options.name ?? `Category ${unique()}`,
+      excludeFromSuggestion: options.excludeFromSuggestion ?? false,
+    },
   });
 }
 
