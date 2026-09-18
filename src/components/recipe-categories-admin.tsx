@@ -9,6 +9,25 @@ import { ActionForm } from "@/components/action-form";
 import { ItemMenu } from "@/components/item-menu";
 
 /**
+ * Whether a category is offered as tonight's dinner. Shared by the add and rename
+ * forms, so the field name and its wording cannot drift between the two — a household
+ * that ticks it for "Baby food" gets the same effect however that category was made.
+ */
+function ExcludeFromSuggestionField({ defaultChecked = false }: { defaultChecked?: boolean }) {
+  return (
+    <label className="flex items-center gap-2 text-sm text-slate-700">
+      <input
+        type="checkbox"
+        name="excludeFromSuggestion"
+        defaultChecked={defaultChecked}
+        className="h-4 w-4 rounded border-slate-300 accent-slate-900"
+      />
+      Skip for dinner suggestions
+    </label>
+  );
+}
+
+/**
  * The headings this home files its recipes under.
  *
  * A category holding recipes has no Delete button at all: every recipe must have a
@@ -35,6 +54,7 @@ export async function RecipeCategoriesAdmin({ homeId }: { homeId: string }) {
             <Label htmlFor="category-name">New category</Label>
             <Input id="category-name" name="name" placeholder="Weeknight dinners" required />
           </div>
+          <ExcludeFromSuggestionField />
         </ActionForm>
       </Card>
 
@@ -56,6 +76,7 @@ export async function RecipeCategoriesAdmin({ homeId }: { homeId: string }) {
                   required
                   className="min-w-40 flex-1"
                 />
+                <ExcludeFromSuggestionField defaultChecked={category.excludeFromSuggestion} />
               </ActionForm>
 
               {category._count.recipes > 0 ? (

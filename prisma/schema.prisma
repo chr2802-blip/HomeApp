@@ -72,6 +72,7 @@ model Home {
   tasks            Task[]
   recipes          Recipe[]
   recipeCategories RecipeCategory[]
+  recipeSuggestion RecipeSuggestion?
   /// Every picture filed under this home, whatever it is attached to.
   photos           Photo[]          @relation("PhotoHome")
   photo            Photo?           @relation("HomePhoto", fields: [photoId], references: [id], onDelete: SetNull)
@@ -322,6 +323,8 @@ model Recipe {
   categories RecipeCategoryLink[]
   /// The list items this recipe's ingredients have been added to.
   listItems  ListItemSource[]
+  /// The home this is suggested to today, if it is anybody's current pick.
+  suggestedFor RecipeSuggestion?
 
   @@index([homeId])
 }
@@ -337,6 +340,10 @@ model RecipeCategory {
   id        String   @id @default(cuid())
   homeId    String
   name      String
+  /// Kept out of the daily dinner suggestion — a household with a "Baby food" heading
+  /// does not want it turning up as tonight's dinner. Off by default: a category a home
+  /// never thought about here is one it wants suggested, same as before this existed.
+  excludeFromSuggestion Boolean @default(false)
   createdAt DateTime @default(now())
 
   home    Home                 @relation(fields: [homeId], references: [id], onDelete: Cascade)
@@ -346,6 +353,30 @@ model RecipeCategory {
   // Separate homes name theirs freely.
   @@unique([homeId, name])
   @@index([homeId])
+}
+
+/**
+ * The recipe suggested to one home for dinner today.
+ *
+ * One row per home, replaced rather than added to: a second pick the same day is
+ * "instead of", not "as well as", which is what makes the "Find new" button mean what
+ * it says. `date` is the day it was picked for, read the household's own way
+ * (`todayInZone`, never the server's clock) — a suggestion picked yesterday is not
+ * today's, whatever the server's day happens to be when it is asked.
+ *
+ * Cascades from both sides: deleting the home is the end of the question, and deleting
+ * the suggested recipe itself leaves nothing worth keeping a pointer to — the next visit
+ * simply picks again, which is the same thing that happens on any other day nothing was
+ * stored yet.
+ */
+model RecipeSuggestion {
+  homeId    String   @id
+  recipeId  String   @unique
+  date      String
+  updatedAt DateTime @default(now()) @updatedAt
+
+  home   Home   @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 }
 
 /**

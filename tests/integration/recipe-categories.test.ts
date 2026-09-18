@@ -60,6 +60,16 @@ describe("createRecipeCategory", () => {
     expect(await prisma.recipeCategory.count()).toBe(1);
   });
 
+  it("defaults to being offered as a dinner suggestion", async () => {
+    await submit(createRecipeCategory, { name: "Baking" });
+    expect((await prisma.recipeCategory.findFirstOrThrow()).excludeFromSuggestion).toBe(false);
+  });
+
+  it("can be excluded from the dinner suggestion from the moment it is made", async () => {
+    await submit(createRecipeCategory, { name: "Baby food", excludeFromSuggestion: "on" });
+    expect((await prisma.recipeCategory.findFirstOrThrow()).excludeFromSuggestion).toBe(true);
+  });
+
   it("lets a different home use the same name", async () => {
     const neighbour = await createHome({ name: "Next Door" });
     await seedCategory({ homeId: neighbour.id, name: "Baking" });
@@ -122,6 +132,28 @@ describe("renameRecipeCategory", () => {
     expect((await prisma.recipeCategory.findUniqueOrThrow({ where: { id: theirs.id } })).name).toBe(
       "Baking",
     );
+  });
+
+  it("can flip whether it is offered as a dinner suggestion", async () => {
+    const category = await seedCategory({ homeId: home.id, name: "Baby food" });
+
+    await submit(renameRecipeCategory, {
+      categoryId: category.id,
+      name: "Baby food",
+      excludeFromSuggestion: "on",
+    });
+    expect(
+      (await prisma.recipeCategory.findUniqueOrThrow({ where: { id: category.id } }))
+        .excludeFromSuggestion,
+    ).toBe(true);
+
+    // An unticked checkbox is absent from the form, and a rename resubmits every
+    // field — so leaving it off a second time means turning it back off.
+    await submit(renameRecipeCategory, { categoryId: category.id, name: "Baby food" });
+    expect(
+      (await prisma.recipeCategory.findUniqueOrThrow({ where: { id: category.id } }))
+        .excludeFromSuggestion,
+    ).toBe(false);
   });
 });
 
