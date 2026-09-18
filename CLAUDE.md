@@ -357,15 +357,33 @@ having a second category. The checkbox lives beside the name on both the add and
 forms in `RecipeCategoriesAdmin`, read the same way `List.trackAmounts` is: an unticked
 box is absent from the form rather than present and false.
 
-### Importing a recipe from a link reads the page's own structured data
+### A new recipe starts by asking how, not with a field buried in the form
 
-"Import from a link" on a new recipe (`src/lib/recipe-import.ts`) does not scrape the
-visible page — it reads the `schema.org/Recipe` JSON-LD block almost every recipe site
-already publishes for search engines, which is the same shape everywhere it appears,
-where the visible markup never is. A page with none, or one missing ingredients and
-instructions both, is refused rather than guessed at from prose: a wrong guess dropped
-silently into the form is worse than a cook typing it in by hand, which is what happens
-either way once the fields are left blank.
+`NewRecipeDialog` (`src/components/new-recipe-dialog.tsx`) is what the "New recipe"
+button on `/recipes` opens, and it is a small choice before it is a form: **Start from
+scratch** or **Import from a link**, because the two ways of beginning a recipe are a
+decision the cook makes once, up front, not a field to notice partway down a form they
+have already started filling in. `/recipes/new` and `/recipes/[id]/edit` are the plain,
+unlinked pages this dialog's `RecipeFields`/`RecipeForm` grew from — they still work as
+direct links, but the dialog is what the button actually opens, and it carries no import
+step of its own.
+
+The dialog has three steps (`"choose" | "url" | "form"`), all inside the one `Modal` so
+opening it never feels like leaving the page: **choose** offers the two buttons above;
+**url** is `RecipeImportField`, on its own rather than as a field on the create form,
+because fetching is a side trip that may fail and folding it into the same submit as
+saving would make one Save button mean two different things; **form** is the ordinary
+`RecipeFields`, seeded with either nothing or whatever came back from the fetch. The step
+resets to **choose** on every *open* rather than on close — resetting on close would
+show the sheet flashing back to the choice screen while it is still animating away.
+
+**Importing reads the page's own structured data rather than scraping it.**
+`src/lib/recipe-import.ts` reads the `schema.org/Recipe` JSON-LD block almost every
+recipe site already publishes for search engines, which is the same shape everywhere it
+appears, where the visible markup never is. A page with none, or one missing ingredients
+and instructions both, is refused rather than guessed at from prose: a wrong guess
+dropped silently into the form is worse than a cook typing it in by hand, which is what
+happens either way once the fields are left blank.
 
 The link is fetched from this app's own server, not the cook's browser, so it is checked
 the way a server fetching an address it was merely handed has to be: `isBlockedHost`
@@ -374,11 +392,10 @@ anything is requested, and the response's own `url` is checked again after redir
 a page can send an outside address to an inside one. Size and time are both bounded,
 because the page is whoever pasted the link's choice, not this app's.
 
-Only the title, ingredients and instructions are replaced; the picture, video link and
-categories stay whatever the cook already had, because those are this household's own
-choices and not something to overwrite from a stranger's page. `RecipeFields`' inputs
-are uncontrolled, so `RecipeForm` remounts them (via a `key` that changes on import)
-rather than trying to push new values into fields nothing is listening to.
+Only the title, ingredients and instructions come back from a fetch; the picture, video
+link and categories are the create form's own fields regardless of how it was reached,
+since those are this household's choices and not something to set from a stranger's
+page.
 
 ### A sheet's actions stay on screen
 

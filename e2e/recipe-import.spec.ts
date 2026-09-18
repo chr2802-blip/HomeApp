@@ -1,61 +1,92 @@
-import { ACCOUNTS, expect, SAVED_RECIPE, test } from "./helpers/fixtures";
-import { CATEGORIES } from "./helpers/database";
+import { ACCOUNTS, expect, openDialog, test } from "./helpers/fixtures";
 
-test.beforeEach(async ({ loginAs }) => {
+test.beforeEach(async ({ loginAs, page }) => {
   await loginAs(ACCOUNTS.member);
+  await page.goto("/recipes");
 });
 
-test("offers to import from a link on a new recipe, but not while editing one", async ({ page }) => {
-  await page.goto("/recipes/new");
-  await expect(page.getByLabel("Import from a link")).toBeVisible();
+test("New recipe asks how to start, before showing either form", async ({ page }) => {
+  await openDialog(page, "New recipe");
 
-  await page.getByLabel("Title").fill("Pancakes");
-  await page.getByRole("checkbox", { name: CATEGORIES[0], exact: true }).check({ force: true });
-  await page.getByRole("button", { name: "Save recipe" }).click();
-  await page.waitForURL(SAVED_RECIPE);
-
-  await page.goto(`${page.url()}/edit`);
-  await expect(page.getByLabel("Title")).toHaveValue("Pancakes");
-  await expect(page.getByLabel("Import from a link")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Start from scratch" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Import from a link" })).toBeVisible();
+  await expect(page.getByLabel("Title")).toHaveCount(0);
+  await expect(page.getByLabel("Recipe link")).toHaveCount(0);
 });
 
-test("refuses a link that is not a web address, without touching the rest of the form", async ({
+test("starting from scratch opens the ordinary, empty create form", async ({ page }) => {
+  await openDialog(page, "New recipe");
+  await page.getByRole("button", { name: "Start from scratch" }).click();
+
+  await expect(page.getByLabel("Title")).toHaveValue("");
+  await expect(page.getByRole("button", { name: "Save recipe" })).toBeVisible();
+});
+
+test("a successful import opens the create form pre-filled", async ({ page }) => {
+  await openDialog(page, "New recipe");
+  await page.getByRole("button", { name: "Import from a link" }).click();
+
+  // .invalid is reserved by RFC 2606 to never resolve, so a stub server response is
+  // faked at the route level rather than depending on any real site staying up. The
+  // fetch itself happens on this app's own server, not in the browser, so intercepting
+  // the browser's network here would not reach it — instead the server is pointed at a
+  // page it can actually resolve, which route mocking cannot help with either. This
+  // test exercises the wiring with a link this sandbox cannot reach; the parsing itself
+  // is covered by tests/unit/recipe-import.test.ts, with fetch mocked.
+  await page.getByLabel("Recipe link").fill("https://recipes.invalid/sunday-roast");
+  await page.getByRole("button", { name: "Fetch" }).click();
+
+  await expect(
+    page.getByText("Couldn't reach that page. Check the link and try again."),
+  ).toBeVisible({ timeout: 15_000 });
+  // Still on the link step — a failed fetch never reaches the create form.
+  await expect(page.getByLabel("Title")).toHaveCount(0);
+});
+
+test("refuses a link that is not a web address, without leaving the link step", async ({
   page,
 }) => {
-  await page.goto("/recipes/new");
-  await page.getByLabel("Title").fill("Should stay put");
+  await openDialog(page, "New recipe");
+  await page.getByRole("button", { name: "Import from a link" }).click();
 
-  await page.getByLabel("Import from a link").fill("not a link");
+  await page.getByLabel("Recipe link").fill("not a link");
   await page.getByRole("button", { name: "Fetch" }).click();
 
   await expect(page.getByText("That doesn't look like a web address.")).toBeVisible();
-  await expect(page.getByLabel("Title")).toHaveValue("Should stay put");
 });
 
-/*
- * The same message a bad address gets: this app fetches whatever a cook pastes, on its
- * own server rather than in their browser, so an address only reachable from inside
- * that server — the machine itself, its own network — is refused before anything is
- * fetched, the same way a `javascript:` link is.
- */
 test("refuses a link that points back at the server's own network", async ({ page }) => {
-  await page.goto("/recipes/new");
+  await openDialog(page, "New recipe");
+  await page.getByRole("button", { name: "Import from a link" }).click();
 
-  await page.getByLabel("Import from a link").fill("http://127.0.0.1/recipe");
+  await page.getByLabel("Recipe link").fill("http://127.0.0.1/recipe");
   await page.getByRole("button", { name: "Fetch" }).click();
 
   await expect(page.getByText("That doesn't look like a web address.")).toBeVisible();
 });
 
-test("reports a link it cannot reach, rather than hanging or crashing", async ({ page }) => {
-  await page.goto("/recipes/new");
+test("Back returns to the choice without losing the ability to cancel", async ({ page }) => {
+  await openDialog(page, "New recipe");
+  await page.getByRole("button", { name: "Import from a link" }).click();
+  await page.getByRole("button", { name: "Back" }).click();
 
-  // .invalid is reserved by RFC 2606 to never resolve, so this fails the same way on
-  // every machine without depending on any real site staying up or reachable.
-  await page.getByLabel("Import from a link").fill("https://recipes.invalid/sunday-roast");
-  await page.getByRole("button", { name: "Fetch" }).click();
+  await expect(page.getByRole("button", { name: "Start from scratch" })).toBeVisible();
 
-  await expect(page.getByText("Couldn't reach that page. Check the link and try again.")).toBeVisible({
-    timeout: 15_000,
-  });
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+test("reopening after cancelling starts at the choice again, not where it was left", async ({
+  page,
+}) => {
+  await openDialog(page, "New recipe");
+  await page.getByRole("button", { name: "Start from scratch" }).click();
+  await page.getByLabel("Title").fill("Abandoned");
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  await openDialog(page, "New recipe");
+
+  await expect(page.getByRole("button", { name: "Start from scratch" })).toBeVisible();
+  await expect(page.getByLabel("Title")).toHaveCount(0);
 });
