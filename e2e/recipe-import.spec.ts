@@ -90,3 +90,52 @@ test("reopening after cancelling starts at the choice again, not where it was le
   await expect(page.getByRole("button", { name: "Start from scratch" })).toBeVisible();
   await expect(page.getByLabel("Title")).toHaveCount(0);
 });
+
+/*
+ * A recipe link copied specifically to paste in here should not make the cook answer
+ * "how do you want to start" or press Fetch a second time — the button already knows.
+ * These stub the browser's clipboard rather than the network, so the outcome after the
+ * automatic fetch is one of the deterministic, no-network cases already exercised
+ * above (a blocked address, refused instantly) rather than anything that depends on
+ * reaching a real site.
+ */
+test.describe("a recipe link already on the clipboard", () => {
+  async function withClipboard(page: import("@playwright/test").Page, text: string) {
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.evaluate((value) => navigator.clipboard.writeText(value), text);
+  }
+
+  test("skips the question and starts fetching on its own", async ({ page }) => {
+    await withClipboard(page, "http://127.0.0.1/recipe");
+
+    await openDialog(page, "New recipe");
+
+    // Straight to the link step — never the choice screen — and already fetching
+    // without a press of the button.
+    await expect(page.getByRole("button", { name: "Start from scratch" })).toHaveCount(0);
+    await expect(page.getByLabel("Recipe link")).toHaveValue("http://127.0.0.1/recipe");
+    await expect(page.getByText("That doesn't look like a web address.")).toBeVisible();
+  });
+
+  test("still asks first when the clipboard holds no web address", async ({ page }) => {
+    await withClipboard(page, "chicken, not garlic, for the soup");
+
+    await openDialog(page, "New recipe");
+
+    await expect(page.getByRole("button", { name: "Start from scratch" })).toBeVisible();
+    await expect(page.getByLabel("Recipe link")).toHaveCount(0);
+  });
+
+  test("choosing Import from a link by hand starts blank, not from an earlier clipboard fetch", async ({
+    page,
+  }) => {
+    await withClipboard(page, "http://127.0.0.1/recipe");
+    await openDialog(page, "New recipe");
+    await expect(page.getByText("That doesn't look like a web address.")).toBeVisible();
+
+    await page.getByRole("button", { name: "Back" }).click();
+    await page.getByRole("button", { name: "Import from a link" }).click();
+
+    await expect(page.getByLabel("Recipe link")).toHaveValue("");
+  });
+});

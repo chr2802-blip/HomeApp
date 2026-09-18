@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Button, Input, Label } from "@/components/ui";
 import { importRecipeFromUrl } from "@/app/actions/recipe-import";
 import type { ImportedRecipe } from "@/lib/recipe-import";
@@ -17,18 +17,25 @@ import type { ImportedRecipe } from "@/lib/recipe-import";
  * household's own choices and schema.org has no standard place for either. The picture
  * is only ever a starting point, not a fixture — `PhotoField` shows it exactly as it
  * would a photo the cook chose themselves, replaceable or removable before saving.
+ *
+ * `autoFetchUrl` is a link `NewRecipeDialog` already found on the clipboard: it seeds
+ * the field and starts the same fetch a press of the button would, once, on arrival —
+ * a cook who copied a recipe's address specifically to paste it here should not have
+ * to paste it by hand and press anything to prove it.
  */
 export function RecipeImportField({
   onImported,
+  autoFetchUrl,
 }: {
   onImported: (recipe: ImportedRecipe) => void;
+  autoFetchUrl?: string;
 }) {
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(autoFetchUrl ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  function handleFetch() {
-    const trimmed = url.trim();
+  function handleFetch(overrideUrl?: string) {
+    const trimmed = (overrideUrl ?? url).trim();
     if (!trimmed) {
       setError("Paste a link to a recipe first.");
       return;
@@ -48,6 +55,15 @@ export function RecipeImportField({
     });
   }
 
+  // Once only, for the address this field was seeded with — never for one typed or
+  // edited afterward, and there is nothing else `autoFetchUrl` could mean once this
+  // component already exists: `NewRecipeDialog` mounts a fresh one for every visit to
+  // this step, so it never changes under a component that is already showing something.
+  useEffect(() => {
+    if (autoFetchUrl) handleFetch(autoFetchUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="space-y-1">
       <Label htmlFor="importUrl">Recipe link</Label>
@@ -63,7 +79,7 @@ export function RecipeImportField({
         <Button
           type="button"
           variant="secondary"
-          onClick={handleFetch}
+          onClick={() => handleFetch()}
           disabled={pending}
           aria-busy={pending}
         >
