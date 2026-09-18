@@ -6,14 +6,15 @@ import { importRecipeFromUrl } from "@/app/actions/recipe-import";
 import type { ImportedRecipe } from "@/lib/recipe-import";
 
 /**
- * Fills the rest of the form from a recipe page's own link, rather than the cook
- * retyping what the site already wrote out. Its own input and button rather than a
- * field on the recipe's own form: fetching is a side trip that may fail, and folding it
- * into the same submit as saving would make one Save button mean two different things.
+ * Fetches a recipe page and hands back what it found, so the cook is shown the usual
+ * create form pre-filled rather than typing out what the site already wrote. It is its
+ * own step rather than a field on the create form itself: fetching is a side trip that
+ * may fail, and folding it into the same submit as saving would make one Save button
+ * mean two different things.
  *
- * What comes back replaces the title, ingredients and instructions and nothing else —
- * the picture, the video link and the categories are this household's own choices, not
- * something to overwrite from outside.
+ * Only the title, ingredients and instructions come back — the picture, video link and
+ * categories are left for the create form, since those are this household's own
+ * choices, not something to set from a stranger's page.
  */
 export function RecipeImportField({
   onImported,
@@ -46,8 +47,8 @@ export function RecipeImportField({
   }
 
   return (
-    <div className="space-y-1 rounded-lg border border-dashed border-slate-300 p-3">
-      <Label htmlFor="importUrl">Import from a link</Label>
+    <div className="space-y-1">
+      <Label htmlFor="importUrl">Recipe link</Label>
       <div className="flex flex-wrap gap-2">
         <Input
           id="importUrl"
@@ -68,8 +69,8 @@ export function RecipeImportField({
         </Button>
       </div>
       <p className="text-xs text-slate-500">
-        Paste a link to a recipe page to fill in the title, ingredients and instructions below —
-        check them over before saving.
+        Its title, ingredients and instructions open in the usual form, to check over before
+        saving.
       </p>
       {error && (
         <p role="alert" className="text-sm text-red-600">

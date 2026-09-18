@@ -3,8 +3,7 @@ import { homeDb } from "@/lib/home-db";
 import { createRecipe } from "@/app/actions/recipes";
 import { PageHeader } from "@/components/ui";
 import { toEmbed } from "@/lib/embed";
-import { FormDialog } from "@/components/form-dialog";
-import { RecipeFields } from "@/components/recipe-fields";
+import { NewRecipeDialog } from "@/components/new-recipe-dialog";
 import { RecipeDirectory, type RecipeSummary } from "@/components/recipe-directory";
 
 export default async function RecipesPage() {
@@ -42,18 +41,7 @@ export default async function RecipesPage() {
       <PageHeader
         title="Recipes"
         description="Write them out, or just save the reel you want to cook from."
-        action={
-          <FormDialog
-            triggerLabel="New recipe"
-            triggerVariant="create"
-            triggerShape="icon"
-            title="New recipe"
-            submitLabel="Save recipe"
-            action={createRecipe}
-          >
-            <RecipeFields categories={categories} />
-          </FormDialog>
-        }
+        action={<NewRecipeDialog categories={categories} action={createRecipe} />}
       />
 
       <RecipeDirectory recipes={summaries} categories={categories} />

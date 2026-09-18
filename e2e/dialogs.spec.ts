@@ -19,6 +19,7 @@ test.describe("a sheet on a phone-sized screen", () => {
   test("keeps a long form's actions on screen, before and after scrolling it", async ({ page }) => {
     await page.goto("/recipes");
     await openDialog(page, "New recipe");
+    await page.getByRole("button", { name: "Start from scratch" }).click();
 
     const save = page.getByRole("button", { name: "Save recipe" });
     const cancel = page.getByRole("dialog").getByRole("button", { name: "Cancel" });
@@ -35,6 +36,7 @@ test.describe("a sheet on a phone-sized screen", () => {
   test("shows a refused submission's reason beside the button that refused it", async ({ page }) => {
     await page.goto("/recipes");
     await openDialog(page, "New recipe");
+    await page.getByRole("button", { name: "Start from scratch" }).click();
 
     // A title and no category: refused by the action rather than by the browser, so the
     // reason comes back into a sheet that is still open and still scrolled to the top.
