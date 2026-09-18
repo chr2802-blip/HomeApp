@@ -153,3 +153,40 @@ test("a recipe with no written steps says to follow the video", async ({ page })
   await expect(page.getByText("None written — follow the video.")).toBeVisible();
   await expect(page.getByText("None listed.")).toBeVisible();
 });
+
+/*
+ * The header is `flex items-start justify-between`, with the title's own block (its
+ * category badges, its heading, its description) as one flex item beside the menu
+ * button as the other. Without `min-w-0` on that first item, a long, unbroken enough
+ * title cannot shrink to wrap within its own column — so the row itself wraps instead,
+ * carrying the button down onto a line of its own. `min-w-0` is what lets the title
+ * wrap in place and the button stay exactly where `items-start` already puts it: level
+ * with the top of the header, beside the category badges.
+ */
+test("a long title wraps in place rather than pushing the menu button onto its own line", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await fillRecipe(page, {
+    title:
+      "A genuinely long recipe title, the kind a household types in without ever thinking about how narrow a phone screen is",
+    ingredients: "Flour",
+  });
+  await page.getByRole("button", { name: "Save recipe" }).click();
+  await page.waitForURL(SAVED_RECIPE);
+
+  const badge = page.getByText(CATEGORIES[0], { exact: true });
+  const menuButton = page.getByRole("button", { name: /^Actions for /});
+  await expect(badge).toBeVisible();
+  await expect(menuButton).toBeVisible();
+
+  const badgeBox = await badge.boundingBox();
+  const menuBox = await menuButton.boundingBox();
+  expect(badgeBox).not.toBeNull();
+  expect(menuBox).not.toBeNull();
+
+  // Both are `items-start` children of the same row, so their tops sit close together
+  // when the title has wrapped in place — and a full line height or more apart if the
+  // button was pushed onto its own row underneath instead.
+  expect(Math.abs(menuBox!.y - badgeBox!.y)).toBeLessThan(30);
+});

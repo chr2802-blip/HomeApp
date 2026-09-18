@@ -18,12 +18,35 @@ const TITLES: Record<Step, string> = {
 };
 
 /**
+ * A recipe link the cook already had on their clipboard when they pressed the button,
+ * or null for everything that is not that — nothing copied, a browser that refuses to
+ * say, or text that is not a web address. All of those get the same answer: ask, the
+ * way the button always has.
+ */
+async function clipboardRecipeUrl(): Promise<string | null> {
+  try {
+    if (!navigator.clipboard?.readText) return null;
+    const text = (await navigator.clipboard.readText()).trim();
+    const url = new URL(text);
+    return url.protocol === "http:" || url.protocol === "https:" ? text : null;
+  } catch {
+    // Not a URL, or the browser would not say — Safari has no readText at all, and
+    // Chrome can refuse without asking if the page is not in focus. Either way this is
+    // exactly the case the button already handled: nothing to prefill.
+    return null;
+  }
+}
+
+/**
  * The "New recipe" button on the recipes page.
  *
  * A recipe can be started two ways — typed in from scratch, or pulled from a link
  * somebody found online — so the button asks which before showing either form, rather
  * than burying the link importer as one more field inside the create sheet where it
- * would be easy to miss and stranger to explain.
+ * would be easy to miss and stranger to explain. A cook who copied a recipe's link
+ * specifically to paste it here is not asked, though: the button reads the clipboard
+ * itself, and a page's own address goes straight to fetching it, skipping both the
+ * question and the paste.
  *
  * The choice resets on every open rather than on close: resetting on close would show
  * it flashing back to "choose" while the sheet is still animating away.
@@ -38,10 +61,15 @@ export function NewRecipeDialog({
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("choose");
   const [initial, setInitial] = useState<RecipeValues | undefined>(undefined);
+  const [autoUrl, setAutoUrl] = useState<string | undefined>(undefined);
 
-  function openFresh() {
-    setStep("choose");
+  // The clipboard check runs before the sheet opens rather than after, so it never
+  // shows "choose" for a moment only to jump straight past it once the check resolves.
+  async function openFresh() {
     setInitial(undefined);
+    const pasted = await clipboardRecipeUrl();
+    setAutoUrl(pasted ?? undefined);
+    setStep(pasted ? "url" : "choose");
     setOpen(true);
   }
 
@@ -83,7 +111,16 @@ export function NewRecipeDialog({
                 <Button type="button" onClick={() => setStep("form")}>
                   Start from scratch
                 </Button>
-                <Button type="button" variant="secondary" onClick={() => setStep("url")}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  // Chosen by hand rather than found on the clipboard: starts blank,
+                  // even if openFresh found something there earlier this same visit.
+                  onClick={() => {
+                    setAutoUrl(undefined);
+                    setStep("url");
+                  }}
+                >
                   Import from a link
                 </Button>
                 <Button type="button" variant="ghost" onClick={close}>
@@ -97,7 +134,7 @@ export function NewRecipeDialog({
         {step === "url" && (
           <>
             <ModalBody>
-              <RecipeImportField onImported={handleImported} />
+              <RecipeImportField onImported={handleImported} autoFetchUrl={autoUrl} />
             </ModalBody>
             <ModalFooter>
               <div className="flex gap-2">

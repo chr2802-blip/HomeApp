@@ -95,13 +95,13 @@ export function Modal({
           closing ? "animate-sheet-out" : "animate-sheet-in"
         }`}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <h2 className="min-w-0 flex-1 text-lg font-semibold tracking-tight break-words">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="-mr-1 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-900 active:scale-90"
+            className="-mr-1 shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-900 active:scale-90"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="m6 6 12 12M18 6 6 18" strokeLinecap="round" />

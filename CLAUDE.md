@@ -377,6 +377,21 @@ saving would make one Save button mean two different things; **form** is the ord
 resets to **choose** on every *open* rather than on close — resetting on close would
 show the sheet flashing back to the choice screen while it is still animating away.
 
+**The button reads the clipboard before it decides which step that is.** A cook who
+copied a recipe's own link specifically to bring here did not copy it to be asked
+"how do you want to start" — `clipboardRecipeUrl` checks, and a web address found there
+sends `openFresh` straight to **url** with it already seeded, where `RecipeImportField`
+starts the same fetch a press of the button would, once, on arrival. That check runs
+*before* the sheet opens rather than after, so it is never seen choosing: opening on
+**choose** and then jumping to **url** a moment later would show exactly the flash the
+close-vs-open reset above exists to avoid. Anything else on the clipboard — nothing,
+plain text, a browser that will not say (Safari has no `readText` at all; Chrome can
+refuse silently when the page lacks focus) — is treated the same as if there had been
+nothing to check, which is the ordinary **choose** screen this always showed. Choosing
+**Import from a link** by hand always starts blank, even moments after an automatic
+fetch from the clipboard found something: a deliberate press is not the clipboard
+speaking again.
+
 **Importing reads the page's own structured data rather than scraping it.**
 `src/lib/recipe-import.ts` reads the `schema.org/Recipe` markup almost every recipe site
 already publishes for search engines, in whichever of its two standard shapes that
