@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchRecipeFromUrl, parseRecipeFromHtml } from "@/lib/recipe-import";
 
+const HOME_ID = "home-1";
+
 function pageWithLdJson(recipe: unknown, extra = "") {
   return `<!doctype html><html><head>
     <title>Fallback title</title>
@@ -9,7 +11,7 @@ function pageWithLdJson(recipe: unknown, extra = "") {
   </head><body></body></html>`;
 }
 
-describe("parseRecipeFromHtml", () => {
+describe("parseRecipeFromHtml — JSON-LD", () => {
   it("reads a plain schema.org Recipe block", () => {
     const html = pageWithLdJson({
       "@context": "https://schema.org",
@@ -23,6 +25,7 @@ describe("parseRecipeFromHtml", () => {
       title: "Pancakes",
       ingredients: "200 g flour\n2 eggs",
       instructions: "Mix and fry.",
+      imageUrl: null,
     });
   });
 
@@ -44,6 +47,7 @@ describe("parseRecipeFromHtml", () => {
       title: "Lasagne",
       ingredients: "Pasta\nSauce",
       instructions: "Layer.\nBake.",
+      imageUrl: null,
     });
   });
 
@@ -112,6 +116,160 @@ describe("parseRecipeFromHtml", () => {
     const html = pageWithLdJson({ "@type": "Recipe", name: "Empty" });
     expect(parseRecipeFromHtml(html)).toBeNull();
   });
+
+  it("reads a plain string image", () => {
+    const html = pageWithLdJson({
+      "@type": "Recipe",
+      name: "Pancakes",
+      recipeIngredient: ["Flour"],
+      recipeInstructions: "Fry.",
+      image: "https://example.com/pancakes.jpg",
+    });
+    expect(parseRecipeFromHtml(html)?.imageUrl).toBe("https://example.com/pancakes.jpg");
+  });
+
+  it("reads the first of a list of image URLs", () => {
+    const html = pageWithLdJson({
+      "@type": "Recipe",
+      name: "Pancakes",
+      recipeIngredient: ["Flour"],
+      recipeInstructions: "Fry.",
+      image: ["https://example.com/a.jpg", "https://example.com/b.jpg"],
+    });
+    expect(parseRecipeFromHtml(html)?.imageUrl).toBe("https://example.com/a.jpg");
+  });
+
+  it("reads an ImageObject's url", () => {
+    const html = pageWithLdJson({
+      "@type": "Recipe",
+      name: "Pancakes",
+      recipeIngredient: ["Flour"],
+      recipeInstructions: "Fry.",
+      image: { "@type": "ImageObject", url: "https://example.com/pancakes.jpg" },
+    });
+    expect(parseRecipeFromHtml(html)?.imageUrl).toBe("https://example.com/pancakes.jpg");
+  });
+});
+
+describe("parseRecipeFromHtml — Microdata", () => {
+  // The shape a Gemini-suggested cheerio scraper targeted: itemscope/itemtype/itemprop
+  // rather than a JSON-LD script block. Both are valid schema.org, and a site that
+  // publishes only this one still "follows the standard" — it just follows the older
+  // half of it.
+  function microdataPage(body: string) {
+    return `<!doctype html><html><body>
+      <div itemscope itemtype="https://schema.org/Recipe">
+        ${body}
+      </div>
+    </body></html>`;
+  }
+
+  it("reads a recipe with no JSON-LD at all", () => {
+    const html = microdataPage(`
+      <h1 itemprop="name">Pasta med kødsauce</h1>
+      <img itemprop="image" src="/images/pasta.jpg" />
+      <ul>
+        <li itemprop="recipeIngredient">Hakket oksekød</li>
+        <li itemprop="recipeIngredient">Pasta</li>
+      </ul>
+      <div itemprop="recipeInstructions">
+        <p>Brun kødet.</p>
+        <p>Kog pastaen.</p>
+      </div>
+    `);
+
+    expect(parseRecipeFromHtml(html)).toEqual({
+      title: "Pasta med kødsauce",
+      ingredients: "Hakket oksekød\nPasta",
+      instructions: "Brun kødet.\nKog pastaen.",
+      imageUrl: "/images/pasta.jpg",
+    });
+  });
+
+  it("reads recipeInstructions repeated once per step", () => {
+    const html = microdataPage(`
+      <span itemprop="name">Soup</span>
+      <span itemprop="recipeIngredient">Stock</span>
+      <ol>
+        <li itemprop="recipeInstructions">Heat the stock.</li>
+        <li itemprop="recipeInstructions">Simmer for ten minutes.</li>
+      </ol>
+    `);
+
+    expect(parseRecipeFromHtml(html)?.instructions).toBe(
+      "Heat the stock.\nSimmer for ten minutes.",
+    );
+  });
+
+  it("reads HowToStep-style nested text inside recipeInstructions", () => {
+    const html = microdataPage(`
+      <span itemprop="name">Soup</span>
+      <span itemprop="recipeIngredient">Stock</span>
+      <div itemprop="recipeInstructions">
+        <div itemprop="text">Heat the stock.</div>
+        <div itemprop="text">Simmer for ten minutes.</div>
+      </div>
+    `);
+
+    expect(parseRecipeFromHtml(html)?.instructions).toBe(
+      "Heat the stock.\nSimmer for ten minutes.",
+    );
+  });
+
+  it("reads an image from a link's href", () => {
+    const html = microdataPage(`
+      <span itemprop="name">Soup</span>
+      <span itemprop="recipeIngredient">Stock</span>
+      <span itemprop="recipeInstructions">Heat it.</span>
+      <link itemprop="image" href="https://example.com/soup.jpg" />
+    `);
+
+    expect(parseRecipeFromHtml(html)?.imageUrl).toBe("https://example.com/soup.jpg");
+  });
+
+  it("prefers JSON-LD where a page has both, falling back to Microdata field by field", () => {
+    const html = `<!doctype html><html><body>
+      <script type="application/ld+json">${JSON.stringify({
+        "@type": "Recipe",
+        name: "From JSON-LD",
+      })}</script>
+      <div itemscope itemtype="https://schema.org/Recipe">
+        <span itemprop="name">From Microdata</span>
+        <span itemprop="recipeIngredient">Stock</span>
+        <span itemprop="recipeInstructions">Heat it.</span>
+      </div>
+    </body></html>`;
+
+    // The JSON-LD title wins, but it had no ingredients or instructions at all, so
+    // those come from the Microdata block instead of the page being refused.
+    expect(parseRecipeFromHtml(html)).toEqual({
+      title: "From JSON-LD",
+      ingredients: "Stock",
+      instructions: "Heat it.",
+      imageUrl: null,
+    });
+  });
+
+  it("falls back to og:image when neither format names a picture", () => {
+    const html = `<!doctype html><html><head>
+      <meta property="og:image" content="https://example.com/og.jpg" />
+    </head><body>
+      <div itemscope itemtype="https://schema.org/Recipe">
+        <span itemprop="name">Soup</span>
+        <span itemprop="recipeIngredient">Stock</span>
+        <span itemprop="recipeInstructions">Heat it.</span>
+      </div>
+    </body></html>`;
+
+    expect(parseRecipeFromHtml(html)?.imageUrl).toBe("https://example.com/og.jpg");
+  });
+
+  it("returns null when the itemtype is some other schema.org type", () => {
+    const html = `<div itemscope itemtype="https://schema.org/Article">
+      <span itemprop="name">Not a recipe</span>
+    </div>`;
+    expect(parseRecipeFromHtml(html)).toBeNull();
+  });
 });
 
 function htmlResponse(html: string, overrides: Partial<Response> = {}) {
@@ -145,9 +303,9 @@ describe("fetchRecipeFromUrl", () => {
   it("fetches and parses a real-looking page", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(goodHtml)));
 
-    expect(await fetchRecipeFromUrl("https://example.com/recipe")).toEqual({
+    expect(await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID)).toEqual({
       ok: true,
-      recipe: { title: "Pancakes", ingredients: "Flour", instructions: "Fry." },
+      recipe: { title: "Pancakes", ingredients: "Flour", instructions: "Fry.", photoId: null },
     });
   });
 
@@ -155,7 +313,7 @@ describe("fetchRecipeFromUrl", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchRecipeFromUrl("javascript:alert(1)");
+    const result = await fetchRecipeFromUrl("javascript:alert(1)", HOME_ID);
 
     expect(result.ok).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -172,7 +330,7 @@ describe("fetchRecipeFromUrl", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchRecipeFromUrl(url);
+    const result = await fetchRecipeFromUrl(url, HOME_ID);
 
     expect(result.ok).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -184,7 +342,7 @@ describe("fetchRecipeFromUrl", () => {
       vi.fn().mockResolvedValue(htmlResponse(goodHtml, { url: "http://169.254.169.254/" })),
     );
 
-    expect((await fetchRecipeFromUrl("https://example.com/recipe")).ok).toBe(false);
+    expect((await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID)).ok).toBe(false);
   });
 
   // fc00::/7 is a real IPv6 range worth refusing, but plenty of ordinary domains also
@@ -196,7 +354,7 @@ describe("fetchRecipeFromUrl", () => {
       const fetchMock = vi.fn().mockResolvedValue(htmlResponse(goodHtml));
       vi.stubGlobal("fetch", fetchMock);
 
-      const result = await fetchRecipeFromUrl(url);
+      const result = await fetchRecipeFromUrl(url, HOME_ID);
 
       expect(fetchMock).toHaveBeenCalled();
       expect(result.ok).toBe(true);
@@ -207,7 +365,7 @@ describe("fetchRecipeFromUrl", () => {
     const fetchMock = vi.fn().mockResolvedValue(htmlResponse(goodHtml));
     vi.stubGlobal("fetch", fetchMock);
 
-    await fetchRecipeFromUrl("https://example.com/recipe");
+    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID);
 
     const [, options] = fetchMock.mock.calls[0];
     expect(options.headers["User-Agent"]).toMatch(/Mozilla/);
@@ -221,7 +379,7 @@ describe("fetchRecipeFromUrl", () => {
     const fetchMock = vi.fn().mockResolvedValue(htmlResponse(goodHtml));
     vi.stubGlobal("fetch", fetchMock);
 
-    await fetchRecipeFromUrl("https://example.com/recipe");
+    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID);
 
     const [, options] = fetchMock.mock.calls[0];
     expect(options.headers).not.toHaveProperty("Accept-Language");
@@ -254,11 +412,16 @@ describe("fetchRecipeFromUrl", () => {
       }),
     );
 
-    const result = await fetchRecipeFromUrl("https://example.dk/opskrift");
+    const result = await fetchRecipeFromUrl("https://example.dk/opskrift", HOME_ID);
 
     expect(result).toEqual({
       ok: true,
-      recipe: { title: "Kødsauce", ingredients: "Hakket oksekød", instructions: "Brun kødet." },
+      recipe: {
+        title: "Kødsauce",
+        ingredients: "Hakket oksekød",
+        instructions: "Brun kødet.",
+        photoId: null,
+      },
     });
   });
 
@@ -270,13 +433,13 @@ describe("fetchRecipeFromUrl", () => {
       ),
     );
 
-    expect((await fetchRecipeFromUrl("https://example.com/recipe")).ok).toBe(false);
+    expect((await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID)).ok).toBe(false);
   });
 
   it("reports a network failure rather than throwing", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("boom")));
 
-    expect(await fetchRecipeFromUrl("https://example.com/recipe")).toEqual({
+    expect(await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID)).toEqual({
       ok: false,
       error: "Couldn't reach that page. Check the link and try again.",
     });
@@ -300,6 +463,41 @@ describe("fetchRecipeFromUrl", () => {
       }),
     );
 
-    expect((await fetchRecipeFromUrl("https://example.com/recipe")).ok).toBe(false);
+    expect((await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID)).ok).toBe(false);
+  });
+
+  // No `image` field anywhere in `goodHtml`, so none of the tests above ever ask this
+  // app to fetch a second URL or touch the database — importRecipeImage short-circuits
+  // on a null imageUrl. The image fetch itself, which does touch storePhoto and so a
+  // real database, is covered in tests/integration/recipe-import.test.ts instead.
+  it("never fetches an image when the page names none", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(htmlResponse(goodHtml));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("never fetches an image whose resolved address is blocked", async () => {
+    const withImage = pageWithLdJson({
+      "@type": "Recipe",
+      name: "Pancakes",
+      recipeIngredient: ["Flour"],
+      recipeInstructions: "Fry.",
+      image: "http://169.254.169.254/pancakes.jpg",
+    });
+    const fetchMock = vi.fn().mockResolvedValue(htmlResponse(withImage));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID);
+
+    // The recipe itself is still good — a blocked or unreachable picture is left out,
+    // never a reason to refuse an otherwise readable recipe.
+    expect(result).toEqual({
+      ok: true,
+      recipe: { title: "Pancakes", ingredients: "Flour", instructions: "Fry.", photoId: null },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

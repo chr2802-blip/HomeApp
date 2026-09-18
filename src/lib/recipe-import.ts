@@ -1,4 +1,22 @@
-export type ImportedRecipe = { title: string; ingredients: string; instructions: string };
+import * as cheerio from "cheerio";
+import sharp from "sharp";
+import { MAX_EDGE, THUMB_EDGE } from "./downscale";
+import { storePhoto } from "./photos";
+
+/** What a page's own markup says its recipe is, before an image has been fetched. */
+type ParsedRecipe = {
+  title: string;
+  ingredients: string;
+  instructions: string;
+  imageUrl: string | null;
+};
+
+export type ImportedRecipe = {
+  title: string;
+  ingredients: string;
+  instructions: string;
+  photoId: string | null;
+};
 export type ImportOutcome = { ok: true; recipe: ImportedRecipe } | { ok: false; error: string };
 
 const GENERIC_ERROR =
@@ -6,6 +24,8 @@ const GENERIC_ERROR =
 
 /** How much of a page is ever read — a bound on the request, not a claim about recipes. */
 const MAX_RESPONSE_BYTES = 3 * 1024 * 1024;
+/** A recipe's own hero photo is never anywhere near this; it exists to bound the request. */
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 8000;
 
 /**
@@ -142,6 +162,54 @@ function instructionLines(value: unknown): string {
   return "";
 }
 
+/**
+ * `Recipe` markup as schema.org actually reaches the wild in a second, older shape:
+ * Microdata (`itemscope`/`itemtype`/`itemprop` attributes on the page's own elements)
+ * rather than a separate JSON-LD block. Both say the same thing; a site publishes
+ * whichever its CMS happened to generate, sometimes both, rarely neither. Microdata is
+ * scattered across the DOM rather than sitting in one parseable block, which is what a
+ * proper parser is for here rather than another regular expression.
+ */
+function microdataRecipeRoot($: cheerio.CheerioAPI) {
+  return $("[itemscope]")
+    .filter((_, el) => /schema\.org\/recipe\s*$/i.test($(el).attr("itemtype")?.trim() ?? ""))
+    .first();
+}
+
+function microdataText($: cheerio.CheerioAPI, root: ReturnType<typeof microdataRecipeRoot>, prop: string) {
+  return root
+    .find(`[itemprop="${prop}"]`)
+    .map((_, el) => $(el).text().trim())
+    .get()
+    .filter(Boolean)
+    .join("\n");
+}
+
+/**
+ * `recipeInstructions` in Microdata arrives in whichever of two shapes a site chose:
+ * the property repeated once per step, or once on a container whose own steps (or
+ * paragraphs, where the steps are not marked up at all) sit inside it.
+ */
+function microdataInstructions($: cheerio.CheerioAPI, root: ReturnType<typeof microdataRecipeRoot>) {
+  const nodes = root.find('[itemprop="recipeInstructions"]');
+  if (nodes.length > 1) {
+    return nodes
+      .map((_, el) => $(el).text().trim())
+      .get()
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  const container = nodes.first();
+  const steps = container.find('[itemprop="text"], li, p');
+  const text = steps.length > 0 ? steps : container;
+  return text
+    .map((_, el) => $(el).text().trim())
+    .get()
+    .filter(Boolean)
+    .join("\n");
+}
+
 /** The `<title>` or `og:title` of a page, for when there is no JSON-LD title to use. */
 function fallbackTitle(html: string): string {
   const og = /<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']*)["']/i.exec(html);
@@ -149,6 +217,51 @@ function fallbackTitle(html: string): string {
 
   const title = /<title[^>]*>([^<]*)<\/title>/i.exec(html);
   return title?.[1] ? decodeEntities(title[1]).trim() : "";
+}
+
+/**
+ * `image` in JSON-LD is a URL, a list of them, an `ImageObject`, or a list of those —
+ * schema.org allows all four for the same property, and a site picks whichever its
+ * template happened to produce.
+ */
+function jsonLdImageUrl(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const url = jsonLdImageUrl(item);
+      if (url) return url;
+    }
+    return null;
+  }
+  if (typeof value === "object" && value !== null) {
+    const url = (value as Record<string, unknown>).url;
+    if (typeof url === "string") return url;
+  }
+  return null;
+}
+
+/**
+ * `image` in Microdata is usually the `src` of an `<img>` or the `href` of a `<link>`
+ * carrying the property directly, occasionally a `<meta content>`, and rarely a nested
+ * `ImageObject` with its own `url` inside.
+ */
+function microdataImageUrl($: cheerio.CheerioAPI, root: ReturnType<typeof microdataRecipeRoot>) {
+  const el = root.find('[itemprop="image"]').first();
+  if (el.length === 0) return null;
+
+  return (
+    el.attr("src") ??
+    el.attr("href") ??
+    el.attr("content") ??
+    el.find('[itemprop="url"]').first().attr("content") ??
+    null
+  );
+}
+
+/** `og:image`, for a page with neither JSON-LD nor Microdata to say what its picture is. */
+function ogImage(html: string): string | null {
+  const match = /<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']*)["']/i.exec(html);
+  return match?.[1] ? decodeEntities(match[1]).trim() : null;
 }
 
 function decodeEntities(text: string): string {
@@ -165,31 +278,50 @@ function decodeEntities(text: string): string {
  * nothing usable was found.
  *
  * Reads the `Recipe` structured data almost every recipe site already publishes for
- * search engines (schema.org, as JSON-LD), rather than guessing at that site's own
- * markup: the structure is the same everywhere it appears, where the visible page never
- * is. A page with no such block, or one missing every field this needs, is refused
- * rather than guessed at from prose.
+ * search engines — schema.org, as JSON-LD or as Microdata, whichever that site's own
+ * software happened to generate — rather than guessing at the page's visible markup,
+ * which differs everywhere the structured data does not. JSON-LD is read first, since
+ * it is one self-contained block rather than attributes to gather across the page, and
+ * Microdata fills in whatever field it left blank: a page mixing the two, or complete
+ * in neither alone, is not a page this should give up on. One missing every field this
+ * needs, in both, is refused rather than guessed at from prose.
  */
-export function parseRecipeFromHtml(html: string): ImportedRecipe | null {
-  const node = findRecipeNode(jsonLdBlocks(html));
+export function parseRecipeFromHtml(html: string): ParsedRecipe | null {
+  const jsonLd = findRecipeNode(jsonLdBlocks(html));
+  const $ = cheerio.load(html);
+  const microdata = microdataRecipeRoot($);
+  const hasMicrodata = microdata.length > 0;
 
-  const title = asLines(node?.name) || fallbackTitle(html);
-  const ingredients = asLines(node?.recipeIngredient);
-  const instructions = instructionLines(node?.recipeInstructions);
+  const title =
+    asLines(jsonLd?.name) ||
+    (hasMicrodata ? microdataText($, microdata, "name") : "") ||
+    fallbackTitle(html);
+  const ingredients =
+    asLines(jsonLd?.recipeIngredient) ||
+    (hasMicrodata ? microdataText($, microdata, "recipeIngredient") : "");
+  const instructions =
+    instructionLines(jsonLd?.recipeInstructions) ||
+    (hasMicrodata ? microdataInstructions($, microdata) : "");
+  const imageUrl =
+    jsonLdImageUrl(jsonLd?.image) || (hasMicrodata ? microdataImageUrl($, microdata) : null) || ogImage(html);
 
   if (!title || (!ingredients && !instructions)) return null;
-  return { title, ingredients, instructions };
+  return { title, ingredients, instructions, imageUrl };
 }
 
 /**
  * Fetches a recipe page and parses it, refusing anything that is not a plain web page
- * on the open internet.
+ * on the open internet. Its picture, if it has one, is fetched and stored under the
+ * caller's home the same way any other upload is — but only once the recipe itself is
+ * good, and never in a way that can fail the import: a picture that cannot be fetched
+ * or does not survive `storePhoto`'s own checks is left out rather than refusing a
+ * recipe that was otherwise perfectly readable.
  *
  * The size and time limits exist because the page is chosen by whoever pastes the
  * link, not by this app: a slow or enormous response must not be able to hold a
  * request open or exhaust memory just because somebody pasted the wrong thing.
  */
-export async function fetchRecipeFromUrl(rawUrl: string): Promise<ImportOutcome> {
+export async function fetchRecipeFromUrl(rawUrl: string, homeId: string): Promise<ImportOutcome> {
   const url = safeImportUrl(rawUrl);
   if (!url) return { ok: false, error: "That doesn't look like a web address." };
 
@@ -219,8 +351,97 @@ export async function fetchRecipeFromUrl(rawUrl: string): Promise<ImportOutcome>
     return { ok: false, error: GENERIC_ERROR };
   }
 
-  const recipe = parseRecipeFromHtml(decodeHtml(bytes, contentType));
-  return recipe ? { ok: true, recipe } : { ok: false, error: GENERIC_ERROR };
+  const parsed = parseRecipeFromHtml(decodeHtml(bytes, contentType));
+  if (!parsed) return { ok: false, error: GENERIC_ERROR };
+
+  const photoId = await importRecipeImage(parsed.imageUrl, response.url, homeId);
+  return {
+    ok: true,
+    recipe: {
+      title: parsed.title,
+      ingredients: parsed.ingredients,
+      instructions: parsed.instructions,
+      photoId,
+    },
+  };
+}
+
+/**
+ * Fetches a recipe's own picture and files it under the home doing the import, or
+ * gives up quietly. A page's `image` is frequently relative to the page itself, so it
+ * is resolved against the address this app actually landed on rather than the link
+ * that was pasted — the same reasoning `isBlockedHost` already applies to redirects
+ * applies here: whatever the page points at is checked as its own address, not assumed
+ * safe for having been mentioned by a page that itself passed the check.
+ */
+async function importRecipeImage(
+  imageUrl: string | null,
+  pageUrl: string,
+  homeId: string,
+): Promise<string | null> {
+  if (!imageUrl) return null;
+
+  let resolved: URL;
+  try {
+    resolved = new URL(imageUrl, pageUrl);
+  } catch {
+    return null;
+  }
+  const url = safeImportUrl(resolved.toString());
+  if (!url) return null;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      headers: REQUEST_HEADERS,
+    });
+  } catch {
+    return null;
+  }
+  if (!response.ok || !response.body) return null;
+  if (isBlockedHost(new URL(response.url).hostname)) return null;
+
+  let bytes: Uint8Array;
+  try {
+    bytes = await readLimited(response.body, MAX_IMAGE_BYTES);
+  } catch {
+    return null;
+  }
+
+  try {
+    const { full, thumb } = await downscaleForStorage(bytes);
+    const stored = await storePhoto(homeId, full, thumb);
+    return stored.ok ? stored.id : null;
+  } catch {
+    // A file that claims to be a picture but is not one sharp can decode, say — this
+    // is decoration for a recipe that is otherwise complete, not a reason to refuse it.
+    return null;
+  }
+}
+
+/**
+ * The server-side equivalent of `lib/downscale.ts`, which needs a browser's canvas and
+ * so cannot run here. Same edges, same rough quality, for the same reason: nothing in
+ * this app shows a picture larger than `MAX_EDGE`, and a page's own hero image is
+ * ordinarily much larger than that.
+ */
+async function downscaleForStorage(bytes: Uint8Array) {
+  const source = sharp(bytes, { failOn: "none" }).rotate();
+  const [full, thumb] = await Promise.all([
+    source
+      .clone()
+      .resize({ width: MAX_EDGE, height: MAX_EDGE, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 82 })
+      .toBuffer(),
+    source
+      .clone()
+      .resize({ width: THUMB_EDGE, height: THUMB_EDGE, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 72 })
+      .toBuffer(),
+  ]);
+  return { full, thumb };
 }
 
 async function readLimited(body: ReadableStream<Uint8Array>, maxBytes: number): Promise<Uint8Array> {

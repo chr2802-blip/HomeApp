@@ -378,12 +378,17 @@ resets to **choose** on every *open* rather than on close — resetting on close
 show the sheet flashing back to the choice screen while it is still animating away.
 
 **Importing reads the page's own structured data rather than scraping it.**
-`src/lib/recipe-import.ts` reads the `schema.org/Recipe` JSON-LD block almost every
-recipe site already publishes for search engines, which is the same shape everywhere it
-appears, where the visible markup never is. A page with none, or one missing ingredients
-and instructions both, is refused rather than guessed at from prose: a wrong guess
-dropped silently into the form is worse than a cook typing it in by hand, which is what
-happens either way once the fields are left blank.
+`src/lib/recipe-import.ts` reads the `schema.org/Recipe` markup almost every recipe site
+already publishes for search engines, in whichever of its two standard shapes that
+site's own software produced: **JSON-LD**, one self-contained `<script>` block, read
+first because there is nothing to gather; and **Microdata**, `itemscope`/`itemtype`/
+`itemprop` attributes scattered across the page's own elements, read with `cheerio`
+because a proper parser is what scattered attributes need. A page publishing both is not
+unheard of, and one field missing from whichever came first is filled in from the
+other — a recipe is refused only when neither has enough to cook from. A page with
+neither, or with a name but nothing to cook, is refused rather than guessed at from
+prose: a wrong guess dropped silently into the form is worse than a cook typing it in by
+hand, which is what happens either way once the fields are left blank.
 
 The link is fetched from this app's own server, not the cook's browser, so it is checked
 the way a server fetching an address it was merely handed has to be: `isBlockedHost`
@@ -392,10 +397,23 @@ anything is requested, and the response's own `url` is checked again after redir
 a page can send an outside address to an inside one. Size and time are both bounded,
 because the page is whoever pasted the link's choice, not this app's.
 
-Only the title, ingredients and instructions come back from a fetch; the picture, video
+**The recipe's own picture comes back too, fetched and stored the same way any upload
+is.** `image` in JSON-LD or Microdata is usually relative to the page it was found on,
+so it is resolved against the address this app actually landed on, not the link that
+was pasted — and the result is checked by `isBlockedHost` exactly as the page's own
+redirect is, because a page's markup pointing at an internal address is no more to be
+trusted than a redirect doing the same. The bytes are downscaled server-side (in
+`downscaleForStorage`, the one place in the app doing on the server what
+`lib/downscale.ts` does in the browser, because there is no canvas here) to the same
+`MAX_EDGE`/`THUMB_EDGE` and written through `storePhoto`, which measures them exactly as
+it measures any other upload. A picture that cannot be fetched or does not survive that
+check is left out, quietly — decoration for a recipe that is otherwise complete, never a
+reason to refuse one that was.
+
+Only the title, ingredients, instructions and picture come back from a fetch; the video
 link and categories are the create form's own fields regardless of how it was reached,
-since those are this household's choices and not something to set from a stranger's
-page.
+since schema.org has nothing standard to say about either and they are this household's
+choices to make either way.
 
 ### A sheet's actions stay on screen
 

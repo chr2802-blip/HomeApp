@@ -13,10 +13,10 @@ export async function importRecipeFromUrl(
   _prev: ImportOutcome | undefined,
   formData: FormData,
 ): Promise<ImportOutcome> {
-  await requireHomeUser();
+  const user = await requireHomeUser();
 
   const url = String(formData.get("importUrl") ?? "").trim();
   if (!url) return { ok: false, error: "Paste a link to a recipe first." };
 
-  return fetchRecipeFromUrl(url);
+  return fetchRecipeFromUrl(url, user.homeId);
 }
