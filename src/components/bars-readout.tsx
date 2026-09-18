@@ -76,13 +76,48 @@ function measure(): Reading[] {
   ];
 }
 
+/**
+ * The phone's real Android version, which decides whether any of this is reachable.
+ *
+ * Chrome freezes the version in the user agent string — every phone says "Android 10"
+ * there now — so the only way to ask is the client hint, and it has to be requested:
+ * the version is high entropy and is not volunteered. A browser that does not answer
+ * leaves this unknown rather than guessing, which is the honest reading.
+ */
+async function platform(): Promise<Reading[]> {
+  const data = (
+    navigator as Navigator & {
+      userAgentData?: {
+        getHighEntropyValues: (hints: string[]) => Promise<Record<string, string>>;
+      };
+    }
+  ).userAgentData;
+
+  if (!data) return [{ label: "platform version", value: "(not offered)" }];
+
+  try {
+    const hints = await data.getHighEntropyValues(["platformVersion", "model"]);
+    return [
+      { label: "platform version", value: hints.platformVersion || "(empty)" },
+      { label: "model", value: hints.model || "(empty)" },
+    ];
+  } catch {
+    return [{ label: "platform version", value: "(refused)" }];
+  }
+}
+
 export function BarsReadout() {
   const [readings, setReadings] = useState<Reading[] | null>(null);
   const [copied, setCopied] = useState(false);
 
   // Measured after paint, because every one of these is a fact about the rendered
-  // document rather than about the markup the server sent.
-  useEffect(() => setReadings(measure()), []);
+  // document rather than about the markup the server sent. The platform hint is asked
+  // for separately and arrives later, so the rest is shown without waiting on it.
+  useEffect(() => {
+    const measured = measure();
+    setReadings(measured);
+    platform().then((extra) => setReadings([...measured, ...extra]));
+  }, []);
 
   if (!readings) return <p className="text-sm text-slate-500">Measuring…</p>;
 
