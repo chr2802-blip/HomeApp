@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ContextMenu, MenuItem } from "@/components/context-menu";
 import { SubmitButton } from "@/components/submit-button";
 import type { FormAction } from "@/lib/action-result";
+import { tick } from "@/lib/haptics";
 
 /**
  * One task, of either kind.
@@ -88,7 +89,11 @@ export function TaskCard({
         <div className="border-t border-slate-100 px-5 py-3">
           <form action={finished ? reopenAction : completeAction}>
             <input type="hidden" name="taskId" value={taskId} />
-            <SubmitButton variant="secondary" pendingLabel="Saving…">
+            <SubmitButton
+              variant="secondary"
+              pendingLabel="Saving…"
+              onClick={finished ? undefined : tick}
+            >
               {finished ? "Reopen" : "Mark done"}
             </SubmitButton>
           </form>

@@ -9,6 +9,7 @@ import { dueLabel, dueTone } from "@/lib/due";
 import { UNFINISHED, repeatLabel } from "@/lib/tasks";
 import { PhotoBanner, PhotoThumb } from "@/components/photo";
 import { SuggestedRecipe } from "@/components/suggested-recipe";
+import { dueAtDaysFrom } from "@/lib/time";
 
 /**
  * What a list card says about a list: how much of it is still to do.
@@ -85,10 +86,11 @@ export default async function DashboardPage() {
 
   const now = new Date();
   const soon = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+  const weekAgo = dueAtDaysFrom(-7, now);
 
   const db = homeDb(user.homeId);
 
-  const [dueTasks, favorites, recent] = await Promise.all([
+  const [dueTasks, favorites, recent, completedRecently] = await Promise.all([
     db.task.findMany({
       // A one-off already done is not due, however long its date has been in the past.
       where: { nextDueAt: { lte: soon }, ...UNFINISHED },
@@ -107,6 +109,8 @@ export default async function DashboardPage() {
       take: 5,
       include: LIST_COUNTS,
     }),
+    // Whoever did it: this is the household's own rhythm, not a personal scoreboard.
+    db.task.count({ where: { lastCompletedAt: { gte: weekAgo } } }),
   ]);
 
   /*
@@ -141,6 +145,16 @@ export default async function DashboardPage() {
         title={`Hi ${user.name.split(" ")[0]}`}
         description={user.homeName ? `${user.homeName} · what needs attention` : undefined}
       />
+
+      {/* A small, quiet number rather than a scoreboard — the household's own rhythm,
+          not a personal streak. Only shown once there is something to say: a "0 tasks"
+          line on a home that has never used tasks would teach nobody anything. */}
+      {completedRecently > 0 && (
+        <p className="-mt-4 mb-6 text-sm text-slate-500">
+          ✅ {completedRecently} {completedRecently === 1 ? "task" : "tasks"} completed in the
+          last 7 days
+        </p>
+      )}
 
       <NotificationSetup />
 
