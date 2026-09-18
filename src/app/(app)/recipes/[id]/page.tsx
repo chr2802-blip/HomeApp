@@ -59,14 +59,14 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex flex-wrap gap-1.5">
             {recipe.categories.map((filed) => (
               <Badge key={filed.category.id}>{filed.category.name}</Badge>
             ))}
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">{recipe.title}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight break-words">{recipe.title}</h1>
           {recipe.description && <p className="mt-1 text-sm text-slate-500">{recipe.description}</p>}
         </div>
         <ItemMenu

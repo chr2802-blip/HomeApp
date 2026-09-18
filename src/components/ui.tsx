@@ -139,9 +139,9 @@ export function PageHeader({
 }) {
   return (
     <div className="mb-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        {action}
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight break-words">{title}</h1>
+        {action && <div className="shrink-0">{action}</div>}
       </div>
       {description && <p className="mt-3 text-sm text-slate-500">{description}</p>}
     </div>

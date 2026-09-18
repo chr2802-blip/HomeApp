@@ -41,11 +41,13 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-1">
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-1">
           {/* Decorative: the title is right beside it. */}
-          <PhotoThumb photoId={list.photoId} alt="" className="mr-3 h-11 w-11" />
-          <h1 className="min-w-0 text-2xl font-semibold tracking-tight">{list.title}</h1>
+          <PhotoThumb photoId={list.photoId} alt="" className="mr-3 h-11 w-11 shrink-0" />
+          <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight break-words">
+            {list.title}
+          </h1>
           {/* After the title rather than before it: the star belongs to the list it
               names, and reading the name first is what makes that plain. */}
           <FavoriteButton
