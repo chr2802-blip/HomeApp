@@ -36,7 +36,7 @@ const themeOf = (page: Page) => page.locator("html");
  */
 const barOf = (page: Page) => page.locator('meta[name="theme-color"]');
 
-/** `rgb(240, 249, 255)` as `#f0f9ff`, so a computed colour can be read against a hex. */
+/** `rgb(229, 231, 235)` as `#e5e7eb`, so a computed colour can be read against a hex. */
 function asHex(colour: string) {
   const [red, green, blue] = colour.match(/\d+/g)!.map(Number);
   return `#${[red, green, blue]
@@ -98,9 +98,9 @@ test.describe("as a home admin", () => {
     await page.getByRole("button", { name: "Save home" }).click();
 
     await expect(themeOf(page)).toHaveAttribute("data-theme", "OCEAN");
-    // The frame goes with the controls: picking Ocean repaints the header, the tab bar
-    // and the tag the phone reads, all in the one colour.
-    await expectOneBand(page, "#f0f9ff");
+    // The controls go with the household; the frame does not — the header, the tab bar
+    // and the tag the phone reads stay the one band whichever theme is picked.
+    await expectOneBand(page, "#e5e7eb");
     expect(
       await page.evaluate(
         () => (window as unknown as { __alive?: boolean }).__alive === true,
@@ -157,26 +157,22 @@ test.describe("somebody in two homes", () => {
       page.getByRole("button", { name: `${OTHER_HOME_NAME} — home menu` }),
     ).toBeVisible();
     await expect(themeOf(page)).toHaveAttribute("data-theme", "SAND");
-    // The band came with them: the top of the screen is the home they switched into,
-    // not the one they left.
-    await expectOneBand(page, "#f5f5f4");
+    // The controls came with them; the band did not need to, because it was never the
+    // home's to begin with.
+    await expectOneBand(page, "#e5e7eb");
   });
 
   /**
-   * And the tag changes in the document that is already open, rather than in a new one.
+   * The tag survives a switch rather than being duplicated by one.
    *
-   * This is the whole mechanism by which a phone's status bar follows the household:
-   * switching home is a client-side navigation, so the tag is *mutated* where it stands
-   * and the phone is expected to notice. A reload would repaint the bar too, and would
-   * say nothing about whether mutation works — hence the marker on `window`, which only
-   * survives if the document was never torn down.
-   *
-   * The count is the other half. Anything that later writes the tag from the browser —
-   * the usual `document.createElement("meta")` recipe — leaves two of them, and the one
-   * the phone reads is whichever came first. One tag, rendered from the session, is the
-   * arrangement this app has.
+   * Switching home is a client-side navigation, and each one asks the layout to render
+   * the tag again. Since the band no longer varies with the household the content never
+   * has reason to change, but anything that later wrote the tag from the browser instead
+   * of the session — the usual `document.createElement("meta")` recipe — would still
+   * leave two of them, and the one the phone reads is whichever came first. The marker on
+   * `window` rules out the other way a single, correct tag could happen: a full reload.
    */
-  test("repaints the top of the screen without reloading the page", async ({
+  test("keeps a single tag across a switch, without reloading the page", async ({
     page,
     loginAs,
   }) => {
@@ -185,7 +181,7 @@ test.describe("somebody in two homes", () => {
     await dress(OTHER_HOME_NAME, "SAND");
 
     await loginAs(ACCOUNTS.member);
-    await expect(barOf(page)).toHaveAttribute("content", "#fdf4ff");
+    await expect(barOf(page)).toHaveAttribute("content", "#e5e7eb");
 
     await page.evaluate(() => {
       (window as unknown as { __alive?: boolean }).__alive = true;
@@ -197,13 +193,13 @@ test.describe("somebody in two homes", () => {
       page.getByRole("button", { name: `${OTHER_HOME_NAME} — home menu` }),
     ).toBeVisible();
 
-    await expect(barOf(page)).toHaveAttribute("content", "#f5f5f4");
+    await expect(barOf(page)).toHaveAttribute("content", "#e5e7eb");
     expect(await barOf(page).count()).toBe(1);
 
     const alive = await page.evaluate(
       () => (window as unknown as { __alive?: boolean }).__alive === true,
     );
-    expect(alive, "the page reloaded, so this says nothing about the tag changing").toBe(
+    expect(alive, "the page reloaded, so this says nothing about the tag surviving").toBe(
       true,
     );
   });
@@ -214,7 +210,7 @@ test("the login page wears the app's own colours, belonging to no home", async (
   await page.goto("/login");
 
   await expect(themeOf(page)).toHaveAttribute("data-theme", "SLATE");
-  // The default's band, which is also the one the manifest carries — what somebody sees
-  // before they are in a home at all.
-  await expectOneBand(page, "#ffffff");
+  // The one band, same as every home and the same the manifest carries — what somebody
+  // sees before they are in a home at all.
+  await expectOneBand(page, "#e5e7eb");
 });

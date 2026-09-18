@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { APP_BAND, BANDS, DEFAULT_THEME, THEMES, THEME_LABELS } from "@/lib/theme";
+import { BAND, DEFAULT_THEME, THEMES, THEME_LABELS } from "@/lib/theme";
 
 /**
  * A home's colour is named in TypeScript and drawn in CSS, and nothing but this holds
@@ -59,36 +59,39 @@ describe("home themes", () => {
   /**
    * The band, and the four painters of the screen's edges that have to agree about it.
    *
-   * The header, the tab bar and the document behind them read `--band` straight out of
-   * the stylesheet, so the only one that can drift is the copy in TypeScript — which is
-   * the one the phone's status bar is tinted from, and the one nothing on a desktop ever
-   * shows. A `BANDS` entry a shade away from its `--band` renders perfectly in a browser
-   * and is a seam a millimetre above the header on a phone.
+   * It is the same literal in every theme block now — a browser does not retint an
+   * installed app's status bar as somebody moves between homes, so a band that varied by
+   * theme showed up as a seam between whichever colour was there first and the header
+   * underneath it. The header, the tab bar and the document behind them read `--band`
+   * straight out of the stylesheet, so the only one that can drift from the rest is the
+   * copy in TypeScript — which is the one the phone's status bar is tinted from, and the
+   * one nothing on a desktop ever shows.
    *
    * Opaque, in every theme, and that is load-bearing rather than a matter of taste. A
    * frosted band is a different colour every time something scrolls under it, and a
    * strip the phone paints can follow none of that: near enough still reads as two bars
    * meeting. So the alpha is checked as strictly as the hex.
    */
-  it.each(THEMES)("gives %s a band the stylesheet and the meta tag both carry", (theme) => {
+  it.each(THEMES)("gives %s the one band, the stylesheet and the meta tag both carry", (theme) => {
     const band = blockFor(theme)?.match(/--band:\s*([^;]+);/)?.[1].trim();
 
     expect(band, `no --band in [data-theme="${theme}"]`).toMatch(/^#[0-9a-f]{6}$/);
-    expect(BANDS[theme]).toBe(band);
+    expect(band).not.toBe("#ffffff");
+    expect(BAND).toBe(band);
   });
 
   /**
    * The manifest is the painter that cannot follow anybody: an installed app reads
    * `theme_color` once, when it is installed, and shows it on the splash screen before
-   * the app has said a word. So it is the band of a page belonging to no home.
+   * the app has said a word. Now that the band is one colour it carries exactly that,
+   * same as everything else.
    */
-  it("gives the manifest the band of no home in particular", () => {
+  it("gives the manifest the one band", () => {
     const manifest = JSON.parse(
       readFileSync(path.join(process.cwd(), "public/manifest.webmanifest"), "utf8"),
     );
 
-    expect(APP_BAND).toBe(BANDS[DEFAULT_THEME]);
-    expect(manifest.theme_color).toBe(APP_BAND);
+    expect(manifest.theme_color).toBe(BAND);
   });
 
   /**

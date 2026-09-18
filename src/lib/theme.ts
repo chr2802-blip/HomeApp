@@ -35,39 +35,26 @@ export const THEMES = Object.keys(THEME_LABELS) as [HomeTheme, ...HomeTheme[]];
 export const DEFAULT_THEME: HomeTheme = "SLATE";
 
 /**
- * Each home's band, as the browser wants it: a literal.
+ * The band, as the browser wants it: a literal.
+ *
+ * It used to be one colour per theme, a pale tint of that home's accent, on the theory
+ * that `<meta name="theme-color">` retints an installed app's status bar on every
+ * request. It does not: the strip is set once and does not repaint itself as somebody
+ * moves between homes, so a household in more than one saw its own colour up top and
+ * whichever other home they had open last underneath it — the seam this file exists to
+ * close, worn permanently instead. One band, the same in every theme, is the only value
+ * that is never wrong regardless of which home is open, so it is not tied to any of
+ * their accents and does not live in `HomeTheme` at all.
  *
  * The one place a colour is written down outside globals.css, because it is the one
- * place CSS cannot reach — `<meta name="theme-color">` takes a literal and does not take
- * a variable, and the phone's status bar is on the far side of it. Every value here is a
- * copy of a `--band` in the stylesheet, and `tests/unit/theme.test.ts` reads both and
+ * place CSS cannot reach — the meta tag takes a literal and does not take a variable,
+ * and the phone's status bar is on the far side of it. It is a copy of the `--band` in
+ * every theme block of the stylesheet, and `tests/unit/theme.test.ts` reads both and
  * fails the moment one is adjusted without the other: a band that has drifted looks
  * entirely correct in a browser and shows up on a phone as a seam a millimetre above the
  * header.
- *
- * `Record<HomeTheme, …>` for the same reason the labels are: a theme added to the schema
- * does not compile until somebody has said what the top of the screen does in it.
  */
-export const BANDS: Record<HomeTheme, string> = {
-  SLATE: "#ffffff",
-  OCEAN: "#f0f9ff",
-  INDIGO: "#eef2ff",
-  VIOLET: "#f5f3ff",
-  PLUM: "#fdf4ff",
-  SAND: "#f5f5f4",
-};
-
-/**
- * The band of a page belonging to no home — the login page, an invite — and the one the
- * manifest carries.
- *
- * The manifest's is the only painter of the screen's edges that cannot follow the
- * household: an installed app on Android reads `theme_color` once, when it is installed,
- * and it is also the colour of the splash screen shown before the app has said anything
- * at all. So it is the default theme's band, which is what somebody sees before they
- * are in a home.
- */
-export const APP_BAND = BANDS[DEFAULT_THEME];
+export const BAND = "#e5e7eb";
 
 /** The field the picker submits under, read by `updateHome`. */
 export const THEME_FIELD = "theme";
