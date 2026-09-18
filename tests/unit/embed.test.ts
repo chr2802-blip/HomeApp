@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { safeExternalHref, toEmbed } from "@/lib/embed";
 
 describe("toEmbed — Instagram", () => {
-  it("embeds a reel", () => {
+  it("embeds a reel, cropped to hide Instagram's own header and like/comment row", () => {
     expect(toEmbed("https://www.instagram.com/reel/Cx1y2Z3aBcD/")).toEqual({
       src: "https://www.instagram.com/p/Cx1y2Z3aBcD/embed",
       aspect: "vertical",
+      crop: { top: 60, bottom: 60 },
     });
   });
 

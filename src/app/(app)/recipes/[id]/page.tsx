@@ -99,13 +99,21 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
       {embed && (
         <Card className="mb-6 overflow-hidden p-0">
           <div
-            className={`relative mx-auto w-full ${embed.aspect === "vertical" ? "max-w-sm" : ""}`}
+            className={`relative mx-auto w-full overflow-hidden ${embed.aspect === "vertical" ? "max-w-sm" : ""}`}
             style={{ aspectRatio: embed.aspect === "vertical" ? "9 / 16" : "16 / 9" }}
           >
             <iframe
               src={embed.src}
               title={recipe.title}
-              className="absolute inset-0 h-full w-full"
+              className="absolute inset-x-0 h-full w-full"
+              style={
+                embed.crop
+                  ? {
+                      top: -embed.crop.top,
+                      height: `calc(100% + ${embed.crop.top + embed.crop.bottom}px)`,
+                    }
+                  : { top: 0 }
+              }
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture"
               allowFullScreen
               referrerPolicy="strict-origin-when-cross-origin"
