@@ -65,8 +65,8 @@ const UNIT_WORDS = new Set([
 ]);
 
 /**
- * An ingredient line with its amount and unit stripped off, for matching against a
- * shopping list.
+ * An ingredient line with its amount, unit and preparation note stripped off, for
+ * matching against a shopping list.
  *
  * A list item's `amount` already counts how many times something was asked for, not a
  * measurement — so "1 dl mælk" and "5 dl mælk" from two different recipes are the same
@@ -76,16 +76,27 @@ const UNIT_WORDS = new Set([
  * `ingredientLines` alone — that is what is actually measured at the stove.
  *
  * Only a leading amount is touched, and only a unit immediately after it: a line with
- * neither ("salt og friskkværnet peber") is returned as written, and a word this does
- * not recognise as a unit is left in place rather than guessed at.
+ * neither ("salt og friskkværnet peber") is left as written, and a word this does not
+ * recognise as a unit is left in place rather than guessed at.
+ *
+ * What follows a comma is how the ingredient is prepared, not what to buy — "gulerødder,
+ * groftrevet" is grated at the stove, not on the shelf — so it goes too, and what
+ * remains is capitalised: a shopping list reads as a list of things, not as whatever
+ * case the word happened to be in after a unit in front of it.
  */
 export function shoppingText(line: string): string {
   const withoutAmount = line.replace(LEADING_AMOUNT, "");
-  if (withoutAmount === line) return line.trim();
+  let text = withoutAmount;
 
-  const unit = withoutAmount.match(/^([\p{L}.]+)\s+/u);
-  if (unit && UNIT_WORDS.has(unit[1].toLowerCase().replace(/\.$/, ""))) {
-    return withoutAmount.slice(unit[0].length).trim();
+  if (withoutAmount !== line) {
+    const unit = withoutAmount.match(/^([\p{L}.]+)\s+/u);
+    if (unit && UNIT_WORDS.has(unit[1].toLowerCase().replace(/\.$/, ""))) {
+      text = withoutAmount.slice(unit[0].length);
+    }
   }
-  return withoutAmount.trim();
+
+  const withoutNote = text.split(",")[0].trim();
+  return withoutNote.length === 0
+    ? withoutNote
+    : withoutNote.charAt(0).toUpperCase() + withoutNote.slice(1);
 }
