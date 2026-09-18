@@ -62,29 +62,35 @@ describe("addRecipeIngredients", () => {
     expect(items.every((item) => item.listId === list.id && !item.done)).toBe(true);
   });
 
-  it("strips the amount and unit a line was written with before it lands on the list", async () => {
+  it("strips the amount, unit and preparation note a line was written with, capitalised", async () => {
     const list = await listFor();
     const recipe = await recipeFor({ ingredients: "2 løg, finthakket\n4 dl grøntsagsbouillon" });
 
     await addRecipeIngredients(formData({ recipeId: recipe.id, listId: list.id }));
 
     const items = await itemsOnList();
-    expect(items.map((item) => item.text)).toEqual(["løg, finthakket", "grøntsagsbouillon"]);
+    expect(items.map((item) => item.text)).toEqual(["Løg", "Grøntsagsbouillon"]);
     expect(items.map((item) => item.amount)).toEqual([1, 1]);
   });
 
-  it("merges the same ingredient asked for in different amounts and units", async () => {
+  it("merges the same ingredient asked for in different amounts, units and preparations", async () => {
     const list = await listFor();
     const curry = await recipeFor({ title: "Curry", ingredients: "1 dl mælk" });
     const cake = await recipeFor({ title: "Cake", ingredients: "5 dl mælk" });
+    const soup = await recipeFor({ title: "Soup", ingredients: "250 g gulerødder, groftrevet" });
+    const stew = await recipeFor({ title: "Stew", ingredients: "2 gulerødder, i tern" });
 
     await addRecipeIngredients(formData({ recipeId: curry.id, listId: list.id }));
     await addRecipeIngredients(formData({ recipeId: cake.id, listId: list.id }));
+    await addRecipeIngredients(formData({ recipeId: soup.id, listId: list.id }));
+    await addRecipeIngredients(formData({ recipeId: stew.id, listId: list.id }));
 
     const items = await itemsOnList();
-    expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ text: "mælk", amount: 2 });
-    expect(await recipesBehind("mælk")).toEqual(["Cake", "Curry"]);
+    expect(items).toHaveLength(2);
+    expect(items).toContainEqual(expect.objectContaining({ text: "Mælk", amount: 2 }));
+    expect(items).toContainEqual(expect.objectContaining({ text: "Gulerødder", amount: 2 }));
+    expect(await recipesBehind("Mælk")).toEqual(["Cake", "Curry"]);
+    expect(await recipesBehind("Gulerødder")).toEqual(["Soup", "Stew"]);
   });
 
   it("names the recipe under each item it added", async () => {
