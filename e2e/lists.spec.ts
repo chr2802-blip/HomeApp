@@ -7,7 +7,9 @@ test.beforeEach(async ({ loginAs, page }) => {
 });
 
 test("the empty state invites you to make a first list", async ({ page }) => {
-  await expect(page.getByText("No lists yet — create your first one with the button above.")).toBeVisible();
+  await expect(
+    page.getByText("Nothing on the shelf yet — create your first list with the button above."),
+  ).toBeVisible();
 });
 
 test("creating a list opens it", async ({ page }) => {
@@ -17,7 +19,7 @@ test("creating a list opens it", async ({ page }) => {
 
   await expect(page).toHaveURL(/\/lists\/[a-z0-9]+$/);
   await expect(page.getByRole("heading", { name: "Weekly shop" })).toBeVisible();
-  await expect(page.getByText("This list is empty.")).toBeVisible();
+  await expect(page.getByText("This list is empty — add something below.")).toBeVisible();
 });
 
 test("ticking an item off folds it into the completed section", async ({ page }) => {
@@ -104,7 +106,7 @@ test("an item can be removed outright", async ({ page }) => {
   await expect(page.getByText("Screws", { exact: true })).toBeVisible();
 
   await clickAndConfirm(page, "Remove");
-  await expect(page.getByText("This list is empty.")).toBeVisible();
+  await expect(page.getByText("This list is empty — add something below.")).toBeVisible();
 });
 
 test("a list can be renamed", async ({ page }) => {

@@ -68,6 +68,35 @@ body {
 }
 
 /*
+ * Headings wear a rounder, friendlier face than the rest of the page. Only headings —
+ * a list of ingredients or a row of tasks wants the platform's own dense sans, and it
+ * is the titles above them that read as "generic system UI" when left the same. The
+ * variable comes from `next/font/google` in the root layout, which is what keeps the
+ * actual font file out of this stylesheet.
+ */
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
+}
+
+/*
+ * A wash of the home's own colour, for decoration rather than a control — an empty
+ * state's icon, a ring round somebody's picture. `color-mix` rather than a new
+ * per-theme variable: a second colour per theme is exactly what `--accent-soft` used
+ * to be before the band stopped following the household, and `tests/unit/theme.test.ts`
+ * still fails a theme block that brings one back. This reads `--accent` itself, so
+ * there is nothing here that can drift out of sync with it.
+ */
+.accent-tint-bg {
+  background-color: color-mix(in srgb, var(--accent) 14%, white);
+}
+
+.accent-tint-ring {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/*
  * What a home is dressed in.
  *
  * The colour is set once, as `data-theme` on <html>, and everything that wears it reads
@@ -346,6 +375,28 @@ body {
   .animate-sheet-out {
     animation-name: panel-out;
   }
+}
+
+/*
+ * Ticking something off. A little overshoot on the way to settled, which is what makes
+ * a tick read as satisfying rather than merely acknowledged — the same reason a phone's
+ * own toggles overshoot. `scale` as its own property, the way `sheet-in`/`panel-in`
+ * already do here, not `transform`: see the Tailwind v4 note above `.pressable`.
+ */
+@keyframes check-pop {
+  0% {
+    scale: 1;
+  }
+  45% {
+    scale: 1.16;
+  }
+  100% {
+    scale: 1;
+  }
+}
+
+.animate-check-pop {
+  animation: check-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @keyframes row-in {

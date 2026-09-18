@@ -65,7 +65,7 @@ export function PhotoBanner({
   return (
     <div
       className={`h-44 overflow-hidden bg-slate-100 sm:h-64 ${
-        bleed ? "-mt-8 -mr-4 -ml-4" : "w-full rounded-xl"
+        bleed ? "-mt-8 -mr-4 -ml-4" : "w-full rounded-2xl"
       } ${className}`}
     >
       <Img src={photoUrl(photoId)} alt={alt} className="h-full w-full object-cover" />
@@ -89,18 +89,26 @@ export function PhotoThumb({ photoId, alt, className = "" }: PhotoProps) {
   if (!photoId) return null;
 
   return (
-    <div className={`shrink-0 overflow-hidden rounded-lg bg-slate-100 ${className}`}>
+    <div className={`shrink-0 overflow-hidden rounded-xl bg-slate-100 ${className}`}>
       <Img src={photoUrl(photoId, "thumb")} alt={alt} className="h-full w-full object-cover" />
     </div>
   );
 }
 
-/** The home's own picture, wherever the home is named. */
+/**
+ * The home's own picture, wherever the home is named — and a person's own, on
+ * `/profile`. The ring is a wash of the home's colour rather than a plain border: a
+ * face or a household's picture is the most personal thing on the page, and tying it to
+ * the colour that already means "this home" is worth more here than the discipline of
+ * keeping the accent to controls alone.
+ */
 export function PhotoAvatar({ photoId, alt, className = "" }: PhotoProps) {
   if (!photoId) return null;
 
   return (
-    <span className={`inline-block shrink-0 overflow-hidden rounded-full bg-slate-100 ${className}`}>
+    <span
+      className={`accent-tint-ring inline-block shrink-0 overflow-hidden rounded-full bg-slate-100 ${className}`}
+    >
       <Img src={photoUrl(photoId, "thumb")} alt={alt} className="h-full w-full object-cover" />
     </span>
   );

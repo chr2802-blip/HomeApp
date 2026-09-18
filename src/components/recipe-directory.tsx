@@ -82,10 +82,10 @@ export function RecipeDirectory({
 
   if (recipes.length === 0) {
     return (
-      <EmptyState>
+      <EmptyState icon={categories.length === 0 ? "🗂️" : "🍳"}>
         {categories.length === 0
           ? "No recipe categories yet — an admin adds them under Settings, and then recipes can be saved."
-          : "No recipes saved yet."}
+          : "No recipes yet — save your first one with the button above."}
       </EmptyState>
     );
   }

@@ -183,7 +183,7 @@ export default async function DashboardPage() {
           {starred ? "Favourite lists" : "Recent lists"}
         </h2>
         {lists.length === 0 ? (
-          <EmptyState>
+          <EmptyState icon="📝">
             No lists yet.{" "}
             <Link href="/lists" className="font-medium text-slate-900 underline">
               Create one
