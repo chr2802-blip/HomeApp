@@ -28,6 +28,7 @@ import {
 import { ConfirmButton } from "@/components/confirm-button";
 import { AmountPicker } from "@/components/amount-picker";
 import { Collapsible } from "@/components/collapsible";
+import { tick } from "@/lib/haptics";
 
 /** A recipe that asked for this item, as the row names it. */
 type Source = { id: string; title: string };
@@ -133,6 +134,9 @@ function Row({
           type="submit"
           aria-label={item.done ? "Mark as not done" : "Mark as done"}
           aria-pressed={item.done}
+          onClick={() => {
+            if (!item.done) tick();
+          }}
           className={`pressable flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs active:scale-90 ${
             item.done ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white"
           }`}

@@ -9,8 +9,10 @@ import { addRecipeIngredients } from "@/app/actions/lists";
 export type ListChoice = { id: string; title: string; open: number };
 
 /**
- * "Add to list" on a recipe: its ingredients, onto whichever of the home's lists is
- * chosen.
+ * "Add to list" on a recipe: its ingredients, onto whichever of the home's lists that
+ * track amounts is chosen. An ingredient line is a quantity, and a list that ignores
+ * amounts has nowhere to put it — so `lists` here is already filtered to the ones that
+ * do, and a home with none is the same as a home with no lists at all.
  *
  * A menu rather than a sheet, because the whole question is which list — a dialog would
  * be a form with one field and two buttons for a choice that is one press. The lists
@@ -64,7 +66,7 @@ export function AddToListMenu({ recipeId, lists }: { recipeId: string; lists: Li
       >
         {lists.length === 0 ? (
           <p className="px-3.5 py-2.5 text-sm text-slate-500">
-            No lists yet — make one first, then come back.
+            No lists track amounts yet — turn that on for one, then come back.
           </p>
         ) : (
           lists.map((list) => (
