@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ComponentProps } from "react";
 
 const base =
-  "pressable inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium active:scale-[0.96] disabled:opacity-50 disabled:active:scale-100";
+  "pressable inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium active:scale-[0.96] disabled:opacity-50 disabled:active:scale-100";
 
 const variants = {
   /* The home's own colour: the button that saves is the one control on every screen,
@@ -56,7 +56,7 @@ export function Card({
 }: ComponentProps<"div"> & { padded?: boolean }) {
   return (
     <div
-      className={`rounded-xl border border-slate-200 bg-white shadow-sm ${
+      className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${
         padded ? "p-5" : ""
       } ${className}`}
       {...props}
@@ -92,7 +92,7 @@ export function IconButton({
 export function Input({ className = "", ...props }: ComponentProps<"input">) {
   return (
     <input
-      className={`w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-[var(--accent)] ${className}`}
+      className={`w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-[var(--accent)] ${className}`}
       {...props}
     />
   );
@@ -101,7 +101,7 @@ export function Input({ className = "", ...props }: ComponentProps<"input">) {
 export function Textarea({ className = "", ...props }: ComponentProps<"textarea">) {
   return (
     <textarea
-      className={`w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-[var(--accent)] ${className}`}
+      className={`w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-[var(--accent)] ${className}`}
       {...props}
     />
   );
@@ -110,7 +110,7 @@ export function Textarea({ className = "", ...props }: ComponentProps<"textarea"
 export function Select({ className = "", ...props }: ComponentProps<"select">) {
   return (
     <select
-      className={`rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-[var(--accent)] ${className}`}
+      className={`rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-[var(--accent)] ${className}`}
       {...props}
     />
   );
@@ -148,9 +148,29 @@ export function PageHeader({
   );
 }
 
-export function EmptyState({ children }: { children: React.ReactNode }) {
+/**
+ * `icon` is a single emoji shown above the message, in a soft wash of the home's own
+ * colour — the small touch that makes an empty list read as "nothing here yet" rather
+ * than as an error. Optional: a couple of empty states (a search with no matches) have
+ * nothing worth illustrating and stay plain.
+ */
+export function EmptyState({
+  icon,
+  children,
+}: {
+  icon?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
+    <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
+      {icon && (
+        <div
+          aria-hidden="true"
+          className="accent-tint-bg mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full text-2xl"
+        >
+          {icon}
+        </div>
+      )}
       {children}
     </div>
   );

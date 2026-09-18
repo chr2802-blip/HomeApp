@@ -204,9 +204,9 @@ export default async function TasksPage() {
       />
 
       {todo.length === 0 && done.length === 0 ? (
-        <EmptyState>No tasks yet.</EmptyState>
+        <EmptyState icon="🧺">No tasks yet — add the first one above.</EmptyState>
       ) : todo.length === 0 ? (
-        <EmptyState>Nothing left to do.</EmptyState>
+        <EmptyState icon="✨">Nothing left to do — nice work.</EmptyState>
       ) : (
         <TaskList tasks={todo} members={members} now={now} />
       )}
