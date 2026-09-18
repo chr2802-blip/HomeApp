@@ -38,3 +38,54 @@ export function ingredientLines(ingredients: string) {
     .map((line) => line.trim())
     .filter(Boolean);
 }
+
+/** Leading digits, a decimal, a range, or a single unicode fraction — "2", "1.5",
+ *  "200-250", "½" — the shapes an ingredient line starts a measurement with. */
+const FRACTION = "½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅐⅛⅜⅝⅞";
+const NUMBER = String.raw`\d+(?:[.,]\d+)?`;
+const LEADING_AMOUNT = new RegExp(
+  `^(?:${NUMBER}(?:\\s*[-–]\\s*${NUMBER})?(?:\\s*[${FRACTION}])?|[${FRACTION}])\\s+`,
+);
+
+/**
+ * The handful of amount words a Danish kitchen writes ingredients with, plus their usual
+ * English equivalents — not a parser for every unit in existence, only the ones a recipe
+ * imported off the web or typed in by hand actually uses here.
+ */
+const UNIT_WORDS = new Set([
+  "g", "gram", "gr", "kg", "kilo", "mg",
+  "dl", "cl", "ml", "l", "liter",
+  "tsk", "spsk", "ss", "ts",
+  "stk", "styk", "stykker",
+  "fed", "dåse", "dåser", "pakke", "pakker", "glas", "bundt", "skive", "skiver",
+  "håndfuld", "håndfulde", "knivspids", "knsp",
+  "tsp", "tbsp", "cup", "cups", "oz", "lb", "lbs", "pt", "qt",
+  "clove", "cloves", "can", "cans", "slice", "slices", "bunch", "pinch",
+  "tablespoon", "tablespoons", "teaspoon", "teaspoons",
+]);
+
+/**
+ * An ingredient line with its amount and unit stripped off, for matching against a
+ * shopping list.
+ *
+ * A list item's `amount` already counts how many times something was asked for, not a
+ * measurement — so "1 dl mælk" and "5 dl mælk" from two different recipes are the same
+ * errand wanted twice over, not six decilitres to combine. Stripping the amount before
+ * the line reaches the list is what lets them land on one row instead of two that never
+ * recognise each other. The recipe page itself still shows every line whole, through
+ * `ingredientLines` alone — that is what is actually measured at the stove.
+ *
+ * Only a leading amount is touched, and only a unit immediately after it: a line with
+ * neither ("salt og friskkværnet peber") is returned as written, and a word this does
+ * not recognise as a unit is left in place rather than guessed at.
+ */
+export function shoppingText(line: string): string {
+  const withoutAmount = line.replace(LEADING_AMOUNT, "");
+  if (withoutAmount === line) return line.trim();
+
+  const unit = withoutAmount.match(/^([\p{L}.]+)\s+/u);
+  if (unit && UNIT_WORDS.has(unit[1].toLowerCase().replace(/\.$/, ""))) {
+    return withoutAmount.slice(unit[0].length).trim();
+  }
+  return withoutAmount.trim();
+}

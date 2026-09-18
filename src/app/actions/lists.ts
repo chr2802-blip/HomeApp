@@ -9,7 +9,7 @@ import { assertHomeAccess } from "@/lib/access";
 import { homeScoped } from "@/lib/scoped";
 import { readForm, requiredText } from "@/lib/form";
 import { clampAmount, MIN_AMOUNT } from "@/lib/amount";
-import { ingredientLines } from "@/lib/recipes";
+import { ingredientLines, shoppingText } from "@/lib/recipes";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 
@@ -291,6 +291,10 @@ export async function setListItemAmount(formData: FormData) {
  * comes back at one: what is on a ticked row is what was bought last time, not what
  * this recipe needs now.
  *
+ * What counts as "already there" is judged through `shoppingText`, not the line as
+ * written: a recipe stating "1 dl mælk" and one stating "5 dl mælk" both go on as
+ * "mælk", since the amount already tracks how many times it was asked for.
+ *
  * Each item then carries a note saying which recipe asked for it, so twenty lines of
  * shopping still read as "these three are the lasagne". Adding the same recipe twice
  * bumps the amounts and leaves one note; two recipes wanting onions leave two.
@@ -305,10 +309,13 @@ export async function addRecipeIngredients(formData: FormData): Promise<ActionRe
   const list = await listInScope(String(formData.get("listId")));
 
   // Deduplicated against itself as well as against the list: a recipe that says "salt"
-  // twice means salt, not two salts.
+  // twice means salt, not two salts. The amount and unit are stripped before the
+  // comparison — "1 dl mælk" and "5 dl mælk" are the same errand wanted twice, not two
+  // different lines that happen to disagree about how much.
   const wanted = new Map<string, string>();
   for (const line of ingredientLines(recipe.ingredients)) {
-    if (!wanted.has(line.toLowerCase())) wanted.set(line.toLowerCase(), line);
+    const text = shoppingText(line);
+    if (!wanted.has(text.toLowerCase())) wanted.set(text.toLowerCase(), text);
   }
   if (wanted.size === 0) return fail("This recipe has no ingredients to add yet.");
 
@@ -320,7 +327,8 @@ export async function addRecipeIngredients(formData: FormData): Promise<ActionRe
   });
   const byText = new Map<string, (typeof onList)[number]>();
   for (const item of onList) {
-    if (!byText.has(item.text.toLowerCase())) byText.set(item.text.toLowerCase(), item);
+    const key = shoppingText(item.text).toLowerCase();
+    if (!byText.has(key)) byText.set(key, item);
   }
 
   let position = await nextPosition(list.id);

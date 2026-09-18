@@ -66,10 +66,32 @@ test("a recipe's ingredients go onto a chosen list, each naming the recipe", asy
   await page.getByRole("link", { name: /Groceries/ }).click();
   await page.waitForURL(/\/lists\/[a-z0-9]+$/);
 
-  for (const item of ["Milk", "Flour", "2 eggs"]) {
+  // "2 eggs" lands stripped of its amount — the item's own amount field is what counts
+  // how many were wanted, so the line does not carry a second, conflicting one.
+  for (const item of ["Milk", "Flour", "eggs"]) {
     await expect(page.getByText(item, { exact: true })).toBeVisible();
     await expect(row(page, item).getByRole("link", { name: "Pancakes" })).toBeVisible();
   }
+});
+
+test("two recipes naming the same ingredient in different amounts still land on one row", async ({
+  page,
+}) => {
+  await newList(page, "Groceries");
+  await newRecipe(page, "Curry", "1 dl milk");
+  await addToList(page, "Groceries");
+
+  await newRecipe(page, "Cake", "5 dl milk");
+  await addToList(page, "Groceries");
+
+  await page.goto("/lists");
+  await page.getByRole("link", { name: /Groceries/ }).click();
+
+  await expect(page.getByText("milk", { exact: true })).toBeVisible();
+  await expect(amountBox(page, "milk")).toHaveValue("2");
+  const milk = row(page, "milk");
+  await expect(milk.getByRole("link", { name: "Curry" })).toBeVisible();
+  await expect(milk.getByRole("link", { name: "Cake" })).toBeVisible();
 });
 
 test("adding the same recipe again asks for one more of each, and still names it once", async ({
