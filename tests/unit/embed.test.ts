@@ -2,25 +2,35 @@ import { describe, expect, it } from "vitest";
 import { safeExternalHref, toEmbed } from "@/lib/embed";
 
 describe("toEmbed — Instagram", () => {
-  it("embeds a reel, cropped to hide Instagram's own header and like/comment row", () => {
+  it("embeds a reel through Instagram's own reel embed endpoint", () => {
     expect(toEmbed("https://www.instagram.com/reel/Cx1y2Z3aBcD/")).toEqual({
-      src: "https://www.instagram.com/p/Cx1y2Z3aBcD/embed",
+      src: "https://www.instagram.com/reel/Cx1y2Z3aBcD/embed/",
       aspect: "vertical",
-      crop: { top: 60, bottom: 60 },
+      fixed: { provider: "instagram", width: 380, height: 600 },
     });
   });
 
-  it("embeds posts, tv and the reels spelling", () => {
-    for (const kind of ["p", "tv", "reels"]) {
-      expect(toEmbed(`https://instagram.com/${kind}/AbC123/`)?.src).toBe(
-        "https://www.instagram.com/p/AbC123/embed",
-      );
-    }
+  it("keeps a post or a tv link on its own kind of embed, and folds the reels spelling into reel", () => {
+    expect(toEmbed("https://instagram.com/p/AbC123/")?.src).toBe(
+      "https://www.instagram.com/p/AbC123/embed/",
+    );
+    expect(toEmbed("https://instagram.com/tv/AbC123/")?.src).toBe(
+      "https://www.instagram.com/tv/AbC123/embed/",
+    );
+    expect(toEmbed("https://instagram.com/reels/AbC123/")?.src).toBe(
+      "https://www.instagram.com/reel/AbC123/embed/",
+    );
   });
 
-  it("handles a username in the path and tracking query params", () => {
+  it("handles a username in the path and strips tracking query params", () => {
     expect(toEmbed("https://www.instagram.com/somecook/reel/AbC123/?igsh=tracking")?.src).toBe(
-      "https://www.instagram.com/p/AbC123/embed",
+      "https://www.instagram.com/reel/AbC123/embed/",
+    );
+  });
+
+  it("accepts the instagr.am short domain", () => {
+    expect(toEmbed("https://instagr.am/reel/AbC123/")?.src).toBe(
+      "https://www.instagram.com/reel/AbC123/embed/",
     );
   });
 
@@ -79,6 +89,25 @@ describe("toEmbed — other hosts", () => {
     const embed = toEmbed("https://www.facebook.com/watch/?v=123456789");
     expect(embed?.src.startsWith("https://www.facebook.com/plugins/video.php?")).toBe(true);
     expect(embed?.src).toContain("show_text=false");
+    expect(embed?.src).toContain("width=380");
+    expect(embed?.fixed).toEqual({ provider: "facebook", width: 380, height: 680 });
+  });
+
+  it("keeps a video's own query parameters but strips tracking ones from the href it hands Facebook", () => {
+    const embed = toEmbed("https://www.facebook.com/watch/?v=123456789&mibextid=abc123");
+    const href = new URL(embed!.src).searchParams.get("href")!;
+    expect(href).toBe("https://www.facebook.com/watch?v=123456789");
+  });
+
+  it("accepts a reel link and fb.watch, and normalizes the mobile and web subdomains", () => {
+    for (const url of [
+      "https://www.facebook.com/reel/123456789",
+      "https://fb.watch/AbC123/",
+      "https://m.facebook.com/reel/123456789",
+      "https://web.facebook.com/reel/123456789",
+    ]) {
+      expect(toEmbed(url)?.src.startsWith("https://www.facebook.com/plugins/video.php?")).toBe(true);
+    }
   });
 });
 

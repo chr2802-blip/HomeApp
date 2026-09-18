@@ -71,7 +71,7 @@ test("an Instagram reel is embedded", async ({ page }) => {
 
   await expect(page.locator("iframe")).toHaveAttribute(
     "src",
-    "https://www.instagram.com/p/AbC123/embed",
+    "https://www.instagram.com/reel/AbC123/embed/",
   );
 });
 
