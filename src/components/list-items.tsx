@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useOptimistic, useTransition } from "react";
+import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -229,8 +229,24 @@ export function ListItems({
   const open = visible.filter((item) => !item.done);
   const done = visible.filter((item) => item.done);
 
+  // A little overshoot on "Completed" when its count goes up, not down: a tick moves
+  // the row out of view (into this heading, closed by default) in the very same render
+  // that marks it done, so the row's own checkbox never stays on screen long enough to
+  // carry a "ticked" animation itself — this heading is the one thing both sides of
+  // that move have in common, and where the moment is actually seen.
+  const previousDone = useRef(done.length);
+  const [justCompleted, setJustCompleted] = useState(false);
+  useEffect(() => {
+    if (done.length > previousDone.current) setJustCompleted(true);
+    previousDone.current = done.length;
+  }, [done.length]);
+
   if (visible.length === 0) {
-    return <p className="p-6 text-center text-sm text-slate-500">This list is empty.</p>;
+    return (
+      <p className="animate-row-in p-6 text-center text-sm text-slate-500">
+        🛒 This list is empty — add something below.
+      </p>
+    );
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -300,7 +316,9 @@ export function ListItems({
       </DndContext>
 
       {open.length === 0 && (
-        <p className="p-6 text-center text-sm text-slate-500">Everything here is ticked off.</p>
+        <p className="animate-row-in p-6 text-center text-sm text-slate-500">
+          🎉 Nice — everything here is ticked off.
+        </p>
       )}
 
       {/* Ticked items keep their own order and are not draggable, so a dragged row
@@ -308,7 +326,14 @@ export function ListItems({
       {done.length > 0 && (
         <div className="border-t border-slate-100">
           <Collapsible
-            summary={`Completed (${done.length})`}
+            summary={
+              <span
+                onAnimationEnd={() => setJustCompleted(false)}
+                className={`inline-block origin-left ${justCompleted ? "animate-check-pop" : ""}`}
+              >
+                Completed ({done.length})
+              </span>
+            }
             triggerClassName="w-full px-4 py-3 text-sm font-medium text-slate-500 hover:bg-slate-50"
             panelClassName="divide-y divide-slate-100 border-t border-slate-100"
           >

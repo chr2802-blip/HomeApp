@@ -1,8 +1,23 @@
 import type { Metadata, Viewport } from "next";
+import { Quicksand } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { getCurrentUser } from "@/lib/auth";
 import { BAND, DEFAULT_THEME } from "@/lib/theme";
 import "./globals.css";
+
+/**
+ * The rounded, friendly face on headings and titles — the one thing that makes every
+ * screen look like the same generic system-font app before this. Only headings: body
+ * text stays the platform's own sans, which is what stays legible and dense in a list
+ * of ingredients or a row of tasks. Exposed as a variable rather than set directly, so
+ * globals.css decides where it actually lands.
+ */
+const heading = Quicksand({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-heading",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "HomeHub",
@@ -70,7 +85,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const user = await getCurrentUser();
 
   return (
-    <html lang="en" data-theme={user?.homeTheme ?? DEFAULT_THEME}>
+    <html lang="en" data-theme={user?.homeTheme ?? DEFAULT_THEME} className={heading.variable}>
       {/* The page's own colour is in globals.css, beside the band the canvas behind it
           wears: the two are a pair, and a class here would put half of it elsewhere. */}
       <body className="min-h-screen text-slate-900 antialiased">

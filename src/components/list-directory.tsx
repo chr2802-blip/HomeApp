@@ -39,7 +39,11 @@ export function ListDirectory({ lists }: { lists: ListSummary[] }) {
     : lists;
 
   if (lists.length === 0) {
-    return <EmptyState>No lists yet — create your first one with the button above.</EmptyState>;
+    return (
+      <EmptyState icon="📝">
+        Nothing on the shelf yet — create your first list with the button above.
+      </EmptyState>
+    );
   }
 
   return (

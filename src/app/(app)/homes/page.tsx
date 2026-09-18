@@ -29,7 +29,7 @@ export default async function HomesPage() {
       />
 
       {user.homes.length === 0 ? (
-        <EmptyState>
+        <EmptyState icon="🏠">
           <p>You are not in a home yet. Somebody in one can invite you by email.</p>
         </EmptyState>
       ) : (
