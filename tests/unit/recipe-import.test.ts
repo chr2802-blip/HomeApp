@@ -213,6 +213,55 @@ describe("fetchRecipeFromUrl", () => {
     expect(options.headers["User-Agent"]).toMatch(/Mozilla/);
   });
 
+  // A site that negotiates language rather than reading it off the URL — some
+  // multi-country sites do — took an English preference as a reason to swap in its
+  // English site instead of the Danish page actually being asked for, which does not
+  // have the Danish recipe the link pointed at.
+  it("sends no Accept-Language, so a multi-locale site cannot swap in the wrong one", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(htmlResponse(goodHtml));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchRecipeFromUrl("https://example.com/recipe");
+
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.headers).not.toHaveProperty("Accept-Language");
+  });
+
+  it("decodes a page in the charset it declares, rather than assuming UTF-8", async () => {
+    // "Kødsauce", the way ISO-8859-1 spells it — the same bytes read as UTF-8 would
+    // come out as mojibake, which is exactly the failure this guards against.
+    const html = Buffer.from(
+      pageWithLdJson({
+        "@type": "Recipe",
+        name: "K\xf8dsauce",
+        recipeIngredient: ["Hakket oksekød"],
+        recipeInstructions: "Brun kødet.",
+      }),
+      "latin1",
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        url: "https://example.dk/opskrift",
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(html);
+            controller.close();
+          },
+        }),
+        headers: new Headers({ "content-type": "text/html; charset=iso-8859-1" }),
+      }),
+    );
+
+    const result = await fetchRecipeFromUrl("https://example.dk/opskrift");
+
+    expect(result).toEqual({
+      ok: true,
+      recipe: { title: "Kødsauce", ingredients: "Hakket oksekød", instructions: "Brun kødet." },
+    });
+  });
+
   it("refuses a response that is not HTML", async () => {
     vi.stubGlobal(
       "fetch",
