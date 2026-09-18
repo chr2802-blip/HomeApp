@@ -2,18 +2,51 @@ export type Embed = {
   src: string;
   aspect: "vertical" | "wide";
   /**
-   * Instagram's own iframe has no parameter to leave off its header and its
-   * like/comment/share row — this app renders the iframe taller than its
-   * visible box and shifts it up by `top`, so only the video sits inside the
-   * box and the chrome above and below it is clipped by the box's own
-   * `overflow: hidden`. Both numbers are Instagram's fixed-pixel chrome,
-   * read off actual embeds rather than derived from anything documented —
-   * a redesign on their end can throw them off, in which case a sliver of
-   * chrome starts showing again and the fix is to nudge these two numbers,
-   * not to touch the rendering code that uses them.
+   * Instagram and Facebook don't hand back a plain video element — their iframes are a
+   * fixed-size widget (their own header/footer chrome included) rather than something
+   * that reflows to fill an aspect-ratio box the way YouTube's or Vimeo's does. `width`
+   * and `height` are the box Meta's own embed widgets expect to be given, not a crop:
+   * there is no parameter that leaves their chrome off, so the recipe page shows it as
+   * Meta renders it and says so underneath, rather than trying to hide what can't
+   * reliably be hidden.
    */
-  crop?: { top: number; bottom: number };
+  fixed?: { provider: "instagram" | "facebook"; width: number; height: number };
 };
+
+const INSTAGRAM_SIZE = { width: 380, height: 600 };
+const FACEBOOK_SIZE = { width: 380, height: 680 };
+
+/**
+ * Query parameters that only ever carry where a link was shared from, never which post
+ * it points at — the kind a share sheet appends on its own. Stripped rather than kept
+ * because Facebook's video plugin is handed this string verbatim as the post it should
+ * play, and a post's own identifying parameters (a `?v=` on a /watch/ link, say) must
+ * survive that a tracking tag must not.
+ */
+const TRACKING_PARAMS = [
+  "igsh",
+  "igshid",
+  "mibextid",
+  "ref",
+  "ref_src",
+  "ref_url",
+  "fbclid",
+  "__tn__",
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_term",
+  "utm_content",
+];
+
+/** The link with its tracking noise and trailing slash gone, everything else kept. */
+function cleanUrl(url: URL): string {
+  const cleaned = new URL(url.toString());
+  for (const param of TRACKING_PARAMS) cleaned.searchParams.delete(param);
+  cleaned.hash = "";
+  cleaned.pathname = cleaned.pathname.replace(/\/+$/, "") || "/";
+  return cleaned.toString();
+}
 
 /**
  * Only hosts on this allowlist are ever turned into an iframe, and the embed URL is
@@ -36,12 +69,13 @@ export function toEmbed(rawUrl: string | null | undefined): Embed | null {
 
   if (host === "instagram.com" || host === "instagr.am") {
     const kindIndex = segments.findIndex((s) => s === "reel" || s === "reels" || s === "p" || s === "tv");
+    const kind = segments[kindIndex] === "reels" ? "reel" : segments[kindIndex];
     const code = kindIndex >= 0 ? segments[kindIndex + 1] : undefined;
     if (!code || !/^[A-Za-z0-9_-]+$/.test(code)) return null;
     return {
-      src: `https://www.instagram.com/p/${code}/embed`,
+      src: `https://www.instagram.com/${kind}/${code}/embed/`,
       aspect: "vertical",
-      crop: { top: 60, bottom: 60 },
+      fixed: { provider: "instagram", ...INSTAGRAM_SIZE },
     };
   }
 
@@ -70,11 +104,20 @@ export function toEmbed(rawUrl: string | null | undefined): Embed | null {
     return { src: `https://player.vimeo.com/video/${id}`, aspect: "wide" };
   }
 
-  if (host === "facebook.com" || host === "fb.watch") {
+  // Facebook's mobile and desktop-web share sheets hand out m. and web. links for the
+  // same posts as www. — normalized here rather than added to the general www.-only
+  // strip above, since no other provider on this list uses either.
+  const facebookHost = host.replace(/^(m|web)\.facebook\.com$/, "facebook.com");
+  if (facebookHost === "facebook.com" || facebookHost === "fb.watch") {
     const embedded = new URL("https://www.facebook.com/plugins/video.php");
-    embedded.searchParams.set("href", url.toString());
+    embedded.searchParams.set("href", cleanUrl(url));
     embedded.searchParams.set("show_text", "false");
-    return { src: embedded.toString(), aspect: "vertical" };
+    embedded.searchParams.set("width", String(FACEBOOK_SIZE.width));
+    return {
+      src: embedded.toString(),
+      aspect: "vertical",
+      fixed: { provider: "facebook", ...FACEBOOK_SIZE },
+    };
   }
 
   return null;

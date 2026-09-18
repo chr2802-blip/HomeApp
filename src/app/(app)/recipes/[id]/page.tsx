@@ -7,6 +7,7 @@ import { ItemMenu } from "@/components/item-menu";
 import { RecipeFields } from "@/components/recipe-fields";
 import { safeExternalHref, toEmbed } from "@/lib/embed";
 import { PhotoBanner } from "@/components/photo";
+import { VideoEmbed } from "@/components/video-embed";
 import { AddToListMenu } from "@/components/add-to-list-menu";
 import { ingredientLines } from "@/lib/recipes";
 
@@ -98,28 +99,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
 
       {embed && (
         <Card className="mb-6 overflow-hidden p-0">
-          <div
-            className={`relative mx-auto w-full overflow-hidden ${embed.aspect === "vertical" ? "max-w-sm" : ""}`}
-            style={{ aspectRatio: embed.aspect === "vertical" ? "9 / 16" : "16 / 9" }}
-          >
-            <iframe
-              src={embed.src}
-              title={recipe.title}
-              className="absolute inset-x-0 h-full w-full"
-              style={
-                embed.crop
-                  ? {
-                      top: -embed.crop.top,
-                      height: `calc(100% + ${embed.crop.top + embed.crop.bottom}px)`,
-                    }
-                  : { top: 0 }
-              }
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture"
-              allowFullScreen
-              referrerPolicy="strict-origin-when-cross-origin"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
-            />
-          </div>
+          <VideoEmbed embed={embed} title={recipe.title} originalHref={originalHref} />
         </Card>
       )}
 
