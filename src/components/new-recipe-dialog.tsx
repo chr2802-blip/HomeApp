@@ -62,11 +62,13 @@ export function NewRecipeDialog({
   const [step, setStep] = useState<Step>("choose");
   const [initial, setInitial] = useState<RecipeValues | undefined>(undefined);
   const [autoUrl, setAutoUrl] = useState<string | undefined>(undefined);
+  const [noRecipeFound, setNoRecipeFound] = useState(false);
 
   // The clipboard check runs before the sheet opens rather than after, so it never
   // shows "choose" for a moment only to jump straight past it once the check resolves.
   async function openFresh() {
     setInitial(undefined);
+    setNoRecipeFound(false);
     const pasted = await clipboardRecipeUrl();
     setAutoUrl(pasted ?? undefined);
     setStep(pasted ? "url" : "choose");
@@ -79,6 +81,14 @@ export function NewRecipeDialog({
 
   function handleImported(recipe: ImportedRecipe) {
     setInitial(recipe);
+    setStep("form");
+  }
+
+  // A link that will not import — a reel, a shop page, anything without a recipe to
+  // read — must not be a dead end just because the clipboard skipped straight past the
+  // "choose" screen that would otherwise offer this.
+  function startFromScratch() {
+    setInitial(undefined);
     setStep("form");
   }
 
@@ -134,16 +144,27 @@ export function NewRecipeDialog({
         {step === "url" && (
           <>
             <ModalBody>
-              <RecipeImportField onImported={handleImported} autoFetchUrl={autoUrl} />
+              <RecipeImportField
+                onImported={handleImported}
+                onNoRecipeFound={setNoRecipeFound}
+                autoFetchUrl={autoUrl}
+              />
             </ModalBody>
             <ModalFooter>
-              <div className="flex gap-2">
-                <Button type="button" variant="secondary" onClick={() => setStep("choose")}>
-                  Back
-                </Button>
-                <Button type="button" variant="ghost" onClick={close}>
-                  Cancel
-                </Button>
+              <div className="flex flex-col gap-2">
+                {noRecipeFound && (
+                  <Button type="button" onClick={startFromScratch}>
+                    Start from scratch instead
+                  </Button>
+                )}
+                <div className="flex gap-2">
+                  <Button type="button" variant="secondary" onClick={() => setStep("choose")}>
+                    Back
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={close}>
+                    Cancel
+                  </Button>
+                </div>
               </div>
             </ModalFooter>
           </>

@@ -445,6 +445,26 @@ describe("fetchRecipeFromUrl", () => {
     });
   });
 
+  // A page that reaches fine but has nothing to cook from — a reel, a shop page —
+  // is what `NewRecipeDialog` offers "Start from scratch" for, and it tells the two
+  // apart by this flag rather than by matching the message: a mistyped address or a
+  // page that would not load is worth trying again as typed, and neither sets it.
+  it("marks a reachable page with nothing to cook from as not a recipe", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse("<html><body>a reel</body></html>")));
+
+    expect(await fetchRecipeFromUrl("https://example.com/reel", HOME_ID)).toEqual({
+      ok: false,
+      error: "Couldn't read a recipe from that page. Check the link, or fill the form in by hand.",
+      notARecipe: true,
+    });
+  });
+
+  it("does not mark a mistyped address as not a recipe", async () => {
+    const result = await fetchRecipeFromUrl("not a link", HOME_ID);
+
+    expect(result).toEqual({ ok: false, error: "That doesn't look like a web address." });
+  });
+
   it("gives up on a response larger than the limit", async () => {
     const bigChunk = new Uint8Array(1024 * 1024);
     const body = new ReadableStream<Uint8Array>({
