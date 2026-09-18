@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { getCurrentUser } from "@/lib/auth";
-import { BANDS, DEFAULT_THEME } from "@/lib/theme";
+import { BAND, DEFAULT_THEME } from "@/lib/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -11,11 +11,11 @@ export const metadata: Metadata = {
   /*
    * Installed from Safari, the app runs with no chrome of its own and the strip above it
    * holds the clock and the battery. `default` is what puts the phone's own dark glyphs
-   * there, which is the only readable choice against any of the bands — every one of
-   * them is a pale tint, and the translucent style would hand the strip to the app and
-   * leave those glyphs white on near-white. What it is painted with is the document's
-   * background, which carries the home's band from globals.css, so the strip follows the
-   * household on iOS without anything here being told which one is open.
+   * there, which is the only readable choice against the band — a pale tint, and the
+   * translucent style would hand the strip to the app and leave those glyphs white on
+   * near-white. What it is painted with is the document's background, which carries the
+   * band from globals.css, so the strip is right on iOS without anything here being told
+   * a colour.
    */
   appleWebApp: { capable: true, title: "HomeHub", statusBarStyle: "default" },
 };
@@ -23,21 +23,19 @@ export const metadata: Metadata = {
 /**
  * The strip above the header, and who paints it.
  *
- * The band of the home on screen, so it has to be worked out per request: a tab's
- * toolbar continues the app rather than sitting on top of it, and on Android this is
- * also what an installed app's status bar is tinted with. It is the only one of the
- * band's painters that has to be told the colour in words — the header, the tab bar and
- * the document behind them all read `--band`, which the theme on <html> already decides.
+ * A tab's toolbar continues the app rather than sitting on top of it, and on Android
+ * this is also what an installed app's status bar is tinted with at launch. It is the
+ * only one of the band's painters that has to be told the colour in words — the header,
+ * the tab bar and the document behind them all read `--band`, which no longer depends on
+ * which home is on screen, so this no longer needs the session to say which literal to
+ * use.
  *
  * On iOS an installed app ignores this and paints the strip from the document's
- * background instead, which carries the same band. Reading the session twice costs
- * nothing: it is cached per request, and the layout below wants it anyway.
+ * background instead, which carries the same band.
  */
-export async function generateViewport(): Promise<Viewport> {
-  const user = await getCurrentUser();
-
+export function generateViewport(): Viewport {
   return {
-    themeColor: BANDS[user?.homeTheme ?? DEFAULT_THEME],
+    themeColor: BAND,
     width: "device-width",
     initialScale: 1,
     /*

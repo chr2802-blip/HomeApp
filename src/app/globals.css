@@ -5,26 +5,31 @@
  *
  * `--band` is the frame: the header, the tab bar, the document behind them — and
  * therefore the phone's own status bar and gesture bar. `--page` is what the cards sit
- * on, and is the app's whichever home is open.
+ * on.
  *
- * The band follows the household, so it is declared once per theme below rather than
- * here. Four painters carry it to the edges of the screen and they are not equally
+ * The band used to follow the household, a pale tint of that home's accent per theme.
+ * It does not tint the phone's own status bar on retint: `<meta name="theme-color">` is
+ * read once and does not repaint itself as somebody moves between homes, so the strip up
+ * top stayed whichever colour was there first while the header below it changed home
+ * under it — the seam this file exists to close, worn permanently instead. So the band
+ * is now one colour, declared identically in every theme block below rather than varying
+ * with the household, and it is `#e5e7eb` rather than white so that the frame reads as a
+ * colour and not as an absence of one.
+ *
+ * Four painters still carry it to the edges of the screen and they are not equally
  * quick. The bottom is ours outright: the app is laid out under the phone's bars
  * (`viewportFit: "cover"`), so the gesture bar is inside the viewport and the tab bar's
  * band simply reaches it. The document's background is the strip an installed app on
- * iOS paints its status bar with, which is why `html` carries the band. And
- * `<meta name="theme-color">`, rendered per request from the home on screen, is what a
- * browser tints its chrome with — and, we are told, what Chrome on Android now tints an
- * installed app's status bar with.
+ * iOS paints its status bar with, which is why `html` carries the band. The meta tag is
+ * what a browser tints its chrome with, and what an installed app on Android tints its
+ * status bar with at launch. And the manifest's `theme_color`, read once when the app is
+ * installed, is the splash screen's colour. All four now carry the same literal, so none
+ * of them can be a seam.
  *
- * The manifest's `theme_color` is the fourth and cannot follow anybody: it is read once
- * when the app is installed and is the splash screen's colour. It carries the default
- * theme's band, which is the colour of a page belonging to no home at all.
- *
- * Every band is a pale tint of its accent, not the accent. The strip at the top holds
- * the phone's own clock and battery in dark glyphs, the header holds near-black words,
- * and both have to stay legible on it — a band drawn in the accent itself would be a
- * household that cannot read its own clock.
+ * The band is a pale, neutral tint — not a tint of any theme's accent, because it is no
+ * longer that theme's colour to make. The strip at the top holds the phone's own clock
+ * and battery in dark glyphs, the header holds near-black words, and both have to stay
+ * legible on it.
  *
  * Opaque, in every theme. Frosted, the header is a different colour every time
  * something scrolls under it, and a strip the phone paints can follow none of that.
@@ -75,7 +80,8 @@ body {
  * header — and not the meanings inside them. Green still means added, red about to be
  * deleted and amber overdue, in every home, which is why none of these is any of those.
  *
- *   --band          the frame, and the phone's own bars with it: see the top of this file
+ *   --band          the frame, the same literal in every block below: see the top of
+ *                   this file for why it no longer follows the household
  *   --accent        a filled control: the primary button, the tab that is lit
  *   --accent-hover  the same under the pointer
  *   --accent-text   the colour as words on white, dark enough to read as words
@@ -89,7 +95,7 @@ body {
  */
 :root,
 [data-theme="SLATE"] {
-  --band: #ffffff;
+  --band: #e5e7eb;
   --accent: #0f172a;
   --accent-hover: #334155;
   --accent-text: #0f172a;
@@ -97,7 +103,7 @@ body {
 }
 
 [data-theme="OCEAN"] {
-  --band: #f0f9ff;
+  --band: #e5e7eb;
   --accent: #0369a1;
   --accent-hover: #075985;
   --accent-text: #075985;
@@ -105,7 +111,7 @@ body {
 }
 
 [data-theme="INDIGO"] {
-  --band: #eef2ff;
+  --band: #e5e7eb;
   --accent: #4f46e5;
   --accent-hover: #4338ca;
   --accent-text: #4338ca;
@@ -113,7 +119,7 @@ body {
 }
 
 [data-theme="VIOLET"] {
-  --band: #f5f3ff;
+  --band: #e5e7eb;
   --accent: #7c3aed;
   --accent-hover: #6d28d9;
   --accent-text: #6d28d9;
@@ -121,7 +127,7 @@ body {
 }
 
 [data-theme="PLUM"] {
-  --band: #fdf4ff;
+  --band: #e5e7eb;
   --accent: #a21caf;
   --accent-hover: #86198f;
   --accent-text: #86198f;
@@ -129,7 +135,7 @@ body {
 }
 
 [data-theme="SAND"] {
-  --band: #f5f5f4;
+  --band: #e5e7eb;
   --accent: #57534e;
   --accent-hover: #44403c;
   --accent-text: #44403c;
