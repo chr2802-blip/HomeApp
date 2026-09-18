@@ -46,7 +46,7 @@ async function addTask(
 }
 
 test("the empty state says there are no tasks", async ({ page }) => {
-  await expect(page.getByText("No tasks yet.")).toBeVisible();
+  await expect(page.getByText("No tasks yet — add the first one above.")).toBeVisible();
 });
 
 test("a new task appears as due today and never completed", async ({ page }) => {
@@ -86,7 +86,7 @@ test("a task can be deleted from its own menu", async ({ page }) => {
   await openMenu(page, { label: "Doomed task" });
   await clickAndConfirm(page, "Delete");
 
-  await expect(page.getByText("No tasks yet.")).toBeVisible();
+  await expect(page.getByText("No tasks yet — add the first one above.")).toBeVisible();
 });
 
 test("an overdue task is flagged", async ({ page }) => {
@@ -222,7 +222,7 @@ test("the done list stays away until a one-off is finished, and then stays folde
   await page.getByRole("button", { name: "Mark done" }).click();
 
   await expect(page.getByRole("heading", { name: "Done" })).toBeVisible();
-  await expect(page.getByText("Nothing left to do.")).toBeVisible();
+  await expect(page.getByText("Nothing left to do — nice work.")).toBeVisible();
 
   // What is finished is kept, not shown: it opens on request rather than pushing what
   // is still to do down the page.
