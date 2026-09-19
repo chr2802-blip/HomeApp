@@ -248,7 +248,8 @@ npm run e2e
   and one home being unable to open another home's pages. `npm run e2e:ui` opens the interactive
   runner; after a failure `npm run e2e:report` shows the trace, screenshot and DOM snapshot.
 
-`npm run verify` runs the whole gate: lint, types, the vitest suites, then the browser tests.
+`npm run verify` runs the whole gate in the order the pre-push hook does: lint, types, the
+schema check, the vitest suites, then the browser tests.
 
 ### Test databases
 
@@ -262,9 +263,25 @@ They use **separate** databases from development, named after `DATABASE_URL` wit
 `homehub_test` for vitest and `homehub_e2e` for Playwright — each created and migrated
 automatically on first run. Override with `TEST_DATABASE_URL` or `E2E_DATABASE_URL`.
 
+Neither of those is ever run against. Both are **templates**: each worker gets a
+`CREATE DATABASE … TEMPLATE` copy of one, named `homehub_w<key>_test` (or `_e2e`), so the files
+can run at the same time without truncating each other's tables. Copying takes about a tenth of a
+second against nearly two for spawning the migration CLI again, and it cannot produce a database
+the migrations have not been applied to. The copies are swept away afterwards, and again at the
+start of the next run, since a run that is killed never reaches its own teardown — a vitest copy
+whose process is still alive is spared, so a `test:watch` left open and a full `npm test` do not
+drop each other's databases.
+
 Both suites truncate tables between tests, so each starts from a known state. Two guards make it
-impossible for that to reach real data: the database name must carry the right suffix, and it is
-checked again immediately before the first delete. Your development data is never touched.
+impossible for that to reach real data: the database name must carry the right suffix — a
+worker's copy included, which is why the key goes *before* it — and it is checked again
+immediately before the first delete. `tests/unit/test-db-url.test.ts` holds those rules to
+account without opening a connection. Your development data is never touched.
+
+The plumbing behind all of that — making the template, migrating it, copying it, sweeping up and
+truncating — is `scripts/test-db.mjs`, shared by both suites. It was the same code twice, and the
+two halves that have to agree are not within a suite but across them: one writes a copy's name
+and the other has to recognise it again.
 
 ### Working in more than one checkout at once
 
@@ -301,8 +318,11 @@ Pushing to `main` is what triggers a Vercel deploy, so the tests gate the push:
    nothing is pushed and nothing deploys. In a genuine emergency, `git push --no-verify`
    skips it.
 2. **In CI.** `.github/workflows/test.yml` runs the same checks on GitHub against a throwaway
-   Postgres, on every push and pull request. A failing browser test uploads its Playwright
-   report as a build artifact.
+   Postgres, on every push and pull request. Lint, types, the schema check and the vitest suites
+   run in one job; the browser suite runs in another, alongside rather than behind it, since the
+   two share nothing but two minutes of setup. Both report into a third job named
+   **Lint, types and tests**, which is the single check a deploy gate waits for — see below. A
+   failing browser test uploads its Playwright report as a build artifact.
 3. **During the build.** `npm run build` runs the unit tests before `next build`, so a broken
    build fails on Vercel even if the first two were bypassed. (Integration tests are left out
    here: the build has no test database, and it must never touch the production one.)
@@ -357,7 +377,9 @@ until the checks pass. First make sure automatic aliasing is on under
 **Project Settings → Environments → Production**. Then open
 **Project Settings → Build and Deployment → Deployment Checks**, choose **Add Checks**, pick
 **GitHub** as the provider, and select the **Lint, types and tests** check (GitHub identifies
-checks by job name, so renaming that job in `test.yml` means re-selecting it here). The build
+checks by job name, so renaming that job in `test.yml` means re-selecting it here). That job runs
+nothing itself: it is green exactly when the checks and browser jobs beside it are, which is what
+lets the work be split in two without the gate having to be re-selected or widened to a list. The build
 still runs; it just is not released to users until the tests go green. `Force Promote` on the
 deployment page overrides this when you need it.
 

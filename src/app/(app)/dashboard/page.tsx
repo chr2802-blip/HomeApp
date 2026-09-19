@@ -11,9 +11,21 @@ import { UNFINISHED, isSnoozable, repeatLabel } from "@/lib/tasks";
 import { PhotoBanner, PhotoThumb } from "@/components/photo";
 import { SuggestedRecipe } from "@/components/suggested-recipe";
 import { ProgressBar } from "@/components/progress-bar";
-import { endOfDayInZone, weekStartInZone, weekStartInstant } from "@/lib/time";
 import { homeStreak } from "@/lib/streak";
+import { weekWorkload } from "@/lib/week";
 import { WeekProgress } from "@/components/week-progress";
+import { Collapsible } from "@/components/collapsible";
+
+/**
+ * How many lists the dashboard draws before it stops and offers the rest.
+ *
+ * Four is two rows of cards on a desktop and four on a phone, and it is the last block
+ * on a page whose first screen is the page — a fifth and a sixth are below the fold
+ * either way, where the Lists tab reaches them in one press and this does not. The
+ * favourites a household actually keeps are few enough that this rarely bites; what it
+ * stops is the home with a dozen lists pushing everything else off the screen.
+ */
+const DASHBOARD_LISTS = 4;
 
 /**
  * What a list card says about a list: how much of it is still to do.
@@ -98,13 +110,10 @@ export default async function DashboardPage() {
 
   const now = new Date();
   const soon = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
-  // Monday, in the home's own zone: the week the household is living in, not the
-  // rolling seven days the server happens to be in the middle of.
-  const weekStart = weekStartInstant(weekStartInZone(now));
 
   const db = homeDb(user.homeId);
 
-  const [dueTasks, favorites, recent, doneThisWeek, stillOwed, streak] = await Promise.all([
+  const [dueTasks, favorites, recent, week, streak] = await Promise.all([
     db.task.findMany({
       // A one-off already done is not due, however long its date has been in the past.
       where: { nextDueAt: { lte: soon }, ...UNFINISHED },
@@ -120,18 +129,13 @@ export default async function DashboardPage() {
     }),
     db.list.findMany({
       orderBy: { createdAt: "desc" },
-      take: 5,
+      // One more than the dashboard draws, which is how it knows to offer the rest
+      // without counting every list in the home to find out.
+      take: DASHBOARD_LISTS + 1,
       include: LIST_COUNTS,
     }),
-    // Whoever did it: this is the household's own rhythm, not a personal scoreboard.
-    db.task.count({ where: { lastCompletedAt: { gte: weekStart } } }),
-    // The rest of what the week is carrying: everything due by the end of today and
-    // still not done. The end of today rather than this moment, because a task due
-    // today is the household's work today — it does not become so at nine in the
-    // morning, which is only the hour the reminder goes out. A finished one-off keeps
-    // the date it was due, which is in the past for ever, so this asks UNFINISHED as
-    // every "still to do" query does.
-    db.task.count({ where: { nextDueAt: { lte: endOfDayInZone(now) }, ...UNFINISHED } }),
+    // Both sides of the week's work, and which side a task falls on — see lib/week.
+    weekWorkload(user.homeId, now),
     homeStreak(user.homeId),
   ]);
 
@@ -148,7 +152,9 @@ export default async function DashboardPage() {
   // stay, with a line saying how to change it: a dashboard that shows nothing until you
   // have learnt about a feature teaches nobody anything.
   const starred = favorites.length > 0;
-  const lists = starred ? favorites : recent;
+  const all = starred ? favorites : recent;
+  const lists = all.slice(0, DASHBOARD_LISTS);
+  const more = all.length > lists.length;
 
   return (
     <>
@@ -160,7 +166,8 @@ export default async function DashboardPage() {
         photoId={user.homePhotoId}
         alt={user.homeName ?? "This home"}
         bleed
-        className="mb-5"
+        short
+        className="mb-4"
       />
 
       <PageHeader
@@ -171,15 +178,17 @@ export default async function DashboardPage() {
       {/* The household's own rhythm rather than a scoreboard, and still nobody's name
           on it. It draws nothing at all on a home with no jobs and no history, where
           every number would be a zero. */}
-      <WeekProgress done={doneThisWeek} outstanding={stillOwed} streak={streak} />
+      <WeekProgress week={week} streak={streak} />
 
       <NotificationSetup />
-
-      <SuggestedRecipe homeId={user.homeId} />
 
       {/*
         Only when there is something due for you. A heading whose body is always
         "nothing due" teaches nobody anything and costs everybody the scroll past it.
+
+        First of the three blocks below the week, because it is the only one that is
+        somebody's to do something about today. The dinner and the lists are both worth
+        having on the first screen and neither is overdue.
       */}
       {mine.length > 0 && (
         <section className="mt-6">
@@ -193,26 +202,48 @@ export default async function DashboardPage() {
       )}
 
       {/*
-        Only when somebody else has something due. A household where nobody assigns
-        anything would otherwise carry a permanently empty heading.
+        Only when somebody else has something due, and folded away when there is —
+        it is information rather than a job, and a full card for each of somebody
+        else's tasks is the clearest case on the page of something worth knowing and
+        not worth the screen. The count is on the heading, because a heading hiding an
+        unknown quantity is one nobody opens; the "Done" button inside is still there
+        for whoever gets to it first.
       */}
       {theirs.length > 0 && (
-        <section className="mt-8">
-          <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
-            Due for someone else
-          </h2>
-          <div className="space-y-2">
+        <section className="mt-6">
+          <Collapsible
+            summary={`Due for someone else (${theirs.length})`}
+            headingClassName="mb-3 text-sm font-semibold text-slate-500 uppercase"
+            triggerClassName="hover:text-slate-700"
+            panelClassName="space-y-2"
+          >
             {theirs.map((task) => (
               <DueTask key={task.id} task={task} now={now} />
             ))}
-          </div>
+          </Collapsible>
         </section>
       )}
 
-      <section className="mt-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
-          {starred ? "Favourite lists" : "Recent lists"}
-        </h2>
+      {/* Below what is due, above the lists: a suggestion is a decision to make this
+          evening, not a job that is late. */}
+      <SuggestedRecipe homeId={user.homeId} />
+
+      <section className="mt-6">
+        {/* The heading and the way out of it on one row: the link only appears when
+            there is something it would show that this section does not. */}
+        <div className="mb-3 flex items-baseline justify-between gap-3">
+          <h2 className="text-sm font-semibold text-slate-500 uppercase">
+            {starred ? "Favourite lists" : "Recent lists"}
+          </h2>
+          {/* The same plain link the rest of this page uses for "Create one" and
+              "lists page": the home's colour dresses controls, and this is a
+              sentence's worth of text beside a heading. */}
+          {more && (
+            <Link href="/lists" className="text-xs font-medium text-slate-900 underline">
+              See all
+            </Link>
+          )}
+        </div>
         {lists.length === 0 ? (
           <EmptyState icon="📝">
             No lists yet.{" "}
@@ -224,22 +255,23 @@ export default async function DashboardPage() {
           <div className="grid gap-2 sm:grid-cols-2">
             {lists.map((list) => (
               <Link key={list.id} href={`/lists/${list.id}`}>
-                <Card className="flex items-center gap-3 transition hover:border-slate-400">
+                <Card className="relative flex items-center gap-3 overflow-hidden transition hover:border-slate-400">
                   {/* Decorative: the list's own name is right beside it. */}
                   <PhotoThumb photoId={list.photoId} alt="" className="h-11 w-11" />
                   <div className="min-w-0 flex-1">
                     <p className="font-medium">{list.title}</p>
                     <p className="text-xs text-slate-500">{itemsLine(list)}</p>
-                    {/* Same bar the lists page draws, and only where there is something
-                        to be a proportion of — a list with nothing on it is not done. */}
-                    {list._count.items > 0 && (
-                      <ProgressBar
-                        done={list._count.items - list.items.length}
-                        total={list._count.items}
-                        className="mt-2"
-                      />
-                    )}
                   </div>
+                  {/* The same edge the lists page draws, and only where there is
+                      something to be a proportion of — a list with nothing on it is
+                      not done. */}
+                  {list._count.items > 0 && (
+                    <ProgressBar
+                      edge
+                      done={list._count.items - list.items.length}
+                      total={list._count.items}
+                    />
+                  )}
                 </Card>
               </Link>
             ))}

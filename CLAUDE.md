@@ -11,7 +11,7 @@ was tried and caused a bug.
 
 ```bash
 npm run dev          # local dev server
-npm run verify       # lint + types + all tests — what the pre-push hook runs
+npm run verify       # lint + types + schema check + all tests — what the pre-push hook runs
 npm test             # vitest (unit + integration)
 npm run e2e          # Playwright (builds the app first)
 npm run db:studio    # browse the database
@@ -138,12 +138,16 @@ unit test checks the alpha as strictly as the hex, and no theme block may bring 
 `--accent-soft` of its own: that would be a second colour for the same strip, and the
 one the phone is told about is whichever of the two the header did not use.
 
-**The colour dresses the controls, never the meanings inside them.** The primary button,
-the active nav pill, the focus ring and the hairline under the header — and nothing
-else, the band included: that one dresses no home at all any more. Green is still
-"added", red "about to be deleted", amber "overdue", in every home; a household dressed
-in one of those would be saying it on every screen, which is why none of the themes is
-any of them and why `create` and `danger` keep their own colours.
+**The colour dresses the controls and the household's own progress, never the meanings
+inside them.** The primary button, the active nav pill, the focus ring, the hairline
+under the header — and the bar along the bottom of a list card, which is the one thing
+here that is not a control: a household's way through its own lists is that
+household's, and it was the last fixed colour on those pages that belonged to no home.
+Nothing else, the band included: that one dresses no home at all any more. Green is
+still "added", red "about to be deleted", amber "overdue", in every home; a household
+dressed in one of those would be saying it on every screen, which is why none of the
+themes is any of them and why `create` and `danger` keep their own colours — and why a
+bar in the home's colour cannot accidentally say one of the three.
 
 **The one palette that is neither a home's colour nor a meaning is the charts'.**
 `--chart-recipes`, `--chart-lists`, `--chart-tasks` and `--chart-rest` in `globals.css`
@@ -394,12 +398,22 @@ The press is handled in `handlePress`, beside the optimistic change rather than 
 it. React runs a form action in a transition, where an update may be held back a frame or
 two, and the one thing feedback about a press must not be is late.
 
-**A list's progress is drawn in `--chart-lists`, not in the home's colour and not in
-green.** The accent dresses the controls, and a bar is read rather than pressed — in the
-household whose colour happened to match, a full-width bar would read as one more long
-flat button. Green is "added" everywhere else in the app, so a bar that turned green on
-its last item would be saying that instead. It is the same blue the list's slice wears on
-the storage donuts, which is the palette that exists for saying "this much of that".
+**A list's progress is drawn in the home's own `--accent`, and not in green.** It was
+`--chart-lists`, on the reasoning that the accent dresses controls and a bar is read
+rather than pressed — but `edge` below took the bar out of the card's padding and into
+the card's own bottom, where there is nothing left for it to be mistaken for. Green is
+"added" everywhere else in the app, so a bar that turned green on its last item would be
+saying that instead; no theme is green, red or amber either, so the home's colour cannot
+say one of them by accident. The storage donuts keep the chart palette: those are about
+kinds that mean the same thing in every household, and this is about one household's own
+week.
+
+**On a card the bar is `edge`: flush along the bottom, full width, no radius of its
+own** — the card rounds it off, which is why a card carrying one is `relative
+overflow-hidden` (the three-dot panel is portalled, so clipping costs it nothing). A
+card is one thing, and a rounded bar floating in its padding reads as a second thing
+sitting on it. It is thinner there than the free-standing one because on the edge it is
+a rule rather than a readout: the words above it carry the number.
 
 The bar on the list's own page lives **inside `ListItems`**, not up beside the title: a
 tick is optimistic, so the proportion has to be told by the same state the rows are.
@@ -466,17 +480,80 @@ run of one is not called a run, and a live run with nothing in the current week 
 which is the whole of what a streak is for.
 
 **`WeekProgress` on the dashboard replaced "N tasks completed in the last 7 days".** The
-number was true and told nobody anything; a proportion has a top. The denominator is the
-week's own work — everything finished since Monday plus everything due by the end of
-today and still not done — and not the household's whole task list, which would put the
-annual boiler service in the denominator of a shopping week. It is due by the *end of
-today* rather than by this moment: a task due today is the household's work today, and
-`DUE_HOUR` is only when the reminder goes out. Nobody's name is on any of it, which is
-the same choice the streak makes: a weekly score with names on it turns the washing-up
-into a thing worth being seen to do.
+number was true and told nobody anything; a proportion has a top. Nobody's name is on
+any of it, which is the same choice the streak makes: a weekly score with names on it
+turns the washing-up into a thing worth being seen to do.
+
+`weekWorkload` in `src/lib/week.ts` is what it counts, and **every task falls on exactly
+one side of it**. That is the whole difficulty: a recurring task is never finished, so
+"completed this week" and "still owed" are not opposites the way they are for a one-off.
+Emptying the bins on Monday when they come round again on Wednesday is a job done and a
+job owed, and counting it as both makes a household with one task read "1 of 2". So
+**being owed wins** — a task due again before the week is out is this week's work still,
+whatever was done to it on Monday, and one with nothing due until next month is done
+with as far as this week goes.
+
+**Owed means the whole week, not the part of it that has happened.** A recurring task
+due on Friday is this week's work on Monday morning; a denominator that grew by one
+every time a day turned over would be a bar that fell back each morning however much the
+household got through. The bound is the instant next Monday begins — one exclusive
+comparison, no last-millisecond arithmetic — and everything overdue from before this
+week is inside it, because a job nobody has done since March is owed today whatever week
+it first came due in. Counting every task in the home instead would put the annual
+boiler service in the denominator of a shopping week.
+
+`weekWorkload` takes the clock as an argument so `tests/integration/week.test.ts` can
+say Wednesday and mean Wednesday. Every case there is a recurring task, because the
+one-off is the easy half.
 
 Ticking anything refreshes three views, not one (`refreshListViews`): the list's page,
 the cards on `/lists`, and the dashboard the streak lives on.
+
+### The dashboard is a page about what needs attention, and the first screen is all of it
+
+Almost nobody scrolls a dashboard. What is above the fold on a phone *is* the page, so
+every block on it is spending the only screen there is, and decoration pays the highest
+rent.
+
+**Tonight's dinner is a row, not a hero.** It opened with the recipe's photograph across
+the full width — about two hundred pixels at a phone's 16:9 — and with the title, the
+description and a full-width "Find new" underneath, the suggestion took half the first
+screen. It is now built like a list card: thumbnail, title, one line of description
+(`line-clamp-1`, because an imported recipe's description runs to a paragraph), and the
+button beside them. The appetising photograph is one tap away on the recipe's own page,
+where somebody who has decided to cook it is going anyway.
+
+**The home's picture is `short` on the dashboard** and full height on a recipe page,
+where the picture is what the page is about. It is a prop rather than a height in
+`className` for the reason `Card`'s `padded` is: two height utilities, and which wins is
+decided by their order in the stylesheet, not in the class attribute.
+
+**`PageHeader` only clears its description past the row when there is a control to
+clear.** That gap exists so a line of grey text does not run up against the button
+opposite it — on a page with nothing on the right of its title, it is just a gap.
+
+**The order of the blocks is what each one asks of you.** The week, then what is due
+for you, then what is due for somebody else, then the dinner, then the lists. The
+suggestion used to open the page and is now below the tasks: it is a decision to make
+this evening, not a job that is late, and nothing else on the page is a job at all.
+
+**Due for someone else is folded away, with its count on the heading.** It is
+information rather than a job — the clearest case on the page of something worth
+knowing and not worth a card each. The "Done" button inside it stays, because naming
+somebody decides who is reminded and not who is allowed to do the job, and the fold
+starts shut like every other `Collapsible`.
+
+**The lists stop at `DASHBOARD_LISTS` and offer the rest.** Four is two rows on a
+desktop and the last block on the page; a fifth and a sixth are below the fold either
+way, where the Lists tab reaches them in one press. The recent query takes one more
+than it draws, which is how the section knows to show "See all" without counting every
+list in the home to find out. A household's favourites are rarely that many — what this
+stops is the home with a dozen lists pushing everything else off the screen.
+
+`e2e/suggested-recipe.spec.ts` holds the result: the dinner section stays under 160px,
+and the week, the dinner, what is due and the lists are all on one 390×680 screen. The
+number is loose on purpose — what it catches is a hero coming back, not a line of
+padding.
 
 `tests/unit/gamification.test.ts` holds the colours and the keyframes to the stylesheet,
 the way `theme.test.ts` and `storage.test.ts` hold theirs — a `var()` nobody defined
@@ -685,7 +762,17 @@ starts the same fetch a press of the button would, once, on arrival. That check 
 close-vs-open reset above exists to avoid. Anything else on the clipboard — nothing,
 plain text, a browser that will not say (Safari has no `readText` at all; Chrome can
 refuse silently when the page lacks focus) — is treated the same as if there had been
-nothing to check, which is the ordinary **choose** screen this always showed. Choosing
+nothing to check, which is the ordinary **choose** screen this always showed.
+
+**A browser that will not say is not always a browser that says so**, which is why that
+read is raced against `CLIPBOARD_GRACE_MS`. `readText()` can sit unresolved behind a
+permission decision nobody is going to make — a headless Chromium with the permission
+ungranted does exactly this — and since the sheet opens *after* the check, a promise
+that never settles is a "New recipe" button that does nothing at all: no sheet, no
+error, nothing to see. Not waiting past half a second turns that back into the same
+"nothing to prefill" every other unanswerable clipboard is. The browser suite pins it
+with a `readText` stubbed to never settle, because a browser that merely *refuses* —
+which is what CI's does — takes the `catch` and never visits this path. Choosing
 **Import from a link** by hand always starts blank, even moments after an automatic
 fetch from the clipboard found something: a deliberate press is not the clipboard
 speaking again.
@@ -810,17 +897,35 @@ produce a database the migrations have not been applied to. The files truncate b
 tests, so a shared database would have them emptying tables another file was halfway
 through reading.
 
+**All of that plumbing is `scripts/test-db.mjs`, once, for both suites** — making the
+template, migrating it, copying it per worker, sweeping the copies up, truncating between
+tests. It was written out twice, differing only in which suffix it looked for, and the
+pair that has to agree is not within a suite but across them: `workerDatabaseUrl` writes
+a copy's name and the sweep has to recognise it again, including the copies a killed run
+left behind. `workerDatabasePattern` beside it is that second half, so the two cannot
+drift. The module is plain JavaScript and uses no `import.meta`: vitest loads it as ESM,
+Playwright compiles the file importing it to CommonJS.
+
 **A worker's database is keyed by something that cannot be shared by two of them at
 once.** For vitest that is the **process id** — `VITEST_POOL_ID` looks like the right
 thing and is not: two workers running at the same time are sometimes handed the same
 one, which puts two files on one database, where they truncate each other mid-test and
-deadlock trying. Playwright's `parallelIndex` *is* a real lease, so the browser suite
-uses it. Copies are swept away afterwards, and again at the start of the next run, since
-a run that is killed never reaches its own teardown.
+deadlock trying. That holds only while a worker *is* a process, which is why the
+integration project says `pool: "forks"` rather than inheriting whatever the default is:
+a pool of threads shares one pid and brings the collision straight back. Playwright's
+`parallelIndex` *is* a real lease, so the browser suite uses it. Copies are swept away
+afterwards, and again at the start of the next run, since a run that is killed never
+reaches its own teardown — **except one whose process is still alive**, asked of the
+operating system rather than assumed, so `npm test` alongside an open `npm run test:watch`
+does not drop the watcher's databases on the way past.
 
 The key goes *before* the suffix (`homehub_w7_test`, never `homehub_test_w7`) because the
 suffix is the whole guard: every entry point refuses a database whose name does not end
 in `_test` or `_e2e`, and a worker's copy has to be refused on the same terms.
+`tests/unit/test-db-url.test.ts` holds every one of those rules — the suffix guard, the
+key's position, the sweep's pattern matching the copies and nothing else — in
+milliseconds and without a database, because the alternative way to find out that this
+module disagrees with itself is a suite that has already started deleting.
 
 **The browser suite gives each worker its own app server too**, on its own port, because
 a server reads one database and one only. `e2e/helpers/servers.ts` says which worker gets
@@ -842,7 +947,9 @@ the login form, which `auth.spec.ts` still does by hand through `logInThroughFor
 because there the form is the thing being tested.
 
 A flaky test is worse than no test: it teaches everyone to press the button again. Fix the
-race, do not add a timeout.
+race, do not add a timeout. An `it.only` left in is the same failure by another route — a
+file reduced to one test, reading as a pass — so CI refuses one in either suite
+(`forbidOnly` for Playwright, `allowOnly` for vitest).
 
 Two races are worth knowing about, because both passed on an idle machine and only
 showed once the files started running at the same time. **A tick is optimistic**: the

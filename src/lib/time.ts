@@ -1,5 +1,5 @@
 import { TZDate } from "@date-fns/tz";
-import { addDays, differenceInCalendarDays, format, startOfWeek, subDays } from "date-fns";
+import { addDays, differenceInCalendarDays, format, startOfWeek } from "date-fns";
 
 /**
  * The household's timezone. Every due date is decided and displayed here, never in the
@@ -126,14 +126,19 @@ export function formatDayInZone(day: string, pattern: string): string {
   return format(noonOn(day), pattern);
 }
 
-/** The Monday before the given one, as "yyyy-MM-dd". */
-export function previousWeekStart(week: string): string {
-  return format(subDays(noonOn(week), 7), "yyyy-MM-dd");
-}
-
 /** The Monday after the given one, as "yyyy-MM-dd". */
 export function nextWeekStart(week: string): string {
-  return format(addDays(noonOn(week), 7), "yyyy-MM-dd");
+  return shiftWeek(week, 7);
+}
+
+/** The Monday before the given one, as "yyyy-MM-dd". */
+export function previousWeekStart(week: string): string {
+  return shiftWeek(week, -7);
+}
+
+/** A Monday, some whole number of days away, as "yyyy-MM-dd". */
+function shiftWeek(week: string, days: number): string {
+  return format(addDays(noonOn(week), days), "yyyy-MM-dd");
 }
 
 /**
