@@ -18,6 +18,7 @@ import {
 import { InviteForm } from "@/components/invite-form";
 import { ActionForm } from "@/components/action-form";
 import { ReminderStatus } from "@/components/reminder-status";
+import { StorageUsage } from "@/components/storage-usage";
 import { RecipeCategoriesAdmin } from "@/components/recipe-categories-admin";
 import { formatInZone } from "@/lib/time";
 import { ItemMenu } from "@/components/item-menu";
@@ -107,6 +108,15 @@ export default async function SettingsPage() {
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Reminders</h2>
         <ReminderStatus homeId={home.id} />
+      </section>
+
+      {/* Where the household's space is going. It sits under Reminders rather than
+          beside the name and the picture because it is a reading rather than a setting:
+          there is nothing on it to change, only something to notice — usually that the
+          recipes somebody photographed are most of the home. */}
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Storage</h2>
+        <StorageUsage homeId={home.id} />
       </section>
 
       <section className="mb-8">

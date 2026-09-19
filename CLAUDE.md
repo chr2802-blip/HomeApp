@@ -145,6 +145,18 @@ else, the band included: that one dresses no home at all any more. Green is stil
 in one of those would be saying it on every screen, which is why none of the themes is
 any of them and why `create` and `danger` keep their own colours.
 
+**The one palette that is neither a home's colour nor a meaning is the charts'.**
+`--chart-recipes`, `--chart-lists`, `--chart-tasks` and `--chart-rest` in `globals.css`
+dress the storage donuts, and they are fixed: a slice is read rather than pressed, and in
+the household whose accent happened to match it a slice would disappear into the Save
+button below it — while a legend drawn in each home's own colours would mean one thing in
+the flat and another in the summer house, about kinds that are the same in both. None of
+the four is green, red or amber either, checked by `tests/unit/storage.test.ts` against
+the same three `theme.test.ts` keeps out of the themes. The exception proves the rule: on
+the super admin's across-homes ring a slice *is* a household, so it wears that
+household's `data-theme` and reads `var(--accent)`, exactly as its dot does in the
+header's menu.
+
 The picker submits `THEME_FIELD`, checked against the set by `updateHome`. It is
 optional there — a colour not mentioned is a colour left alone — because the other ways
 into that action (a picture being replaced, a rename) are not about the colour. Unlike
@@ -256,6 +268,41 @@ not take an avatar for an upload nobody finished and delete it an hour later. An
 `/api/photos/<id>` serves a picture somebody is using as their own to anyone who shares a
 home with them, wherever it happens to be filed — otherwise a housemate met in a second
 home would see a broken image.
+
+### How much room a household takes is measured by Postgres, not counted up here
+
+`src/lib/storage.ts` answers "how big is this home", and because a picture's bytes live
+in the database rather than in object storage that is a real question with a real number.
+`/settings` shows one household its own, as a donut with the total in the hole; **Admin →
+System** shows the super admin the same total cut two ways — by home and by kind — which
+is one of the few places crossing homes is the point.
+
+It is raw SQL because `pg_column_size` is the only thing that knows what a row occupies:
+a value is stored compressed, and adding up `length()` on the way past reports the size of
+something the database never wrote. **A whole row (`t.*`) for everything except `Photo`,
+whose two blobs are measured column by column.** `pg_column_size` on a column reads the
+size out of the TOAST pointer, while building the composite for a whole row fetches the
+bytes back — so `pg_column_size(p.*)` would pull every picture in the home through the
+connection in order to weigh it, on a page somebody is waiting for.
+
+**A picture counts towards the thing showing it**, which is why the slices are Recipes,
+Lists and Tasks and not Photos. A recipe's photo is a hundred times its text, so "Recipes:
+40 MB" is something a household can act on and "Photos: 40 MB" is the same number with the
+useful half taken out. What is left — the home record, its members and invites, the home's
+own picture, the avatars filed here and the uploads nobody finished — is `rest`, drawn in
+the one deliberately quiet colour.
+
+The home is bound into the query rather than carried by `homeDb`, which scopes Prisma's
+model calls and has nothing to say about raw SQL. `getHomeStorage` takes a home id and
+filters the union by it; `getInstallationStorage` names no home at all and is the super
+admin's alone.
+
+**A kind is a name in TypeScript and a colour in `globals.css`, and nothing but
+`tests/unit/storage.test.ts` holds the two together.** A `var(--chart-whatever)` nobody
+defined resolves to nothing, which draws a slice with no stroke: the legend beside it is
+still complete and still right, and the ring is simply short a piece. That is a chart
+quietly lying about a total, which is worse than one that is visibly broken — and it is
+the same failure a theme with no block in the stylesheet has, caught the same way.
 
 ### Form actions report what happened
 
@@ -582,8 +629,9 @@ those still wants trying against a copy of production first.
 ## Observability
 
 **Admin → System** (super admin) shows database health, the reminder job's recent runs,
-content totals and the slowest queries of the last day. Home admins see whether reminders
-are reaching their own household.
+content totals, how the stored bytes divide between the homes and between the kinds of
+thing in them, and the slowest queries of the last day. Home admins see whether reminders
+are reaching their own household, and what their own home is storing.
 
 The reminder job writes a row before it starts work, because a schedule that silently
 stops looks exactly like a week with nothing due. `/api/health` gives an uptime monitor a
