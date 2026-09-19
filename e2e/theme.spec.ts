@@ -139,6 +139,38 @@ test.describe("as a home admin", () => {
 
     expect(asHex(filled)).toBe("#a21caf");
   });
+
+  test("and on the progress along a list card, which is the household's own", async ({
+    page,
+    loginAs,
+  }) => {
+    await dress(HOME_NAME, "SAND");
+
+    const db = prisma();
+    const home = await db.home.findFirstOrThrow({ where: { name: HOME_NAME } });
+    const owner = await db.user.findFirstOrThrow({ where: { email: ACCOUNTS.member.email } });
+    await db.list.create({
+      data: {
+        homeId: home.id,
+        createdById: owner.id,
+        title: "Weekly shop",
+        items: { create: [{ text: "Milk", position: 1, done: true }, { text: "Bread", position: 2 }] },
+      },
+    });
+
+    await loginAs(ACCOUNTS.member);
+    await page.goto("/lists");
+
+    // Half of two, in this home's colour rather than the one fixed blue that used to be
+    // on every household's cards.
+    const bar = page.locator("[data-progress]").first();
+    await expect(bar).toHaveAttribute("data-progress", "50");
+
+    const fill = await bar.evaluate((track) =>
+      getComputedStyle(track.firstElementChild as HTMLElement).backgroundColor,
+    );
+    expect(asHex(fill)).toBe("#57534e");
+  });
 });
 
 test.describe("somebody in two homes", () => {

@@ -53,18 +53,27 @@ function Img({ src, alt, className }: { src: string; alt: string; className: str
  * so the picture runs edge to edge and meets the top bar, with no gap and no rounded
  * corners to mark where the page begins. The offsets mirror the padding set in the app
  * layout — change one and change the other.
+ *
+ * `short` is for the dashboard, where the picture is decoration above a page whose job
+ * is to say what needs attention: at the full height it was a third of the first screen
+ * before a single word of that. A prop rather than a height passed in `className`,
+ * because both are height utilities and which one wins is decided by their order in the
+ * stylesheet rather than in the class attribute — the same trap `Card`'s `padded`
+ * exists to avoid. A recipe's own banner keeps the full height: there the picture is
+ * what the page is about.
  */
 export function PhotoBanner({
   photoId,
   alt,
   className = "",
   bleed = false,
-}: PhotoProps & { bleed?: boolean }) {
+  short = false,
+}: PhotoProps & { bleed?: boolean; short?: boolean }) {
   if (!photoId) return null;
 
   return (
     <div
-      className={`h-44 overflow-hidden bg-slate-100 sm:h-64 ${
+      className={`${short ? "h-32 sm:h-48" : "h-44 sm:h-64"} overflow-hidden bg-slate-100 ${
         bleed ? "-mt-8 -mr-4 -ml-4" : "w-full rounded-2xl"
       } ${className}`}
     >

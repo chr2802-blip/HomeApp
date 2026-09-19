@@ -35,7 +35,10 @@ function ListCards({ lists }: { lists: ListSummary[] }) {
       {lists.map((list, index) => (
         <Card
           key={list.id}
-          className="animate-row-in flex items-center gap-1 transition hover:border-slate-400"
+          // `relative` so the progress can sit on the card's own bottom edge, and
+          // `overflow-hidden` so the card's corners round it off. The three-dot
+          // panel is drawn through a portal, so clipping here costs it nothing.
+          className="animate-row-in relative flex items-center gap-1 overflow-hidden transition hover:border-slate-400"
           style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
         >
           <Link
@@ -51,11 +54,6 @@ function ListCards({ lists }: { lists: ListSummary[] }) {
               <p className="mt-1 text-xs text-slate-500">
                 {list.open} open · {list.total} total
               </p>
-              {/* Only once there is something on it: a bar over "0 open · 0 total"
-                  is an empty track saying nothing the line above it did not. */}
-              {list.total > 0 && (
-                <ProgressBar done={list.total - list.open} total={list.total} className="mt-2" />
-              )}
             </div>
           </Link>
           {/* Both sit to the right of the title, outside the link: a button inside
@@ -78,6 +76,13 @@ function ListCards({ lists }: { lists: ListSummary[] }) {
             <AmountsField defaultChecked={list.trackAmounts} />
             <PhotoField defaultPhotoId={list.photoId} />
           </ItemMenu>
+
+          {/* Along the card's own bottom edge rather than under the counts: the
+              card is one thing, and a rounded bar floating in its padding reads as
+              a second thing sitting on it. Only once there is something on the
+              list — an empty track under "0 open · 0 total" says nothing the line
+              above it did not. */}
+          {list.total > 0 && <ProgressBar edge done={list.total - list.open} total={list.total} />}
         </Card>
       ))}
     </div>

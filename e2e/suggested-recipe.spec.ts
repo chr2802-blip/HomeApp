@@ -54,6 +54,48 @@ test("suggests a recipe and remembers it across a reload", async ({ page }) => {
   await expect(page).toHaveURL(`/recipes/${recipe.id}`);
 });
 
+test("is a row on the dashboard, not a picture that fills the first screen", async ({ page }) => {
+  await seedRecipe("Pancakes");
+
+  // A task and a list, so the page holds what it usually does.
+  const db = prisma();
+  const home = await db.home.findFirstOrThrow({ where: { name: HOME_NAME } });
+  const owner = await db.user.findFirstOrThrow({ where: { email: ACCOUNTS.member.email } });
+  await db.task.create({
+    data: {
+      homeId: home.id,
+      createdById: owner.id,
+      title: "Water the plants",
+      intervalDays: 7,
+      nextDueAt: new Date(),
+    },
+  });
+  await db.list.create({ data: { homeId: home.id, createdById: owner.id, title: "Weekly shop" } });
+
+  await page.setViewportSize({ width: 390, height: 680 });
+  await page.goto("/dashboard");
+
+  const dinner = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Tonight's dinner" }) });
+  await expect(dinner).toBeVisible();
+
+  // The suggestion opened with the recipe's photograph across the full width, which on
+  // a phone came to about two hundred pixels — with the title, the description and a
+  // full-width button under it, half the first screen went on the dinner. The number is
+  // loose on purpose: what it catches is a hero coming back, not a line of padding.
+  const box = await dinner.boundingBox();
+  expect(box!.height).toBeLessThan(160);
+
+  // Which is the point of the number: everything the page is actually for is on the
+  // first screen with it — the week, the dinner, what is due, and the lists.
+  for (const heading of ["This week", "Tonight's dinner", "Due for you", "Recent lists"]) {
+    const found = page.getByText(heading, { exact: false }).first();
+    const seen = await found.boundingBox();
+    expect(seen!.y, `"${heading}" is below the fold`).toBeLessThan(680);
+  }
+});
+
 test("Find new switches to the other eligible recipe", async ({ page }) => {
   await seedRecipe("Pancakes");
   await seedRecipe("Lasagne");

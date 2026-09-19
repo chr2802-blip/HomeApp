@@ -6,6 +6,7 @@ import {
   dueAtOn,
   endOfDayInZone,
   formatInZone,
+  nextWeekStart,
   previousWeekStart,
   todayInZone,
   weekStartInZone,
@@ -171,6 +172,22 @@ describe("previousWeekStart", () => {
         calendarDaysBetween(weekStartInstant(week), weekStartInstant(earlier)),
       ).toBe(7);
       week = earlier;
+    }
+  });
+});
+
+describe("nextWeekStart", () => {
+  it("steps forward one Monday, through a month, a year and the clocks", () => {
+    expect(nextWeekStart("2026-06-01")).toBe("2026-06-08");
+    expect(nextWeekStart("2026-02-23")).toBe("2026-03-02");
+    expect(nextWeekStart("2026-12-28")).toBe("2027-01-04");
+    expect(nextWeekStart("2026-03-23")).toBe("2026-03-30");
+    expect(nextWeekStart("2026-10-26")).toBe("2026-11-02");
+  });
+
+  it("undoes previousWeekStart, which is what the week's own bounds rest on", () => {
+    for (const week of ["2026-06-01", "2026-03-30", "2027-01-04"]) {
+      expect(previousWeekStart(nextWeekStart(week))).toBe(week);
     }
   });
 });
