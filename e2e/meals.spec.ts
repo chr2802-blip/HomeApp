@@ -27,10 +27,29 @@ function day(page: Parameters<typeof plan>[0], date: string) {
   return page.getByRole("button", { name: new RegExp(`^${formatDayInZone(date, "EEEE")}`) });
 }
 
-async function plan(page: import("@playwright/test").Page, date: string, choice: string) {
-  await day(page, date).click();
+/**
+ * Opens a day's sheet, and waits for the trigger to say it can actually open it.
+ *
+ * Hydration leaves no mark of its own — the markup is identical before and after React
+ * attaches — so the wait is on `data-ready`, which the button grows once its handler is
+ * on it. Clicking before that is a press into a static page, which passes here and fails
+ * whenever the machine is busy.
+ */
+async function openDay(page: import("@playwright/test").Page, date: string) {
+  const row = day(page, date);
+  await expect(row).toHaveAttribute("data-ready", "true");
+  await row.click();
   await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByLabel("Eating").selectOption({ label: choice });
+}
+
+/** One choice in the sheet, which is a radio row rather than an option in a list. */
+function choice(page: import("@playwright/test").Page, name: string | RegExp) {
+  return page.getByRole("radio", { name });
+}
+
+async function plan(page: import("@playwright/test").Page, date: string, name: string) {
+  await openDay(page, date);
+  await choice(page, name).check();
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
 }
@@ -149,16 +168,13 @@ test("only the days already cooked are offered to be the leftovers of", async ({
 
   // Monday comes before the cooking, so it is offered nothing to live off; Wednesday
   // comes after it and is. An option the action would only refuse is not offered at all.
-  await day(page, monday!).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(page.getByLabel("Eating").getByRole("option", { name: /Leftovers/ })).toHaveCount(0);
+  await openDay(page, monday!);
+  await expect(choice(page, /Leftovers/)).toHaveCount(0);
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
 
-  await day(page, wednesday!).click();
-  await expect(
-    page.getByLabel("Eating").getByRole("option", { name: "Leftovers — Tuesday's Pancakes" }),
-  ).toHaveCount(1);
+  await openDay(page, wednesday!);
+  await expect(choice(page, "Leftovers — Tuesday's Pancakes")).toHaveCount(1);
 });
 
 test("an empty day is offered what shares most with the week, and fills the picker in", async ({
@@ -172,19 +188,18 @@ test("an empty day is offered what shares most with the week, and fills the pick
 
   await plan(page, monday!, "Beef pasta");
 
-  await day(page, tuesday!).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
+  await openDay(page, tuesday!);
 
-  // The stew shares two of its three with Monday; the cod shares nothing and is not
-  // offered at all, however short its list is.
-  const suggestion = page.getByRole("button", { name: /Beef stew/ });
-  await expect(suggestion).toBeVisible();
-  await expect(suggestion).toContainText("Shares 2 of 3 ingredients with the week");
-  await expect(page.getByRole("button", { name: /Cod and saffron/ })).toHaveCount(0);
+  // The stew shares two of its three with Monday, so it is named under Suggested with
+  // its reason; the cod shares nothing and is offered only as an ordinary recipe.
+  await expect(page.getByText("Suggested")).toBeVisible();
+  const suggested = choice(page, /Beef stew/);
+  await expect(suggested).toHaveCount(1);
+  await expect(suggested).toHaveAccessibleName(/Shares 2 of 3 ingredients with the week/);
+  await expect(choice(page, /Cod and saffron/)).toHaveAccessibleName(/^Cod and saffron$/);
 
-  // Pressing it fills the picker in and stops there — the household still presses Save.
-  await suggestion.click();
-  await expect(page.getByLabel("Eating")).toHaveValue(/.+/);
+  // Choosing it fills the form in and stops there — the household still presses Save.
+  await suggested.check();
   await expect(page.getByRole("dialog")).toBeVisible();
 
   await page.getByRole("button", { name: "Save" }).click();
@@ -198,7 +213,64 @@ test("a day with nothing to compare against is offered nothing", async ({ page }
 
   // Nothing planned anywhere, so there is no basket to share with — and "best" would
   // only mean "shortest", which is a ranking of recipes by how little they are.
-  await day(page, weekDays(weekStartInZone())[0]!).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(page.getByText("Goes well with the rest of the week")).toHaveCount(0);
+  await openDay(page, weekDays(weekStartInZone())[0]!);
+  await expect(page.getByText("Suggested")).toHaveCount(0);
+  // The recipe is still there to be chosen, under the heading that claims everything.
+  await expect(choice(page, "Beef pasta")).toHaveCount(1);
+});
+
+test("the picker searches by name and by ingredient", async ({ page }) => {
+  await seedRecipe("Beef pasta", "Beef\nPasta\nOnion");
+  await seedRecipe("Cod and saffron", "Cod\nSaffron\nCream");
+  await page.reload();
+
+  await openDay(page, weekDays(weekStartInZone())[0]!);
+  const search = page.getByRole("searchbox", { name: "Search recipes" });
+
+  await search.fill("cod");
+  await expect(choice(page, "Cod and saffron")).toHaveCount(1);
+  await expect(choice(page, "Beef pasta")).toHaveCount(0);
+
+  // A cook's question is more often "what can I do with the saffron" than "what was
+  // that called", so the ingredients are searched as well as the titles.
+  await search.fill("onion");
+  await expect(choice(page, "Beef pasta")).toHaveCount(1);
+  await expect(choice(page, "Cod and saffron")).toHaveCount(0);
+
+  await search.fill("nothing like this");
+  await expect(page.getByText(/Nothing here matches/)).toBeVisible();
+});
+
+test("searching never takes away the choice already made", async ({ page }) => {
+  // A radio that leaves the page takes its value out of the form with it, and a plan
+  // field that arrives empty means "nothing planned" — which deletes the day. Typing in
+  // the search box is not a way to clear an evening.
+  const monday = weekDays(weekStartInZone())[0]!;
+  await seedRecipe("Beef pasta", "Beef\nPasta\nOnion");
+  await seedRecipe("Cod and saffron", "Cod\nSaffron\nCream");
+  await page.reload();
+
+  await plan(page, monday, "Beef pasta");
+
+  await openDay(page, monday);
+  await page.getByRole("searchbox", { name: "Search recipes" }).fill("cod");
+  await expect(choice(page, "Beef pasta")).toBeChecked();
+
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(day(page, monday)).toContainText("Beef pasta");
+});
+
+test("a recipe is offered once, under the first group that claims it", async ({ page }) => {
+  const [monday, tuesday] = weekDays(weekStartInZone());
+  await seedRecipe("Beef pasta", "Beef\nPasta\nOnion");
+  await seedRecipe("Beef stew", "Beef\nOnion\nCarrot");
+  await page.reload();
+
+  await plan(page, monday!, "Beef pasta");
+
+  // The stew is suggested, so it is not drawn again under "All recipes": one lasagne in
+  // two places reads as the sheet having lost count, not as two reasons to cook it.
+  await openDay(page, tuesday!);
+  await expect(choice(page, /Beef stew/)).toHaveCount(1);
 });

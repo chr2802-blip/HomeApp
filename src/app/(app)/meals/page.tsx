@@ -3,10 +3,13 @@ import { homeDb } from "@/lib/home-db";
 import { planMeal } from "@/app/actions/meals";
 import { Badge, ButtonLink, Card, PageHeader } from "@/components/ui";
 import { PhotoThumb } from "@/components/photo";
-import { MealDay, type LeftoversOption, type RecipeOption } from "@/components/meal-day";
+import { MealDay } from "@/components/meal-day";
+import type { PlanGroup, PlanOption } from "@/components/meal-picker";
 import {
+  LEFTOVERS_LABEL,
   NOTHING_LABEL,
   OUT_LABEL,
+  PLAN_NOTHING,
   PLAN_OUT,
   dayAndMonth,
   leftoversChoice,
@@ -18,6 +21,7 @@ import {
   ingredientKeys,
   rankByOverlap,
   staplesOf,
+  suggestionReason,
   type MealSuggestion,
   type SuggestionCandidate,
 } from "@/lib/meal-suggestions";
@@ -45,6 +49,17 @@ type PlannedDay = {
 
 /** The meal a leftovers day is living off, or null where its pointer reaches nothing. */
 type Source = { day: string; title: string; photoId: string | null } | null;
+
+/**
+ * How many recipes the "Recently planned" group names, and how far back the rows are
+ * read to find them.
+ *
+ * Six is a group somebody reads rather than scrolls, and forty days of plans is deep
+ * enough to hold six distinct meals in any household that cooks at all — while staying
+ * one bounded query rather than the whole of a home's history.
+ */
+const RECENT_COUNT = 6;
+const RECENT_LOOKBACK = 40;
 
 /**
  * The week the page is showing.
@@ -127,7 +142,7 @@ export default async function MealsPage({
   // before it would be the one week in seven where the offer disappeared.
   const sundayBefore = weekDays(previousWeekStart(week))[6]!;
 
-  const [plans, recipes] = await Promise.all([
+  const [plans, recipes, recentPlans] = await Promise.all([
     // Seven days by name rather than a range: the week is seven calendar days in the
     // home's own zone, and comparing strings is what the column is stored as text for.
     db.mealPlan.findMany({
@@ -141,22 +156,38 @@ export default async function MealsPage({
         recipe: { select: { id: true, title: true, photoId: true } },
       },
     }),
-    // Alphabetical, because the picker is a list somebody is looking a name up in.
-    // `ingredients` rides along for the ranking below: it is the recipe's own text and
-    // not its picture, so the whole home's worth of it is a page of words.
+    // Alphabetical, because the picker's last group is a list somebody is looking a name
+    // up in. `ingredients` rides along for the ranking and the search box both: it is the
+    // recipe's own text and not its picture, so the whole home's worth of it is a page of
+    // words.
     db.recipe.findMany({
       orderBy: { title: "asc" },
       select: {
         id: true,
         title: true,
+        description: true,
+        photoId: true,
         ingredients: true,
         categories: { select: { category: { select: { excludeFromSuggestion: true } } } },
       },
     }),
+    // What the household has actually been cooking, most recent first. A home keeps ten
+    // recipes in rotation out of however many it has saved, so this is the group that
+    // means most of the picks never reach the search box. Bounded rather than the whole
+    // history: what is wanted is the top of it, and RECENT_LOOKBACK rows is more than
+    // enough to find RECENT_COUNT distinct meals.
+    db.mealPlan.findMany({
+      // Strictly before the week on screen: a plan for next month is not something the
+      // household has *been* cooking, and ordered by date it would sit at the top of a
+      // group whose whole claim is recency.
+      where: { recipeId: { not: null }, date: { lt: week } },
+      orderBy: { date: "desc" },
+      take: RECENT_LOOKBACK,
+      select: { date: true, recipeId: true },
+    }),
   ]);
 
   const planned = new Map(plans.map((plan) => [plan.date, plan]));
-  const options: RecipeOption[] = recipes;
 
   /** What a leftovers day is living off, looked up among the rows already fetched. */
   const sourceOf = (plan: PlannedDay["plan"]): Source => {
@@ -173,12 +204,13 @@ export default async function MealsPage({
    * every row — and a Thursday offering to be the leftovers of Friday is an option whose
    * only outcome is the action refusing it.
    */
-  const leftoversFor = (day: string): LeftoversOption[] =>
+  const leftoversFor = (day: string): PlanOption[] =>
     [sundayBefore, ...days]
       .filter((other) => other < day && planned.get(other)?.recipe)
       .map((other) => ({
         value: leftoversChoice(other),
         label: leftoversLabel({ day: other, title: planned.get(other)!.recipe!.title }),
+        photoId: planned.get(other)!.recipe!.photoId,
       }));
 
   /**
@@ -196,6 +228,76 @@ export default async function MealsPage({
     // nobody is going to buy again.
     days.map((day) => planned.get(day)?.recipe?.id).filter((id) => id !== undefined),
   );
+
+  const byId = new Map(recipes.map((recipe) => [recipe.id, recipe]));
+
+  /** A recipe as a row: its picture, and everything the search box should read. */
+  const recipeOption = (recipe: (typeof recipes)[number], note?: string): PlanOption => ({
+    value: recipe.id,
+    label: recipe.title,
+    photoId: recipe.photoId,
+    note,
+    searchText: `${recipe.description ?? ""}\n${recipe.ingredients}`,
+  });
+
+  /**
+   * The recipes the household has cooked most recently, each named once.
+   *
+   * The rows arrive newest first, so the first time a recipe is seen is the last time it
+   * was cooked — which is both the order this group wants and the date it shows.
+   */
+  const recent: PlanOption[] = [];
+  const seenRecently = new Set<string>();
+  for (const plan of recentPlans) {
+    if (recent.length >= RECENT_COUNT) break;
+    const recipe = plan.recipeId ? byId.get(plan.recipeId) : undefined;
+    if (!recipe || seenRecently.has(recipe.id)) continue;
+    seenRecently.add(recipe.id);
+    recent.push(recipeOption(recipe, `Last planned ${dayAndMonth(plan.date)}`));
+  }
+
+  /**
+   * Everything one day can be set to, in the order the sheet offers it.
+   *
+   * The groups are a **partition**: a recipe is claimed by the first one that wants it
+   * and does not appear again below, so nothing is offered twice. The two at the top are
+   * always drawn — an evening out is one press and must not be somewhere a household has
+   * to search for.
+   */
+  const groupsFor = (day: string): PlanGroup[] => {
+    const empty = !planned.get(day);
+    // Offered only where there is nothing planned yet: a suggestion beside a decision
+    // already made is a page arguing with the household.
+    const suggested = empty ? suggestions : [];
+    const claimed = new Set<string>();
+
+    const take = (options: PlanOption[]) => {
+      const kept = options.filter((option) => !claimed.has(option.value));
+      for (const option of kept) claimed.add(option.value);
+      return kept;
+    };
+
+    return [
+      {
+        heading: null,
+        options: [
+          { value: PLAN_NOTHING, label: NOTHING_LABEL },
+          { value: PLAN_OUT, label: OUT_LABEL },
+        ],
+      },
+      { heading: LEFTOVERS_LABEL, options: leftoversFor(day) },
+      {
+        heading: "Suggested",
+        options: take(
+          suggested.map((suggestion) =>
+            recipeOption(byId.get(suggestion.recipeId)!, suggestionReason(suggestion)),
+          ),
+        ),
+      },
+      { heading: "Recently planned", options: take(recent) },
+      { heading: "All recipes", options: take(recipes.map((recipe) => recipeOption(recipe))) },
+    ].filter((group) => group.options.length > 0);
+  };
 
   return (
     <>
@@ -247,11 +349,7 @@ export default async function MealsPage({
               date={day}
               title={`${weekdayName(day)} ${dayAndMonth(day)}`}
               selected={planSelection(planned.get(day))}
-              recipes={options}
-              leftovers={leftoversFor(day)}
-              // Offered only where there is nothing planned yet: a suggestion beside a
-              // decision already made is a page arguing with the household.
-              suggestions={planned.get(day) ? [] : suggestions}
+              groups={groupsFor(day)}
               action={planMeal}
               highlighted={day === today}
             >
