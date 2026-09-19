@@ -5,6 +5,7 @@ import {
   createTask,
   deleteTask,
   reopenTask,
+  snoozeTask,
   updateTask,
 } from "@/app/actions/tasks";
 import {
@@ -490,6 +491,85 @@ describe("one-off tasks", () => {
 
     expect(result).toEqual({ ok: false, error: "That person is not in this home." });
     expect(await prisma.task.count()).toBe(0);
+  });
+});
+
+describe("snoozeTask", () => {
+  it("moves a due task to tomorrow morning without completing it", async () => {
+    const task = await seedTask({
+      homeId: home.id,
+      createdById: member.id,
+      intervalDays: 30,
+      nextDueAt: dueAtDaysFrom(0),
+    });
+
+    await snoozeTask(formData({ taskId: task.id }));
+
+    const snoozed = await only();
+    expect(formatInZone(snoozed.nextDueAt, "yyyy-MM-dd HH:mm")).toBe(
+      `${formatInZone(dueAtDaysFrom(1), "yyyy-MM-dd")} 09:00`,
+    );
+    // Not a completion, and not a change to what the task is.
+    expect(snoozed.lastCompletedAt).toBeNull();
+    expect(snoozed.intervalDays).toBe(30);
+  });
+
+  it("brings an overdue task forward to tomorrow rather than a day past its own date", async () => {
+    const task = await seedTask({
+      homeId: home.id,
+      createdById: member.id,
+      nextDueAt: dueAtDaysFrom(-40),
+    });
+
+    await snoozeTask(formData({ taskId: task.id }));
+
+    expect(formatInZone((await only()).nextDueAt, "yyyy-MM-dd")).toBe(
+      formatInZone(dueAtDaysFrom(1), "yyyy-MM-dd"),
+    );
+  });
+
+  it("leaves the reminder job's own bookkeeping alone", async () => {
+    // Clearing it would ask for a second push today about a task somebody has just
+    // said they are not doing today.
+    const lastNotifiedAt = new Date("2026-05-05T06:00:00Z");
+    const task = await seedTask({
+      homeId: home.id,
+      createdById: member.id,
+      nextDueAt: dueAtDaysFrom(0),
+      lastNotifiedAt,
+    });
+
+    await snoozeTask(formData({ taskId: task.id }));
+
+    expect((await only()).lastNotifiedAt?.toISOString()).toBe(lastNotifiedAt.toISOString());
+  });
+
+  it("does nothing to a finished one-off, which is not due on any day", async () => {
+    const dueAt = dueAtDaysFrom(-3);
+    const task = await seedTask({
+      homeId: home.id,
+      createdById: member.id,
+      intervalDays: null,
+      nextDueAt: dueAt,
+      lastCompletedAt: new Date(),
+    });
+
+    await snoozeTask(formData({ taskId: task.id }));
+
+    expect((await only()).nextDueAt.toISOString()).toBe(dueAt.toISOString());
+  });
+
+  it("never pulls a date forward", async () => {
+    const dueAt = dueAtDaysFrom(20);
+    const task = await seedTask({ homeId: home.id, createdById: member.id, nextDueAt: dueAt });
+
+    await snoozeTask(formData({ taskId: task.id }));
+
+    expect((await only()).nextDueAt.toISOString()).toBe(dueAt.toISOString());
+  });
+
+  it("fails loudly for a task that does not exist", async () => {
+    await expect(snoozeTask(formData({ taskId: "missing" }))).rejects.toThrow("Task not found");
   });
 });
 

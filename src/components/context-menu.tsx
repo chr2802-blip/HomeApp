@@ -187,6 +187,7 @@ const ICONS = {
   pencil: "M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z",
   bin: "M5 7h14M9 7V5h6v2M7 7l1 12h8l1-12",
   list: "M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01",
+  clock: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M12 7.5V12l3 2",
 } as const;
 
 /**

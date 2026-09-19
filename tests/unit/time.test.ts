@@ -5,12 +5,15 @@ import {
   dueAtDaysFrom,
   dueAtOn,
   endOfDayInZone,
+  formatDayInZone,
   formatInZone,
   nextWeekStart,
   previousWeekStart,
   todayInZone,
+  weekDays,
   weekStartInZone,
   weekStartInstant,
+  weekStartOn,
 } from "@/lib/time";
 
 /**
@@ -188,6 +191,7 @@ describe("nextWeekStart", () => {
   it("undoes previousWeekStart, which is what the week's own bounds rest on", () => {
     for (const week of ["2026-06-01", "2026-03-30", "2027-01-04"]) {
       expect(previousWeekStart(nextWeekStart(week))).toBe(week);
+      expect(nextWeekStart(previousWeekStart(week))).toBe(week);
     }
   });
 });
@@ -202,5 +206,75 @@ describe("weekStartInstant", () => {
     expect(weekStartInstant("2026-12-07").toISOString()).toBe(
       "2026-12-06T23:00:00.000Z",
     );
+  });
+});
+
+describe("weekDays", () => {
+  it("is the seven days from that Monday, Monday first", () => {
+    expect(weekDays("2026-06-01")).toEqual([
+      "2026-06-01",
+      "2026-06-02",
+      "2026-06-03",
+      "2026-06-04",
+      "2026-06-05",
+      "2026-06-06",
+      "2026-06-07",
+    ]);
+  });
+
+  it("counts calendar days through a clock change, not 24-hour steps", () => {
+    // The clocks go forward on Sunday 29 March 2026, making that day 23 hours long.
+    // Counted in hours, the last day of this week would come out as the 28th twice.
+    expect(weekDays("2026-03-23")).toEqual([
+      "2026-03-23",
+      "2026-03-24",
+      "2026-03-25",
+      "2026-03-26",
+      "2026-03-27",
+      "2026-03-28",
+      "2026-03-29",
+    ]);
+  });
+
+  it("ends the day before the next week starts, with no day said twice", () => {
+    for (const week of ["2026-01-05", "2026-03-23", "2026-10-26", "2026-12-28"]) {
+      const days = weekDays(week);
+
+      expect(days).toHaveLength(7);
+      expect(new Set(days).size).toBe(7);
+      expect(days[0]).toBe(week);
+      // Sunday, then Monday: the seam between two weeks is one calendar day wide,
+      // counted the way the household counts them.
+      expect(
+        calendarDaysBetween(weekStartInstant(nextWeekStart(week)), weekStartInstant(days[6]!)),
+      ).toBe(1);
+    }
+  });
+});
+
+describe("weekStartOn", () => {
+  it("answers with the Monday of the week a day falls in", () => {
+    expect(weekStartOn("2026-06-01")).toBe("2026-06-01");
+    expect(weekStartOn("2026-06-04")).toBe("2026-06-01");
+    // Sunday belongs to the week it ends, not the one it is next to.
+    expect(weekStartOn("2026-06-07")).toBe("2026-06-01");
+    expect(weekStartOn("2026-06-08")).toBe("2026-06-08");
+  });
+
+  it("refuses anything that is not a real date, so a bad URL has nothing to draw", () => {
+    expect(weekStartOn("")).toBeNull();
+    expect(weekStartOn("next week")).toBeNull();
+    expect(weekStartOn("2026-02-31")).toBeNull();
+    expect(weekStartOn("2026-13-01")).toBeNull();
+  });
+});
+
+describe("formatDayInZone", () => {
+  it("prints the day it was given, never the one before it", () => {
+    expect(formatDayInZone("2026-06-01", "EEEE")).toBe("Monday");
+    expect(formatDayInZone("2026-06-01", "d MMM")).toBe("1 Jun");
+    // The day the clocks go forward: read at midnight this would be 23:00 the evening
+    // before in a zone an hour behind, and print the wrong weekday.
+    expect(formatDayInZone("2026-03-29", "EEEE d MMM")).toBe("Sunday 29 Mar");
   });
 });

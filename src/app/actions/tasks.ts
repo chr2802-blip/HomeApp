@@ -14,7 +14,9 @@ import {
   MAX_INTERVAL_DAYS,
   REPEAT_FIELD,
   REPEAT_ONCE,
+  isFinished,
   isOneOff,
+  snoozedTo,
 } from "@/lib/tasks";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 
@@ -177,6 +179,36 @@ export async function completeTask(formData: FormData) {
       // about the number below it.
       ...(task.intervalDays !== null && { nextDueAt: dueAtDaysFrom(task.intervalDays, now) }),
     },
+  });
+
+  refreshTaskViews();
+}
+
+/**
+ * Puts a task off until tomorrow, without completing it and without opening its form.
+ *
+ * "Not today" is the most common thing a household has to say about a due task, and
+ * until now the only two ways of saying it were a completion it had not earned and a
+ * trip through the edit sheet to type a date. So this writes the one column that answers
+ * it and nothing else: the interval stays, `lastCompletedAt` stays, and no record of the
+ * deferral is kept — a task put off three times is still a task nobody has done, which
+ * is what its due date already says.
+ *
+ * `lastNotifiedAt` is deliberately left alone. It is the reminder job's own bookkeeping,
+ * and clearing it would ask for a second push about a task somebody has just told the
+ * app they are not doing today; tomorrow's run is a day later than today's and so past
+ * the job's own cutoff anyway.
+ *
+ * A finished one-off is not due on any day, so there is nothing to put off — the same
+ * early return `reopenTask` makes for the mirror-image case.
+ */
+export async function snoozeTask(formData: FormData) {
+  const task = await taskInScope(String(formData.get("taskId")));
+  if (isFinished(task)) return;
+
+  await prisma.task.update({
+    where: { id: task.id },
+    data: { nextDueAt: snoozedTo(task) },
   });
 
   refreshTaskViews();

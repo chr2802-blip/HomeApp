@@ -5,11 +5,19 @@ import {
   createTask,
   deleteTask,
   reopenTask,
+  snoozeTask,
   updateTask,
 } from "@/app/actions/tasks";
 import { Badge, EmptyState, Input, Label, PageHeader, Textarea } from "@/components/ui";
 import { dueLabel, dueTone } from "@/lib/due";
-import { FINISHED, UNFINISHED, isFinished, isOneOff, repeatLabel } from "@/lib/tasks";
+import {
+  FINISHED,
+  UNFINISHED,
+  isFinished,
+  isOneOff,
+  isSnoozable,
+  repeatLabel,
+} from "@/lib/tasks";
 import { formatInZone, todayInZone } from "@/lib/time";
 import { FormDialog } from "@/components/form-dialog";
 import { AssigneeField, type MemberOption } from "@/components/assignee-field";
@@ -62,8 +70,10 @@ function TaskItem({ task, members, now }: { task: TaskRow; members: MemberOption
       taskId={task.id}
       title={task.title}
       finished={finished}
+      snoozable={isSnoozable(task, now)}
       updateAction={updateTask}
       completeAction={completeTask}
+      snoozeAction={snoozeTask}
       reopenAction={reopenTask}
       deleteAction={deleteTask}
       photo={<PhotoThumb photoId={task.photoId} alt="" className="h-14 w-14" />}

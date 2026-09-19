@@ -75,6 +75,8 @@ model Home {
   recipeSuggestion RecipeSuggestion?
   /// The weeks this household cleared a list in — see ClearedWeek.
   clearedWeeks     ClearedWeek[]
+  /// The days this household has planned something to eat on — see MealPlan.
+  mealPlans        MealPlan[]
   /// Every picture filed under this home, whatever it is attached to.
   photos           Photo[]          @relation("PhotoHome")
   photo            Photo?           @relation("HomePhoto", fields: [photoId], references: [id], onDelete: SetNull)
@@ -341,6 +343,8 @@ model Recipe {
   listItems  ListItemSource[]
   /// The home this is suggested to today, if it is anybody's current pick.
   suggestedFor RecipeSuggestion?
+  /// The days a household has planned to cook this on.
+  mealPlans    MealPlan[]
 
   @@index([homeId])
 }
@@ -423,6 +427,44 @@ model ClearedWeek {
   home Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
 
   @@id([homeId, week])
+}
+
+/**
+ * What a household is eating on one day.
+ *
+ * A row means the day has been decided, and `recipeId` says how: a recipe is what is
+ * being cooked, and null is a night out. **No row at all is a day nobody has planned
+ * yet** — so "nothing planned" and "eating out" are the presence or absence of the row
+ * rather than two columns that can disagree about the same evening, the way a flag
+ * beside a recipe would be a second answer to the question the recipe already answers.
+ *
+ * `date` is the day in the home's own zone as "yyyy-MM-dd", never an instant, for the
+ * same reason ClearedWeek.week is: Thursday's dinner is Thursday's wherever the server
+ * happens to be, and a plan stored as midnight somewhere else lands on Wednesday for
+ * half the year.
+ *
+ * @@id([homeId, date]) is the whole shape. Replanning a day overwrites it rather than
+ * leaving two answers to argue over, and the table is bounded by the days a household
+ * has actually planned.
+ */
+model MealPlan {
+  homeId    String
+  date      String
+  /// What is being cooked, or null for a day the household is eating out.
+  recipeId  String?
+  updatedAt DateTime @default(now()) @updatedAt
+
+  home   Home    @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  /**
+   * Cascade rather than the SetNull every other optional relation here uses: null means
+   * "eating out", so a deleted recipe left behind as null would turn Thursday into a
+   * night out nobody planned. Taking the row with it puts the day back to nothing
+   * planned, which is exactly where it was before the recipe was chosen.
+   */
+  recipe Recipe? @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@id([homeId, date])
+  @@index([recipeId])
 }
 
 /**

@@ -6,6 +6,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { PageTransition } from "@/components/page-transition";
 import { BackButton } from "@/components/back-button";
 import { HomeMenu } from "@/components/home-menu";
+import { OfflineSupport } from "@/components/offline-support";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
@@ -17,6 +18,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen">
+      {/* Asked for on every page rather than when notifications are turned on: what
+          keeps a list readable in a shop has to be installed before the signal goes. */}
+      <OfflineSupport />
+
       {/* Tinted in the home's own colour, which is the point of the colour: the band
           across the top of every screen is the one thing always in view. */}
       {/* The band starts at the very top of the screen, not below the clock: the page

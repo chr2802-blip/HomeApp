@@ -1,5 +1,5 @@
 import { TZDate } from "@date-fns/tz";
-import { differenceInCalendarDays, format, startOfWeek, subDays } from "date-fns";
+import { addDays, differenceInCalendarDays, format, startOfWeek } from "date-fns";
 
 /**
  * The household's timezone. Every due date is decided and displayed here, never in the
@@ -100,6 +100,32 @@ export function weekStartInZone(now: Date = new Date()): string {
   return format(startOfWeek(inZone(now), { weekStartsOn: 1 }), "yyyy-MM-dd");
 }
 
+/**
+ * Midday on a "yyyy-MM-dd" day, in the home's zone — the footing every bit of day
+ * arithmetic here stands on.
+ *
+ * Midday rather than midnight: a day that begins at 01:00 because the clocks went
+ * forward is still the same day, and stepping whole days from noon lands on noon
+ * whatever the offset did in between. From midnight, one of those steps lands on 23:00
+ * the evening before and the date is then a day out, twice a year.
+ */
+function noonOn(day: string) {
+  const [year, month, date] = day.split("-").map(Number) as [number, number, number];
+  return new TZDate(year, month - 1, date, 12, 0, 0, 0, TIME_ZONE);
+}
+
+/**
+ * Formats a "yyyy-MM-dd" day for reading — the weekday's name, the date, whatever the
+ * pattern asks for.
+ *
+ * `formatInZone` is for an instant the app stored; this is for a day the app already
+ * holds as a day, and it must not become an instant on the way past. Read at noon in the
+ * home's zone, so no pattern can print the day before.
+ */
+export function formatDayInZone(day: string, pattern: string): string {
+  return format(noonOn(day), pattern);
+}
+
 /** The Monday after the given one, as "yyyy-MM-dd". */
 export function nextWeekStart(week: string): string {
   return shiftWeek(week, 7);
@@ -110,17 +136,34 @@ export function previousWeekStart(week: string): string {
   return shiftWeek(week, -7);
 }
 
-/**
- * A Monday, some whole number of days away, as "yyyy-MM-dd".
- *
- * Counted from midday rather than midnight: a day that begins at 01:00 because the
- * clocks went forward is still the same day, and stepping seven of them from noon lands
- * on noon whatever the offset did in between.
- */
+/** A Monday, some whole number of days away, as "yyyy-MM-dd". */
 function shiftWeek(week: string, days: number): string {
-  const [year, month, day] = week.split("-").map(Number) as [number, number, number];
-  const monday = new TZDate(year, month - 1, day, 12, 0, 0, 0, TIME_ZONE);
-  return format(subDays(monday, -days), "yyyy-MM-dd");
+  return format(addDays(noonOn(week), days), "yyyy-MM-dd");
+}
+
+/**
+ * The seven days of a week, Monday first, each as "yyyy-MM-dd".
+ *
+ * Counted out from the Monday rather than derived from a range of instants, because a
+ * week is seven calendar days in the home's zone and one of them is 23 hours long twice
+ * a year.
+ */
+export function weekDays(week: string): string[] {
+  const monday = noonOn(week);
+  return Array.from({ length: 7 }, (_, offset) => format(addDays(monday, offset), "yyyy-MM-dd"));
+}
+
+/**
+ * The Monday of the week a given day falls in, or null when that is not a real date.
+ *
+ * What a `?week=` in a URL is read through: anything a person or a stale bookmark can
+ * put there comes back as the Monday of a real week or as nothing at all, so no page has
+ * to decide what to draw for "2026-02-31". Validated through `dueAtOn`, which already
+ * refuses the days that do not exist rather than rolling them over into the next month.
+ */
+export function weekStartOn(day: string): string | null {
+  const instant = dueAtOn(day);
+  return instant ? weekStartInZone(instant) : null;
 }
 
 /** The instant a week begins: midnight on its Monday, in the home's zone. */
