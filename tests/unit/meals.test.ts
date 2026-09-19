@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { dayAndMonth, weekLabel, weekdayName } from "@/lib/meals";
+import {
+  LEFTOVERS_LABEL,
+  dayAndMonth,
+  leftoversChoice,
+  leftoversDay,
+  leftoversLabel,
+  weekLabel,
+  weekdayName,
+} from "@/lib/meals";
 import { weekDays } from "@/lib/time";
 
 /*
@@ -33,5 +41,34 @@ describe("weekLabel", () => {
 
   it("says both years for the week that straddles those", () => {
     expect(weekLabel(weekDays("2026-12-28"))).toBe("28 Dec 2026 – 3 Jan 2027");
+  });
+});
+
+describe("leftovers choices", () => {
+  it("carries the day being eaten again, because the word alone says no dinner", () => {
+    expect(leftoversDay(leftoversChoice("2026-06-02"))).toBe("2026-06-02");
+  });
+
+  it("does not mistake a recipe id for one", () => {
+    // Every other value on the field is a recipe id or one of the two words, and the
+    // reader has to tell them apart without knowing which it was handed.
+    expect(leftoversDay("clx123abc")).toBeNull();
+    expect(leftoversDay("out")).toBeNull();
+    expect(leftoversDay("")).toBeNull();
+  });
+});
+
+describe("leftoversLabel", () => {
+  it("names the meal and the day it was cooked", () => {
+    expect(leftoversLabel({ day: "2026-06-02", title: "Lasagne" })).toBe(
+      "Leftovers — Tuesday's Lasagne",
+    );
+  });
+
+  it("still says leftovers where the day it pointed at is gone", () => {
+    // The pointer reaching nothing — the day cleared, or cooked in a week not on screen
+    // — leaves the household eating leftovers of something, which is the half the row
+    // still knows and the half that matters at six o'clock.
+    expect(leftoversLabel(null)).toBe(LEFTOVERS_LABEL);
   });
 });

@@ -432,11 +432,19 @@ model ClearedWeek {
 /**
  * What a household is eating on one day.
  *
- * A row means the day has been decided, and `recipeId` says how: a recipe is what is
- * being cooked, and null is a night out. **No row at all is a day nobody has planned
- * yet** — so "nothing planned" and "eating out" are the presence or absence of the row
- * rather than two columns that can disagree about the same evening, the way a flag
- * beside a recipe would be a second answer to the question the recipe already answers.
+ * A row means the day has been decided, and which of its two optional columns is filled
+ * says how: `recipeId` is what is being cooked, `leftoverOf` is the earlier day whose
+ * cooking this is a second helping of, and neither is a night out. **No row at all is a
+ * day nobody has planned yet** — so "nothing planned" and "eating out" are the presence
+ * or absence of the row rather than two columns that can disagree about the same
+ * evening, the way a flag beside a recipe would be a second answer to the question the
+ * recipe already answers.
+ *
+ * The two are mutually exclusive, and nothing in the database says so: a check
+ * constraint here would be drift `db:check` cannot see in schema.prisma, so the
+ * invariant is `planMeal`'s to keep and `tests/integration/meals.test.ts`'s to hold.
+ * Every reader asks `recipeId` first, so a row that somehow held both would read as the
+ * cooking it names rather than as nothing at all.
  *
  * `date` is the day in the home's own zone as "yyyy-MM-dd", never an instant, for the
  * same reason ClearedWeek.week is: Thursday's dinner is Thursday's wherever the server
@@ -450,8 +458,20 @@ model ClearedWeek {
 model MealPlan {
   homeId    String
   date      String
-  /// What is being cooked, or null for a day the household is eating out.
+  /// What is being cooked, or null for a night out or a day living off an earlier one.
   recipeId  String?
+  /**
+   * The earlier day this is the leftovers of, as "yyyy-MM-dd" — Wednesday saying it is
+   * Tuesday's lasagne again.
+   *
+   * A plain string and not a relation: the target is this table's own composite key, and
+   * a self-reference on it could not be `SetNull` (the home is half of the key and is
+   * not nullable), so the cascade would have to delete Wednesday because Tuesday
+   * changed. The pointer is resolved against the rows the page has already fetched, and
+   * one that resolves to nothing — the day cleared, or cooked in a week not on screen —
+   * still says "Leftovers", which is the true half of what it knew.
+   */
+  leftoverOf String?
   updatedAt DateTime @default(now()) @updatedAt
 
   home   Home    @relation(fields: [homeId], references: [id], onDelete: Cascade)
