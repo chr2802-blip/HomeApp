@@ -10,8 +10,8 @@ import { UNFINISHED, repeatLabel } from "@/lib/tasks";
 import { PhotoBanner, PhotoThumb } from "@/components/photo";
 import { SuggestedRecipe } from "@/components/suggested-recipe";
 import { ProgressBar } from "@/components/progress-bar";
-import { endOfDayInZone, weekStartInZone, weekStartInstant } from "@/lib/time";
 import { homeStreak } from "@/lib/streak";
+import { weekWorkload } from "@/lib/week";
 import { WeekProgress } from "@/components/week-progress";
 
 /**
@@ -86,13 +86,10 @@ export default async function DashboardPage() {
 
   const now = new Date();
   const soon = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
-  // Monday, in the home's own zone: the week the household is living in, not the
-  // rolling seven days the server happens to be in the middle of.
-  const weekStart = weekStartInstant(weekStartInZone(now));
 
   const db = homeDb(user.homeId);
 
-  const [dueTasks, favorites, recent, doneThisWeek, stillOwed, streak] = await Promise.all([
+  const [dueTasks, favorites, recent, week, streak] = await Promise.all([
     db.task.findMany({
       // A one-off already done is not due, however long its date has been in the past.
       where: { nextDueAt: { lte: soon }, ...UNFINISHED },
@@ -111,15 +108,8 @@ export default async function DashboardPage() {
       take: 5,
       include: LIST_COUNTS,
     }),
-    // Whoever did it: this is the household's own rhythm, not a personal scoreboard.
-    db.task.count({ where: { lastCompletedAt: { gte: weekStart } } }),
-    // The rest of what the week is carrying: everything due by the end of today and
-    // still not done. The end of today rather than this moment, because a task due
-    // today is the household's work today — it does not become so at nine in the
-    // morning, which is only the hour the reminder goes out. A finished one-off keeps
-    // the date it was due, which is in the past for ever, so this asks UNFINISHED as
-    // every "still to do" query does.
-    db.task.count({ where: { nextDueAt: { lte: endOfDayInZone(now) }, ...UNFINISHED } }),
+    // Both sides of the week's work, and which side a task falls on — see lib/week.
+    weekWorkload(user.homeId, now),
     homeStreak(user.homeId),
   ]);
 
@@ -148,7 +138,8 @@ export default async function DashboardPage() {
         photoId={user.homePhotoId}
         alt={user.homeName ?? "This home"}
         bleed
-        className="mb-5"
+        short
+        className="mb-4"
       />
 
       <PageHeader
@@ -159,7 +150,7 @@ export default async function DashboardPage() {
       {/* The household's own rhythm rather than a scoreboard, and still nobody's name
           on it. It draws nothing at all on a home with no jobs and no history, where
           every number would be a zero. */}
-      <WeekProgress done={doneThisWeek} outstanding={stillOwed} streak={streak} />
+      <WeekProgress week={week} streak={streak} />
 
       <NotificationSetup />
 

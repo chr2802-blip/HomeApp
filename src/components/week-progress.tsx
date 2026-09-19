@@ -1,6 +1,7 @@
 import { Card } from "@/components/ui";
 import { ProgressBar } from "@/components/progress-bar";
 import { streakLine, type Streak } from "@/lib/streak";
+import type { WeekWork } from "@/lib/week";
 
 /**
  * How the household's week is going: the jobs it has got through, and how long it has
@@ -12,28 +13,16 @@ import { streakLine, type Streak } from "@/lib/streak";
  * whether the week is under control.
  *
  * **The denominator is the week's own work, not the household's whole task list.**
- * Everything finished since Monday, plus everything that is due and still is not done.
- * A recurring task that was completed on Tuesday and comes round again in a month is
- * not still owed, so it counts once, on the done side — while a task nobody has touched
- * since March is owed today whatever week it first came due in, which is why "overdue"
- * rather than "due this week" is the right half. Counting every task in the home would
- * put the annual boiler service in the denominator of a shopping week.
+ * Which tasks those are, and which side of the bar each falls on, is `weekWorkload` in
+ * `lib/week.ts` — counting every task in the home would put the annual boiler service
+ * in the denominator of a shopping week.
  *
  * It stays the household's rhythm and not a person's, which is the same choice the
  * streak makes and the reason neither says who. A weekly score with names on it turns
  * the washing-up into a thing worth being seen to do.
  */
-export function WeekProgress({
-  done,
-  outstanding,
-  streak,
-}: {
-  /** Tasks completed since Monday, in the home's own zone. */
-  done: number;
-  /** Tasks due and not done — the rest of what the week is carrying. */
-  outstanding: number;
-  streak: Streak;
-}) {
+export function WeekProgress({ week, streak }: { week: WeekWork; streak: Streak }) {
+  const { done, outstanding } = week;
   const total = done + outstanding;
 
   // Nothing to say rather than a card saying nothing: a household with no tasks due and

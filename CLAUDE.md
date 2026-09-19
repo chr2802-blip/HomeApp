@@ -448,17 +448,62 @@ run of one is not called a run, and a live run with nothing in the current week 
 which is the whole of what a streak is for.
 
 **`WeekProgress` on the dashboard replaced "N tasks completed in the last 7 days".** The
-number was true and told nobody anything; a proportion has a top. The denominator is the
-week's own work — everything finished since Monday plus everything due by the end of
-today and still not done — and not the household's whole task list, which would put the
-annual boiler service in the denominator of a shopping week. It is due by the *end of
-today* rather than by this moment: a task due today is the household's work today, and
-`DUE_HOUR` is only when the reminder goes out. Nobody's name is on any of it, which is
-the same choice the streak makes: a weekly score with names on it turns the washing-up
-into a thing worth being seen to do.
+number was true and told nobody anything; a proportion has a top. Nobody's name is on
+any of it, which is the same choice the streak makes: a weekly score with names on it
+turns the washing-up into a thing worth being seen to do.
+
+`weekWorkload` in `src/lib/week.ts` is what it counts, and **every task falls on exactly
+one side of it**. That is the whole difficulty: a recurring task is never finished, so
+"completed this week" and "still owed" are not opposites the way they are for a one-off.
+Emptying the bins on Monday when they come round again on Wednesday is a job done and a
+job owed, and counting it as both makes a household with one task read "1 of 2". So
+**being owed wins** — a task due again before the week is out is this week's work still,
+whatever was done to it on Monday, and one with nothing due until next month is done
+with as far as this week goes.
+
+**Owed means the whole week, not the part of it that has happened.** A recurring task
+due on Friday is this week's work on Monday morning; a denominator that grew by one
+every time a day turned over would be a bar that fell back each morning however much the
+household got through. The bound is the instant next Monday begins — one exclusive
+comparison, no last-millisecond arithmetic — and everything overdue from before this
+week is inside it, because a job nobody has done since March is owed today whatever week
+it first came due in. Counting every task in the home instead would put the annual
+boiler service in the denominator of a shopping week.
+
+`weekWorkload` takes the clock as an argument so `tests/integration/week.test.ts` can
+say Wednesday and mean Wednesday. Every case there is a recurring task, because the
+one-off is the easy half.
 
 Ticking anything refreshes three views, not one (`refreshListViews`): the list's page,
 the cards on `/lists`, and the dashboard the streak lives on.
+
+### The dashboard is a page about what needs attention, and the first screen is all of it
+
+Almost nobody scrolls a dashboard. What is above the fold on a phone *is* the page, so
+every block on it is spending the only screen there is, and decoration pays the highest
+rent.
+
+**Tonight's dinner is a row, not a hero.** It opened with the recipe's photograph across
+the full width — about two hundred pixels at a phone's 16:9 — and with the title, the
+description and a full-width "Find new" underneath, the suggestion took half the first
+screen. It is now built like a list card: thumbnail, title, one line of description
+(`line-clamp-1`, because an imported recipe's description runs to a paragraph), and the
+button beside them. The appetising photograph is one tap away on the recipe's own page,
+where somebody who has decided to cook it is going anyway.
+
+**The home's picture is `short` on the dashboard** and full height on a recipe page,
+where the picture is what the page is about. It is a prop rather than a height in
+`className` for the reason `Card`'s `padded` is: two height utilities, and which wins is
+decided by their order in the stylesheet, not in the class attribute.
+
+**`PageHeader` only clears its description past the row when there is a control to
+clear.** That gap exists so a line of grey text does not run up against the button
+opposite it — on a page with nothing on the right of its title, it is just a gap.
+
+`e2e/suggested-recipe.spec.ts` holds the result: the dinner section stays under 160px,
+and the week, the dinner, what is due and the lists are all on one 390×680 screen. The
+number is loose on purpose — what it catches is a hero coming back, not a line of
+padding.
 
 `tests/unit/gamification.test.ts` holds the colours and the keyframes to the stylesheet,
 the way `theme.test.ts` and `storage.test.ts` hold theirs — a `var()` nobody defined

@@ -124,9 +124,14 @@ export function Label({ className = "", ...props }: ComponentProps<"label">) {
 
 /**
  * The title, whatever the page does to itself on the right of it, and the description
- * below. The description clears the row rather than tucking under the heading: the
- * control opposite it is the tallest thing in the row, and a line of grey text running
- * up against it reads as part of the button.
+ * below.
+ *
+ * The description clears the row rather than tucking under the heading: the control
+ * opposite it is the tallest thing in the row, and a line of grey text running up
+ * against it reads as part of the button. **Only where there is a control**, which is
+ * the whole of that reasoning — a page with nothing on the right of its title has
+ * nothing for the description to clear, and the gap there is just a gap, on the
+ * dashboard where every one of them costs a row of what the page is for.
  */
 export function PageHeader({
   title,
@@ -143,7 +148,9 @@ export function PageHeader({
         <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight break-words">{title}</h1>
         {action && <div className="shrink-0">{action}</div>}
       </div>
-      {description && <p className="mt-3 text-sm text-slate-500">{description}</p>}
+      {description && (
+        <p className={`text-sm text-slate-500 ${action ? "mt-3" : "mt-1"}`}>{description}</p>
+      )}
     </div>
   );
 }

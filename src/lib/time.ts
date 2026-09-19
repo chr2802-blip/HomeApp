@@ -100,14 +100,27 @@ export function weekStartInZone(now: Date = new Date()): string {
   return format(startOfWeek(inZone(now), { weekStartsOn: 1 }), "yyyy-MM-dd");
 }
 
+/** The Monday after the given one, as "yyyy-MM-dd". */
+export function nextWeekStart(week: string): string {
+  return shiftWeek(week, 7);
+}
+
 /** The Monday before the given one, as "yyyy-MM-dd". */
 export function previousWeekStart(week: string): string {
-  // Midday rather than midnight: a day that begins at 01:00 because the clocks went
-  // forward is still the same day, and stepping back seven of them from noon lands on
-  // noon whatever the offset did in between.
+  return shiftWeek(week, -7);
+}
+
+/**
+ * A Monday, some whole number of days away, as "yyyy-MM-dd".
+ *
+ * Counted from midday rather than midnight: a day that begins at 01:00 because the
+ * clocks went forward is still the same day, and stepping seven of them from noon lands
+ * on noon whatever the offset did in between.
+ */
+function shiftWeek(week: string, days: number): string {
   const [year, month, day] = week.split("-").map(Number) as [number, number, number];
   const monday = new TZDate(year, month - 1, day, 12, 0, 0, 0, TIME_ZONE);
-  return format(subDays(monday, 7), "yyyy-MM-dd");
+  return format(subDays(monday, -days), "yyyy-MM-dd");
 }
 
 /** The instant a week begins: midnight on its Monday, in the home's zone. */
