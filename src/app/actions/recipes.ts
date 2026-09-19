@@ -15,11 +15,24 @@ import { fail, type ActionResult } from "@/lib/action-result";
 
 const recipeInScope = homeScoped("Recipe", (id) => prisma.recipe.findUnique({ where: { id } }));
 
+const TIME_MESSAGE = "Time must be a whole number of minutes.";
+
+/** Blank means the recipe's time was not given — not a recipe that takes no time. */
+const totalTimeMinutes = z
+  .string()
+  .trim()
+  .optional()
+  .transform((value) => (value ? Number(value) : null))
+  .refine((value) => value === null || (Number.isInteger(value) && value > 0), {
+    error: TIME_MESSAGE,
+  });
+
 const recipeSchema = z.object({
   title: requiredText("Give the recipe a title."),
   description: optionalText,
   ingredients: z.string().trim().optional().transform((value) => value ?? ""),
   instructions: z.string().trim().optional().transform((value) => value ?? ""),
+  totalTimeMinutes,
   // A link that was typed but cannot be understood is a mistake worth reporting,
   // rather than silently dropping what the cook pasted. Checked before the transform,
   // which would otherwise make an empty field and a bad link both look like null.

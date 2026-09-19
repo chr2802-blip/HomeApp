@@ -15,6 +15,7 @@ async function fillRecipe(
     videoUrl?: string;
     ingredients?: string;
     instructions?: string;
+    totalTimeMinutes?: number;
   },
 ) {
   await page.getByLabel("Title").fill(options.title);
@@ -30,6 +31,9 @@ async function fillRecipe(
   }
   if (options.ingredients) await page.getByLabel("Ingredients").fill(options.ingredients);
   if (options.instructions) await page.getByLabel("Instructions").fill(options.instructions);
+  if (options.totalTimeMinutes !== undefined) {
+    await page.getByLabel("Total time (minutes)").fill(String(options.totalTimeMinutes));
+  }
 }
 
 test("a recipe is saved and shown with its ingredients and steps", async ({ page }) => {
@@ -145,6 +149,14 @@ test("a recipe cannot be saved with no category at all", async ({ page }) => {
   await expect(page).toHaveURL(/\/recipes\/new$/);
 });
 
+test("a recipe's total time is saved and shown on its page", async ({ page }) => {
+  await fillRecipe(page, { title: "Quick soup", ingredients: "Stock", totalTimeMinutes: 25 });
+  await page.getByRole("button", { name: "Save recipe" }).click();
+  await page.waitForURL(SAVED_RECIPE);
+
+  await expect(page.getByText("25 min", { exact: true })).toBeVisible();
+});
+
 test("a recipe with no written steps says to follow the video", async ({ page }) => {
   await fillRecipe(page, { title: "Video only", videoUrl: "https://youtu.be/dQw4w9WgXcQ" });
   await page.getByRole("button", { name: "Save recipe" }).click();
@@ -189,4 +201,42 @@ test("a long title wraps in place rather than pushing the menu button onto its o
   // when the title has wrapped in place — and a full line height or more apart if the
   // button was pushed onto its own row underneath instead.
   expect(Math.abs(menuBox!.y - badgeBox!.y)).toBeLessThan(30);
+});
+
+test.describe("the recipe list's time filter", () => {
+  test("narrows the list to recipes under or over 30 minutes", async ({ page }) => {
+    await fillRecipe(page, { title: "Quick soup", ingredients: "Stock", totalTimeMinutes: 20 });
+    await page.getByRole("button", { name: "Save recipe" }).click();
+    await page.waitForURL(SAVED_RECIPE);
+
+    await page.goto("/recipes/new");
+    await fillRecipe(page, { title: "Sunday roast", ingredients: "Chicken", totalTimeMinutes: 90 });
+    await page.getByRole("button", { name: "Save recipe" }).click();
+    await page.waitForURL(SAVED_RECIPE);
+
+    await page.goto("/recipes");
+    await expect(page.getByText("Quick soup")).toBeVisible();
+    await expect(page.getByText("Sunday roast")).toBeVisible();
+
+    await page.getByRole("button", { name: "Under 30 min, 1 recipe" }).click();
+    await expect(page.getByText("Quick soup")).toBeVisible();
+    await expect(page.getByText("Sunday roast")).toBeHidden();
+
+    await page.getByRole("button", { name: "30 min+, 1 recipe" }).click();
+    await expect(page.getByText("Sunday roast")).toBeVisible();
+    await expect(page.getByText("Quick soup")).toBeHidden();
+
+    await page.getByRole("button", { name: "Any time, 2 recipes" }).click();
+    await expect(page.getByText("Quick soup")).toBeVisible();
+    await expect(page.getByText("Sunday roast")).toBeVisible();
+  });
+
+  test("is not offered when nothing in the home has a time on it", async ({ page }) => {
+    await fillRecipe(page, { title: "Undated dish", ingredients: "Something" });
+    await page.getByRole("button", { name: "Save recipe" }).click();
+    await page.waitForURL(SAVED_RECIPE);
+
+    await page.goto("/recipes");
+    await expect(page.getByRole("group", { name: "Filter by time" })).toHaveCount(0);
+  });
 });

@@ -8,7 +8,7 @@ import { RecipeFields } from "@/components/recipe-fields";
 import { PhotoBanner } from "@/components/photo";
 import { SocialVideoEmbed } from "@/components/video-embed";
 import { AddToListMenu } from "@/components/add-to-list-menu";
-import { ingredientLines } from "@/lib/recipes";
+import { ingredientLines, timeLabel } from "@/lib/recipes";
 
 /** Instructions are written the same way ingredients are: one step to a line. */
 function lines(value: string) {
@@ -68,6 +68,9 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
             ))}
           </div>
           <h1 className="text-2xl font-semibold tracking-tight break-words">{recipe.title}</h1>
+          {recipe.totalTimeMinutes !== null && (
+            <p className="mt-1 text-sm text-slate-500">{timeLabel(recipe.totalTimeMinutes)}</p>
+          )}
           {recipe.description && <p className="mt-1 text-sm text-slate-500">{recipe.description}</p>}
         </div>
         <ItemMenu

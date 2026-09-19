@@ -25,6 +25,29 @@ export function readCategoryChoice(formData: FormData) {
 }
 
 /**
+ * The line the recipe list's time filter draws, and the one a household actually cares
+ * about on a Tuesday: quick enough to start after work, or not. Chosen as a filter
+ * rather than a sort because a cook wants "can I manage this tonight", a yes-or-no
+ * question, not a list ordered by a number they still have to compare against dinner
+ * time themselves.
+ */
+export const QUICK_RECIPE_MINUTES = 30;
+
+/**
+ * A recipe's total time in words — "25 min", "1 hr 30 min" — or null for a recipe
+ * nothing has ever said a time for. Minutes alone past the hour would read as a much
+ * longer number than the dish actually takes ("90 min"), which is correct and not how
+ * anyone thinks about it.
+ */
+export function timeLabel(totalTimeMinutes: number | null): string | null {
+  if (totalTimeMinutes === null) return null;
+  const hours = Math.floor(totalTimeMinutes / 60);
+  const minutes = totalTimeMinutes % 60;
+  if (hours === 0) return `${minutes} min`;
+  return minutes === 0 ? `${hours} hr` : `${hours} hr ${minutes} min`;
+}
+
+/**
  * A recipe's ingredients as separate lines, trimmed, with the blank ones dropped.
  *
  * Ingredients are stored as one block of text — a cook writes them the way they would
