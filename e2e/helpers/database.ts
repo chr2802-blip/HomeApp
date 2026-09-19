@@ -1,12 +1,7 @@
-import { execFileSync } from "node:child_process";
-import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import {
-  adminDatabaseUrl,
-  deriveE2eDatabaseUrl,
-  e2eDatabaseName,
-} from "../../scripts/test-db-url.mjs";
+import { deriveE2eDatabaseUrl, e2eDatabaseName } from "../../scripts/test-db-url.mjs";
+import { copyTemplate, dropCopies, prepareTemplate, truncateAll } from "../../scripts/test-db.mjs";
 import { e2eWorkerCount, serverDatabaseUrl } from "./servers";
 
 /**
@@ -74,79 +69,23 @@ export async function prepareDatabase() {
   const template = deriveE2eDatabaseUrl();
   const name = e2eDatabaseName(template);
 
-  if (!(await canConnect(template))) {
-    await onAdmin(template, `CREATE DATABASE "${quoted(name)}"`);
-  }
-
-  // Resolved by path rather than createRequire: Playwright compiles this file to
-  // CommonJS, where import.meta does not exist.
-  const prismaCli = path.join(process.cwd(), "node_modules", "prisma", "build", "index.js");
-  execFileSync(process.execPath, [prismaCli, "migrate", "deploy"], {
-    stdio: "pipe",
-    env: { ...process.env, DATABASE_URL: template, DIRECT_URL: template },
-  });
+  await prepareTemplate(template, name);
 
   // Everything a previous run made, not just the ones about to be remade: a run with
   // fewer workers than the last would otherwise leave the surplus lying about for ever.
-  await dropWorkerDatabases(template, name);
+  // Nothing is spared here the way the vitest sweep spares a live worker — a browser
+  // worker's database is keyed by its slot rather than by anything an operating system
+  // can be asked about, so two runs at once would collide over the ports first.
+  await dropCopies(template, name);
 
   for (let worker = 0; worker < e2eWorkerCount(); worker += 1) {
-    const copy = e2eDatabaseName(serverDatabaseUrl(worker));
-
     // Copied fresh rather than reused, so one can never be a migration behind the
-    // template. Both names carry the "_e2e" suffix every entry point here checks for,
-    // and are quoted anyway so neither can read as SQL.
-    await onAdmin(template, `CREATE DATABASE "${quoted(copy)}" TEMPLATE "${quoted(name)}"`);
+    // template. Both names carry the "_e2e" suffix every entry point here checks for.
+    await copyTemplate(template, {
+      from: name,
+      to: e2eDatabaseName(serverDatabaseUrl(worker)),
+    });
   }
-}
-
-/** Drops every copy taken from the template, whoever made it. */
-async function dropWorkerDatabases(url: string, template: string) {
-  const admin = new PrismaClient({ datasourceUrl: adminDatabaseUrl(url) });
-  try {
-    const rows = await admin.$queryRaw<{ datname: string }[]>`
-      SELECT datname FROM pg_database WHERE datname LIKE ${`${template.replace(/_e2e$/, "")}_w%_e2e`}
-    `;
-
-    for (const { datname } of rows) {
-      await admin.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${quoted(datname)}" WITH (FORCE)`);
-    }
-  } finally {
-    await admin.$disconnect();
-  }
-}
-
-const quoted = (name: string) => name.replace(/"/g, '""');
-
-async function onAdmin(url: string, statement: string) {
-  const admin = new PrismaClient({ datasourceUrl: adminDatabaseUrl(url) });
-  try {
-    await admin.$executeRawUnsafe(statement);
-  } finally {
-    await admin.$disconnect();
-  }
-}
-
-async function canConnect(url: string) {
-  const probe = new PrismaClient({ datasourceUrl: url });
-  try {
-    await probe.$queryRaw`SELECT 1`;
-    return true;
-  } catch {
-    return false;
-  } finally {
-    await probe.$disconnect();
-  }
-}
-
-async function truncate() {
-  const db = prisma();
-  const rows = await db.$queryRaw<{ tablename: string }[]>`
-    SELECT tablename FROM pg_tables
-    WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'
-  `;
-  const list = rows.map((row) => `"public"."${row.tablename}"`).join(", ");
-  if (list) await db.$executeRawUnsafe(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE`);
 }
 
 /**
@@ -156,7 +95,7 @@ async function truncate() {
  */
 export async function resetAndSeed() {
   const db = prisma();
-  await truncate();
+  await truncateAll(db);
 
   const home = await db.home.create({ data: { name: HOME_NAME, address: "1 Test Street" } });
   const otherHome = await db.home.create({ data: { name: OTHER_HOME_NAME } });

@@ -11,7 +11,7 @@ was tried and caused a bug.
 
 ```bash
 npm run dev          # local dev server
-npm run verify       # lint + types + all tests — what the pre-push hook runs
+npm run verify       # lint + types + schema check + all tests — what the pre-push hook runs
 npm test             # vitest (unit + integration)
 npm run e2e          # Playwright (builds the app first)
 npm run db:studio    # browse the database
@@ -623,7 +623,17 @@ starts the same fetch a press of the button would, once, on arrival. That check 
 close-vs-open reset above exists to avoid. Anything else on the clipboard — nothing,
 plain text, a browser that will not say (Safari has no `readText` at all; Chrome can
 refuse silently when the page lacks focus) — is treated the same as if there had been
-nothing to check, which is the ordinary **choose** screen this always showed. Choosing
+nothing to check, which is the ordinary **choose** screen this always showed.
+
+**A browser that will not say is not always a browser that says so**, which is why that
+read is raced against `CLIPBOARD_GRACE_MS`. `readText()` can sit unresolved behind a
+permission decision nobody is going to make — a headless Chromium with the permission
+ungranted does exactly this — and since the sheet opens *after* the check, a promise
+that never settles is a "New recipe" button that does nothing at all: no sheet, no
+error, nothing to see. Not waiting past half a second turns that back into the same
+"nothing to prefill" every other unanswerable clipboard is. The browser suite pins it
+with a `readText` stubbed to never settle, because a browser that merely *refuses* —
+which is what CI's does — takes the `catch` and never visits this path. Choosing
 **Import from a link** by hand always starts blank, even moments after an automatic
 fetch from the clipboard found something: a deliberate press is not the clipboard
 speaking again.
@@ -748,17 +758,35 @@ produce a database the migrations have not been applied to. The files truncate b
 tests, so a shared database would have them emptying tables another file was halfway
 through reading.
 
+**All of that plumbing is `scripts/test-db.mjs`, once, for both suites** — making the
+template, migrating it, copying it per worker, sweeping the copies up, truncating between
+tests. It was written out twice, differing only in which suffix it looked for, and the
+pair that has to agree is not within a suite but across them: `workerDatabaseUrl` writes
+a copy's name and the sweep has to recognise it again, including the copies a killed run
+left behind. `workerDatabasePattern` beside it is that second half, so the two cannot
+drift. The module is plain JavaScript and uses no `import.meta`: vitest loads it as ESM,
+Playwright compiles the file importing it to CommonJS.
+
 **A worker's database is keyed by something that cannot be shared by two of them at
 once.** For vitest that is the **process id** — `VITEST_POOL_ID` looks like the right
 thing and is not: two workers running at the same time are sometimes handed the same
 one, which puts two files on one database, where they truncate each other mid-test and
-deadlock trying. Playwright's `parallelIndex` *is* a real lease, so the browser suite
-uses it. Copies are swept away afterwards, and again at the start of the next run, since
-a run that is killed never reaches its own teardown.
+deadlock trying. That holds only while a worker *is* a process, which is why the
+integration project says `pool: "forks"` rather than inheriting whatever the default is:
+a pool of threads shares one pid and brings the collision straight back. Playwright's
+`parallelIndex` *is* a real lease, so the browser suite uses it. Copies are swept away
+afterwards, and again at the start of the next run, since a run that is killed never
+reaches its own teardown — **except one whose process is still alive**, asked of the
+operating system rather than assumed, so `npm test` alongside an open `npm run test:watch`
+does not drop the watcher's databases on the way past.
 
 The key goes *before* the suffix (`homehub_w7_test`, never `homehub_test_w7`) because the
 suffix is the whole guard: every entry point refuses a database whose name does not end
 in `_test` or `_e2e`, and a worker's copy has to be refused on the same terms.
+`tests/unit/test-db-url.test.ts` holds every one of those rules — the suffix guard, the
+key's position, the sweep's pattern matching the copies and nothing else — in
+milliseconds and without a database, because the alternative way to find out that this
+module disagrees with itself is a suite that has already started deleting.
 
 **The browser suite gives each worker its own app server too**, on its own port, because
 a server reads one database and one only. `e2e/helpers/servers.ts` says which worker gets
@@ -780,7 +808,9 @@ the login form, which `auth.spec.ts` still does by hand through `logInThroughFor
 because there the form is the thing being tested.
 
 A flaky test is worse than no test: it teaches everyone to press the button again. Fix the
-race, do not add a timeout.
+race, do not add a timeout. An `it.only` left in is the same failure by another route — a
+file reduced to one test, reading as a pass — so CI refuses one in either suite
+(`forbidOnly` for Playwright, `allowOnly` for vitest).
 
 Two races are worth knowing about, because both passed on an idle machine and only
 showed once the files started running at the same time. **A tick is optimistic**: the

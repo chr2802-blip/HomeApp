@@ -26,6 +26,9 @@ export default defineConfig({
     alias: { "@": path.join(rootDir, "src") },
   },
   test: {
+    // An `it.only` left in is a file reduced to one test, which reads as a pass. The
+    // browser suite has refused one on CI since it was written; this is the same rule.
+    allowOnly: !process.env.CI,
     env: {
       DATABASE_URL: databaseUrl,
       DIRECT_URL: databaseUrl,
@@ -59,7 +62,11 @@ export default defineConfig({
           setupFiles: ["./tests/setup/worker-db.ts", "./tests/setup/integration.ts"],
           globalSetup: ["./tests/setup/global.ts"],
           // A database each — see tests/setup/worker-db.ts — so the files can run at
-          // the same time.
+          // the same time. The pool is named rather than left to the default, because
+          // that file keys a worker's database by process id: a pool of threads shares
+          // one, and two files would land on a single database and truncate each other
+          // mid-test.
+          pool: "forks",
           testTimeout: 20_000,
           hookTimeout: 30_000,
         },

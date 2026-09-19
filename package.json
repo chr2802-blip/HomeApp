@@ -16,7 +16,7 @@
     "e2e:ui": "npm run e2e:build && playwright test --ui",
     "e2e:report": "playwright show-report",
     "e2e:build": "prisma generate && next build",
-    "verify": "npm run lint && npm run typecheck && npm run test && npm run e2e",
+    "verify": "npm run lint && npm run typecheck && npm run db:check && npm run test && npm run e2e",
     "prepare": "node scripts/install-git-hooks.mjs",
     "db:check": "node scripts/check-schema-drift.mjs",
     "db:push": "prisma db push",

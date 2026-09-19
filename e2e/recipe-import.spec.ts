@@ -126,6 +126,25 @@ test.describe("a recipe link already on the clipboard", () => {
     await expect(page.getByLabel("Recipe link")).toHaveCount(0);
   });
 
+  test("opens on the choice anyway when the browser never answers", async ({ page }) => {
+    // Not a hypothetical: a Chromium with no clipboard permission granted leaves
+    // readText() pending for ever rather than refusing it. The sheet opens *after* that
+    // check, so without a bound on the wait the button does nothing at all — no error,
+    // no sheet, nothing to see. The tests above catch it only in a browser that hangs;
+    // this one asks every browser the same question.
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator.clipboard, "readText", {
+        configurable: true,
+        value: () => new Promise(() => {}),
+      });
+    });
+    await page.goto("/recipes");
+
+    await openDialog(page, "New recipe");
+
+    await expect(page.getByRole("button", { name: "Start from scratch" })).toBeVisible();
+  });
+
   test("choosing Import from a link by hand starts blank, not from an earlier clipboard fetch", async ({
     page,
   }) => {
