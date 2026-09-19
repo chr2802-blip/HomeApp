@@ -158,7 +158,7 @@ export function RecipeDirectory({
       <div
         role="group"
         aria-label="Filter by category"
-        className="mb-5 flex flex-wrap gap-2"
+        className="mb-5 flex flex-nowrap gap-2 overflow-x-auto pb-1"
       >
         <FilterChip
           label="All"
@@ -178,7 +178,11 @@ export function RecipeDirectory({
       </div>
 
       {hasTimedRecipe && (
-        <div role="group" aria-label="Filter by time" className="mb-5 flex flex-wrap gap-2">
+        <div
+          role="group"
+          aria-label="Filter by time"
+          className="mb-5 flex flex-nowrap gap-2 overflow-x-auto pb-1"
+        >
           <FilterChip
             label="Any time"
             active={timeFilter === "all"}
@@ -314,7 +318,7 @@ function FilterChip({
       onClick={onClick}
       aria-pressed={active}
       aria-label={`${label}, ${count} ${count === 1 ? "recipe" : "recipes"}`}
-      className={`pressable rounded-full border px-3 py-1.5 text-sm font-medium active:scale-[0.96] ${
+      className={`pressable shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium active:scale-[0.96] ${
         active
           ? "border-slate-900 bg-slate-900 text-white"
           : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
