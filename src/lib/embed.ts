@@ -53,7 +53,7 @@ function cleanUrl(url: URL): string {
  * rebuilt from parsed parts rather than interpolated, so a hostile link cannot smuggle
  * script or markup into the page.
  */
-export function toEmbed(rawUrl: string | null | undefined): Embed | null {
+export function parseSocialEmbed(rawUrl: string | null | undefined): Embed | null {
   if (!rawUrl) return null;
 
   let url: URL;
@@ -68,12 +68,15 @@ export function toEmbed(rawUrl: string | null | undefined): Embed | null {
   const segments = url.pathname.split("/").filter(Boolean);
 
   if (host === "instagram.com" || host === "instagr.am") {
+    // A mobile share sheet's /share/reel/ID or /share/p/ID sits in front of the same
+    // "reel"/"p" segment as an ordinary link, so the same scan finds it without a
+    // separate case: it never matters what comes before the kind, only what follows it.
     const kindIndex = segments.findIndex((s) => s === "reel" || s === "reels" || s === "p" || s === "tv");
     const kind = segments[kindIndex] === "reels" ? "reel" : segments[kindIndex];
     const code = kindIndex >= 0 ? segments[kindIndex + 1] : undefined;
     if (!code || !/^[A-Za-z0-9_-]+$/.test(code)) return null;
     return {
-      src: `https://www.instagram.com/${kind}/${code}/embed/`,
+      src: `https://www.instagram.com/${kind}/${code}/embed`,
       aspect: "vertical",
       fixed: { provider: "instagram", ...INSTAGRAM_SIZE },
     };
@@ -112,7 +115,6 @@ export function toEmbed(rawUrl: string | null | undefined): Embed | null {
     const embedded = new URL("https://www.facebook.com/plugins/video.php");
     embedded.searchParams.set("href", cleanUrl(url));
     embedded.searchParams.set("show_text", "false");
-    embedded.searchParams.set("width", String(FACEBOOK_SIZE.width));
     return {
       src: embedded.toString(),
       aspect: "vertical",

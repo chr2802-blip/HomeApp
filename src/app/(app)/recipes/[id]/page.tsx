@@ -5,9 +5,8 @@ import { deleteRecipe, updateRecipe } from "@/app/actions/recipes";
 import { Badge, Card } from "@/components/ui";
 import { ItemMenu } from "@/components/item-menu";
 import { RecipeFields } from "@/components/recipe-fields";
-import { safeExternalHref, toEmbed } from "@/lib/embed";
 import { PhotoBanner } from "@/components/photo";
-import { VideoEmbed } from "@/components/video-embed";
+import { SocialVideoEmbed } from "@/components/video-embed";
 import { AddToListMenu } from "@/components/add-to-list-menu";
 import { ingredientLines } from "@/lib/recipes";
 
@@ -56,8 +55,6 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
   ]);
   if (!recipe) notFound();
 
-  const embed = toEmbed(recipe.videoUrl);
-  const originalHref = safeExternalHref(recipe.videoUrl);
   const ingredients = ingredientLines(recipe.ingredients);
   const instructions = lines(recipe.instructions);
 
@@ -97,27 +94,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
           up looking like, and it loads instantly where an embed does not. */}
       <PhotoBanner photoId={recipe.photoId} alt={recipe.title} className="mb-6" />
 
-      {embed && (
-        <Card className="mb-6 overflow-hidden p-0">
-          <VideoEmbed embed={embed} title={recipe.title} originalHref={originalHref} />
-        </Card>
-      )}
-
-      {!embed && originalHref && (
-        <Card className="mb-6">
-          <a
-            href={originalHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-medium text-slate-900 underline"
-          >
-            Open the linked video
-          </a>
-          <p className="mt-1 text-xs text-slate-500">
-            This link can&apos;t be embedded, so it opens in a new tab.
-          </p>
-        </Card>
-      )}
+      <SocialVideoEmbed url={recipe.videoUrl} title={recipe.title} />
 
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <Card>

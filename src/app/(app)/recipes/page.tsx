@@ -2,7 +2,7 @@ import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
 import { createRecipe } from "@/app/actions/recipes";
 import { PageHeader } from "@/components/ui";
-import { toEmbed } from "@/lib/embed";
+import { parseSocialEmbed } from "@/lib/embed";
 import { NewRecipeDialog } from "@/components/new-recipe-dialog";
 import { RecipeDirectory, type RecipeSummary } from "@/components/recipe-directory";
 
@@ -33,7 +33,7 @@ export default async function RecipesPage() {
     ingredients: recipe.ingredients,
     instructions: recipe.instructions,
     videoUrl: recipe.videoUrl,
-    hasVideo: Boolean(toEmbed(recipe.videoUrl)),
+    hasVideo: Boolean(parseSocialEmbed(recipe.videoUrl)),
   }));
 
   return (
