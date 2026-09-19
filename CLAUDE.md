@@ -534,6 +534,45 @@ having a second category. The checkbox lives beside the name on both the add and
 forms in `RecipeCategoriesAdmin`, read the same way `List.trackAmounts` is: an unticked
 box is absent from the form rather than present and false.
 
+### The week's meals are a row per day, and the row is the decision
+
+`MealPlan` is one row per home per day, and `recipeId` is what it says: a recipe is what
+is being cooked, and **null is a night out**. A day nobody has planned has **no row at
+all** — so "nothing planned" and "eating out" are the presence or absence of the row
+rather than two columns that can disagree about the same evening, which is the same
+reason a task has no flag beside its interval. `@@id([homeId, date])` is the whole shape:
+replanning a day overwrites it, and the table is bounded by the days a household has
+actually planned.
+
+`date` is the day in the home's own zone as `"yyyy-MM-dd"`, like `ClearedWeek.week` and
+for the same reason — Thursday's dinner is Thursday's wherever the server is, and an
+instant stored at midnight somewhere else lands on Wednesday for half the year. The
+week's rows are fetched by naming its seven days (`weekDays`), which is what the column
+is stored as sortable text for.
+
+**A deleted recipe takes the day's plan with it** (`onDelete: Cascade`, where every other
+optional relation in the schema uses `SetNull`): null means "eating out", so a plan left
+behind as null would turn Thursday into a night out nobody chose. Cascading puts the day
+back to nothing planned, which is exactly where it was before.
+
+The three states arrive through **one** `PLAN_FIELD`, read by `planMeal`: a recipe id, and
+`PLAN_OUT`, and empty for the day going back to nothing (which deletes — a row saying
+"nothing planned" would be a second way of saying what no row already says). A tick beside
+a recipe picker could say "eating out" and name a recipe at once, and something would then
+have to decide which the household meant. The recipe id is checked through `homeDb`, so
+another home's recipe is simply not found, and the clear is a `deleteMany` through the same
+client: it carries only a date, and unscoped it would clear that day for every household
+on the installation.
+
+`/meals` is a tab, between Tasks and Recipes — the plan beside the collection it draws
+from. The week is in the address (`?week=`, read through `weekStartOn`), so it is a place
+that can be shared, bookmarked and reached with the back arrow, and the page stays on the
+server with no week held in a component's state. Any day of a week is a link to that week
+because the value is normalised to its Monday, and a day that never existed
+("2026-02-31") falls back to the live week rather than drawing seven days of arithmetic
+nobody can read. Pressing a day's row opens its sheet: there is exactly one thing to do
+with a day, so a three-dot menu would be a menu of one entry standing in front of it.
+
 ### A new recipe starts by asking how, not with a field buried in the form
 
 `NewRecipeDialog` (`src/components/new-recipe-dialog.tsx`) is what the "New recipe"

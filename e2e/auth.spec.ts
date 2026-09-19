@@ -48,7 +48,7 @@ test.describe("signing in", () => {
 });
 
 test.describe("pages that need a session", () => {
-  for (const path of ["/dashboard", "/lists", "/tasks", "/recipes", "/admin", "/settings", "/profile"]) {
+  for (const path of ["/dashboard", "/lists", "/tasks", "/meals", "/recipes", "/admin", "/settings", "/profile"]) {
     test(`${path} redirects a signed-out visitor to the login page`, async ({ page }) => {
       await page.goto(path);
       await expect(page).toHaveURL(/\/login$/);
