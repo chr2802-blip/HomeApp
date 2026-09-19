@@ -8,6 +8,7 @@ import { RecipeFields } from "@/components/recipe-fields";
 import { PhotoBanner } from "@/components/photo";
 import { SocialVideoEmbed } from "@/components/video-embed";
 import { AddToListMenu } from "@/components/add-to-list-menu";
+import { ScreenAwakeToggle } from "@/components/screen-awake-toggle";
 import { ingredientLines, timeLabel } from "@/lib/recipes";
 
 /** Instructions are written the same way ingredients are: one step to a line. */
@@ -73,24 +74,27 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
           )}
           {recipe.description && <p className="mt-1 text-sm text-slate-500">{recipe.description}</p>}
         </div>
-        <ItemMenu
-          name="recipeId"
-          id={recipe.id}
-          label={recipe.title}
-          editTitle="Edit recipe"
-          editAction={updateRecipe}
-          deleteAction={deleteRecipe}
-          deleteMessage={`Delete the recipe "${recipe.title}"?`}
-          className="-mr-2"
-        >
-          <RecipeFields
-            recipe={{
-              ...recipe,
-              categoryIds: recipe.categories.map((filed) => filed.category.id),
-            }}
-            categories={categories}
-          />
-        </ItemMenu>
+        <div className="flex shrink-0 items-start">
+          <ScreenAwakeToggle />
+          <ItemMenu
+            name="recipeId"
+            id={recipe.id}
+            label={recipe.title}
+            editTitle="Edit recipe"
+            editAction={updateRecipe}
+            deleteAction={deleteRecipe}
+            deleteMessage={`Delete the recipe "${recipe.title}"?`}
+            className="-mr-2"
+          >
+            <RecipeFields
+              recipe={{
+                ...recipe,
+                categoryIds: recipe.categories.map((filed) => filed.category.id),
+              }}
+              categories={categories}
+            />
+          </ItemMenu>
+        </div>
       </div>
 
       {/* Above the video, when there is both: the picture is what the dish should end
