@@ -5,8 +5,11 @@ import { Button, Input } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
 import { restoreListItem } from "@/app/actions/lists";
 import { AmountPicker } from "@/components/amount-picker";
-import { MIN_AMOUNT } from "@/lib/amount";
-import type { FormAction } from "@/lib/action-result";
+import { useOfflineList } from "@/components/use-offline-list";
+import { newId } from "@/lib/offline-queue";
+import type { OfflineOp } from "@/lib/offline-ops";
+import { clampAmount, MIN_AMOUNT } from "@/lib/amount";
+import { ok, type FormAction } from "@/lib/action-result";
 
 export type Suggestion = { id: string; text: string };
 
@@ -36,8 +39,34 @@ export function AddItemForm({
   const [highlighted, setHighlighted] = useState(-1);
   const [restoring, startRestore] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+  const { record } = useOfflineList(listId);
 
-  const { state, pending, handleSubmit } = useFormAction(action, {
+  /**
+   * Adding, whether or not there is anybody to add it with.
+   *
+   * The row's id is chosen here rather than by the database, because with no connection
+   * the row has to exist on this phone before it exists anywhere — and creating it under
+   * that id when the queue is finally sent is what makes a second send add one item
+   * instead of two.
+   *
+   * A queued add reports success, because it succeeded: it is on the list, and the list is
+   * what the box is for. What the server might later have to say about it — that a line
+   * already there was wanted once more, or that an unticked one is already there — is a
+   * conversation that needs a server, and the reply arrives as the list itself.
+   */
+  const submit: FormAction = async (previous, data) => {
+    const text = String(data.get("text") ?? "").trim();
+    const wanted = clampAmount(data.get("amount") ?? MIN_AMOUNT);
+    if (!text) return action(previous, data);
+
+    const outcome = await record(
+      [{ id: newId(), kind: "add", listId, itemId: newId(), text, amount: wanted }],
+      () => action(previous, data),
+    );
+    return outcome.sent ? outcome.result : ok();
+  };
+
+  const { state, pending, handleSubmit } = useFormAction(submit, {
     onSuccess: (form) => {
       form.reset();
       setQuery("");
@@ -55,17 +84,31 @@ export function AddItemForm({
   const isOpen = matches.length > 0;
 
   function restore(item: Suggestion) {
+    const wanted = amount;
     const data = new FormData();
     data.set("itemId", item.id);
-    data.set("amount", String(amount));
+    data.set("amount", String(wanted));
 
     setQuery("");
     setAmount(MIN_AMOUNT);
     setHighlighted(-1);
     inputRef.current?.focus();
 
+    /*
+     * Putting a ticked item back, with the queue's two words for it.
+     *
+     * Online this is one action, which also moves the row to the end of what is still
+     * outstanding. Queued it is a tick and an amount — the two things the row has to say —
+     * and the row stays where it is until the send goes through, because a position is the
+     * one part of this that two phones can disagree about.
+     */
+    const ops: OfflineOp[] = [
+      { id: newId(), kind: "tick", listId, itemId: item.id, done: false },
+      { id: newId(), kind: "amount", listId, itemId: item.id, amount: wanted },
+    ];
+
     startRestore(async () => {
-      await restoreListItem(data);
+      await record(ops, () => restoreListItem(data));
     });
   }
 

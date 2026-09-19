@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useOptimistic, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useOptimistic,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -31,25 +39,17 @@ import { Collapsible } from "@/components/collapsible";
 import { Celebration } from "@/components/celebration";
 import { PersonMark } from "@/components/person-mark";
 import { ProgressBar } from "@/components/progress-bar";
+import { QueueStatus } from "@/components/queue-status";
+import { useOfflineList } from "@/components/use-offline-list";
+import { applyPending, type ListRow, type Person } from "@/lib/offline-ops";
+import { newId } from "@/lib/offline-queue";
 import { cheer, tick } from "@/lib/haptics";
 
-/** A recipe that asked for this item, as the row names it. */
-type Source = { id: string; title: string };
-
-/** Somebody in this home, as a row names them. */
-export type Person = { id: string; name: string; photoId: string | null };
-
-type Item = {
-  id: string;
-  text: string;
-  amount: number;
-  done: boolean;
-  position: number;
-  /** The recipes this item came from, or nothing at all if it was typed in by hand. */
-  sources: Source[];
-  /** Who ticked it off, on a ticked row; nobody on one still open. */
-  completedBy: Person | null;
-};
+/**
+ * One row, defined beside the overlay that has to be able to make one — an item added
+ * with no connection is a row that exists on this phone before it exists anywhere else.
+ */
+type Item = ListRow;
 
 type Change =
   | { type: "toggle"; id: string; by: Person }
@@ -277,8 +277,26 @@ export function ListItems({
    */
   shared: boolean;
 }) {
-  const [optimisticItems, applyChange] = useOptimistic(items, applyTo);
+  const { pending, record, onlyOnline, reconcile, online, sending } = useOfflineList(listId);
+
+  /*
+   * What the rows are drawn from: what the server last said, with everything this phone
+   * has not managed to send yet laid on top.
+   *
+   * Offline, "what the server last said" is whatever the service worker kept from the last
+   * time this page loaded — so the two together are the list as the household left it,
+   * which is the whole point. React's optimistic copy sits above both and answers the
+   * press itself; it is discarded as soon as the form action settles, and this is what the
+   * row then falls back to instead of the state from before the tick.
+   */
+  const base = useMemo(() => applyPending(items, pending, me), [items, pending, me]);
+  const [optimisticItems, applyChange] = useOptimistic(base, applyTo);
   const [, startTransition] = useTransition();
+
+  // Anything the server now agrees with is finished with, whoever made it happen.
+  useEffect(() => {
+    reconcile(items);
+  }, [items, reconcile]);
 
   /*
    * The rows that have just been ticked and are still being seen leaving.
@@ -432,7 +450,7 @@ export function ListItems({
 
     startTransition(async () => {
       applyChange({ type: "reorder", ids });
-      await reorderListItems(data);
+      await onlyOnline(() => reorderListItems(data));
     });
   }
 
@@ -451,7 +469,20 @@ export function ListItems({
         onPress={(nowDone) => handlePress(item, nowDone)}
         onToggle={async () => {
           applyChange({ type: "toggle", id: item.id, by: me });
-          await toggleListItem(payload);
+          // The press means "the other one"; what is recorded is the state it lands in,
+          // so the same tick sent twice from a queue still means the same thing.
+          await record(
+            [
+              {
+                id: newId(),
+                kind: "tick",
+                listId,
+                itemId: item.id,
+                done: !item.done,
+              },
+            ],
+            () => toggleListItem(payload),
+          );
         }}
         onAmount={(amount) => {
           const data = new FormData();
@@ -460,12 +491,17 @@ export function ListItems({
 
           startTransition(async () => {
             applyChange({ type: "amount", id: item.id, amount });
-            await setListItemAmount(data);
+            await record(
+              [{ id: newId(), kind: "amount", listId, itemId: item.id, amount }],
+              () => setListItemAmount(data),
+            );
           });
         }}
         onRemove={async () => {
           applyChange({ type: "remove", id: item.id });
-          await deleteListItem(payload);
+          // Online-only, like the drag: the row simply comes back when there is nothing to
+          // remove it against, which reads as what it is.
+          await onlyOnline(() => deleteListItem(payload));
         }}
       />
     );
@@ -474,6 +510,10 @@ export function ListItems({
   return (
     <>
       {celebrating && <Celebration onDone={stopCelebrating} />}
+
+      {/* What the connection has to say, where it has anything: a tick kept on the phone
+          is only trustworthy if the phone says it has it. */}
+      <QueueStatus online={online} waiting={pending.length} sending={sending} />
 
       {/* How far along the list is, in words and as a bar. Inside the rows rather than
           up beside the title: a tick is optimistic, so this has to be told by the same

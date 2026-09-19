@@ -12,7 +12,7 @@ import { clampAmount, MIN_AMOUNT } from "@/lib/amount";
 import { ingredientLines, shoppingText } from "@/lib/recipes";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
-import { recordListCleared } from "@/lib/streak";
+import { addItem, nextPosition, restoreItem, setItemAmount, setItemDone } from "@/lib/list-writes";
 
 /**
  * The three places a list's state is read, refreshed together.
@@ -136,16 +136,6 @@ export async function toggleListFavorite(formData: FormData) {
   revalidatePath(`/lists/${list.id}`);
 }
 
-/** One past the furthest item, so a new or restored item lands at the bottom. */
-async function nextPosition(listId: string) {
-  const last = await prisma.listItem.findFirst({
-    where: { listId },
-    orderBy: { position: "desc" },
-    select: { position: true },
-  });
-  return (last?.position ?? 0) + 1;
-}
-
 /**
  * Adding something already on the list brings it back rather than duplicating it.
  *
@@ -159,37 +149,14 @@ export async function addListItem(_prev: ActionResult, formData: FormData): Prom
   const form = readForm(itemSchema, formData);
   if (!form.ok) return fail(form.error);
 
-  const { text, amount } = form.fields;
-  const existing = await prisma.listItem.findFirst({
-    where: { listId: list.id, text: { equals: text, mode: "insensitive" } },
-    orderBy: { done: "desc" },
-  });
-
-  if (existing?.done) {
-    await restore(existing.id, list.id, amount);
-    revalidatePath(`/lists/${list.id}`);
-    return ok();
-  }
-
-  if (existing) return fail(`"${existing.text}" is already on the list.`);
-
-  await prisma.listItem.create({
-    data: { listId: list.id, text, amount, position: await nextPosition(list.id) },
-  });
+  // The same write the offline queue's endpoint makes, including what it means to add
+  // something already on the list — see `addItem`. An id is passed only where one was
+  // chosen before the row existed, which is the queue's case and not this one.
+  const outcome = await addItem(list.id, form.fields.text, form.fields.amount);
+  if (!outcome.ok) return fail(`"${outcome.clash}" is already on the list.`);
 
   revalidatePath(`/lists/${list.id}`);
   return ok();
-}
-
-/**
- * Unticks an item and moves it to the end of what is still outstanding, with however
- * many of it are wanted this time rather than last time.
- */
-async function restore(itemId: string, listId: string, amount: number) {
-  await prisma.listItem.update({
-    where: { id: itemId },
-    data: { done: false, amount, position: await nextPosition(listId) },
-  });
 }
 
 /**
@@ -200,7 +167,7 @@ export async function restoreListItem(formData: FormData) {
   const item = await itemInScope(String(formData.get("itemId")));
   if (!item) return;
 
-  await restore(item.id, item.listId, clampAmount(formData.get("amount") ?? 1));
+  await restoreItem(item.id, item.listId, clampAmount(formData.get("amount") ?? 1));
   revalidatePath(`/lists/${item.listId}`);
 }
 
@@ -267,27 +234,10 @@ export async function toggleListItem(formData: FormData) {
   const item = await itemInScope(String(formData.get("itemId")));
   if (!item) return;
 
-  const done = !item.done;
-
-  await prisma.$transaction([
-    prisma.listItem.update({
-      where: { id: item.id },
-      // Who got it, and nobody again the moment it goes back on the list. The name
-      // under a ticked row answers "who picked this up", which is a question about the
-      // shop still to do — it is not a record of who did what, and it goes the same way
-      // the recipe note does.
-      data: { done, completedById: done ? user.id : null },
-    }),
-    ...(item.done ? [] : [prisma.listItemSource.deleteMany({ where: { itemId: item.id } })]),
-  ]);
-
-  // The tick that empties a list is the household's week, so it is counted — after the
-  // write, and only when this press is what left nothing open. A list emptied by
-  // deleting its rows reaches the same state and is not counted: nothing was finished.
-  if (done) {
-    const openLeft = await prisma.listItem.count({ where: { listId: item.listId, done: false } });
-    if (openLeft === 0) await recordListCleared(item.list.homeId);
-  }
+  // The press means "the other one", which is what a checkbox is; the write itself is
+  // told the state to land in, so the queue's endpoint can ask for the same thing without
+  // depending on what the row said when the phone last saw it.
+  await setItemDone(item, !item.done, item.list.homeId, user.id);
 
   refreshListViews(item.listId);
 }
@@ -309,10 +259,7 @@ export async function setListItemAmount(formData: FormData) {
   const item = await itemInScope(String(formData.get("itemId")));
   if (!item) return;
 
-  await prisma.listItem.update({
-    where: { id: item.id },
-    data: { amount: clampAmount(formData.get("amount")) },
-  });
+  await setItemAmount(item.id, clampAmount(formData.get("amount")));
   revalidatePath(`/lists/${item.listId}`);
 }
 
