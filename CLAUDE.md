@@ -354,6 +354,59 @@ household's recipes.
 A category that still holds recipes cannot be deleted, by the action and by the foreign
 key both. Untick it on those recipes first.
 
+### Ticking something off is the moment the list is for, and it is worth seeing
+
+A tick used to happen where it could not be seen. The row was marked done and moved into
+the completed section — closed, by default — inside the same render as the press, so the
+box that was pressed was gone before it could show anything, and the only trace was the
+pop on the **Completed** heading. That pop is still there; what it now pops for is a
+movement whose first half is visible.
+
+`SETTLE_MS` in `src/components/list-items.tsx` is how long a ticked row is held in the
+open group before it moves: the box fills and pops, the words strike through, and the row
+slides away to the right (`tick-off` in `globals.css`). The two numbers have to agree —
+held for less and the row is cut off mid-slide, held for longer and a blank row waits.
+It is a timer rather than an `animationend` listener because the row has to move even
+where the animation never runs: a backgrounded tab, or somebody who asked the system for
+less motion, where every duration in the app collapses to nothing. **Untick a settling
+row and it simply stops settling**: the row is staying, and an animation about leaving
+would be describing something that is no longer happening.
+
+The press is handled in `handlePress`, beside the optimistic change rather than inside
+it. React runs a form action in a transition, where an update may be held back a frame or
+two, and the one thing feedback about a press must not be is late.
+
+**A list's progress is drawn in `--chart-lists`, not in the home's colour and not in
+green.** The accent dresses the controls, and a bar is read rather than pressed — in the
+household whose colour happened to match, a full-width bar would read as one more long
+flat button. Green is "added" everywhere else in the app, so a bar that turned green on
+its last item would be saying that instead. It is the same blue the list's slice wears on
+the storage donuts, which is the palette that exists for saying "this much of that".
+
+The bar on the list's own page lives **inside `ListItems`**, not up beside the title: a
+tick is optimistic, so the proportion has to be told by the same state the rows are.
+Counted on the server it would sit one press behind every time, which is the one thing a
+progress bar may not do. The cards on `/lists` and the dashboard draw the same bar from
+stored counts, where there is no press to be behind. Everywhere it appears the same
+proportion is already in words directly beside it, so the bar itself is `aria-hidden` —
+a progressbar role there would only read the line twice. `data-progress` carries what it
+claims, so a browser test can hold that against the width it is actually drawn at.
+
+**Clearing the last item is celebrated once, and leaves nothing behind.** `Celebration`
+throws confetti over the whole screen and takes itself off the page afterwards; `cheer`
+in `src/lib/haptics.ts` is the longer buzz beside it, as `tick` is the short one for an
+ordinary item. It fires from the press that empties the list, counted before the change
+is applied — **a list emptied by deleting its rows reaches the same state and is not
+celebrated**, because nothing was finished. The pieces are written out rather than
+generated, so there is no randomness to reason about, and the overlay is
+`pointer-events-none` throughout: a mis-tick stays undoable while it falls.
+
+`tests/unit/gamification.test.ts` holds the colours and the keyframes to the stylesheet,
+the way `theme.test.ts` and `storage.test.ts` hold theirs — a `var()` nobody defined
+draws an invisible fill, and an `animate-` class naming keyframes nobody wrote is an
+element that simply appears. `e2e/animation.spec.ts` asks the browser what actually
+played.
+
 ### An item can say which recipe put it there
 
 `ListItemSource` pairs a list item with a recipe, and "Add to list" on a recipe page

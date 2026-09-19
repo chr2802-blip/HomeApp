@@ -1,3 +1,4 @@
+import type { Locator } from "@playwright/test";
 import { ACCOUNTS, clickAndConfirm, expect, openDialog, openMenu, test } from "./helpers/fixtures";
 import { prisma } from "./helpers/database";
 
@@ -93,6 +94,76 @@ test("there is no clear-completed button", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Completed (1)" })).toBeVisible();
 
   await expect(page.getByRole("button", { name: /Clear/ })).toHaveCount(0);
+});
+
+/**
+ * What a bar is actually drawing, as the browser lays it out: the fraction of the track
+ * its fill covers, and the colour that fill is painted in.
+ *
+ * Both can fail silently and separately. A fill whose `--chart-lists` resolved to
+ * nothing is transparent — a bar reading 0% on a list that is nearly done — and a width
+ * that never arrived is a bar telling the same lie with the colour intact. The number
+ * in `data-progress` is what the bar says; this is what it shows.
+ */
+async function drawn(bar: Locator) {
+  return bar.evaluate((track) => {
+    const fill = track.firstElementChild as HTMLElement;
+    return {
+      ratio: fill.getBoundingClientRect().width / track.getBoundingClientRect().width,
+      colour: getComputedStyle(fill).backgroundColor,
+    };
+  });
+}
+
+test("the list says how far along it is, and the bar draws what it says", async ({ page }) => {
+  await openDialog(page, "New list");
+  await page.getByLabel("List name").fill("Weekend jobs");
+  await page.getByRole("button", { name: "Create list" }).click();
+  await page.waitForURL(/\/lists\/[a-z0-9]+$/);
+
+  for (const item of ["Bins", "Washing"]) {
+    await page.getByPlaceholder("Add an item").fill(item);
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByText(item, { exact: true })).toBeVisible();
+  }
+
+  await expect(page.getByText("0 of 2 ticked off")).toBeVisible();
+
+  await page.getByRole("button", { name: "Mark as done" }).first().click();
+
+  // The count is told by the same optimistic state the rows are, so it moves on the
+  // press rather than on the answer — which is also why the row it belongs to is still
+  // sliding away while this is already true.
+  await expect(page.getByText("1 of 2 ticked off")).toBeVisible();
+
+  const bar = page.locator("[data-progress]").first();
+  await expect(bar).toHaveAttribute("data-progress", "50");
+  await expect
+    .poll(async () => Math.round((await drawn(bar)).ratio * 100))
+    .toBe(50);
+  expect((await drawn(bar)).colour).not.toBe("rgba(0, 0, 0, 0)");
+
+  // And the card on the lists page says the same about the stored rows.
+  await expect.poll(() => prisma().listItem.count({ where: { done: true } })).toBe(1);
+  await page.goto("/lists");
+  await expect(page.locator("[data-progress]").first()).toHaveAttribute("data-progress", "50");
+});
+
+test("the last tick clears the list and says so", async ({ page }) => {
+  await openDialog(page, "New list");
+  await page.getByLabel("List name").fill("One job");
+  await page.getByRole("button", { name: "Create list" }).click();
+  await page.waitForURL(/\/lists\/[a-z0-9]+$/);
+
+  await page.getByPlaceholder("Add an item").fill("Bins");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.getByText("Bins", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Mark as done" }).click();
+
+  await expect(page.getByText("All done 🎉")).toBeVisible();
+  await expect(page.locator("[data-progress]").first()).toHaveAttribute("data-progress", "100");
+  await expect(page.getByText("Nice — everything here is ticked off.")).toBeVisible();
 });
 
 test("an item can be removed outright", async ({ page }) => {

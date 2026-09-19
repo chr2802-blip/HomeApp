@@ -448,6 +448,76 @@ h3 {
   animation: check-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/*
+ * Ticking a row off, on the row itself.
+ *
+ * The tick used to be seen only on the "Completed" heading, because the row left the
+ * open list in the very same render that marked it done — pressed, gone, with nothing
+ * in between. So the row is now held where it is for the length of this animation
+ * before it moves: the box fills and pops (`check-pop`, the same overshoot the heading
+ * uses), the words strike through, and then the whole row slides off to the right as it
+ * fades, which is where it is going. The heading still pops when it arrives; the two
+ * are the same movement seen from either end.
+ *
+ * `transform` here rather than `translate`, because this is our own keyframe and not a
+ * Tailwind utility being eased — see the note above `.pressable` for which is which.
+ */
+@keyframes tick-off {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  55% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(24px, 0, 0);
+  }
+}
+
+.animate-tick-off {
+  animation: tick-off 420ms ease-in forwards;
+}
+
+/*
+ * Clearing the last thing off a list.
+ *
+ * One keyframe for every piece; what makes them a burst rather than a curtain is that
+ * each carries its own duration, delay, drift and spin — see `components/celebration`,
+ * which is also the only thing that sets `--confetti-x` and `--confetti-rotate`. A
+ * piece with neither set would fall straight down without turning, which is why the
+ * fallbacks in `var()` are there at all.
+ *
+ * `100vh` rather than a fixed distance: the overlay is the whole screen, and a piece
+ * has to leave the bottom of whatever screen it is on. The fill is forwards so nothing
+ * flashes back to the top in the moment between the last piece landing and the overlay
+ * being taken off the page.
+ */
+@keyframes confetti {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  8% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--confetti-x, 0), 100vh, 0) rotate(var(--confetti-rotate, 0deg));
+  }
+}
+
+.animate-confetti {
+  animation-name: confetti;
+  animation-timing-function: cubic-bezier(0.25, 0.6, 0.55, 1);
+  animation-fill-mode: forwards;
+}
+
 @keyframes row-in {
   from {
     opacity: 0;

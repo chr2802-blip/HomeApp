@@ -155,6 +155,91 @@ test.describe("what eases rather than snapping", () => {
   });
 });
 
+test.describe("ticking something off a list", () => {
+  /** A list with the items named on it, in the order given, none of them ticked. */
+  async function seedList(title: string, texts: string[]) {
+    const home = await prisma().home.findFirstOrThrow({ where: { name: HOME_NAME } });
+    const owner = await prisma().user.findFirstOrThrow({ where: { email: ACCOUNTS.member.email } });
+
+    const list = await prisma().list.create({
+      data: {
+        homeId: home.id,
+        createdById: owner.id,
+        title,
+        items: { create: texts.map((text, index) => ({ text, position: index + 1 })) },
+      },
+    });
+    return list.id;
+  }
+
+  /**
+   * Ticks a row off, and reports what ran because of it.
+   *
+   * The same hydration problem the recipe filters have: the checkbox is the same markup
+   * before and after React attaches to it, so the press is offered again until the row
+   * says it is ticked. The recording is cleared inside the retry rather than before it,
+   * so what is asserted is what the press that actually worked caused.
+   */
+  async function tickOff(page: Page, text: string) {
+    // The row's own form, and the one button in it. Found by the row rather than by the
+    // button's name, because that name is the thing about to change: a locator naming
+    // "Mark as done" stops matching the moment the press works, which is exactly when
+    // the retry below needs to read the button's state.
+    const box = page.locator("form").filter({ hasText: text }).getByRole("button").first();
+
+    await expect(async () => {
+      await forget(page);
+      await box.click();
+      await expect(box).toHaveAttribute("aria-pressed", "true", { timeout: 1000 });
+    }).toPass({ timeout: 20_000 });
+  }
+
+  test("is seen on the row it happened to, and again where the row lands", async ({ page }) => {
+    const id = await seedList("Weekend shop", ["Milk", "Bread"]);
+    await page.goto(`/lists/${id}`);
+    await expect(page.getByText("Milk", { exact: true })).toBeVisible();
+
+    await tickOff(page, "Milk");
+
+    // The box fills and pops where it was pressed, the row slides away, and the
+    // "Completed" heading it lands in pops as it arrives.
+    await expectPlayed(page, "check-pop", "tick-off");
+    await expect(page.getByRole("button", { name: "Completed (1)" })).toBeVisible();
+    await expect(page.getByText("Bread", { exact: true })).toBeVisible();
+  });
+
+  test("throws confetti for the last one, and only for the last one", async ({ page }) => {
+    const id = await seedList("Last errand", ["Stamps", "Milk"]);
+    await page.goto(`/lists/${id}`);
+    await expect(page.getByText("Stamps", { exact: true })).toBeVisible();
+
+    // One of two: the list is not finished, so this is an ordinary tick.
+    await tickOff(page, "Stamps");
+    await expectPlayed(page, "tick-off");
+    expect(await page.evaluate(() => (window as Recorder).__animations ?? [])).not.toContain(
+      "confetti",
+    );
+
+    // The one that clears the list.
+    await tickOff(page, "Milk");
+    await expectPlayed(page, "confetti");
+    await expect(page.getByText("Nice — everything here is ticked off.")).toBeVisible();
+  });
+
+  test("the confetti takes itself off the page again", async ({ page }) => {
+    const id = await seedList("One thing", ["Stamps"]);
+    await page.goto(`/lists/${id}`);
+    await expect(page.getByText("Stamps", { exact: true })).toBeVisible();
+
+    await tickOff(page, "Stamps");
+    await expectPlayed(page, "confetti");
+
+    // Nothing is left over the page afterwards: it would be invisible and cover
+    // everything, which is the worst way for an overlay to outstay its welcome.
+    await expect(page.locator(".animate-confetti")).toHaveCount(0);
+  });
+});
+
 test.describe("the recipes page", () => {
   /** A recipe filed under the first seeded category, and one under the second. */
   async function seedRecipes() {

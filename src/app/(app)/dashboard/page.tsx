@@ -9,6 +9,7 @@ import { dueLabel, dueTone } from "@/lib/due";
 import { UNFINISHED, repeatLabel } from "@/lib/tasks";
 import { PhotoBanner, PhotoThumb } from "@/components/photo";
 import { SuggestedRecipe } from "@/components/suggested-recipe";
+import { ProgressBar } from "@/components/progress-bar";
 import { dueAtDaysFrom } from "@/lib/time";
 
 /**
@@ -210,9 +211,18 @@ export default async function DashboardPage() {
                 <Card className="flex items-center gap-3 transition hover:border-slate-400">
                   {/* Decorative: the list's own name is right beside it. */}
                   <PhotoThumb photoId={list.photoId} alt="" className="h-11 w-11" />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="font-medium">{list.title}</p>
                     <p className="text-xs text-slate-500">{itemsLine(list)}</p>
+                    {/* Same bar the lists page draws, and only where there is something
+                        to be a proportion of — a list with nothing on it is not done. */}
+                    {list._count.items > 0 && (
+                      <ProgressBar
+                        done={list._count.items - list.items.length}
+                        total={list._count.items}
+                        className="mt-2"
+                      />
+                    )}
                   </div>
                 </Card>
               </Link>

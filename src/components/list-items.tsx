@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -28,7 +28,9 @@ import {
 import { ConfirmButton } from "@/components/confirm-button";
 import { AmountPicker } from "@/components/amount-picker";
 import { Collapsible } from "@/components/collapsible";
-import { tick } from "@/lib/haptics";
+import { Celebration } from "@/components/celebration";
+import { ProgressBar } from "@/components/progress-bar";
+import { cheer, tick } from "@/lib/haptics";
 
 /** A recipe that asked for this item, as the row names it. */
 type Source = { id: string; title: string };
@@ -73,15 +75,29 @@ function applyTo(items: Item[], change: Change): Item[] {
   return items.map((item) => ({ ...item, position: rank.get(item.id) ?? item.position }));
 }
 
-/** Open items first, then ticked ones — each group in its own running order. */
-function sorted(items: Item[]) {
-  return [...items].sort((a, b) => Number(a.done) - Number(b.done) || a.position - b.position);
+/** The running order inside a group. Which group a row is in is decided separately. */
+function byPosition(a: Item, b: Item) {
+  return a.position - b.position;
 }
+
+/**
+ * How long a ticked row is held where it is before it folds into the completed section.
+ *
+ * The same 420ms `tick-off` runs for in `globals.css`, and the two have to agree: held
+ * for less and the row is cut off mid-slide, held for longer and there is a gap where
+ * a blank row sits waiting. It is a number here rather than an `animationend` listener
+ * because the row has to move even when the animation never runs at all — a backgrounded
+ * tab, or somebody who asked the system to reduce motion, where every duration in the
+ * app collapses to nothing.
+ */
+const SETTLE_MS = 420;
 
 function Row({
   item,
   draggable,
   showAmount,
+  settling,
+  onPress,
   onToggle,
   onAmount,
   onRemove,
@@ -89,6 +105,9 @@ function Row({
   item: Item;
   draggable: boolean;
   showAmount: boolean;
+  /** Just ticked, and still being seen leaving — see `ListItems`. */
+  settling: boolean;
+  onPress: (done: boolean) => void;
   onToggle: () => void;
   onAmount: (amount: number) => void;
   onRemove: () => void;
@@ -104,7 +123,7 @@ function Row({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={`flex items-center gap-2 bg-white px-2 py-2.5 sm:px-4 ${
         isDragging ? "relative z-10 opacity-80 shadow-md" : ""
-      }`}
+      } ${settling ? "animate-tick-off" : ""}`}
     >
       {draggable ? (
         <button
@@ -134,12 +153,10 @@ function Row({
           type="submit"
           aria-label={item.done ? "Mark as not done" : "Mark as done"}
           aria-pressed={item.done}
-          onClick={() => {
-            if (!item.done) tick();
-          }}
+          onClick={() => onPress(!item.done)}
           className={`pressable flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs active:scale-90 ${
             item.done ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white"
-          }`}
+          } ${settling ? "animate-check-pop" : ""}`}
         >
           {item.done ? "✓" : ""}
         </button>
@@ -222,6 +239,79 @@ export function ListItems({
   const [optimisticItems, applyChange] = useOptimistic(items, applyTo);
   const [, startTransition] = useTransition();
 
+  /*
+   * The rows that have just been ticked and are still being seen leaving.
+   *
+   * A tick used to be invisible on the row it happened to: the item was marked done and
+   * moved into the completed section — closed, by default — inside the same render, so
+   * the box it was pressed in was gone before it could show anything. Holding the row
+   * in the open group for the length of its animation is what gives the tick somewhere
+   * to happen; everything else about the row is already true by then, so what is on
+   * screen during those few hundred milliseconds is the finished state sliding away
+   * rather than a lie about what was stored.
+   *
+   * Untick a settling row and it simply stops settling — the row is staying, and an
+   * animation about leaving would be describing something that is no longer happening.
+   */
+  const [settling, setSettling] = useState<ReadonlySet<string>>(new Set());
+  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  // Nothing here may outlive the component: a timer firing after the list has been
+  // navigated away from would be setting state on something that is gone.
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      for (const timer of pending.values()) clearTimeout(timer);
+      pending.clear();
+    };
+  }, []);
+
+  const [celebrating, setCelebrating] = useState(false);
+  const stopCelebrating = useCallback(() => setCelebrating(false), []);
+
+  function stopSettling(id: string) {
+    const timer = timers.current.get(id);
+    if (timer) clearTimeout(timer);
+    timers.current.delete(id);
+    setSettling((current) => {
+      if (!current.has(id)) return current;
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  /*
+   * The press itself, before the form action that follows it.
+   *
+   * Here rather than beside the optimistic change because this is what the person did,
+   * not what it means for the data: React runs a form action inside a transition, where
+   * an update is free to be held back a frame or two, and the one thing feedback about a
+   * press must not be is late.
+   */
+  function handlePress(item: Item, done: boolean) {
+    if (!done) {
+      stopSettling(item.id);
+      return;
+    }
+
+    tick();
+    setSettling((current) => new Set(current).add(item.id));
+    timers.current.set(
+      item.id,
+      setTimeout(() => stopSettling(item.id), SETTLE_MS),
+    );
+
+    // The last open row, counted before this press is applied: everything else on the
+    // list is already ticked, so this is the one that clears it. A list being emptied by
+    // deletions reaches the same state and is not celebrated — nothing was finished.
+    const wasLast = optimisticItems.filter((other) => !other.done).length === 1;
+    if (wasLast) {
+      cheer();
+      setCelebrating(true);
+    }
+  }
+
   const sensors = useSensors(
     // A little movement before a drag starts, so tapping the handle on a phone does
     // not read as a drag.
@@ -229,15 +319,26 @@ export function ListItems({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  const visible = sorted(optimisticItems);
-  const open = visible.filter((item) => !item.done);
-  const done = visible.filter((item) => item.done);
+  // A row that has just been ticked stays in the open group until it has finished
+  // leaving; the completed count below picks it up as it lands, which is what makes the
+  // heading's own pop read as the same movement arriving.
+  const open = optimisticItems
+    .filter((item) => !item.done || settling.has(item.id))
+    .sort(byPosition);
+  const done = optimisticItems
+    .filter((item) => item.done && !settling.has(item.id))
+    .sort(byPosition);
 
-  // A little overshoot on "Completed" when its count goes up, not down: a tick moves
-  // the row out of view (into this heading, closed by default) in the very same render
-  // that marks it done, so the row's own checkbox never stays on screen long enough to
-  // carry a "ticked" animation itself — this heading is the one thing both sides of
-  // that move have in common, and where the moment is actually seen.
+  // What the bar says, which is not what the two groups above count: a settling row is
+  // ticked off, and a progress bar that waited for the animation would be the one thing
+  // on the page still pretending otherwise.
+  const ticked = optimisticItems.filter((item) => item.done).length;
+  const total = optimisticItems.length;
+
+  // A little overshoot on "Completed" when its count goes up, not down: the row slides
+  // out of the open list and into this heading, which is closed by default, so this is
+  // where the movement ends. The row's own `tick-off` is the first half of it and this
+  // is the second — the same tick seen arriving, which is why both use the same pop.
   const previousDone = useRef(done.length);
   const [justCompleted, setJustCompleted] = useState(false);
   useEffect(() => {
@@ -245,7 +346,7 @@ export function ListItems({
     previousDone.current = done.length;
   }, [done.length]);
 
-  if (visible.length === 0) {
+  if (total === 0) {
     return (
       <p className="animate-row-in p-6 text-center text-sm text-slate-500">
         🛒 This list is empty — add something below.
@@ -284,6 +385,8 @@ export function ListItems({
         item={item}
         draggable={draggable}
         showAmount={trackAmounts}
+        settling={settling.has(item.id)}
+        onPress={(nowDone) => handlePress(item, nowDone)}
         onToggle={async () => {
           applyChange({ type: "toggle", id: item.id });
           await toggleListItem(payload);
@@ -308,6 +411,24 @@ export function ListItems({
 
   return (
     <>
+      {celebrating && <Celebration onDone={stopCelebrating} />}
+
+      {/* How far along the list is, in words and as a bar. Inside the rows rather than
+          up beside the title: a tick is optimistic, so this has to be told by the same
+          state the rows are — a copy counted on the server would sit one press behind
+          every time, which is the one thing a progress bar may not do. */}
+      <div className="space-y-2 px-4 py-3">
+        <div className="flex items-baseline justify-between gap-3 text-xs">
+          <span className="font-medium text-slate-600">
+            {ticked === total ? "All done 🎉" : `${ticked} of ${total} ticked off`}
+          </span>
+          <span className="tabular-nums text-slate-400">
+            {Math.round((ticked / total) * 100)}%
+          </span>
+        </div>
+        <ProgressBar done={ticked} total={total} />
+      </div>
+
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
