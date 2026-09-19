@@ -884,10 +884,17 @@ it measures any other upload. A picture that cannot be fetched or does not survi
 check is left out, quietly — decoration for a recipe that is otherwise complete, never a
 reason to refuse one that was.
 
-Only the title, ingredients, instructions and picture come back from a fetch; the video
-link and categories are the create form's own fields regardless of how it was reached,
-since schema.org has nothing standard to say about either and they are this household's
-choices to make either way.
+The title, ingredients, instructions, picture and total time come back from a fetch; the
+video link and categories are the create form's own fields regardless of how it was
+reached, since schema.org has nothing standard to say about either and they are this
+household's choices to make either way. Time is a schema.org field like the others, read
+as `totalTime` where a site publishes it and as `prepTime` plus `cookTime` where it does
+not — both in `PT1H30M`-style ISO 8601, the one shape the standard allows. Recorded as a
+single number of minutes rather than kept as prep and cook apart, because nothing in this
+app answers a question the two would disagree about: the recipe list's own time filter
+(`RecipeDirectory`) is a straight "under 30 minutes or not", the same question a cook
+actually has on a Tuesday, and offered only once something in the home has a time to
+filter by.
 
 ### A sheet's actions stay on screen
 

@@ -323,16 +323,20 @@ model Task {
 }
 
 model Recipe {
-  id           String   @id @default(cuid())
-  homeId       String
-  title        String
-  description  String?
-  ingredients  String   @default("")
-  instructions String   @default("")
-  videoUrl     String?
-  photoId      String?
-  createdById  String
-  createdAt    DateTime @default(now())
+  id               String   @id @default(cuid())
+  homeId           String
+  title            String
+  description      String?
+  ingredients      String   @default("")
+  instructions     String   @default("")
+  videoUrl         String?
+  /// Start to finish, in minutes — not prep and cook kept apart, because nothing in
+  /// this app answers a question they would disagree about; a total is what the recipe
+  /// list filters and shows.
+  totalTimeMinutes Int?
+  photoId          String?
+  createdById      String
+  createdAt        DateTime @default(now())
 
   home       Home                 @relation(fields: [homeId], references: [id], onDelete: Cascade)
   createdBy  User                 @relation(fields: [createdById], references: [id], onDelete: Cascade)

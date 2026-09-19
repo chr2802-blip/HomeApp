@@ -26,6 +26,7 @@ describe("parseRecipeFromHtml — JSON-LD", () => {
       ingredients: "200 g flour\n2 eggs",
       instructions: "Mix and fry.",
       imageUrl: null,
+      totalTimeMinutes: null,
     });
   });
 
@@ -48,6 +49,7 @@ describe("parseRecipeFromHtml — JSON-LD", () => {
       ingredients: "Pasta\nSauce",
       instructions: "Layer.\nBake.",
       imageUrl: null,
+      totalTimeMinutes: null,
     });
   });
 
@@ -149,6 +151,74 @@ describe("parseRecipeFromHtml — JSON-LD", () => {
     });
     expect(parseRecipeFromHtml(html)?.imageUrl).toBe("https://example.com/pancakes.jpg");
   });
+
+  it("reads totalTime as minutes", () => {
+    const html = pageWithLdJson({
+      "@type": "Recipe",
+      name: "Pancakes",
+      recipeIngredient: ["Flour"],
+      recipeInstructions: "Fry.",
+      totalTime: "PT1H30M",
+    });
+    expect(parseRecipeFromHtml(html)?.totalTimeMinutes).toBe(90);
+  });
+
+  it("adds prepTime and cookTime when there is no totalTime", () => {
+    const html = pageWithLdJson({
+      "@type": "Recipe",
+      name: "Pancakes",
+      recipeIngredient: ["Flour"],
+      recipeInstructions: "Fry.",
+      prepTime: "PT10M",
+      cookTime: "PT20M",
+    });
+    expect(parseRecipeFromHtml(html)?.totalTimeMinutes).toBe(30);
+  });
+
+  it("prefers totalTime over prepTime and cookTime when both are given", () => {
+    const html = pageWithLdJson({
+      "@type": "Recipe",
+      name: "Pancakes",
+      recipeIngredient: ["Flour"],
+      recipeInstructions: "Fry.",
+      totalTime: "PT45M",
+      prepTime: "PT10M",
+      cookTime: "PT20M",
+    });
+    expect(parseRecipeFromHtml(html)?.totalTimeMinutes).toBe(45);
+  });
+
+  it("reads a bare number of minutes with no hours", () => {
+    const html = pageWithLdJson({
+      "@type": "Recipe",
+      name: "Pancakes",
+      recipeIngredient: ["Flour"],
+      recipeInstructions: "Fry.",
+      totalTime: "PT25M",
+    });
+    expect(parseRecipeFromHtml(html)?.totalTimeMinutes).toBe(25);
+  });
+
+  it("is null when neither totalTime nor prepTime/cookTime is present", () => {
+    const html = pageWithLdJson({
+      "@type": "Recipe",
+      name: "Pancakes",
+      recipeIngredient: ["Flour"],
+      recipeInstructions: "Fry.",
+    });
+    expect(parseRecipeFromHtml(html)?.totalTimeMinutes).toBeNull();
+  });
+
+  it("ignores a duration it cannot parse", () => {
+    const html = pageWithLdJson({
+      "@type": "Recipe",
+      name: "Pancakes",
+      recipeIngredient: ["Flour"],
+      recipeInstructions: "Fry.",
+      totalTime: "about half an hour",
+    });
+    expect(parseRecipeFromHtml(html)?.totalTimeMinutes).toBeNull();
+  });
 });
 
 describe("parseRecipeFromHtml — Microdata", () => {
@@ -183,6 +253,7 @@ describe("parseRecipeFromHtml — Microdata", () => {
       ingredients: "Hakket oksekød\nPasta",
       instructions: "Brun kødet.\nKog pastaen.",
       imageUrl: "/images/pasta.jpg",
+      totalTimeMinutes: null,
     });
   });
 
@@ -247,6 +318,7 @@ describe("parseRecipeFromHtml — Microdata", () => {
       ingredients: "Stock",
       instructions: "Heat it.",
       imageUrl: null,
+      totalTimeMinutes: null,
     });
   });
 
@@ -269,6 +341,29 @@ describe("parseRecipeFromHtml — Microdata", () => {
       <span itemprop="name">Not a recipe</span>
     </div>`;
     expect(parseRecipeFromHtml(html)).toBeNull();
+  });
+
+  it("reads a time's datetime attribute, not its visible text", () => {
+    const html = microdataPage(`
+      <span itemprop="name">Soup</span>
+      <span itemprop="recipeIngredient">Stock</span>
+      <span itemprop="recipeInstructions">Heat it.</span>
+      <time itemprop="totalTime" datetime="PT40M">40 minutes</time>
+    `);
+
+    expect(parseRecipeFromHtml(html)?.totalTimeMinutes).toBe(40);
+  });
+
+  it("adds prepTime and cookTime when Microdata has no totalTime", () => {
+    const html = microdataPage(`
+      <span itemprop="name">Soup</span>
+      <span itemprop="recipeIngredient">Stock</span>
+      <span itemprop="recipeInstructions">Heat it.</span>
+      <time itemprop="prepTime" datetime="PT5M"></time>
+      <time itemprop="cookTime" datetime="PT15M"></time>
+    `);
+
+    expect(parseRecipeFromHtml(html)?.totalTimeMinutes).toBe(20);
   });
 });
 
@@ -305,7 +400,13 @@ describe("fetchRecipeFromUrl", () => {
 
     expect(await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID)).toEqual({
       ok: true,
-      recipe: { title: "Pancakes", ingredients: "Flour", instructions: "Fry.", photoId: null },
+      recipe: {
+        title: "Pancakes",
+        ingredients: "Flour",
+        instructions: "Fry.",
+        photoId: null,
+        totalTimeMinutes: null,
+      },
     });
   });
 
@@ -421,6 +522,7 @@ describe("fetchRecipeFromUrl", () => {
         ingredients: "Hakket oksekød",
         instructions: "Brun kødet.",
         photoId: null,
+        totalTimeMinutes: null,
       },
     });
   });
@@ -516,7 +618,13 @@ describe("fetchRecipeFromUrl", () => {
     // never a reason to refuse an otherwise readable recipe.
     expect(result).toEqual({
       ok: true,
-      recipe: { title: "Pancakes", ingredients: "Flour", instructions: "Fry.", photoId: null },
+      recipe: {
+        title: "Pancakes",
+        ingredients: "Flour",
+        instructions: "Fry.",
+        photoId: null,
+        totalTimeMinutes: null,
+      },
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });

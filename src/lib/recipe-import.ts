@@ -9,6 +9,7 @@ type ParsedRecipe = {
   ingredients: string;
   instructions: string;
   imageUrl: string | null;
+  totalTimeMinutes: number | null;
 };
 
 export type ImportedRecipe = {
@@ -16,6 +17,7 @@ export type ImportedRecipe = {
   ingredients: string;
   instructions: string;
   photoId: string | null;
+  totalTimeMinutes: number | null;
 };
 /**
  * `notARecipe` marks a failure where the page was reached fine and simply had nothing
@@ -198,6 +200,23 @@ function microdataText($: cheerio.CheerioAPI, root: ReturnType<typeof microdataR
 }
 
 /**
+ * A duration in Microdata is conventionally a `<time>` element's `datetime` attribute
+ * (`<time itemprop="totalTime" datetime="PT30M">30 mins</time>`), because the visible
+ * text is for a reader and the attribute is for exactly this kind of scraping — schema.org
+ * only ever promises the machine-readable value lives *somewhere* on the tagged element, so
+ * `content` and the element's own text are read too, for the templates that skip `<time>`.
+ */
+function microdataDurationMinutes(
+  $: cheerio.CheerioAPI,
+  root: ReturnType<typeof microdataRecipeRoot>,
+  prop: string,
+): number | null {
+  const el = root.find(`[itemprop="${prop}"]`).first();
+  if (el.length === 0) return null;
+  return isoDurationMinutes(el.attr("datetime") ?? el.attr("content") ?? el.text());
+}
+
+/**
  * `recipeInstructions` in Microdata arrives in whichever of two shapes a site chose:
  * the property repeated once per step, or once on a container whose own steps (or
  * paragraphs, where the steps are not marked up at all) sit inside it.
@@ -220,6 +239,43 @@ function microdataInstructions($: cheerio.CheerioAPI, root: ReturnType<typeof mi
     .get()
     .filter(Boolean)
     .join("\n");
+}
+
+/**
+ * schema.org times (`prepTime`, `cookTime`, `totalTime`) are ISO 8601 durations —
+ * `PT1H30M`, not "1 hour 30 minutes" — because the spec wants a machine-readable value
+ * and a recipe site's template obliges. Only the units a recipe could plausibly use are
+ * read; a duration naming years or months is not a cooking time this app is prepared to
+ * believe.
+ */
+function isoDurationMinutes(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const match = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/.exec(value.trim());
+  if (!match) return null;
+  const [, days, hours, minutes, seconds] = match;
+  if (!days && !hours && !minutes && !seconds) return null;
+
+  const totalMinutes =
+    Number(days ?? 0) * 24 * 60 + Number(hours ?? 0) * 60 + Number(minutes ?? 0) + Number(seconds ?? 0) / 60;
+  return Math.round(totalMinutes);
+}
+
+/**
+ * A recipe's total time, the way the filter on `/recipes` wants it: one number, start
+ * to finish. `totalTime` says that directly where a site publishes it; failing that,
+ * `prepTime` and `cookTime` are added together, because a site publishing only those
+ * two is still telling you how long the recipe takes — just in two pieces rather than
+ * one. Neither present is not the same as zero, so it stays null rather than becoming a
+ * recipe that claims to take no time at all.
+ */
+function combinedTimeMinutes(
+  total: number | null,
+  prep: number | null,
+  cook: number | null,
+): number | null {
+  if (total !== null) return total;
+  if (prep === null && cook === null) return null;
+  return (prep ?? 0) + (cook ?? 0);
 }
 
 /** The `<title>` or `og:title` of a page, for when there is no JSON-LD title to use. */
@@ -316,9 +372,22 @@ export function parseRecipeFromHtml(html: string): ParsedRecipe | null {
     (hasMicrodata ? microdataInstructions($, microdata) : "");
   const imageUrl =
     jsonLdImageUrl(jsonLd?.image) || (hasMicrodata ? microdataImageUrl($, microdata) : null) || ogImage(html);
+  const totalTimeMinutes =
+    combinedTimeMinutes(
+      isoDurationMinutes(jsonLd?.totalTime),
+      isoDurationMinutes(jsonLd?.prepTime),
+      isoDurationMinutes(jsonLd?.cookTime),
+    ) ??
+    (hasMicrodata
+      ? combinedTimeMinutes(
+          microdataDurationMinutes($, microdata, "totalTime"),
+          microdataDurationMinutes($, microdata, "prepTime"),
+          microdataDurationMinutes($, microdata, "cookTime"),
+        )
+      : null);
 
   if (!title || (!ingredients && !instructions)) return null;
-  return { title, ingredients, instructions, imageUrl };
+  return { title, ingredients, instructions, imageUrl, totalTimeMinutes };
 }
 
 /**
@@ -374,6 +443,7 @@ export async function fetchRecipeFromUrl(rawUrl: string, homeId: string): Promis
       ingredients: parsed.ingredients,
       instructions: parsed.instructions,
       photoId,
+      totalTimeMinutes: parsed.totalTimeMinutes,
     },
   };
 }

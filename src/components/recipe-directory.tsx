@@ -7,6 +7,7 @@ import { Card, EmptyState, Input } from "@/components/ui";
 import { ItemMenu } from "@/components/item-menu";
 import { RecipeFields } from "@/components/recipe-fields";
 import { PhotoCover } from "@/components/photo";
+import { QUICK_RECIPE_MINUTES, timeLabel } from "@/lib/recipes";
 
 export type RecipeSummary = {
   id: string;
@@ -21,11 +22,27 @@ export type RecipeSummary = {
   instructions: string;
   videoUrl: string | null;
   hasVideo: boolean;
+  totalTimeMinutes: number | null;
 };
 
 export type RecipeCategorySummary = { id: string; name: string };
 
 const ALL = "all";
+
+type TimeFilter = "all" | "quick" | "slow";
+
+/**
+ * Whether a recipe belongs in the "Under 30 min" or "30 min+" bucket. A recipe with no
+ * time on it belongs in neither — it is not known to be quick, and it is not known to be
+ * slow, and putting it in one bucket or the other would be a guess dressed as a filter.
+ */
+function matchesTimeFilter(totalTimeMinutes: number | null, filter: TimeFilter): boolean {
+  if (filter === "all") return true;
+  if (totalTimeMinutes === null) return false;
+  return filter === "quick"
+    ? totalTimeMinutes <= QUICK_RECIPE_MINUTES
+    : totalTimeMinutes > QUICK_RECIPE_MINUTES;
+}
 
 /**
  * Every recipe in the home under its category heading, with a filter and a search box.
@@ -48,6 +65,7 @@ export function RecipeDirectory({
 }) {
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState<string>(ALL);
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
 
   const needle = query.trim().toLowerCase();
 
@@ -56,15 +74,18 @@ export function RecipeDirectory({
       categoryId === ALL
         ? recipes
         : recipes.filter((recipe) => recipe.categoryIds.includes(categoryId));
-    if (!needle) return inCategory;
+    const inTime = inCategory.filter((recipe) =>
+      matchesTimeFilter(recipe.totalTimeMinutes, timeFilter),
+    );
+    if (!needle) return inTime;
 
-    return inCategory.filter((recipe) =>
+    return inTime.filter((recipe) =>
       [recipe.title, recipe.description ?? "", recipe.ingredients]
         .join("\n")
         .toLowerCase()
         .includes(needle),
     );
-  }, [recipes, categoryId, needle]);
+  }, [recipes, categoryId, timeFilter, needle]);
 
   // Headings in the categories' own order, and only those with something under them:
   // a page of empty headings tells the reader nothing about what is in the house. A
@@ -98,6 +119,16 @@ export function RecipeDirectory({
       counts.set(id, (counts.get(id) ?? 0) + 1);
     }
   }
+
+  // Drawn only once something in the home actually has a time to filter by — a row of
+  // chips that always turns up empty is a row not worth being offered.
+  const hasTimedRecipe = recipes.some((recipe) => recipe.totalTimeMinutes !== null);
+  const quickCount = recipes.filter((recipe) =>
+    matchesTimeFilter(recipe.totalTimeMinutes, "quick"),
+  ).length;
+  const slowCount = recipes.filter((recipe) =>
+    matchesTimeFilter(recipe.totalTimeMinutes, "slow"),
+  ).length;
 
   return (
     <>
@@ -146,9 +177,41 @@ export function RecipeDirectory({
         ))}
       </div>
 
+      {hasTimedRecipe && (
+        <div role="group" aria-label="Filter by time" className="mb-5 flex flex-wrap gap-2">
+          <FilterChip
+            label="Any time"
+            active={timeFilter === "all"}
+            count={recipes.length}
+            onClick={() => setTimeFilter("all")}
+          />
+          <FilterChip
+            label={`Under ${QUICK_RECIPE_MINUTES} min`}
+            active={timeFilter === "quick"}
+            count={quickCount}
+            onClick={() => setTimeFilter("quick")}
+          />
+          <FilterChip
+            label={`${QUICK_RECIPE_MINUTES} min+`}
+            active={timeFilter === "slow"}
+            count={slowCount}
+            onClick={() => setTimeFilter("slow")}
+          />
+        </div>
+      )}
+
       {groups.length === 0 ? (
         <EmptyState>
-          {needle ? <>No recipe matches “{query.trim()}”.</> : "Nothing filed under this category yet."}
+          {needle ? (
+            <>No recipe matches “{query.trim()}”.</>
+          ) : timeFilter !== "all" ? (
+            <>
+              No recipes {timeFilter === "quick" ? `under ${QUICK_RECIPE_MINUTES} min` : `${QUICK_RECIPE_MINUTES} min or more`}
+              {categoryId !== ALL ? " in this category" : ""}.
+            </>
+          ) : (
+            "Nothing filed under this category yet."
+          )}
         </EmptyState>
       ) : (
         /*
@@ -192,8 +255,12 @@ export function RecipeDirectory({
                             {recipe.description}
                           </p>
                         )}
-                        {recipe.hasVideo && (
-                          <p className="mt-2 text-xs text-slate-500">Includes a video</p>
+                        {(recipe.totalTimeMinutes !== null || recipe.hasVideo) && (
+                          <p className="mt-2 text-xs text-slate-500">
+                            {[timeLabel(recipe.totalTimeMinutes), recipe.hasVideo ? "Includes a video" : null]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
                         )}
                       </div>
                     </Link>

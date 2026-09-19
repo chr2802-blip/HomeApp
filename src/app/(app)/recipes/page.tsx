@@ -34,6 +34,7 @@ export default async function RecipesPage() {
     instructions: recipe.instructions,
     videoUrl: recipe.videoUrl,
     hasVideo: Boolean(parseSocialEmbed(recipe.videoUrl)),
+    totalTimeMinutes: recipe.totalTimeMinutes,
   }));
 
   return (

@@ -12,9 +12,9 @@ import type { ImportedRecipe } from "@/lib/recipe-import";
  * may fail, and folding it into the same submit as saving would make one Save button
  * mean two different things.
  *
- * The title, ingredients, instructions and picture come back filled in; the video link
- * and categories are left for the create form either way, since those are this
- * household's own choices and schema.org has no standard place for either. The picture
+ * The title, ingredients, instructions, picture and total time come back filled in; the
+ * video link and categories are left for the create form either way, since those are
+ * this household's own choices and schema.org has no standard place for either. The picture
  * is only ever a starting point, not a fixture — `PhotoField` shows it exactly as it
  * would a photo the cook chose themselves, replaceable or removable before saving.
  *
@@ -102,8 +102,8 @@ export function RecipeImportField({
         </Button>
       </div>
       <p className="text-xs text-slate-500">
-        Its title, ingredients, instructions and picture open in the usual form, to check over
-        before saving.
+        Its title, ingredients, instructions, picture and time open in the usual form, to check
+        over before saving.
       </p>
       {error && (
         <p role="alert" className="text-sm text-red-600">

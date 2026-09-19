@@ -147,7 +147,13 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
     // reason to refuse a recipe that was otherwise perfectly readable.
     expect(result).toEqual({
       ok: true,
-      recipe: { title: "Pancakes", ingredients: "Flour", instructions: "Fry.", photoId: null },
+      recipe: {
+        title: "Pancakes",
+        ingredients: "Flour",
+        instructions: "Fry.",
+        photoId: null,
+        totalTimeMinutes: null,
+      },
     });
     expect(await prisma.photo.count()).toBe(0);
   });
@@ -172,7 +178,13 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
 
     expect(result).toEqual({
       ok: true,
-      recipe: { title: "Pancakes", ingredients: "Flour", instructions: "Fry.", photoId: null },
+      recipe: {
+        title: "Pancakes",
+        ingredients: "Flour",
+        instructions: "Fry.",
+        photoId: null,
+        totalTimeMinutes: null,
+      },
     });
     expect(await prisma.photo.count()).toBe(0);
   });
@@ -194,7 +206,13 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
 
     expect(result).toEqual({
       ok: true,
-      recipe: { title: "Pancakes", ingredients: "Flour", instructions: "Fry.", photoId: null },
+      recipe: {
+        title: "Pancakes",
+        ingredients: "Flour",
+        instructions: "Fry.",
+        photoId: null,
+        totalTimeMinutes: null,
+      },
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(await prisma.photo.count()).toBe(0);
