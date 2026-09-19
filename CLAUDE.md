@@ -138,12 +138,16 @@ unit test checks the alpha as strictly as the hex, and no theme block may bring 
 `--accent-soft` of its own: that would be a second colour for the same strip, and the
 one the phone is told about is whichever of the two the header did not use.
 
-**The colour dresses the controls, never the meanings inside them.** The primary button,
-the active nav pill, the focus ring and the hairline under the header — and nothing
-else, the band included: that one dresses no home at all any more. Green is still
-"added", red "about to be deleted", amber "overdue", in every home; a household dressed
-in one of those would be saying it on every screen, which is why none of the themes is
-any of them and why `create` and `danger` keep their own colours.
+**The colour dresses the controls and the household's own progress, never the meanings
+inside them.** The primary button, the active nav pill, the focus ring, the hairline
+under the header — and the bar along the bottom of a list card, which is the one thing
+here that is not a control: a household's way through its own lists is that
+household's, and it was the last fixed colour on those pages that belonged to no home.
+Nothing else, the band included: that one dresses no home at all any more. Green is
+still "added", red "about to be deleted", amber "overdue", in every home; a household
+dressed in one of those would be saying it on every screen, which is why none of the
+themes is any of them and why `create` and `danger` keep their own colours — and why a
+bar in the home's colour cannot accidentally say one of the three.
 
 **The one palette that is neither a home's colour nor a meaning is the charts'.**
 `--chart-recipes`, `--chart-lists`, `--chart-tasks` and `--chart-rest` in `globals.css`
@@ -376,12 +380,22 @@ The press is handled in `handlePress`, beside the optimistic change rather than 
 it. React runs a form action in a transition, where an update may be held back a frame or
 two, and the one thing feedback about a press must not be is late.
 
-**A list's progress is drawn in `--chart-lists`, not in the home's colour and not in
-green.** The accent dresses the controls, and a bar is read rather than pressed — in the
-household whose colour happened to match, a full-width bar would read as one more long
-flat button. Green is "added" everywhere else in the app, so a bar that turned green on
-its last item would be saying that instead. It is the same blue the list's slice wears on
-the storage donuts, which is the palette that exists for saying "this much of that".
+**A list's progress is drawn in the home's own `--accent`, and not in green.** It was
+`--chart-lists`, on the reasoning that the accent dresses controls and a bar is read
+rather than pressed — but `edge` below took the bar out of the card's padding and into
+the card's own bottom, where there is nothing left for it to be mistaken for. Green is
+"added" everywhere else in the app, so a bar that turned green on its last item would be
+saying that instead; no theme is green, red or amber either, so the home's colour cannot
+say one of them by accident. The storage donuts keep the chart palette: those are about
+kinds that mean the same thing in every household, and this is about one household's own
+week.
+
+**On a card the bar is `edge`: flush along the bottom, full width, no radius of its
+own** — the card rounds it off, which is why a card carrying one is `relative
+overflow-hidden` (the three-dot panel is portalled, so clipping costs it nothing). A
+card is one thing, and a rounded bar floating in its padding reads as a second thing
+sitting on it. It is thinner there than the free-standing one because on the edge it is
+a rule rather than a readout: the words above it carry the number.
 
 The bar on the list's own page lives **inside `ListItems`**, not up beside the title: a
 tick is optimistic, so the proportion has to be told by the same state the rows are.

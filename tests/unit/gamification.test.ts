@@ -20,14 +20,28 @@ const read = (file: string) => readFileSync(path.join(process.cwd(), file), "utf
 
 const stylesheet = read("src/app/globals.css");
 
+/**
+ * A file with its prose taken out.
+ *
+ * Every question below is about what the file *draws*, and these files explain
+ * themselves at length — the note saying why the bar is not green is not the bar being
+ * green. Reading the comments as though they were code turns writing that reasoning
+ * down into a failing test, which is the surest way to stop anybody writing it down.
+ */
+function code(file: string) {
+  return read(file)
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/.*$/gm, "");
+}
+
 /** Every `var(--x)` a file asks for, so the stylesheet can be asked whether it has one. */
 function variablesIn(file: string) {
-  return [...read(file).matchAll(/var\((--[a-z-]+)[,)]/g)].map((match) => match[1]);
+  return [...code(file).matchAll(/var\((--[a-z-]+)[,)]/g)].map((match) => match[1]);
 }
 
 /** Every `animate-x` class a file wears, as the keyframes name it. */
 function animationsIn(file: string) {
-  return [...read(file).matchAll(/animate-([a-z-]+)/g)].map((match) => match[1]);
+  return [...code(file).matchAll(/animate-([a-z-]+)/g)].map((match) => match[1]);
 }
 
 /** What draws in a colour of its own, and so can ask for one that is not there. */
@@ -60,11 +74,14 @@ describe("the feedback a list gives back", () => {
     }
   });
 
-  it("keeps a list's own progress out of the home's colour", () => {
-    // The accent dresses the controls — the button that saves, the tab that is lit —
-    // and a bar is read rather than pressed. In the household whose colour happened to
-    // match it, a full-width bar would read as one more long flat button.
-    expect(read("src/components/progress-bar.tsx")).not.toContain("var(--accent");
+  it("draws a list's own progress in the home's colour", () => {
+    // The bar used to be a fixed blue on the reasoning that the accent dresses
+    // controls and a bar is read rather than pressed. Drawn into the card's own bottom
+    // edge there is nothing left for it to be mistaken for, and a household's progress
+    // through its own lists is the household's. The assertion is here rather than
+    // nowhere because the colour is the point: a hard-coded hex would look identical
+    // in every screenshot of the one home that happened to match.
+    expect(code("src/components/progress-bar.tsx")).toContain("var(--accent)");
   });
 
   it("keeps the three colours that already mean something out of both", () => {
@@ -72,7 +89,7 @@ describe("the feedback a list gives back", () => {
     // green on its last item, or confetti in those three, would be saying one of those
     // about a list that is merely finished.
     for (const file of PAINTED) {
-      const source = read(file);
+      const source = code(file);
       for (const reserved of ["#059669", "#dc2626", "#d97706", "emerald", "red-", "amber"]) {
         expect(source, `${file} uses ${reserved}, which means something else`).not.toContain(
           reserved,

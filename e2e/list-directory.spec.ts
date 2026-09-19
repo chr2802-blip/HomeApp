@@ -87,6 +87,41 @@ test.describe("favourites", () => {
     await expect(page.locator("p.font-medium")).toHaveCount(6);
   });
 
+  test("draws a list's progress into the card's own bottom edge", async ({ page }) => {
+    const home = await prisma().home.findFirstOrThrow({ where: { name: HOME_NAME } });
+    const owner = await prisma().user.findFirstOrThrow({ where: { email: ACCOUNTS.member.email } });
+    await prisma().list.create({
+      data: {
+        homeId: home.id,
+        createdById: owner.id,
+        title: "Weekly shop",
+        items: {
+          create: [
+            { text: "Milk", position: 1, done: true },
+            { text: "Bread", position: 2 },
+          ],
+        },
+      },
+    });
+
+    await page.goto("/lists");
+    const card = page.locator("[data-progress]").first().locator("..");
+    const bar = card.locator("[data-progress]");
+    await expect(bar).toHaveAttribute("data-progress", "50");
+
+    const cardBox = (await card.boundingBox())!;
+    const barBox = (await bar.boundingBox())!;
+
+    // Edge to edge and flush with the bottom, rather than a rounded bar floating in the
+    // card's padding. Both are inside the card's 1px border, which is the whole of the
+    // slack allowed here.
+    expect(Math.abs(barBox.width - cardBox.width)).toBeLessThanOrEqual(2);
+    expect(Math.abs(barBox.x - cardBox.x)).toBeLessThanOrEqual(2);
+    expect(
+      Math.abs(barBox.y + barBox.height - (cardBox.y + cardBox.height)),
+    ).toBeLessThanOrEqual(2);
+  });
+
   test("offers nothing more when there is nothing more to offer", async ({ page }) => {
     await seedLists(["One", "Two"]);
     await page.goto("/dashboard");
