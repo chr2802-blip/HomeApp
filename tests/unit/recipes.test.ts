@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shoppingText } from "@/lib/recipes";
+import { shoppingText, timeLabel } from "@/lib/recipes";
 
 describe("shoppingText", () => {
   it("drops a leading amount and unit", () => {
@@ -40,5 +40,23 @@ describe("shoppingText", () => {
 
   it("is why the same ingredient with a different preparation note still matches", () => {
     expect(shoppingText("250 g gulerødder, groftrevet")).toBe(shoppingText("gulerødder, revet"));
+  });
+});
+
+describe("timeLabel", () => {
+  it("is null for a recipe with no time", () => {
+    expect(timeLabel(null)).toBeNull();
+  });
+
+  it("reads under an hour as plain minutes", () => {
+    expect(timeLabel(25)).toBe("25 min");
+  });
+
+  it("reads exactly an hour with no minutes left over", () => {
+    expect(timeLabel(60)).toBe("1 hr");
+  });
+
+  it("reads a mix of hours and minutes", () => {
+    expect(timeLabel(90)).toBe("1 hr 30 min");
   });
 });

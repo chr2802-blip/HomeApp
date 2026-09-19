@@ -102,6 +102,53 @@ describe("createRecipe", () => {
     expect((await only()).videoUrl).toBeNull();
   });
 
+  it("stores the total time when one is given", async () => {
+    await captureRedirect(() =>
+      createRecipe(
+        undefined,
+        formData({
+          title: "Pasta",
+          categoryIds: [category.id],
+          ingredients: "",
+          instructions: "",
+          totalTimeMinutes: "25",
+        }),
+      ),
+    );
+
+    expect((await only()).totalTimeMinutes).toBe(25);
+  });
+
+  it("stores a blank total time as null", async () => {
+    await captureRedirect(() =>
+      createRecipe(
+        undefined,
+        formData({ title: "Pasta", categoryIds: [category.id], ingredients: "", instructions: "" }),
+      ),
+    );
+
+    expect((await only()).totalTimeMinutes).toBeNull();
+  });
+
+  it.each(["0", "-5", "not a number"])(
+    "refuses a total time of %s instead of silently dropping it",
+    async (totalTimeMinutes) => {
+      const result = await createRecipe(
+        undefined,
+        formData({
+          title: "Pasta",
+          categoryIds: [category.id],
+          ingredients: "",
+          instructions: "",
+          totalTimeMinutes,
+        }),
+      );
+
+      expect(result).toEqual({ ok: false, error: "Time must be a whole number of minutes." });
+      expect(await prisma.recipe.count()).toBe(0);
+    },
+  );
+
   it("stores a blank description as null", async () => {
     await captureRedirect(() =>
       createRecipe(
@@ -224,6 +271,7 @@ describe("updateRecipe", () => {
             ingredients: "Flour\nButtermilk",
             instructions: "Rest the batter.",
             videoUrl: "https://youtu.be/dQw4w9WgXcQ",
+            totalTimeMinutes: "40",
           }),
         ),
       `/recipes/${recipe.id}`,
@@ -235,7 +283,34 @@ describe("updateRecipe", () => {
       ingredients: "Flour\nButtermilk",
       instructions: "Rest the batter.",
       videoUrl: "https://youtu.be/dQw4w9WgXcQ",
+      totalTimeMinutes: 40,
     });
+  });
+
+  it("clears a total time that is removed", async () => {
+    const recipe = await seedRecipe({
+      homeId: home.id,
+      createdById: member.id,
+      categoryIds: [category.id],
+      totalTimeMinutes: 45,
+    });
+
+    await expectRedirect(
+      () =>
+        updateRecipe(
+          undefined,
+          formData({
+            recipeId: recipe.id,
+            categoryIds: [category.id],
+            title: "Pancakes",
+            ingredients: "",
+            instructions: "",
+          }),
+        ),
+      `/recipes/${recipe.id}`,
+    );
+
+    expect((await only()).totalTimeMinutes).toBeNull();
   });
 
   it("clears a video link that is removed", async () => {

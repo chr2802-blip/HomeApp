@@ -185,6 +185,7 @@ export async function createRecipe(options: {
   description?: string | null;
   ingredients?: string;
   videoUrl?: string | null;
+  totalTimeMinutes?: number | null;
 }) {
   const categoryIds =
     options.categoryIds ?? [(await createRecipeCategory({ homeId: options.homeId })).id];
@@ -199,6 +200,7 @@ export async function createRecipe(options: {
       ingredients: options.ingredients ?? "Flour\nMilk",
       instructions: "Mix and fry.",
       videoUrl: options.videoUrl ?? null,
+      totalTimeMinutes: options.totalTimeMinutes ?? null,
     },
   });
 }

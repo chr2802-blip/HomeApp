@@ -13,6 +13,7 @@ export type RecipeValues = {
   instructions?: string;
   videoUrl?: string | null;
   photoId?: string | null;
+  totalTimeMinutes?: number | null;
 };
 
 export type CategoryOption = { id: string; name: string };
@@ -103,6 +104,18 @@ export function RecipeFields({
       <div className="space-y-1">
         <Label htmlFor="description">Short description</Label>
         <Input id="description" name="description" defaultValue={recipe?.description ?? ""} />
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="totalTimeMinutes">Total time (minutes)</Label>
+        <Input
+          id="totalTimeMinutes"
+          name="totalTimeMinutes"
+          type="number"
+          min={1}
+          inputMode="numeric"
+          defaultValue={recipe?.totalTimeMinutes ?? ""}
+        />
       </div>
 
       <PhotoField
