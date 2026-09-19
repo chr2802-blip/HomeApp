@@ -7,9 +7,17 @@ on:
     branches: [main]
   pull_request:
 
+# A second push to a branch supersedes the first, so the older run stops rather than
+# finishing to report on a commit nobody is looking at. Never on main: a run there is
+# what a deploy waits for, and a cancelled check is not a passing one.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
-  verify:
-    name: Lint, types and tests
+  # Everything that needs no browser and no production build.
+  checks:
+    name: Checks
     runs-on: ubuntu-latest
 
     services:
@@ -56,8 +64,67 @@ jobs:
 
       - run: npm test
 
+  # Alongside the job above rather than behind it: the two need the same two minutes of
+  # setup and nothing else of each other, so in series a lint error's worth of feedback
+  # arrived after a full Next build. They use different databases — "homehub_test" and
+  # "homehub_e2e" — on Postgres servers of their own, so neither can see the other.
+  browser:
+    name: Browser tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: homehub
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/homehub
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/homehub
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma generate
+
+      # Keyed by the resolved Playwright version, because a browser build belongs to
+      # one: a cache restored from an older lockfile leaves an install Playwright
+      # refuses to launch, which reads as every browser test failing at once.
+      - name: Work out which browser build is wanted
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      # The browser is cached; the system libraries it links against live outside that
+      # directory, so they are installed either way.
       - name: Install Playwright browser
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+
+      - name: Install browser dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
 
       - name: Run browser tests
         run: npm run e2e
@@ -69,3 +136,23 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  # The one check Vercel is told to wait for, and the reason the name above it must not
+  # change: GitHub identifies a check by its job name, so this is the contract with the
+  # deploy gate. It runs nothing itself — it is green exactly when both jobs above are,
+  # which is what "lint, types and tests" means. Splitting the work behind one name is
+  # how the gate keeps covering everything without being one job three minutes long.
+  verify:
+    name: Lint, types and tests
+    runs-on: ubuntu-latest
+    needs: [checks, browser]
+    # Without this the job is skipped when something it needs fails, and a skipped
+    # check reports neither success nor failure — which a deploy gate reads as nothing
+    # to wait for.
+    if: always()
+    steps:
+      - name: Report what the suites did
+        run: |
+          echo "checks: ${{ needs.checks.result }}"
+          echo "browser: ${{ needs.browser.result }}"
+          [ "${{ needs.checks.result }}" = "success" ] && [ "${{ needs.browser.result }}" = "success" ]

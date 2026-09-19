@@ -34,7 +34,12 @@ function assertSuffix(urlString, suffix) {
   return name;
 }
 
-/** Database for the vitest suite. */
+/**
+ * Database for the vitest suite.
+ *
+ * @param {Record<string, string | undefined>} [env] where to read the settings from,
+ *   named rather than taken from `process.env` so it can be asked hypothetically.
+ */
 export function deriveTestDatabaseUrl(env = process.env) {
   return derive(env, "TEST_DATABASE_URL", "_test");
 }
@@ -46,6 +51,8 @@ export function testDatabaseName(urlString) {
 /**
  * Database for the Playwright suite. Kept separate from the vitest one so the browser
  * tests and the unit suite can never interfere with each other's rows.
+ *
+ * @param {Record<string, string | undefined>} [env]
  */
 export function deriveE2eDatabaseUrl(env = process.env) {
   return derive(env, "E2E_DATABASE_URL", "_e2e");
@@ -69,9 +76,38 @@ export function e2eDatabaseName(urlString) {
  */
 export function workerDatabaseUrl(urlString, key) {
   const url = new URL(urlString);
-  const name = url.pathname.replace(/^\//, "");
-  url.pathname = `/${name.replace(/(_test|_e2e)$/, `_w${key}$1`)}`;
+  const { stem, suffix } = split(url.pathname.replace(/^\//, ""));
+  url.pathname = `/${stem}_w${key}${suffix}`;
   return url.toString();
+}
+
+/**
+ * A LIKE pattern matching every worker database taken from a given template, and
+ * nothing else.
+ *
+ * It is here rather than beside the sweeps that use it because it is the other half of
+ * `workerDatabaseUrl`: one writes the name, the other has to recognise it again, and a
+ * run that is killed leaves databases only the second one can clear away. Written twice
+ * — once per suite — they drifted apart by construction.
+ */
+export function workerDatabasePattern(name) {
+  const { stem, suffix } = split(name);
+  return `${stem}_w%${suffix}`;
+}
+
+/**
+ * Splits a test database's name into the part that names the project and the suffix
+ * that marks it throwaway. Anything else is refused here rather than allowed to produce
+ * a name that would be refused later, further from the mistake.
+ */
+function split(name) {
+  const match = /^(.*)(_test|_e2e)$/.exec(name);
+  if (!match) {
+    throw new Error(
+      `"${name}" is not a test database name: it must end with "_test" or "_e2e".`,
+    );
+  }
+  return { stem: match[1], suffix: match[2] };
 }
 
 /** The same server, but connected to the default "postgres" database. */

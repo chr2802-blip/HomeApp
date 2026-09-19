@@ -14,9 +14,12 @@ export function readForm<S extends z.ZodType>(
 ): Parsed<z.infer<S>> {
   const result = schema.safeParse(Object.fromEntries(formData));
 
-  return result.success
-    ? parsed(result.data)
-    : invalid(result.error.issues[0]?.message ?? "Check the form and try again.");
+  if (result.success) return parsed(result.data);
+
+  // `||` rather than `??`: an issue carrying an empty message is still an issue with
+  // nothing to show, and a refusal that says nothing is the bare `return` this type
+  // exists to rule out.
+  return invalid(result.error.issues[0]?.message || "Check the form and try again.");
 }
 
 /** A required line of text, trimmed, with its own message when left blank. */

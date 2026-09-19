@@ -18,17 +18,35 @@ const TITLES: Record<Step, string> = {
 };
 
 /**
+ * How long the clipboard is given to answer before the button stops waiting for it.
+ *
+ * A browser that will not say is not always a browser that says so: `readText()` can
+ * sit unresolved behind a permission decision nobody is going to make, and the sheet
+ * opens *after* this check — so a promise that never settles is a "New recipe" button
+ * that does nothing at all, with no error and nothing to see. Short enough that the
+ * sheet still opens at the speed of a press, long enough for a browser that is simply
+ * going to answer.
+ */
+const CLIPBOARD_GRACE_MS = 500;
+
+/**
  * A recipe link the cook already had on their clipboard when they pressed the button,
  * or null for everything that is not that — nothing copied, a browser that refuses to
- * say, or text that is not a web address. All of those get the same answer: ask, the
- * way the button always has.
+ * say, a browser that never gets round to saying, or text that is not a web address.
+ * All of those get the same answer: ask, the way the button always has.
  */
 async function clipboardRecipeUrl(): Promise<string | null> {
   try {
     if (!navigator.clipboard?.readText) return null;
-    const text = (await navigator.clipboard.readText()).trim();
-    const url = new URL(text);
-    return url.protocol === "http:" || url.protocol === "https:" ? text : null;
+
+    const text = await Promise.race([
+      navigator.clipboard.readText(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), CLIPBOARD_GRACE_MS)),
+    ]);
+    if (text === null) return null;
+
+    const url = new URL(text.trim());
+    return url.protocol === "http:" || url.protocol === "https:" ? text.trim() : null;
   } catch {
     // Not a URL, or the browser would not say — Safari has no readText at all, and
     // Chrome can refuse without asking if the page is not in focus. Either way this is
