@@ -55,6 +55,81 @@ test.describe("favourites", () => {
     await expect(page.getByText("to keep it here instead")).toBeVisible();
   });
 
+  test("shows four lists and offers the rest, rather than the whole shelf", async ({ page }) => {
+    // Explicit timestamps rather than six creates in a row: which four the dashboard
+    // keeps is decided by createdAt, and six inserts a millisecond apart is a race to
+    // leave in a test about ordering.
+    const home = await prisma().home.findFirstOrThrow({ where: { name: HOME_NAME } });
+    const owner = await prisma().user.findFirstOrThrow({ where: { email: ACCOUNTS.member.email } });
+    const titles = ["One", "Two", "Three", "Four", "Five", "Six"];
+    for (const [index, title] of titles.entries()) {
+      await prisma().list.create({
+        data: {
+          homeId: home.id,
+          createdById: owner.id,
+          title,
+          createdAt: new Date(Date.UTC(2026, 0, 1 + index)),
+        },
+      });
+    }
+
+    await page.goto("/dashboard");
+
+    const section = page.locator("section").filter({ hasText: "Recent lists" });
+    await expect(section.locator("p.font-medium")).toHaveCount(4);
+
+    // The newest four, and a way to the two this section is not showing.
+    await expect(section.getByText("Six", { exact: true })).toBeVisible();
+    await expect(section.getByText("One", { exact: true })).toHaveCount(0);
+
+    await section.getByRole("link", { name: "See all" }).click();
+    await expect(page).toHaveURL(/\/lists$/);
+    await expect(page.locator("p.font-medium")).toHaveCount(6);
+  });
+
+  test("draws a list's progress into the card's own bottom edge", async ({ page }) => {
+    const home = await prisma().home.findFirstOrThrow({ where: { name: HOME_NAME } });
+    const owner = await prisma().user.findFirstOrThrow({ where: { email: ACCOUNTS.member.email } });
+    await prisma().list.create({
+      data: {
+        homeId: home.id,
+        createdById: owner.id,
+        title: "Weekly shop",
+        items: {
+          create: [
+            { text: "Milk", position: 1, done: true },
+            { text: "Bread", position: 2 },
+          ],
+        },
+      },
+    });
+
+    await page.goto("/lists");
+    const card = page.locator("[data-progress]").first().locator("..");
+    const bar = card.locator("[data-progress]");
+    await expect(bar).toHaveAttribute("data-progress", "50");
+
+    const cardBox = (await card.boundingBox())!;
+    const barBox = (await bar.boundingBox())!;
+
+    // Edge to edge and flush with the bottom, rather than a rounded bar floating in the
+    // card's padding. Both are inside the card's 1px border, which is the whole of the
+    // slack allowed here.
+    expect(Math.abs(barBox.width - cardBox.width)).toBeLessThanOrEqual(2);
+    expect(Math.abs(barBox.x - cardBox.x)).toBeLessThanOrEqual(2);
+    expect(
+      Math.abs(barBox.y + barBox.height - (cardBox.y + cardBox.height)),
+    ).toBeLessThanOrEqual(2);
+  });
+
+  test("offers nothing more when there is nothing more to offer", async ({ page }) => {
+    await seedLists(["One", "Two"]);
+    await page.goto("/dashboard");
+
+    // A link promising the rest of two lists that are both already here.
+    await expect(page.getByRole("link", { name: "See all" })).toHaveCount(0);
+  });
+
   test("starring a list puts it on the dashboard in place of the recent ones", async ({ page }) => {
     await seedLists(["Shopping", "Jobs", "Hardware"]);
     await page.goto("/lists");

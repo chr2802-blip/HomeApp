@@ -171,6 +171,14 @@ test("the dashboard separates what is yours from what is somebody else's", async
   await expect(mine.getByText("My task")).toBeVisible();
   await expect(mine.getByText("Ada's task")).toBeHidden();
 
+  // Somebody else's is information rather than a job, so it is folded away with its
+  // count on the heading — what is due for *you* is what the first screen is for.
+  const fold = theirs.getByRole("button", { name: /Due for someone else/ });
+  await expect(fold).toHaveText(/Due for someone else \(1\)/);
+  await expect(fold).toHaveAttribute("aria-expanded", "false");
+  await expect(theirs.getByText("Ada's task")).toBeHidden();
+
+  await fold.click();
   await expect(theirs.getByText("Ada's task")).toBeVisible();
   await expect(theirs.getByText(ACCOUNTS.admin.name)).toBeVisible();
 });
@@ -296,6 +304,9 @@ test("a one-off due for somebody else shows on the dashboard like any other", as
     .locator("section")
     .filter({ has: page.getByRole("heading", { name: "Due for someone else" }) });
 
+  // Folded away like everything else that is due for somebody else, and the same card
+  // once it is opened — a one-off is not a different kind of thing here.
+  await theirs.getByRole("button", { name: /Due for someone else/ }).click();
   await expect(theirs.getByText("Book the plumber")).toBeVisible();
   await expect(theirs.getByText("One-off", { exact: false })).toBeVisible();
 });
