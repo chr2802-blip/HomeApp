@@ -3,6 +3,7 @@ import { getHealth, REMINDER_STALE_AFTER_HOURS, METRIC_RETENTION_DAYS } from "@/
 import { getSystemStats } from "@/lib/system-stats";
 import { formatInZone } from "@/lib/time";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
+import { StorageAcrossHomes } from "@/components/storage-usage";
 
 export const dynamic = "force-dynamic";
 
@@ -156,6 +157,15 @@ export default async function SystemPage() {
           <Stat label="Lists" value={totals.lists} />
           <Stat label="Recipes" value={totals.recipes} />
         </div>
+      </section>
+
+      {/* Counts above, size below: how many recipes there are and how much room they
+          take are different questions, and the second one is the one that costs money.
+          Split by home as well as by kind, because "the database has grown" is only
+          actionable once it says which household it grew in. */}
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Storage</h2>
+        <StorageAcrossHomes />
       </section>
 
       <section className="mb-8">

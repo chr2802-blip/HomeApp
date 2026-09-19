@@ -39,6 +39,41 @@
 }
 
 /*
+ * The colours a chart divides one quantity into: the storage donuts on Settings and on
+ * Admin → System, and anything else that later needs to say "this much of that".
+ *
+ * The third palette in the app and the smallest, and it is separate from the other two
+ * on purpose.
+ *
+ * Not the home's accent, because these are not controls. The accent dresses the button
+ * that saves and the tab that is lit; a chart is something read, and in the one
+ * household whose colour happened to match it a slice would vanish into the Save button
+ * below it.
+ *
+ * Not per home either, for the reason the meanings are not per home: a slice's colour is
+ * what says which kind it is, and a legend drawn in the household's own colours would
+ * mean one thing in the flat and another in the summer house. Recipes are this pink
+ * everywhere.
+ *
+ * And none of them is green, red or amber — added, about to be deleted, overdue — which
+ * is the same list no theme is allowed to be, checked by `tests/unit/theme.test.ts` for
+ * both. The four were picked as a set rather than one at a time: adjacent slices have to
+ * stay apart under protanopia and deuteranopia as well as in full colour, which rules
+ * out most pairs that merely look different on a designer's screen.
+ *
+ * `--chart-rest` is the one that is deliberately quiet. It is what is left over, in
+ * every chart that has a leftover — everything that is not a list, a task or a recipe,
+ * or the homes too small to name — and a leftover competing with the things being
+ * compared is the part of the picture nobody asked about shouting loudest.
+ */
+:root {
+  --chart-recipes: #e87ba4;
+  --chart-lists: #2a78d6;
+  --chart-tasks: #4a3aa7;
+  --chart-rest: #94a3b8;
+}
+
+/*
  * The canvas wears the band, and the page is painted over it.
  *
  * Installed on a phone the app has no address bar, and the strip holding the clock and
