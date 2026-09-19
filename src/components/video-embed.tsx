@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Embed } from "@/lib/embed";
+import { parseSocialEmbed, safeExternalHref } from "@/lib/embed";
+import { Card } from "@/components/ui";
 
 const PROVIDER_NAME = { instagram: "Instagram", facebook: "Facebook" } as const;
 
@@ -13,15 +14,15 @@ const PROVIDER_NAME = { instagram: "Instagram", facebook: "Facebook" } as const;
  */
 const SLOW_MS = 8000;
 
-export function VideoEmbed({
-  embed,
-  title,
-  originalHref,
-}: {
-  embed: Embed;
-  title: string;
-  originalHref: string | null;
-}) {
+/**
+ * Takes the raw link a person pasted and does everything from there: parses it, renders
+ * whichever provider's iframe it turns out to be, or falls back to a plain "open this
+ * elsewhere" link when it isn't one this app can embed at all.
+ */
+export function SocialVideoEmbed({ url, title }: { url: string | null | undefined; title: string }) {
+  const embed = parseSocialEmbed(url);
+  const originalHref = safeExternalHref(url);
+
   const [loaded, setLoaded] = useState(false);
   const [slow, setSlow] = useState(false);
 
@@ -31,22 +32,44 @@ export function VideoEmbed({
     return () => clearTimeout(timer);
   }, [loaded]);
 
+  if (!embed) {
+    if (!originalHref) return null;
+    return (
+      <Card className="mb-6">
+        <a
+          href={originalHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm font-medium text-slate-900 underline"
+        >
+          Open the linked video
+        </a>
+        <p className="mt-1 text-xs text-slate-500">
+          This link can&apos;t be embedded, so it opens in a new tab.
+        </p>
+      </Card>
+    );
+  }
+
   if (!embed.fixed) {
     return (
-      <div
-        className={`relative mx-auto w-full ${embed.aspect === "vertical" ? "max-w-sm" : ""}`}
-        style={{ aspectRatio: embed.aspect === "vertical" ? "9 / 16" : "16 / 9" }}
-      >
-        <iframe
-          src={embed.src}
-          title={title}
-          className="absolute inset-0 h-full w-full"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture"
-          allowFullScreen
-          referrerPolicy="strict-origin-when-cross-origin"
-          sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
-        />
-      </div>
+      <Card className="mb-6 overflow-hidden p-0">
+        <div
+          className={`relative mx-auto w-full ${embed.aspect === "vertical" ? "max-w-sm" : ""}`}
+          style={{ aspectRatio: embed.aspect === "vertical" ? "9 / 16" : "16 / 9" }}
+        >
+          <iframe
+            src={embed.src}
+            title={title}
+            className="absolute inset-0 h-full w-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture"
+            allowFullScreen
+            loading="lazy"
+            referrerPolicy="strict-origin-when-cross-origin"
+            sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
+          />
+        </div>
+      </Card>
     );
   }
 
@@ -54,7 +77,7 @@ export function VideoEmbed({
   const providerName = PROVIDER_NAME[provider];
 
   return (
-    <div>
+    <Card className="mb-6 overflow-hidden p-0">
       <div
         className="relative mx-auto bg-slate-50"
         style={{ width, maxWidth: "100%", aspectRatio: `${width} / ${height}` }}
@@ -77,7 +100,8 @@ export function VideoEmbed({
           className="absolute inset-0 h-full w-full border-0"
           style={{ visibility: loaded ? "visible" : "hidden" }}
           allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-          allowFullScreen={provider === "facebook"}
+          allowFullScreen
+          loading="lazy"
           referrerPolicy="strict-origin-when-cross-origin"
           sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
           onLoad={() => setLoaded(true)}
@@ -87,6 +111,6 @@ export function VideoEmbed({
         A reel with restricted audio, or set to private, may fall back to {providerName}&apos;s own
         &quot;Watch on {providerName}&quot; prompt here rather than playing directly.
       </p>
-    </div>
+    </Card>
   );
 }
