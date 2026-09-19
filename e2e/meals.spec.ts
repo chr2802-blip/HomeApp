@@ -2,7 +2,7 @@ import { ACCOUNTS, expect, test } from "./helpers/fixtures";
 import { CATEGORIES, HOME_NAME, prisma } from "./helpers/database";
 import { formatDayInZone, nextWeekStart, todayInZone, weekDays, weekStartInZone } from "../src/lib/time";
 
-async function seedRecipe(title: string) {
+async function seedRecipe(title: string, ingredients = "Something") {
   const db = prisma();
   const home = await db.home.findFirstOrThrow({ where: { name: HOME_NAME } });
   const owner = await db.user.findFirstOrThrow({ where: { email: ACCOUNTS.member.email } });
@@ -15,7 +15,7 @@ async function seedRecipe(title: string) {
       homeId: home.id,
       createdById: owner.id,
       title,
-      ingredients: "Something",
+      ingredients,
       instructions: "Cook it.",
       categories: { create: [{ categoryId: category.id }] },
     },
@@ -125,4 +125,80 @@ test("the tab is in the bar, and leads here", async ({ page }) => {
 
   await expect(page).toHaveURL(/\/meals$/);
   await expect(page.getByRole("heading", { name: "Meals" })).toBeVisible();
+});
+
+test("a day can live off an earlier one's cooking, and says whose", async ({ page }) => {
+  const [monday, tuesday] = weekDays(weekStartInZone());
+  await seedRecipe("Pancakes");
+  await page.reload();
+
+  await plan(page, monday!, "Pancakes");
+  await plan(page, tuesday!, "Leftovers — Monday's Pancakes");
+
+  // The row names the meal and the day it was cooked: "Leftovers" alone says no dinner.
+  await expect(day(page, tuesday!)).toContainText("Leftovers — Monday's Pancakes");
+  await expect(day(page, monday!)).toContainText("Pancakes");
+});
+
+test("only the days already cooked are offered to be the leftovers of", async ({ page }) => {
+  const [monday, tuesday, wednesday] = weekDays(weekStartInZone());
+  await seedRecipe("Pancakes");
+  await page.reload();
+
+  await plan(page, tuesday!, "Pancakes");
+
+  // Monday comes before the cooking, so it is offered nothing to live off; Wednesday
+  // comes after it and is. An option the action would only refuse is not offered at all.
+  await day(page, monday!).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByLabel("Eating").getByRole("option", { name: /Leftovers/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+
+  await day(page, wednesday!).click();
+  await expect(
+    page.getByLabel("Eating").getByRole("option", { name: "Leftovers — Tuesday's Pancakes" }),
+  ).toHaveCount(1);
+});
+
+test("an empty day is offered what shares most with the week, and fills the picker in", async ({
+  page,
+}) => {
+  const [monday, tuesday] = weekDays(weekStartInZone());
+  await seedRecipe("Beef pasta", "Beef\nPasta\nOnion");
+  await seedRecipe("Beef stew", "Beef\nOnion\nCarrot");
+  await seedRecipe("Cod and saffron", "Cod\nSaffron\nCream");
+  await page.reload();
+
+  await plan(page, monday!, "Beef pasta");
+
+  await day(page, tuesday!).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+
+  // The stew shares two of its three with Monday; the cod shares nothing and is not
+  // offered at all, however short its list is.
+  const suggestion = page.getByRole("button", { name: /Beef stew/ });
+  await expect(suggestion).toBeVisible();
+  await expect(suggestion).toContainText("Shares 2 of 3 ingredients with the week");
+  await expect(page.getByRole("button", { name: /Cod and saffron/ })).toHaveCount(0);
+
+  // Pressing it fills the picker in and stops there — the household still presses Save.
+  await suggestion.click();
+  await expect(page.getByLabel("Eating")).toHaveValue(/.+/);
+  await expect(page.getByRole("dialog")).toBeVisible();
+
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(day(page, tuesday!)).toContainText("Beef stew");
+});
+
+test("a day with nothing to compare against is offered nothing", async ({ page }) => {
+  await seedRecipe("Beef pasta", "Beef\nPasta\nOnion");
+  await page.reload();
+
+  // Nothing planned anywhere, so there is no basket to share with — and "best" would
+  // only mean "shortest", which is a ranking of recipes by how little they are.
+  await day(page, weekDays(weekStartInZone())[0]!).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByText("Goes well with the rest of the week")).toHaveCount(0);
 });

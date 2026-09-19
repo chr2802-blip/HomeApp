@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { planMeal } from "@/app/actions/meals";
-import { PLAN_FIELD, PLAN_OUT } from "@/lib/meals";
+import { PLAN_FIELD, PLAN_OUT, leftoversChoice } from "@/lib/meals";
 import {
   createHome,
   createHomeWithMembers,
@@ -127,6 +127,138 @@ describe("planMeal", () => {
     }
 
     expect(await prisma.mealPlan.count()).toBe(0);
+  });
+});
+
+describe("planning leftovers", () => {
+  /** Thursday cooked, so Friday has something to be the leftovers of. */
+  async function cookOnThursday() {
+    const recipe = await createRecipe({ homeId: home.id, createdById: member.id });
+    await planMeal(undefined, plan("2026-06-04", recipe.id));
+    return recipe;
+  }
+
+  it("points the day at the one whose cooking it is living off", async () => {
+    await cookOnThursday();
+
+    const result = await planMeal(undefined, plan("2026-06-05", leftoversChoice("2026-06-04")));
+
+    expect(result).toEqual({ ok: true });
+    expect(await prisma.mealPlan.findFirstOrThrow({ where: { date: "2026-06-05" } })).toMatchObject({
+      recipeId: null,
+      leftoverOf: "2026-06-04",
+    });
+  });
+
+  it("refuses a day that has not been cooked yet", async () => {
+    // Nothing on Thursday at all: leftovers of an empty evening is not a sentence.
+    const result = await planMeal(undefined, plan("2026-06-05", leftoversChoice("2026-06-04")));
+
+    expect(result).toEqual({
+      ok: false,
+      error: "There is nothing cooked that day to have leftovers of.",
+    });
+    expect(await prisma.mealPlan.count()).toBe(0);
+  });
+
+  it("refuses the leftovers of a night out", async () => {
+    await planMeal(undefined, plan("2026-06-04", PLAN_OUT));
+
+    expect(await planMeal(undefined, plan("2026-06-05", leftoversChoice("2026-06-04")))).toEqual({
+      ok: false,
+      error: "There is nothing cooked that day to have leftovers of.",
+    });
+  });
+
+  it("refuses the leftovers of a day that has not happened", async () => {
+    // Checked against the stored row rather than what the form believed, and refused on
+    // the order of the days alone — which is also what makes a cycle unwritable.
+    const recipe = await createRecipe({ homeId: home.id, createdById: member.id });
+    await planMeal(undefined, plan("2026-06-06", recipe.id));
+
+    expect(await planMeal(undefined, plan("2026-06-05", leftoversChoice("2026-06-06")))).toEqual({
+      ok: false,
+      error: "Leftovers come after the meal, not before it.",
+    });
+  });
+
+  it("refuses to make a day the leftovers of itself", async () => {
+    await cookOnThursday();
+
+    expect(await planMeal(undefined, plan("2026-06-04", leftoversChoice("2026-06-04")))).toEqual({
+      ok: false,
+      error: "Leftovers come after the meal, not before it.",
+    });
+  });
+
+  it("refuses a source day that is not a real date", async () => {
+    expect(await planMeal(undefined, plan("2026-06-05", leftoversChoice("2026-02-31")))).toEqual({
+      ok: false,
+      error: "That is not a real date.",
+    });
+  });
+
+  it("never reaches another home's cooking for its source", async () => {
+    const elsewhere = await createHome();
+    const neighbour = await createUser({ homeId: elsewhere.id });
+    const theirRecipe = await createRecipe({ homeId: elsewhere.id, createdById: neighbour.id });
+
+    await signIn(neighbour);
+    await planMeal(undefined, plan("2026-06-04", theirRecipe.id));
+
+    // The source is looked up through homeDb, so their Thursday is simply not there.
+    await signIn(member);
+    expect(await planMeal(undefined, plan("2026-06-05", leftoversChoice("2026-06-04")))).toEqual({
+      ok: false,
+      error: "There is nothing cooked that day to have leftovers of.",
+    });
+  });
+
+  it("puts the pointer down when the day becomes a meal of its own", async () => {
+    // Both columns are written on every save: a row still carrying the pointer would be
+    // claiming a recipe and an earlier day at once, which is the one shape that has no
+    // meaning.
+    const recipe = await cookOnThursday();
+    await planMeal(undefined, plan("2026-06-05", leftoversChoice("2026-06-04")));
+
+    await planMeal(undefined, plan("2026-06-05", recipe.id));
+
+    expect(await prisma.mealPlan.findFirstOrThrow({ where: { date: "2026-06-05" } })).toMatchObject({
+      recipeId: recipe.id,
+      leftoverOf: null,
+    });
+  });
+
+  it("leaves the leftovers standing when the day they came from is cleared", async () => {
+    // The pointer is a plain day and not a relation, so nothing cascades: Friday is
+    // still leftovers of something, which is the half of it that is still true. The page
+    // resolves what it can and says the bare word for what it cannot.
+    await cookOnThursday();
+    await planMeal(undefined, plan("2026-06-05", leftoversChoice("2026-06-04")));
+
+    await planMeal(undefined, plan("2026-06-04", ""));
+
+    expect(await prisma.mealPlan.findFirstOrThrow({ where: { date: "2026-06-05" } })).toMatchObject({
+      leftoverOf: "2026-06-04",
+    });
+  });
+
+  it("follows the day it points at when that day changes its mind", async () => {
+    // "Friday is Thursday's leftovers" stays true whatever Thursday turns out to be, so
+    // the pointer is to the day and not to the recipe it happened to hold.
+    await cookOnThursday();
+    await planMeal(undefined, plan("2026-06-05", leftoversChoice("2026-06-04")));
+
+    const second = await createRecipe({
+      homeId: home.id,
+      createdById: member.id,
+      title: "Lasagne",
+    });
+    await planMeal(undefined, plan("2026-06-04", second.id));
+
+    expect(await prisma.mealPlan.findFirstOrThrow({ where: { date: "2026-06-05" } })).toMatchObject({
+      leftoverOf: "2026-06-04",
+    });
   });
 });
 

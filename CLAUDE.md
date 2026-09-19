@@ -695,13 +695,23 @@ box is absent from the form rather than present and false.
 
 ### The week's meals are a row per day, and the row is the decision
 
-`MealPlan` is one row per home per day, and `recipeId` is what it says: a recipe is what
-is being cooked, and **null is a night out**. A day nobody has planned has **no row at
-all** — so "nothing planned" and "eating out" are the presence or absence of the row
+`MealPlan` is one row per home per day, and which of its two optional columns is filled
+is what it says: `recipeId` is what is being cooked, `leftoverOf` is the earlier day
+being eaten again, and **neither is a night out**. A day nobody has planned has **no row
+at all** — so "nothing planned" and "eating out" are the presence or absence of the row
 rather than two columns that can disagree about the same evening, which is the same
 reason a task has no flag beside its interval. `@@id([homeId, date])` is the whole shape:
 replanning a day overwrites it, and the table is bounded by the days a household has
 actually planned.
+
+**The two columns are never both filled, and nothing in the database says so.** A check
+constraint would be drift `db:check` cannot see in `schema.prisma` — it replays the
+migrations and compares, and a constraint Prisma's schema language cannot express reads
+as a difference — so the invariant is `planMeal`'s to keep and
+`tests/integration/meals.test.ts`'s to hold. Both are written on **every** save, never
+only the one the choice filled: a day going from leftovers to a recipe has to put the
+pointer down on the way past. Every reader asks `recipeId` first, so a row that somehow
+held both would read as the meal it names rather than as nothing at all.
 
 `date` is the day in the home's own zone as `"yyyy-MM-dd"`, like `ClearedWeek.week` and
 for the same reason — Thursday's dinner is Thursday's wherever the server is, and an
@@ -714,14 +724,67 @@ optional relation in the schema uses `SetNull`): null means "eating out", so a p
 behind as null would turn Thursday into a night out nobody chose. Cascading puts the day
 back to nothing planned, which is exactly where it was before.
 
-The three states arrive through **one** `PLAN_FIELD`, read by `planMeal`: a recipe id, and
-`PLAN_OUT`, and empty for the day going back to nothing (which deletes — a row saying
-"nothing planned" would be a second way of saying what no row already says). A tick beside
-a recipe picker could say "eating out" and name a recipe at once, and something would then
-have to decide which the household meant. The recipe id is checked through `homeDb`, so
-another home's recipe is simply not found, and the clear is a `deleteMany` through the same
-client: it carries only a date, and unscoped it would clear that day for every household
-on the installation.
+Every state arrives through **one** `PLAN_FIELD`, read by `planMeal`: a recipe id, and
+`PLAN_OUT`, and `PLAN_LEFTOVERS` followed by the day being eaten again, and empty for the
+day going back to nothing (which deletes — a row saying "nothing planned" would be a
+second way of saying what no row already says). A tick beside a recipe picker could say
+"eating out" and name a recipe at once, and something would then have to decide which the
+household meant; leftovers would be a second such tick, able to disagree with the first.
+The recipe id is checked through `homeDb`, so another home's recipe is simply not found,
+and the clear is a `deleteMany` through the same client: it carries only a date, and
+unscoped it would clear that day for every household on the installation.
+
+**Leftovers point at a day, not at a recipe, and the pointer is a plain string.** The
+target is this table's own composite key, and a self-relation on it could not be
+`SetNull` — the home is half of that key and is not nullable — so the cascade would have
+to delete Wednesday because Tuesday changed. Pointing at the day is also the truer
+sentence: "Wednesday is Tuesday's leftovers" stays true whatever Tuesday turns out to be,
+so replanning Tuesday takes Wednesday with it rather than leaving it naming a meal nobody
+is cooking. A pointer that resolves to nothing — the day cleared, or cooked in a week not
+on screen — still says **"Leftovers"**, which is the half of it that is still true and
+the half that matters at six o'clock.
+
+`planMeal` checks the two things that make the pointer a sentence, both against the
+stored row rather than against what the form believed: the day must be **earlier** (which
+is what leftovers means, and is also what makes a cycle unwritable without anyone keeping
+a second thought about chains), and it must be a day this home is **cooking**, since
+leftovers of a night out is not a sentence. The picker only offers days that pass both,
+so an option the action would refuse is never drawn — and it reaches one day back past
+the Monday on screen, because a week that could not see the Sunday before it would be the
+one week in seven where living off the roast disappeared.
+
+**An empty day is offered up to three recipes, and they fill the picker in and stop
+there.** `src/lib/meal-suggestions.ts` ranks them and is a pure function with no database
+in it, so `tests/unit/meal-suggestions.test.ts` can hold the part that can be wrong while
+everything else works. Two things it does are the whole of why it is worth having:
+
+- **It ranks by the share of a recipe that comes free, not by how few things it adds.**
+  Fewest-new sounds like the same question and is not — it is won every time by whichever
+  recipe has the shortest ingredient list, so a three-line dish sharing nothing beats a
+  twelve-line one needing two things. The ratio asks what the household is actually
+  asking.
+- **It drops staples first.** Salt, oil, butter and flour are in everything, so without
+  that every recipe overlaps every other and the ranking is noise wearing a number. What
+  counts as one is derived rather than declared (`STAPLE_SHARE` of the home's own
+  recipes, and no opinion at all below `STAPLE_MINIMUM` of them, where the share is a
+  small sample rather than a cupboard): a household should not have to maintain a list of
+  its own kitchen for the suggestions to be worth reading.
+
+Matching is `shoppingText` from `lib/recipes.ts`, the same normalisation
+`addRecipeIngredients` dedupes a shopping list with — so two recipes overlap here exactly
+where their lines would have landed on one row of the shop. **No global item catalogue
+was needed for any of this**, and the way to find out whether one would help is which
+lines this fails to group.
+
+The ranking is worked out once for the week rather than per day, because the basket is
+the week's: every empty day is being asked the same question, and it answers differently
+as the week fills. Ties break on fewer new ingredients and then on the title, so the same
+week always offers the same three — a suggestion that moved between two renders is one
+nobody could take a second look at. An empty basket offers **nothing at all**: with no
+week to share with, "best" could only mean "shortest", which is a ranking of recipes by
+how little they are, and the recipes page already lists every one of them. Nothing is
+ever written on the household's behalf — pressing a suggestion is the same as scrolling
+to that name in the list, and the Save button is still theirs.
 
 `/meals` is a tab, between Tasks and Recipes — the plan beside the collection it draws
 from. The week is in the address (`?week=`, read through `weekStartOn`), so it is a place
