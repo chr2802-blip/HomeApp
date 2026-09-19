@@ -15,26 +15,34 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   const { id } = await params;
   const user = await requireHomeUser();
 
-  // Scoped to the caller's home, so another home's id simply finds nothing —
-  // indistinguishable from a record that never existed, which is the point.
-  const list = await homeDb(user.homeId).list.findUnique({
-    where: { id },
-    include: {
-      items: {
-        orderBy: [{ done: "asc" }, { position: "asc" }],
-        // Which recipes put each item here, oldest first, so an item wanted by two
-        // recipes names them in the order they asked for it.
-        include: {
-          sources: {
-            orderBy: { createdAt: "asc" },
-            select: { recipe: { select: { id: true, title: true } } },
+  // Both scoped to the caller's home, so another home's id simply finds nothing —
+  // indistinguishable from a record that never existed, which is the point. Asked
+  // together rather than one after the other: how many people are in this home decides
+  // only whether a ticked row says who got it, and the page waits for both either way.
+  const [list, members] = await Promise.all([
+    homeDb(user.homeId).list.findUnique({
+      where: { id },
+      include: {
+        items: {
+          orderBy: [{ done: "asc" }, { position: "asc" }],
+          // Which recipes put each item here, oldest first, so an item wanted by two
+          // recipes names them in the order they asked for it.
+          include: {
+            sources: {
+              orderBy: { createdAt: "asc" },
+              select: { recipe: { select: { id: true, title: true } } },
+            },
+            // Who ticked it off, where anybody has. Only what the mark beside the row
+            // draws: a name, and the id of a picture fetched by URL like every other.
+            completedBy: { select: { id: true, name: true, photoId: true } },
           },
         },
+        // Only the caller's own star — favourites are personal.
+        favorites: { where: { userId: user.id }, select: { userId: true } },
       },
-      // Only the caller's own star — favourites are personal.
-      favorites: { where: { userId: user.id }, select: { userId: true } },
-    },
-  });
+    }),
+    homeDb(user.homeId).homeMember.count(),
+  ]);
   if (!list) notFound();
 
   const ticked = list.items.filter((item) => item.done);
@@ -92,6 +100,8 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
             sources: item.sources.map((source) => source.recipe),
           }))}
           trackAmounts={list.trackAmounts}
+          me={{ id: user.id, name: user.name, photoId: user.photoId }}
+          shared={members > 1}
         />
       </Card>
     </>

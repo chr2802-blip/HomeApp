@@ -10,3 +10,15 @@ export function tick() {
     navigator.vibrate(15);
   }
 }
+
+/**
+ * The longer pattern for clearing the last thing off a list — three short buzzes rather
+ * than one, which is the difference between "that registered" and "that was the last
+ * one". Same caveats as `tick`: a browser with no motor, or one outside a real user
+ * gesture, simply does nothing, and the confetti on screen never depended on it.
+ */
+export function cheer() {
+  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+    navigator.vibrate([18, 60, 18, 60, 36]);
+  }
+}

@@ -3,13 +3,16 @@ import { requireUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 import { completeTask } from "@/app/actions/tasks";
-import { SubmitButton } from "@/components/submit-button";
+import { TaskDoneButton } from "@/components/task-done-button";
 import { NotificationSetup } from "@/components/notification-setup";
 import { dueLabel, dueTone } from "@/lib/due";
 import { UNFINISHED, repeatLabel } from "@/lib/tasks";
 import { PhotoBanner, PhotoThumb } from "@/components/photo";
 import { SuggestedRecipe } from "@/components/suggested-recipe";
-import { dueAtDaysFrom } from "@/lib/time";
+import { ProgressBar } from "@/components/progress-bar";
+import { endOfDayInZone, weekStartInZone, weekStartInstant } from "@/lib/time";
+import { homeStreak } from "@/lib/streak";
+import { WeekProgress } from "@/components/week-progress";
 
 /**
  * What a list card says about a list: how much of it is still to do.
@@ -57,12 +60,9 @@ function DueTask({ task, now }: { task: DueTaskRow; now: Date }) {
         </p>
       </div>
       <Badge tone={dueTone(task.nextDueAt, now)}>{dueLabel(task.nextDueAt, now)}</Badge>
-      <form action={completeTask}>
-        <input type="hidden" name="taskId" value={task.id} />
-        <SubmitButton variant="secondary" pendingLabel="Saving…">
-          Done
-        </SubmitButton>
-      </form>
+      {/* The same press as the one on the tasks page, drawn by the same component so
+          the tick rises out of it in both places. */}
+      <TaskDoneButton taskId={task.id} action={completeTask} label="Done" />
     </Card>
   );
 }
@@ -86,11 +86,13 @@ export default async function DashboardPage() {
 
   const now = new Date();
   const soon = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
-  const weekAgo = dueAtDaysFrom(-7, now);
+  // Monday, in the home's own zone: the week the household is living in, not the
+  // rolling seven days the server happens to be in the middle of.
+  const weekStart = weekStartInstant(weekStartInZone(now));
 
   const db = homeDb(user.homeId);
 
-  const [dueTasks, favorites, recent, completedRecently] = await Promise.all([
+  const [dueTasks, favorites, recent, doneThisWeek, stillOwed, streak] = await Promise.all([
     db.task.findMany({
       // A one-off already done is not due, however long its date has been in the past.
       where: { nextDueAt: { lte: soon }, ...UNFINISHED },
@@ -110,7 +112,15 @@ export default async function DashboardPage() {
       include: LIST_COUNTS,
     }),
     // Whoever did it: this is the household's own rhythm, not a personal scoreboard.
-    db.task.count({ where: { lastCompletedAt: { gte: weekAgo } } }),
+    db.task.count({ where: { lastCompletedAt: { gte: weekStart } } }),
+    // The rest of what the week is carrying: everything due by the end of today and
+    // still not done. The end of today rather than this moment, because a task due
+    // today is the household's work today — it does not become so at nine in the
+    // morning, which is only the hour the reminder goes out. A finished one-off keeps
+    // the date it was due, which is in the past for ever, so this asks UNFINISHED as
+    // every "still to do" query does.
+    db.task.count({ where: { nextDueAt: { lte: endOfDayInZone(now) }, ...UNFINISHED } }),
+    homeStreak(user.homeId),
   ]);
 
   /*
@@ -146,15 +156,10 @@ export default async function DashboardPage() {
         description={user.homeName ? `${user.homeName} · what needs attention` : undefined}
       />
 
-      {/* A small, quiet number rather than a scoreboard — the household's own rhythm,
-          not a personal streak. Only shown once there is something to say: a "0 tasks"
-          line on a home that has never used tasks would teach nobody anything. */}
-      {completedRecently > 0 && (
-        <p className="-mt-4 mb-6 text-sm text-slate-500">
-          ✅ {completedRecently} {completedRecently === 1 ? "task" : "tasks"} completed in the
-          last 7 days
-        </p>
-      )}
+      {/* The household's own rhythm rather than a scoreboard, and still nobody's name
+          on it. It draws nothing at all on a home with no jobs and no history, where
+          every number would be a zero. */}
+      <WeekProgress done={doneThisWeek} outstanding={stillOwed} streak={streak} />
 
       <NotificationSetup />
 
@@ -210,9 +215,18 @@ export default async function DashboardPage() {
                 <Card className="flex items-center gap-3 transition hover:border-slate-400">
                   {/* Decorative: the list's own name is right beside it. */}
                   <PhotoThumb photoId={list.photoId} alt="" className="h-11 w-11" />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="font-medium">{list.title}</p>
                     <p className="text-xs text-slate-500">{itemsLine(list)}</p>
+                    {/* Same bar the lists page draws, and only where there is something
+                        to be a proportion of — a list with nothing on it is not done. */}
+                    {list._count.items > 0 && (
+                      <ProgressBar
+                        done={list._count.items - list.items.length}
+                        total={list._count.items}
+                        className="mt-2"
+                      />
+                    )}
                   </div>
                 </Card>
               </Link>

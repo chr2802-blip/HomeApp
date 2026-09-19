@@ -1,5 +1,5 @@
 import { TZDate } from "@date-fns/tz";
-import { differenceInCalendarDays, format } from "date-fns";
+import { differenceInCalendarDays, format, startOfWeek, subDays } from "date-fns";
 
 /**
  * The household's timezone. Every due date is decided and displayed here, never in the
@@ -85,4 +85,33 @@ export function endOfDayInZone(now: Date = new Date()): Date {
  */
 export function calendarDaysBetween(target: Date, from: Date) {
   return differenceInCalendarDays(inZone(target), inZone(from));
+}
+
+/**
+ * The Monday of the week an instant falls in, in the home's zone, as "yyyy-MM-dd".
+ *
+ * A household's week is the one it lives in, so this is Monday in Copenhagen and not
+ * whatever the server thinks the week is. The Monday itself is the key rather than an
+ * ISO week number: the week before a Monday is the Monday seven days earlier and
+ * nothing else, while "2027-W01" follows "2026-W52" and is a subtraction nobody gets
+ * right first time. See `ClearedWeek` in the schema.
+ */
+export function weekStartInZone(now: Date = new Date()): string {
+  return format(startOfWeek(inZone(now), { weekStartsOn: 1 }), "yyyy-MM-dd");
+}
+
+/** The Monday before the given one, as "yyyy-MM-dd". */
+export function previousWeekStart(week: string): string {
+  // Midday rather than midnight: a day that begins at 01:00 because the clocks went
+  // forward is still the same day, and stepping back seven of them from noon lands on
+  // noon whatever the offset did in between.
+  const [year, month, day] = week.split("-").map(Number) as [number, number, number];
+  const monday = new TZDate(year, month - 1, day, 12, 0, 0, 0, TIME_ZONE);
+  return format(subDays(monday, 7), "yyyy-MM-dd");
+}
+
+/** The instant a week begins: midnight on its Monday, in the home's zone. */
+export function weekStartInstant(week: string): Date {
+  const [year, month, day] = week.split("-").map(Number) as [number, number, number];
+  return new Date(new TZDate(year, month - 1, day, 0, 0, 0, 0, TIME_ZONE).getTime());
 }

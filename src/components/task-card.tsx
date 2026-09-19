@@ -7,8 +7,8 @@ import { DialogForm } from "@/components/form-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ContextMenu, MenuItem } from "@/components/context-menu";
 import { SubmitButton } from "@/components/submit-button";
+import { TaskDoneButton } from "@/components/task-done-button";
 import type { FormAction } from "@/lib/action-result";
-import { tick } from "@/lib/haptics";
 
 /**
  * One task, of either kind.
@@ -87,16 +87,18 @@ export function TaskCard({
         {/* A sibling of the button rather than inside it: a form cannot live in a
             button, and marking a task done should not also open its sheet. */}
         <div className="border-t border-slate-100 px-5 py-3">
-          <form action={finished ? reopenAction : completeAction}>
-            <input type="hidden" name="taskId" value={taskId} />
-            <SubmitButton
-              variant="secondary"
-              pendingLabel="Saving…"
-              onClick={finished ? undefined : tick}
-            >
-              {finished ? "Reopen" : "Mark done"}
-            </SubmitButton>
-          </form>
+          {finished ? (
+            // Reopening is a correction rather than an achievement, so it stays a plain
+            // form: the tick rising out of the button would be celebrating an undo.
+            <form action={reopenAction}>
+              <input type="hidden" name="taskId" value={taskId} />
+              <SubmitButton variant="secondary" pendingLabel="Saving…">
+                Reopen
+              </SubmitButton>
+            </form>
+          ) : (
+            <TaskDoneButton taskId={taskId} action={completeAction} label="Mark done" />
+          )}
         </div>
       </Card>
 

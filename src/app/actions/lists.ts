@@ -12,6 +12,22 @@ import { clampAmount, MIN_AMOUNT } from "@/lib/amount";
 import { ingredientLines, shoppingText } from "@/lib/recipes";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
+import { recordListCleared } from "@/lib/streak";
+
+/**
+ * The three places a list's state is read, refreshed together.
+ *
+ * Ticking something off changes what the list's own page shows, how full the bar on its
+ * card is, and — when that tick clears the list — the household's streak on the
+ * dashboard. Refreshing only the page the press happened on left the other two showing
+ * the count from before it, which is the one thing a bar that is meant to be live may
+ * not do.
+ */
+function refreshListViews(listId: string) {
+  revalidatePath(`/lists/${listId}`);
+  revalidatePath("/lists");
+  revalidatePath("/dashboard");
+}
 
 const listInScope = homeScoped("List", (id) => prisma.list.findUnique({ where: { id } }));
 /**
@@ -247,15 +263,33 @@ async function itemInScope(itemId: string) {
  * the note, which is the same as anything else added by hand.
  */
 export async function toggleListItem(formData: FormData) {
+  const user = await requireHomeUser();
   const item = await itemInScope(String(formData.get("itemId")));
   if (!item) return;
 
+  const done = !item.done;
+
   await prisma.$transaction([
-    prisma.listItem.update({ where: { id: item.id }, data: { done: !item.done } }),
+    prisma.listItem.update({
+      where: { id: item.id },
+      // Who got it, and nobody again the moment it goes back on the list. The name
+      // under a ticked row answers "who picked this up", which is a question about the
+      // shop still to do — it is not a record of who did what, and it goes the same way
+      // the recipe note does.
+      data: { done, completedById: done ? user.id : null },
+    }),
     ...(item.done ? [] : [prisma.listItemSource.deleteMany({ where: { itemId: item.id } })]),
   ]);
 
-  revalidatePath(`/lists/${item.listId}`);
+  // The tick that empties a list is the household's week, so it is counted — after the
+  // write, and only when this press is what left nothing open. A list emptied by
+  // deleting its rows reaches the same state and is not counted: nothing was finished.
+  if (done) {
+    const openLeft = await prisma.listItem.count({ where: { listId: item.listId, done: false } });
+    if (openLeft === 0) await recordListCleared(item.list.homeId);
+  }
+
+  refreshListViews(item.listId);
 }
 
 export async function deleteListItem(formData: FormData) {

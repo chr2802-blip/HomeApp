@@ -354,6 +354,118 @@ household's recipes.
 A category that still holds recipes cannot be deleted, by the action and by the foreign
 key both. Untick it on those recipes first.
 
+### Ticking something off is the moment the list is for, and it is worth seeing
+
+A tick used to happen where it could not be seen. The row was marked done and moved into
+the completed section — closed, by default — inside the same render as the press, so the
+box that was pressed was gone before it could show anything, and the only trace was the
+pop on the **Completed** heading. That pop is still there; what it now pops for is a
+movement whose first half is visible.
+
+`SETTLE_MS` in `src/components/list-items.tsx` is how long a ticked row is held in the
+open group before it moves: the box fills and pops, the words strike through, and the row
+slides away to the right (`tick-off` in `globals.css`). The two numbers have to agree —
+held for less and the row is cut off mid-slide, held for longer and a blank row waits.
+It is a timer rather than an `animationend` listener because the row has to move even
+where the animation never runs: a backgrounded tab, or somebody who asked the system for
+less motion, where every duration in the app collapses to nothing. **Untick a settling
+row and it simply stops settling**: the row is staying, and an animation about leaving
+would be describing something that is no longer happening.
+
+The press is handled in `handlePress`, beside the optimistic change rather than inside
+it. React runs a form action in a transition, where an update may be held back a frame or
+two, and the one thing feedback about a press must not be is late.
+
+**A list's progress is drawn in `--chart-lists`, not in the home's colour and not in
+green.** The accent dresses the controls, and a bar is read rather than pressed — in the
+household whose colour happened to match, a full-width bar would read as one more long
+flat button. Green is "added" everywhere else in the app, so a bar that turned green on
+its last item would be saying that instead. It is the same blue the list's slice wears on
+the storage donuts, which is the palette that exists for saying "this much of that".
+
+The bar on the list's own page lives **inside `ListItems`**, not up beside the title: a
+tick is optimistic, so the proportion has to be told by the same state the rows are.
+Counted on the server it would sit one press behind every time, which is the one thing a
+progress bar may not do. The cards on `/lists` and the dashboard draw the same bar from
+stored counts, where there is no press to be behind. Everywhere it appears the same
+proportion is already in words directly beside it, so the bar itself is `aria-hidden` —
+a progressbar role there would only read the line twice. `data-progress` carries what it
+claims, so a browser test can hold that against the width it is actually drawn at.
+
+**Clearing the last item is celebrated once, and leaves nothing behind.** `Celebration`
+throws confetti over the whole screen and takes itself off the page afterwards; `cheer`
+in `src/lib/haptics.ts` is the longer buzz beside it, as `tick` is the short one for an
+ordinary item. It fires from the press that empties the list, counted before the change
+is applied — **a list emptied by deleting its rows reaches the same state and is not
+celebrated**, because nothing was finished. The pieces are written out rather than
+generated, so there is no randomness to reason about, and the overlay is
+`pointer-events-none` throughout: a mis-tick stays undoable while it falls.
+
+**Halfway is the quiet one.** Crossing half the list swells the bar once (`halfway`)
+and says nothing in words — a sentence about being halfway through the shopping is a
+sentence in the way of the shopping. Only upwards and only on the crossing, counted from
+what the bar read before the press and what it will read after: a list ticked and
+unticked around the middle would otherwise pulse on every press, which is movement that
+has stopped meaning anything. The last item has the confetti instead, so this never
+fires on a list of two.
+
+**A ticked row says who got it, where there is anybody to tell apart.**
+`ListItem.completedById` is written by `toggleListItem` and cleared again when the item
+goes back — the mark answers "who is picking this up", which is a question about the
+shop still to do, exactly like the recipe note beside it. `PersonMark` draws it: their
+picture, or their initials, because a household where nobody uploaded one would
+otherwise see the feature as simply missing. It is drawn only when the home has more
+than one member (`shared`), since a mark saying "you" on every line is decoration, and
+the name is carried into the optimistic tick (`me`) so the one row somebody is looking
+at is not the only one that cannot say.
+
+**A task is marked done at a button and nowhere else, so that is where the moment is
+drawn.** A recurring task books itself in again and stays exactly where it was; there is
+no row sliding anywhere. `TaskDoneButton` is the one component behind both places a task
+is completed from — the card on `/tasks` and the row on the dashboard — and it rises a
+tick out of the button (`stamp`) on the press, beside the same buzz a list item gets.
+The spinner in `SubmitButton` says the answer has not arrived; the stamp says the press
+was seen, and they are different jobs. **Reopening keeps a plain form**: an undo is not
+an achievement.
+
+### The household's week, and the weeks behind it
+
+`ClearedWeek` is one row per home per week in which a list was cleared, written by the
+tick that empties one (`recordListCleared`). **A list emptied by deleting its rows
+writes nothing** — the same rule the confetti follows, for the same reason. `week` is
+that week's Monday in the home's own zone as `"yyyy-MM-dd"`, never an ISO week number:
+the week before a Monday is the Monday seven days earlier and nothing else, while
+`2027-W01` follows `2026-W52` and is arithmetic that goes wrong once a year.
+`@@id([homeId, week])` is the whole shape — a second list cleared in the same week
+raises `count` rather than adding a row, which also bounds the table.
+
+`homeStreak` in `src/lib/streak.ts` walks back from the live week while there is no gap.
+**A run counts as alive when it reaches this week or the last one**: the week being
+lived in is not over, so a household that cleared something on Saturday and has not been
+shopping since has broken nothing. `streakLine` is the sentence, and it is a unit test
+of its own because that is the part that can be wrong while everything else works — a
+run of one is not called a run, and a live run with nothing in the current week says so,
+which is the whole of what a streak is for.
+
+**`WeekProgress` on the dashboard replaced "N tasks completed in the last 7 days".** The
+number was true and told nobody anything; a proportion has a top. The denominator is the
+week's own work — everything finished since Monday plus everything due by the end of
+today and still not done — and not the household's whole task list, which would put the
+annual boiler service in the denominator of a shopping week. It is due by the *end of
+today* rather than by this moment: a task due today is the household's work today, and
+`DUE_HOUR` is only when the reminder goes out. Nobody's name is on any of it, which is
+the same choice the streak makes: a weekly score with names on it turns the washing-up
+into a thing worth being seen to do.
+
+Ticking anything refreshes three views, not one (`refreshListViews`): the list's page,
+the cards on `/lists`, and the dashboard the streak lives on.
+
+`tests/unit/gamification.test.ts` holds the colours and the keyframes to the stylesheet,
+the way `theme.test.ts` and `storage.test.ts` hold theirs — a `var()` nobody defined
+draws an invisible fill, and an `animate-` class naming keyframes nobody wrote is an
+element that simply appears. `e2e/animation.spec.ts` asks the browser what actually
+played.
+
 ### An item can say which recipe put it there
 
 `ListItemSource` pairs a list item with a recipe, and "Add to list" on a recipe page

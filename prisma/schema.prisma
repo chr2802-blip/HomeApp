@@ -73,6 +73,8 @@ model Home {
   recipes          Recipe[]
   recipeCategories RecipeCategory[]
   recipeSuggestion RecipeSuggestion?
+  /// The weeks this household cleared a list in — see ClearedWeek.
+  clearedWeeks     ClearedWeek[]
   /// Every picture filed under this home, whatever it is attached to.
   photos           Photo[]          @relation("PhotoHome")
   photo            Photo?           @relation("HomePhoto", fields: [photoId], references: [id], onDelete: SetNull)
@@ -115,6 +117,8 @@ model User {
   memberships       HomeMember[]
   pushSubscriptions PushSubscription[]
   favoriteLists     ListFavorite[]
+  /// The list items this person has ticked off, wherever they are still ticked.
+  itemsCompleted    ListItem[]
   lists             List[]
   tasks             Task[]             @relation("TaskCreatedBy")
   tasksAssigned     Task[]             @relation("TaskAssignee")
@@ -210,18 +214,30 @@ model ListFavorite {
 }
 
 model ListItem {
-  id       String  @id @default(cuid())
-  listId   String
-  text     String
-  amount   Int     @default(1)
-  done     Boolean @default(false)
-  position Int     @default(0)
+  id            String  @id @default(cuid())
+  listId        String
+  text          String
+  amount        Int     @default(1)
+  done          Boolean @default(false)
+  position      Int     @default(0)
+  /**
+   * Who ticked it off, on a shared list where that is worth knowing. Null on anything
+   * still open, and cleared again when somebody puts it back — it answers "who is
+   * picking this up", which is a question about the shop still to do rather than a
+   * record kept, exactly like the recipe note beside it.
+   *
+   * SetNull rather than Cascade: somebody leaving the installation must not take the
+   * household's shopping with them.
+   */
+  completedById String?
 
-  list List @relation(fields: [listId], references: [id], onDelete: Cascade)
+  list        List  @relation(fields: [listId], references: [id], onDelete: Cascade)
+  completedBy User? @relation(fields: [completedById], references: [id], onDelete: SetNull)
   /// The recipes that put this item on the list, if any did.
   sources ListItemSource[]
 
   @@index([listId])
+  @@index([completedById])
 }
 
 /**
@@ -377,6 +393,36 @@ model RecipeSuggestion {
 
   home   Home   @relation(fields: [homeId], references: [id], onDelete: Cascade)
   recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+}
+
+/**
+ * One row per home per week in which the household cleared a list.
+ *
+ * The household's rhythm, not a person's: what is recorded is that a list was finished
+ * here, never by whom. A week with no row is a week nothing was cleared in, which is
+ * what makes a run of consecutive rows a streak — see `lib/streak.ts`.
+ *
+ * `week` is the Monday of that week as "yyyy-MM-dd" in the home's own zone, the same
+ * way RecipeSuggestion keeps its day. A Monday rather than an ISO week number because
+ * the week before one is the Monday seven days earlier and nothing else — no year
+ * boundary where week 1 follows week 52 of another year, which is the arithmetic a
+ * streak would otherwise get wrong once a year.
+ *
+ * `@@id([homeId, week])` is the whole shape: a week is either in the household's
+ * history or it is not, and clearing a second list in the same week raises `count`
+ * rather than adding a row. That also bounds the table at a row per home per week.
+ */
+model ClearedWeek {
+  homeId String
+  week   String
+  /// How many lists were cleared in it. The number the dashboard shows.
+  count  Int      @default(1)
+  /// When the most recent of them was, for ordering within a week.
+  lastAt DateTime @default(now()) @updatedAt
+
+  home Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
+
+  @@id([homeId, week])
 }
 
 /**

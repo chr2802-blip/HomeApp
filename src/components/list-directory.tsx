@@ -9,6 +9,7 @@ import { FavoriteButton } from "@/components/favorite-button";
 import { ItemMenu } from "@/components/item-menu";
 import { PhotoField } from "@/components/photo-field";
 import { PhotoThumb } from "@/components/photo";
+import { ProgressBar } from "@/components/progress-bar";
 
 export type ListSummary = {
   id: string;
@@ -94,6 +95,15 @@ export function ListDirectory({ lists }: { lists: ListSummary[] }) {
                   <p className="mt-1 text-xs text-slate-500">
                     {list.open} open · {list.total} total
                   </p>
+                  {/* Only once there is something on it: a bar over "0 open · 0 total"
+                      is an empty track saying nothing the line above it did not. */}
+                  {list.total > 0 && (
+                    <ProgressBar
+                      done={list.total - list.open}
+                      total={list.total}
+                      className="mt-2"
+                    />
+                  )}
                 </div>
               </Link>
               {/* Both sit to the right of the title, outside the link: a button inside
