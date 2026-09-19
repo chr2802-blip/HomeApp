@@ -12,6 +12,21 @@ async function seedLists(titles: string[]) {
   }
 }
 
+/** A list with `total` items, the first `done` of them already ticked off. */
+async function seedListWithItems(title: string, done: number, total: number) {
+  const home = await prisma().home.findFirstOrThrow({ where: { name: HOME_NAME } });
+  const owner = await prisma().user.findFirstOrThrow({ where: { email: ACCOUNTS.member.email } });
+  const list = await prisma().list.create({ data: { homeId: home.id, createdById: owner.id, title } });
+
+  for (let index = 0; index < total; index++) {
+    await prisma().listItem.create({
+      data: { listId: list.id, text: `Item ${index}`, done: index < done },
+    });
+  }
+
+  return list;
+}
+
 const star = (page: Page, title: string) =>
   page.getByRole("button", { name: `Favourite ${title}`, exact: true });
 
@@ -240,5 +255,50 @@ test.describe("searching the lists", () => {
     await page.reload();
 
     await search(page, "o", ["Hardware store", "Jobs around the house", "Weekly shop"]);
+  });
+});
+
+test.describe("lists with everything ticked off", () => {
+  test.beforeEach(async ({ loginAs }) => {
+    await loginAs(ACCOUNTS.member);
+  });
+
+  test("folds a finished list under Done, leaving lists with things left showing", async ({
+    page,
+  }) => {
+    await seedListWithItems("Weekly shop", 0, 2);
+    await seedListWithItems("Errands", 1, 1);
+    await page.goto("/lists");
+
+    // Errands is newer and would otherwise sort first, but every item on it is done.
+    expect(await shownLists(page)).toEqual(["Weekly shop"]);
+
+    const section = page.getByRole("button", { name: "Done (1)" });
+    await expect(section).toBeVisible();
+    await expect(section).toHaveAttribute("aria-expanded", "false");
+
+    await section.click();
+    expect(await shownLists(page)).toEqual(["Weekly shop", "Errands"]);
+  });
+
+  test("a favourited list stays put even once everything on it is ticked off", async ({ page }) => {
+    const errands = await seedListWithItems("Errands", 1, 1);
+    const owner = await prisma().user.findFirstOrThrow({
+      where: { email: ACCOUNTS.member.email },
+    });
+    await prisma().listFavorite.create({ data: { userId: owner.id, listId: errands.id } });
+
+    await page.goto("/lists");
+
+    expect(await shownLists(page)).toEqual(["Errands"]);
+    await expect(page.getByRole("button", { name: /Done/ })).toHaveCount(0);
+  });
+
+  test("an empty list is not treated as done", async ({ page }) => {
+    await seedLists(["Shopping"]);
+    await page.goto("/lists");
+
+    expect(await shownLists(page)).toEqual(["Shopping"]);
+    await expect(page.getByRole("button", { name: /Done/ })).toHaveCount(0);
   });
 });
