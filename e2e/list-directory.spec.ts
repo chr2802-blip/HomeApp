@@ -55,6 +55,46 @@ test.describe("favourites", () => {
     await expect(page.getByText("to keep it here instead")).toBeVisible();
   });
 
+  test("shows four lists and offers the rest, rather than the whole shelf", async ({ page }) => {
+    // Explicit timestamps rather than six creates in a row: which four the dashboard
+    // keeps is decided by createdAt, and six inserts a millisecond apart is a race to
+    // leave in a test about ordering.
+    const home = await prisma().home.findFirstOrThrow({ where: { name: HOME_NAME } });
+    const owner = await prisma().user.findFirstOrThrow({ where: { email: ACCOUNTS.member.email } });
+    const titles = ["One", "Two", "Three", "Four", "Five", "Six"];
+    for (const [index, title] of titles.entries()) {
+      await prisma().list.create({
+        data: {
+          homeId: home.id,
+          createdById: owner.id,
+          title,
+          createdAt: new Date(Date.UTC(2026, 0, 1 + index)),
+        },
+      });
+    }
+
+    await page.goto("/dashboard");
+
+    const section = page.locator("section").filter({ hasText: "Recent lists" });
+    await expect(section.locator("p.font-medium")).toHaveCount(4);
+
+    // The newest four, and a way to the two this section is not showing.
+    await expect(section.getByText("Six", { exact: true })).toBeVisible();
+    await expect(section.getByText("One", { exact: true })).toHaveCount(0);
+
+    await section.getByRole("link", { name: "See all" }).click();
+    await expect(page).toHaveURL(/\/lists$/);
+    await expect(page.locator("p.font-medium")).toHaveCount(6);
+  });
+
+  test("offers nothing more when there is nothing more to offer", async ({ page }) => {
+    await seedLists(["One", "Two"]);
+    await page.goto("/dashboard");
+
+    // A link promising the rest of two lists that are both already here.
+    await expect(page.getByRole("link", { name: "See all" })).toHaveCount(0);
+  });
+
   test("starring a list puts it on the dashboard in place of the recent ones", async ({ page }) => {
     await seedLists(["Shopping", "Jobs", "Hardware"]);
     await page.goto("/lists");

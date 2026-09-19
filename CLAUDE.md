@@ -500,6 +500,24 @@ decided by their order in the stylesheet, not in the class attribute.
 clear.** That gap exists so a line of grey text does not run up against the button
 opposite it — on a page with nothing on the right of its title, it is just a gap.
 
+**The order of the blocks is what each one asks of you.** The week, then what is due
+for you, then what is due for somebody else, then the dinner, then the lists. The
+suggestion used to open the page and is now below the tasks: it is a decision to make
+this evening, not a job that is late, and nothing else on the page is a job at all.
+
+**Due for someone else is folded away, with its count on the heading.** It is
+information rather than a job — the clearest case on the page of something worth
+knowing and not worth a card each. The "Done" button inside it stays, because naming
+somebody decides who is reminded and not who is allowed to do the job, and the fold
+starts shut like every other `Collapsible`.
+
+**The lists stop at `DASHBOARD_LISTS` and offer the rest.** Four is two rows on a
+desktop and the last block on the page; a fifth and a sixth are below the fold either
+way, where the Lists tab reaches them in one press. The recent query takes one more
+than it draws, which is how the section knows to show "See all" without counting every
+list in the home to find out. A household's favourites are rarely that many — what this
+stops is the home with a dozen lists pushing everything else off the screen.
+
 `e2e/suggested-recipe.spec.ts` holds the result: the dinner section stays under 160px,
 and the week, the dinner, what is due and the lists are all on one 390×680 screen. The
 number is loose on purpose — what it catches is a hero coming back, not a line of
