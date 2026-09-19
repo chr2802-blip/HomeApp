@@ -20,12 +20,15 @@ import {
   signIn,
 } from "../helpers/factories";
 import { captureRedirect, expectRedirect } from "../helpers/expect";
+import { homeStreak } from "@/lib/streak";
+import { previousWeekStart, weekStartInZone } from "@/lib/time";
 
 let home: Awaited<ReturnType<typeof createHomeWithMembers>>["home"];
 let member: Awaited<ReturnType<typeof createHomeWithMembers>>["member"];
+let admin: Awaited<ReturnType<typeof createHomeWithMembers>>["admin"];
 
 beforeEach(async () => {
-  ({ home, member } = await createHomeWithMembers());
+  ({ home, member, admin } = await createHomeWithMembers());
   await signIn(member);
 });
 
@@ -191,6 +194,158 @@ describe("list items", () => {
   it("quietly ignores an item that no longer exists", async () => {
     await expect(toggleListItem(formData({ itemId: "missing" }))).resolves.toBeUndefined();
     await expect(deleteListItem(formData({ itemId: "missing" }))).resolves.toBeUndefined();
+  });
+
+  it("records who ticked it off, and nobody once it is back on the list", async () => {
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+    await addListItem(undefined, formData({ listId: list.id, text: "Milk" }));
+    const item = await prisma.listItem.findFirstOrThrow();
+
+    await toggleListItem(formData({ itemId: item.id }));
+    expect(
+      (await prisma.listItem.findUniqueOrThrow({ where: { id: item.id } }))
+        .completedById,
+    ).toBe(member.id);
+
+    // The name answers "who is getting this", which is a question about the shop still
+    // to do — putting the item back leaves nothing for it to answer.
+    await toggleListItem(formData({ itemId: item.id }));
+    expect(
+      (await prisma.listItem.findUniqueOrThrow({ where: { id: item.id } }))
+        .completedById,
+    ).toBeNull();
+  });
+
+  it("names whoever actually pressed it, not the person who wrote the list", async () => {
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+    await addListItem(undefined, formData({ listId: list.id, text: "Milk" }));
+    const item = await prisma.listItem.findFirstOrThrow();
+
+    await signIn(admin);
+    await toggleListItem(formData({ itemId: item.id }));
+
+    expect(
+      (await prisma.listItem.findUniqueOrThrow({ where: { id: item.id } }))
+        .completedById,
+    ).toBe(admin.id);
+  });
+});
+
+/**
+ * The household's streak, which is written by the tick that empties a list.
+ *
+ * Every one of these is about *which* press counts. The row is the whole record — there
+ * is nowhere else to read a clearing from afterwards — so a press that writes one when
+ * it should not is a streak nobody earned, and one that forgets is a streak broken by
+ * the app rather than by the household.
+ */
+describe("clearing a list", () => {
+  async function listWithItems(texts: string[]) {
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+    for (const text of texts) {
+      await addListItem(undefined, formData({ listId: list.id, text }));
+    }
+    return {
+      list,
+      items: await prisma.listItem.findMany({ orderBy: { position: "asc" } }),
+    };
+  }
+
+  const weeks = () => prisma.clearedWeek.findMany();
+
+  it("counts the week when the last open item is ticked off, and not before", async () => {
+    const { items } = await listWithItems(["Milk", "Bread"]);
+
+    await toggleListItem(formData({ itemId: items[0]!.id }));
+    expect(await weeks()).toHaveLength(0);
+
+    await toggleListItem(formData({ itemId: items[1]!.id }));
+    expect(await weeks()).toMatchObject([
+      { homeId: home.id, week: weekStartInZone(), count: 1 },
+    ]);
+  });
+
+  it("raises the count rather than adding a row for a second list in the same week", async () => {
+    const first = await listWithItems(["Milk"]);
+    const second = await listWithItems(["Nails"]);
+
+    await toggleListItem(formData({ itemId: first.items[0]!.id }));
+    await toggleListItem(formData({ itemId: second.items.at(-1)!.id }));
+
+    // One row per home per week is the shape the table can take at all, so this is as
+    // much about the key as about the count.
+    expect(await weeks()).toMatchObject([
+      { week: weekStartInZone(), count: 2 },
+    ]);
+  });
+
+  it("counts nothing when a list is emptied by deleting its rows", async () => {
+    const { items } = await listWithItems(["Milk", "Bread"]);
+
+    await deleteListItem(formData({ itemId: items[0]!.id }));
+    await deleteListItem(formData({ itemId: items[1]!.id }));
+
+    // The list has nothing open on it and nothing was finished. A household that gives
+    // up on the shopping has not cleared a list.
+    expect(await weeks()).toHaveLength(0);
+  });
+
+  it("counts nothing for a tick that puts an item back", async () => {
+    const { items } = await listWithItems(["Milk"]);
+
+    await toggleListItem(formData({ itemId: items[0]!.id }));
+    await toggleListItem(formData({ itemId: items[0]!.id }));
+
+    expect(await weeks()).toMatchObject([{ count: 1 }]);
+  });
+
+  it("keeps each household's weeks to itself", async () => {
+    const neighbour = await createHomeWithMembers();
+    const { items } = await listWithItems(["Milk"]);
+    await toggleListItem(formData({ itemId: items[0]!.id }));
+
+    expect(await homeStreak(home.id)).toMatchObject({ weeks: 1, thisWeek: 1 });
+    expect(await homeStreak(neighbour.home.id)).toMatchObject({
+      weeks: 0,
+      thisWeek: 0,
+    });
+  });
+});
+
+describe("homeStreak", () => {
+  /** Weeks the household cleared something in, counted back from the live one. */
+  async function clearedWeeksAgo(...agos: number[]) {
+    for (const ago of agos) {
+      let week = weekStartInZone();
+      for (let step = 0; step < ago; step += 1) week = previousWeekStart(week);
+      await prisma.clearedWeek.create({ data: { homeId: home.id, week } });
+    }
+  }
+
+  it("is nothing at all for a household that has never cleared one", async () => {
+    expect(await homeStreak(home.id)).toEqual({ weeks: 0, thisWeek: 0 });
+  });
+
+  it("counts back while the weeks are unbroken", async () => {
+    await clearedWeeksAgo(0, 1, 2);
+    expect(await homeStreak(home.id)).toMatchObject({ weeks: 3, thisWeek: 1 });
+  });
+
+  it("stops at the first week nothing was cleared in", async () => {
+    await clearedWeeksAgo(0, 1, 3, 4);
+    expect(await homeStreak(home.id)).toMatchObject({ weeks: 2 });
+  });
+
+  it("lives on through a week that has only just begun", async () => {
+    // Cleared last week and nothing yet this one. The week is not over, so nothing has
+    // been broken — expiring it at midnight on Sunday would punish the calendar.
+    await clearedWeeksAgo(1, 2);
+    expect(await homeStreak(home.id)).toMatchObject({ weeks: 2, thisWeek: 0 });
+  });
+
+  it("is over once a whole week has passed with nothing in it", async () => {
+    await clearedWeeksAgo(2, 3, 4);
+    expect(await homeStreak(home.id)).toMatchObject({ weeks: 0, thisWeek: 0 });
   });
 });
 

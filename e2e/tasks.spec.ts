@@ -68,6 +68,24 @@ test("completing a task reschedules it and records the completion", async ({ pag
   await expect(page.getByText(/Every 30 days · last done/)).toBeVisible();
 });
 
+test("the dashboard says how much of the week's work is behind you", async ({ page }) => {
+  await addTask(page, { title: "Change the filter", intervalDays: "30" });
+  await addTask(page, { title: "Water the plants", intervalDays: "7" });
+
+  await page.goto("/dashboard");
+  // Two jobs due and neither done: the week has not started.
+  await expect(page.getByText("This week · 0 of 2 jobs done")).toBeVisible();
+
+  await page.goto("/tasks");
+  await page.getByRole("button", { name: "Mark done" }).first().click();
+  await expect(page.getByText(/last done/)).toBeVisible();
+
+  await page.goto("/dashboard");
+  // One done, one still owed. A task booked in for next month is not owed today, which
+  // is why the total stays two rather than climbing with the household's whole list.
+  await expect(page.getByText("This week · 1 of 2 jobs done")).toBeVisible();
+});
+
 test("a task can be edited", async ({ page }) => {
   await addTask(page, { title: "Old title", intervalDays: "7" });
 

@@ -166,6 +166,31 @@ test("the last tick clears the list and says so", async ({ page }) => {
   await expect(page.getByText("Nice — everything here is ticked off.")).toBeVisible();
 });
 
+test("a ticked row says who picked it up, and the dashboard counts the week", async ({
+  page,
+}) => {
+  await openDialog(page, "New list");
+  await page.getByLabel("List name").fill("Corner shop");
+  await page.getByRole("button", { name: "Create list" }).click();
+  await page.waitForURL(/\/lists\/[a-z0-9]+$/);
+
+  await page.getByPlaceholder("Add an item").fill("Milk");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.getByText("Milk", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Mark as done" }).click();
+  await expect.poll(() => prisma().listItem.count({ where: { done: true } })).toBe(1);
+
+  // The name is inside the folded-away section, so open it to read the row.
+  await page.getByRole("button", { name: "Completed (1)" }).click();
+  await expect(page.getByText(`Ticked off by ${ACCOUNTS.member.name}`)).toBeVisible();
+
+  // That tick left nothing open, which is the household's week — the only place a
+  // clearing is ever recorded, and the only thing the streak is counted from.
+  await page.goto("/dashboard");
+  await expect(page.getByText("🔥 A list cleared · 1 list cleared this week")).toBeVisible();
+});
+
 test("an item can be removed outright", async ({ page }) => {
   await openDialog(page, "New list");
   await page.getByLabel("List name").fill("Hardware");

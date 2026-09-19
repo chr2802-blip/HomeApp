@@ -6,7 +6,10 @@ import {
   dueAtOn,
   endOfDayInZone,
   formatInZone,
+  previousWeekStart,
   todayInZone,
+  weekStartInZone,
+  weekStartInstant,
 } from "@/lib/time";
 
 /**
@@ -110,5 +113,77 @@ describe("formatInZone", () => {
   it("formats using the home's clock", () => {
     const instant = new Date("2026-06-01T22:30:00Z");
     expect(formatInZone(instant, "yyyy-MM-dd HH:mm")).toBe("2026-06-02 00:30");
+  });
+});
+
+/**
+ * The household's week.
+ *
+ * A streak is a run of weeks with no gap in it, so the whole feature rests on "the week
+ * before this one" being a question with one answer. These run under TZ=UTC, as both
+ * suites do, so a Monday that is still Sunday in UTC is the case that fails here rather
+ * than in Copenhagen on a Sunday evening.
+ */
+describe("weekStartInZone", () => {
+  it("gives the Monday of the week the home is in", () => {
+    // A Wednesday, and the Sunday that closes the same week.
+    expect(weekStartInZone(new Date("2026-06-03T12:00:00Z"))).toBe(
+      "2026-06-01",
+    );
+    expect(weekStartInZone(new Date("2026-06-07T12:00:00Z"))).toBe(
+      "2026-06-01",
+    );
+  });
+
+  it("turns the week over on the home's Monday, not on UTC's", () => {
+    // 00:30 on Monday 8 June in Copenhagen is still Sunday evening in UTC. The week
+    // the household is living in is the new one.
+    expect(weekStartInZone(new Date("2026-06-07T22:30:00Z"))).toBe(
+      "2026-06-08",
+    );
+  });
+});
+
+describe("previousWeekStart", () => {
+  it("steps back one Monday", () => {
+    expect(previousWeekStart("2026-06-08")).toBe("2026-06-01");
+  });
+
+  it("crosses a month, a year and a change of the clocks without drifting", () => {
+    expect(previousWeekStart("2026-03-02")).toBe("2026-02-23");
+    expect(previousWeekStart("2027-01-04")).toBe("2026-12-28");
+    // The clocks go forward in Europe on the last Sunday of March — the Monday after
+    // is still seven days after the Monday before it.
+    expect(previousWeekStart("2026-03-30")).toBe("2026-03-23");
+    expect(previousWeekStart("2026-11-02")).toBe("2026-10-26");
+  });
+
+  it("walks back through a year without ever missing or repeating a week", () => {
+    const seen = new Set<string>();
+    let week = weekStartInZone(new Date("2026-06-03T12:00:00Z"));
+
+    for (let step = 0; step < 52; step += 1) {
+      expect(seen.has(week)).toBe(false);
+      seen.add(week);
+      const earlier = previousWeekStart(week);
+      // Each step is exactly seven days, counted the way the household counts them.
+      expect(
+        calendarDaysBetween(weekStartInstant(week), weekStartInstant(earlier)),
+      ).toBe(7);
+      week = earlier;
+    }
+  });
+});
+
+describe("weekStartInstant", () => {
+  it("is midnight on that Monday in the home's zone", () => {
+    // Summer time: midnight in Copenhagen is 22:00 the day before in UTC.
+    expect(weekStartInstant("2026-06-01").toISOString()).toBe(
+      "2026-05-31T22:00:00.000Z",
+    );
+    // And an hour later off it.
+    expect(weekStartInstant("2026-12-07").toISOString()).toBe(
+      "2026-12-06T23:00:00.000Z",
+    );
   });
 });

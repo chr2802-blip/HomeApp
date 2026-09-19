@@ -29,11 +29,15 @@ import { ConfirmButton } from "@/components/confirm-button";
 import { AmountPicker } from "@/components/amount-picker";
 import { Collapsible } from "@/components/collapsible";
 import { Celebration } from "@/components/celebration";
+import { PersonMark } from "@/components/person-mark";
 import { ProgressBar } from "@/components/progress-bar";
 import { cheer, tick } from "@/lib/haptics";
 
 /** A recipe that asked for this item, as the row names it. */
 type Source = { id: string; title: string };
+
+/** Somebody in this home, as a row names them. */
+export type Person = { id: string; name: string; photoId: string | null };
 
 type Item = {
   id: string;
@@ -43,10 +47,12 @@ type Item = {
   position: number;
   /** The recipes this item came from, or nothing at all if it was typed in by hand. */
   sources: Source[];
+  /** Who ticked it off, on a ticked row; nobody on one still open. */
+  completedBy: Person | null;
 };
 
 type Change =
-  | { type: "toggle"; id: string }
+  | { type: "toggle"; id: string; by: Person }
   | { type: "remove"; id: string }
   | { type: "amount"; id: string; amount: number }
   | { type: "reorder"; ids: string[] };
@@ -55,10 +61,16 @@ function applyTo(items: Item[], change: Change): Item[] {
   if (change.type === "toggle") {
     // Ticking something off drops the recipes that put it there, which is what the
     // server is about to do — see toggleListItem. Putting it back brings back the item
-    // and not the note.
+    // and not the note. The name goes on and comes off with the tick for the same
+    // reason: it says who is getting this, not who once did.
     return items.map((item) =>
       item.id === change.id
-        ? { ...item, done: !item.done, sources: item.done ? item.sources : [] }
+        ? {
+            ...item,
+            done: !item.done,
+            sources: item.done ? item.sources : [],
+            completedBy: item.done ? null : change.by,
+          }
         : item,
     );
   }
@@ -96,6 +108,7 @@ function Row({
   item,
   draggable,
   showAmount,
+  showWho,
   settling,
   onPress,
   onToggle,
@@ -105,6 +118,8 @@ function Row({
   item: Item;
   draggable: boolean;
   showAmount: boolean;
+  /** Whether to say who ticked it — see `ListItems`. */
+  showWho: boolean;
   /** Just ticked, and still being seen leaving — see `ListItems`. */
   settling: boolean;
   onPress: (done: boolean) => void;
@@ -190,6 +205,18 @@ function Row({
         </span>
       </form>
 
+      {/* Who picked it up, where somebody did. Only on a ticked row, and only where the
+          household has more than one person in it: a mark saying "you" on every line of
+          a list nobody else reads is decoration with nothing to tell you. */}
+      {showWho && item.done && item.completedBy && (
+        <PersonMark
+          name={item.completedBy.name}
+          photoId={item.completedBy.photoId}
+          what="Ticked off by"
+          className="h-5 w-5"
+        />
+      )}
+
       {/* A ticked item shows what was wanted but offers no picker: it is settled, and a
           stepper on every row of the completed section is only something to scroll past. */}
       {showAmount &&
@@ -231,10 +258,24 @@ export function ListItems({
   listId,
   items,
   trackAmounts,
+  me,
+  shared,
 }: {
   listId: string;
   items: Item[];
   trackAmounts: boolean;
+  /**
+   * Whoever is pressing. A tick is optimistic, so the name under the row has to be
+   * known here — waiting for the server to say who did it would leave the one row
+   * somebody is looking at as the only one that cannot say.
+   */
+  me: Person;
+  /**
+   * Whether anybody else is in this home. A mark saying "you" on every line of a list
+   * nobody else reads is decoration with nothing to tell you, so a household of one is
+   * not told who did the shopping.
+   */
+  shared: boolean;
 }) {
   const [optimisticItems, applyChange] = useOptimistic(items, applyTo);
   const [, startTransition] = useTransition();
@@ -268,6 +309,18 @@ export function ListItems({
 
   const [celebrating, setCelebrating] = useState(false);
   const stopCelebrating = useCallback(() => setCelebrating(false), []);
+
+  /*
+   * Halfway.
+   *
+   * The quieter of the two moments a list has: the bar swells once, on the tick that
+   * takes it past half, and nothing is said in words — a sentence about being halfway
+   * through the shopping is a sentence in the way of the shopping. Only upwards, and
+   * only on the crossing: unticking back below half and ticking again would otherwise
+   * make the bar pulse on every press around the middle of a long list, which is the
+   * kind of movement that stops meaning anything.
+   */
+  const [halfway, setHalfway] = useState(false);
 
   function stopSettling(id: string) {
     const timer = timers.current.get(id);
@@ -309,7 +362,15 @@ export function ListItems({
     if (wasLast) {
       cheer();
       setCelebrating(true);
+      return;
     }
+
+    // The same press counted both ways: what the bar read before it, and what it will
+    // read once it lands. The end of the list has its own celebration, so this never
+    // fires on a list of two.
+    const wereDone = optimisticItems.filter((other) => other.done).length;
+    const size = optimisticItems.length;
+    if (wereDone * 2 < size && (wereDone + 1) * 2 >= size) setHalfway(true);
   }
 
   const sensors = useSensors(
@@ -385,10 +446,11 @@ export function ListItems({
         item={item}
         draggable={draggable}
         showAmount={trackAmounts}
+        showWho={shared}
         settling={settling.has(item.id)}
         onPress={(nowDone) => handlePress(item, nowDone)}
         onToggle={async () => {
-          applyChange({ type: "toggle", id: item.id });
+          applyChange({ type: "toggle", id: item.id, by: me });
           await toggleListItem(payload);
         }}
         onAmount={(amount) => {
@@ -426,7 +488,11 @@ export function ListItems({
             {Math.round((ticked / total) * 100)}%
           </span>
         </div>
-        <ProgressBar done={ticked} total={total} />
+        {/* `animationend` bubbles, so the wrapper is what clears the flag — the bar
+            itself is drawn by a server component and has nothing to hang a handler on. */}
+        <div onAnimationEnd={() => setHalfway(false)}>
+          <ProgressBar done={ticked} total={total} className={halfway ? "animate-halfway" : ""} />
+        </div>
       </div>
 
       <DndContext

@@ -226,6 +226,31 @@ test.describe("ticking something off a list", () => {
     await expect(page.getByText("Nice — everything here is ticked off.")).toBeVisible();
   });
 
+  test("swells the bar once on the way past halfway", async ({ page }) => {
+    const id = await seedList("Big shop", ["Milk", "Bread", "Eggs", "Rice"]);
+    await page.goto(`/lists/${id}`);
+    await expect(page.getByText("Milk", { exact: true })).toBeVisible();
+
+    // One of four is not halfway, so nothing happens yet.
+    await tickOff(page, "Milk");
+    await expectPlayed(page, "tick-off");
+    expect(await page.evaluate(() => (window as Recorder).__animations ?? [])).not.toContain(
+      "halfway",
+    );
+
+    // Two of four is, and the bar takes a breath.
+    await tickOff(page, "Bread");
+    await expectPlayed(page, "halfway");
+
+    // The third crosses nothing — it is already past half, and a bar that pulsed on
+    // every press after the middle would be saying nothing by the time it mattered.
+    await tickOff(page, "Eggs");
+    await expectPlayed(page, "tick-off");
+    expect(await page.evaluate(() => (window as Recorder).__animations ?? [])).not.toContain(
+      "halfway",
+    );
+  });
+
   test("the confetti takes itself off the page again", async ({ page }) => {
     const id = await seedList("One thing", ["Stamps"]);
     await page.goto(`/lists/${id}`);
@@ -237,6 +262,35 @@ test.describe("ticking something off a list", () => {
     // Nothing is left over the page afterwards: it would be invisible and cover
     // everything, which is the worst way for an overlay to outstay its welcome.
     await expect(page.locator(".animate-confetti")).toHaveCount(0);
+  });
+});
+
+test.describe("marking a task done", () => {
+  test("rises a tick out of the button it was pressed on", async ({ page }) => {
+    const home = await prisma().home.findFirstOrThrow({ where: { name: HOME_NAME } });
+    const owner = await prisma().user.findFirstOrThrow({ where: { email: ACCOUNTS.member.email } });
+    await prisma().task.create({
+      data: {
+        homeId: home.id,
+        createdById: owner.id,
+        title: "Water the plants",
+        intervalDays: 7,
+        nextDueAt: new Date(),
+      },
+    });
+
+    await page.goto("/tasks");
+    // A task has no row to slide away, so the stamp is the whole of the feedback — and
+    // it is the half that needs React attached. The card's own menu says when that is.
+    await expect(page.getByRole("button", { name: "Actions for Water the plants" })).toHaveAttribute(
+      "data-ready",
+      "true",
+    );
+    await forget(page);
+
+    await page.getByRole("button", { name: "Mark done" }).click();
+
+    await expectPlayed(page, "stamp");
   });
 });
 

@@ -34,7 +34,11 @@ function animationsIn(file: string) {
 const PAINTED = ["src/components/progress-bar.tsx", "src/components/celebration.tsx"];
 
 /** What wears an `animate-` class, and so can name keyframes nobody wrote. */
-const MOVING = [...PAINTED, "src/components/list-items.tsx"];
+const MOVING = [
+  ...PAINTED,
+  "src/components/list-items.tsx",
+  "src/components/task-done-button.tsx",
+];
 
 describe("the feedback a list gives back", () => {
   it.each(PAINTED)("draws %s in colours the stylesheet defines", (file) => {

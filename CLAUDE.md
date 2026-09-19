@@ -401,6 +401,65 @@ celebrated**, because nothing was finished. The pieces are written out rather th
 generated, so there is no randomness to reason about, and the overlay is
 `pointer-events-none` throughout: a mis-tick stays undoable while it falls.
 
+**Halfway is the quiet one.** Crossing half the list swells the bar once (`halfway`)
+and says nothing in words — a sentence about being halfway through the shopping is a
+sentence in the way of the shopping. Only upwards and only on the crossing, counted from
+what the bar read before the press and what it will read after: a list ticked and
+unticked around the middle would otherwise pulse on every press, which is movement that
+has stopped meaning anything. The last item has the confetti instead, so this never
+fires on a list of two.
+
+**A ticked row says who got it, where there is anybody to tell apart.**
+`ListItem.completedById` is written by `toggleListItem` and cleared again when the item
+goes back — the mark answers "who is picking this up", which is a question about the
+shop still to do, exactly like the recipe note beside it. `PersonMark` draws it: their
+picture, or their initials, because a household where nobody uploaded one would
+otherwise see the feature as simply missing. It is drawn only when the home has more
+than one member (`shared`), since a mark saying "you" on every line is decoration, and
+the name is carried into the optimistic tick (`me`) so the one row somebody is looking
+at is not the only one that cannot say.
+
+**A task is marked done at a button and nowhere else, so that is where the moment is
+drawn.** A recurring task books itself in again and stays exactly where it was; there is
+no row sliding anywhere. `TaskDoneButton` is the one component behind both places a task
+is completed from — the card on `/tasks` and the row on the dashboard — and it rises a
+tick out of the button (`stamp`) on the press, beside the same buzz a list item gets.
+The spinner in `SubmitButton` says the answer has not arrived; the stamp says the press
+was seen, and they are different jobs. **Reopening keeps a plain form**: an undo is not
+an achievement.
+
+### The household's week, and the weeks behind it
+
+`ClearedWeek` is one row per home per week in which a list was cleared, written by the
+tick that empties one (`recordListCleared`). **A list emptied by deleting its rows
+writes nothing** — the same rule the confetti follows, for the same reason. `week` is
+that week's Monday in the home's own zone as `"yyyy-MM-dd"`, never an ISO week number:
+the week before a Monday is the Monday seven days earlier and nothing else, while
+`2027-W01` follows `2026-W52` and is arithmetic that goes wrong once a year.
+`@@id([homeId, week])` is the whole shape — a second list cleared in the same week
+raises `count` rather than adding a row, which also bounds the table.
+
+`homeStreak` in `src/lib/streak.ts` walks back from the live week while there is no gap.
+**A run counts as alive when it reaches this week or the last one**: the week being
+lived in is not over, so a household that cleared something on Saturday and has not been
+shopping since has broken nothing. `streakLine` is the sentence, and it is a unit test
+of its own because that is the part that can be wrong while everything else works — a
+run of one is not called a run, and a live run with nothing in the current week says so,
+which is the whole of what a streak is for.
+
+**`WeekProgress` on the dashboard replaced "N tasks completed in the last 7 days".** The
+number was true and told nobody anything; a proportion has a top. The denominator is the
+week's own work — everything finished since Monday plus everything due by the end of
+today and still not done — and not the household's whole task list, which would put the
+annual boiler service in the denominator of a shopping week. It is due by the *end of
+today* rather than by this moment: a task due today is the household's work today, and
+`DUE_HOUR` is only when the reminder goes out. Nobody's name is on any of it, which is
+the same choice the streak makes: a weekly score with names on it turns the washing-up
+into a thing worth being seen to do.
+
+Ticking anything refreshes three views, not one (`refreshListViews`): the list's page,
+the cards on `/lists`, and the dashboard the streak lives on.
+
 `tests/unit/gamification.test.ts` holds the colours and the keyframes to the stylesheet,
 the way `theme.test.ts` and `storage.test.ts` hold theirs — a `var()` nobody defined
 draws an invisible fill, and an `animate-` class naming keyframes nobody wrote is an
