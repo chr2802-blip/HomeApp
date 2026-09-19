@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ContextMenu, MenuItem } from "@/components/context-menu";
 import { SubmitButton } from "@/components/submit-button";
 import { TaskDoneButton } from "@/components/task-done-button";
+import { SnoozeMenuItem } from "@/components/task-snooze";
 import type { FormAction } from "@/lib/action-result";
 
 /**
@@ -23,6 +24,10 @@ import type { FormAction } from "@/lib/action-result";
  * card is the mistake this undoes, and hiding the undo behind the menu would make
  * finding it the hard part.
  *
+ * Putting it off until tomorrow joins them in the menu, above both, because it is the
+ * quick answer to the card's own question rather than a change to what the task is. It
+ * is only there where the page says it should be — see `isSnoozable`.
+ *
  * `summary` is rendered by the page on the server; only the opening and closing needs a
  * browser.
  */
@@ -32,8 +37,10 @@ export function TaskCard({
   summary,
   photo,
   finished = false,
+  snoozable = false,
   updateAction,
   completeAction,
+  snoozeAction,
   reopenAction,
   deleteAction,
   children,
@@ -42,6 +49,12 @@ export function TaskCard({
   title: string;
   /** Whether this is a one-off that has been done, and so offers a way back instead. */
   finished?: boolean;
+  /**
+   * Whether "not today" is something somebody could mean about this task — decided by
+   * the page through `isSnoozable`, so the entry and the action agree about which tasks
+   * there is anything to put off.
+   */
+  snoozable?: boolean;
   /** What the card shows when closed. */
   summary: React.ReactNode;
   /**
@@ -52,6 +65,7 @@ export function TaskCard({
   photo?: React.ReactNode;
   updateAction: FormAction;
   completeAction: (formData: FormData) => void | Promise<void>;
+  snoozeAction: (formData: FormData) => void | Promise<void>;
   reopenAction: (formData: FormData) => void | Promise<void>;
   deleteAction: (formData: FormData) => void | Promise<void>;
   /** The edit form's fields. */
@@ -75,6 +89,7 @@ export function TaskCard({
           {/* Beside the card's own button rather than inside it: a button cannot hold
               another, and opening the menu must not also open the edit sheet. */}
           <ContextMenu label={title} className="mt-3 mr-3">
+            {snoozable && <SnoozeMenuItem taskId={taskId} action={snoozeAction} />}
             <MenuItem icon="pencil" onSelect={() => setOpen(true)}>
               Edit
             </MenuItem>

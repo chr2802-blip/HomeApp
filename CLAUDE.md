@@ -225,6 +225,24 @@ somebody deletes it.
 because callers spread it beside clauses of their own and the reminder job already has
 an `OR`. One key cannot collide; an `OR` would silently replace theirs.
 
+**"Not today" is one press, and it writes one column.** `snoozeTask` moves `nextDueAt`
+to tomorrow morning and touches nothing else: the interval stays, `lastCompletedAt`
+stays, and nothing records that the task was put off — a task deferred three times is
+still a task nobody has done, which is what its due date already says. A counter beside
+it would be a second answer to the same question, the way a flag beside the interval
+would be. `lastNotifiedAt` is left alone too, because it is the reminder job's own
+bookkeeping: clearing it asks for a second push today about the very thing somebody has
+just said they are not doing today, and tomorrow's run is past the job's cutoff anyway.
+
+It is offered only where "not today" could mean anything — `isSnoozable`, which is a
+task due today or overdue and not a finished one-off. On something due next week,
+snoozing to tomorrow would be pulling it *forward*, so the entry is not drawn; the
+action guards the same case from the other side by never moving a date earlier than it
+already is, because a card left open on a phone overnight is a card offering yesterday's
+answer. It lives in the three dots on `/tasks` and in a menu of its own on the
+dashboard's due rows, rather than as a button beside Done: two buttons the same size
+next to each other is how a job gets marked done by a thumb aiming at "later".
+
 Which kind is being written is submitted in its own field (`REPEAT_FIELD`), never
 inferred from a blank interval — a number that failed to arrive would otherwise turn a
 recurring task into a one-off with nobody saying so. A form that does not mention it is

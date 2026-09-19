@@ -2,11 +2,12 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
-import { completeTask } from "@/app/actions/tasks";
+import { completeTask, snoozeTask } from "@/app/actions/tasks";
 import { TaskDoneButton } from "@/components/task-done-button";
+import { TaskSnoozeMenu } from "@/components/task-snooze";
 import { NotificationSetup } from "@/components/notification-setup";
 import { dueLabel, dueTone } from "@/lib/due";
-import { UNFINISHED, repeatLabel } from "@/lib/tasks";
+import { UNFINISHED, isSnoozable, repeatLabel } from "@/lib/tasks";
 import { PhotoBanner, PhotoThumb } from "@/components/photo";
 import { SuggestedRecipe } from "@/components/suggested-recipe";
 import { ProgressBar } from "@/components/progress-bar";
@@ -39,6 +40,8 @@ type DueTaskRow = {
   title: string;
   intervalDays: number | null;
   nextDueAt: Date;
+  /** Only so `isSnoozable` can be asked; everything on this page is unfinished. */
+  lastCompletedAt: Date | null;
   photoId: string | null;
   assignee: { name: string } | null;
 };
@@ -46,6 +49,12 @@ type DueTaskRow = {
 /**
  * One due task, in whichever section it landed in. The "Done" button is on both: naming
  * somebody decides who is reminded, not who is allowed to do the job.
+ *
+ * Beside it, on the rows where it means anything, the one other answer this page is ever
+ * given: not today. This is the screen a household reads in the morning and so the place
+ * a task is most often put off, but it reaches three days ahead — and "snooze to
+ * tomorrow" about something due on Friday would be bringing it forward, so `isSnoozable`
+ * decides.
  */
 function DueTask({ task, now }: { task: DueTaskRow; now: Date }) {
   return (
@@ -63,6 +72,9 @@ function DueTask({ task, now }: { task: DueTaskRow; now: Date }) {
       {/* The same press as the one on the tasks page, drawn by the same component so
           the tick rises out of it in both places. */}
       <TaskDoneButton taskId={task.id} action={completeTask} label="Done" />
+      {isSnoozable(task, now) && (
+        <TaskSnoozeMenu taskId={task.id} title={task.title} action={snoozeTask} className="-mr-2" />
+      )}
     </Card>
   );
 }

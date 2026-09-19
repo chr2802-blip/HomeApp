@@ -107,6 +107,47 @@ test("a task can be deleted from its own menu", async ({ page }) => {
   await expect(page.getByText("No tasks yet — add the first one above.")).toBeVisible();
 });
 
+test("a due task can be put off until tomorrow from its own menu", async ({ page }) => {
+  await addTask(page, { title: "Bins", intervalDays: "7" });
+  await expect(page.getByText("Due today")).toBeVisible();
+
+  await openMenu(page, { label: "Bins" });
+  await page.getByRole("menuitem", { name: "Snooze to tomorrow" }).click();
+
+  await expect(page.getByText("Due tomorrow")).toBeVisible();
+  // Put off, not done: the task still has never been completed and still repeats.
+  await expect(page.getByText("Every 7 days · never completed")).toBeVisible();
+});
+
+test("a task due later is not offered a snooze, which would bring it forward", async ({ page }) => {
+  await openDialog(page, "New task");
+  await page.getByLabel("Task", { exact: true }).fill("Boiler service");
+  await page.getByLabel("Repeat every (days)").fill("365");
+  await page.getByLabel("Due date").fill(formatInZone(dueAtDaysFrom(30), "yyyy-MM-dd"));
+  await page.getByRole("button", { name: "Add task" }).click();
+  await expect(page.getByText("Boiler service", { exact: true })).toBeVisible();
+
+  await openMenu(page, { label: "Boiler service" });
+  await expect(page.getByRole("menuitem", { name: "Snooze to tomorrow" })).toBeHidden();
+  // The menu is still the menu: what it holds for this task is edit and delete.
+  await expect(page.getByRole("menuitem", { name: "Edit" })).toBeVisible();
+});
+
+test("the dashboard can put off a task due today", async ({ page }) => {
+  await addTask(page, { title: "Bins", intervalDays: "7" });
+
+  await page.goto("/dashboard");
+  await expect(page.getByText("Due today")).toBeVisible();
+
+  await openMenu(page, { label: "Bins" });
+  await page.getByRole("menuitem", { name: "Snooze to tomorrow" }).click();
+
+  // Off today's plate. It is still within the three days the dashboard reaches, so the
+  // row stays — with tomorrow's date on it.
+  await expect(page.getByText("Due today")).toBeHidden();
+  await expect(page.getByText("Due tomorrow")).toBeVisible();
+});
+
 test("an overdue task is flagged", async ({ page }) => {
   await openDialog(page, "New task");
   await page.getByLabel("Task", { exact: true }).fill("Overdue task");

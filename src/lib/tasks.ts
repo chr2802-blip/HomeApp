@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { calendarDaysBetween, dueAtDaysFrom } from "./time";
 
 /**
  * A task is either a one-off or a recurring one, and `intervalDays` is which: null for
@@ -57,4 +58,36 @@ export function isFinished(task: TaskKind & { lastCompletedAt: Date | null }) {
 /** How a card describes the task's rhythm, or that it has none. */
 export function repeatLabel(task: TaskKind) {
   return isOneOff(task) ? "One-off" : `Every ${task.intervalDays} days`;
+}
+
+/**
+ * Whether "not today" is a thing somebody could mean about this task.
+ *
+ * Only a task due today or already overdue: on one due next week, putting it off until
+ * tomorrow would be pulling it *forward*, so the entry is not offered there at all.
+ * A finished one-off is not due on any day, however long its own date has been in the
+ * past, so there is nothing to put off either.
+ */
+export function isSnoozable(
+  task: TaskKind & { lastCompletedAt: Date | null; nextDueAt: Date },
+  now: Date = new Date(),
+) {
+  return !isFinished(task) && calendarDaysBetween(task.nextDueAt, now) <= 0;
+}
+
+/**
+ * Where snoozing moves a task to: tomorrow morning, in the household's own zone.
+ *
+ * Never earlier than the task already sat, so the one press cannot bring a date
+ * forward — the menu is only offered on what is due today or overdue, but a card left
+ * open on a phone overnight is a card offering it about yesterday.
+ *
+ * The interval is untouched, because snoozing is not a completion: a task that comes
+ * round every 30 days still comes round every 30 days, and this moves only the next
+ * one. Nothing is recorded about the deferral either — a task put off twice is still a
+ * task that has not been done, which is what its date already says.
+ */
+export function snoozedTo(task: { nextDueAt: Date }, now: Date = new Date()) {
+  const tomorrow = dueAtDaysFrom(1, now);
+  return tomorrow > task.nextDueAt ? tomorrow : task.nextDueAt;
 }
