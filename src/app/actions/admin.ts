@@ -8,6 +8,9 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireSuperAdmin, requireUser, hashPassword } from "@/lib/auth";
 import { assertHomeAdmin, canAccessHome, canAdministerHome } from "@/lib/access";
 import { generateInviteCode, hashInviteCode } from "@/lib/invite-code";
+import { mailConfigured, sendEmail } from "@/lib/email";
+import { inviteLink, inviteMessage } from "@/lib/invite-email";
+import { appOrigin } from "@/lib/app-url";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { optionalText, readForm, requiredText } from "@/lib/form";
 import { discardReplaced, readPhotoChoice } from "@/lib/photos";
@@ -50,8 +53,16 @@ const profileSchema = z.object({
 
 const INVITE_TTL_DAYS = 14;
 
+/**
+ * What came of issuing an invitation.
+ *
+ * The code comes back whether or not the mail went, and so does the link: the mail is
+ * a convenience on top of an invitation that exists either way, and an admin looking
+ * at a failed send still has everything they need to pass it on themselves. `sent`
+ * only changes what the panel says, never whether the invitation is real.
+ */
 export type InviteState =
-  | { ok: true; email: string; code: string }
+  | { ok: true; email: string; code: string; link: string | null; sent: boolean; reason?: string }
   | { ok: false; error: string }
   | undefined;
 
@@ -97,7 +108,56 @@ export async function createInvite(_prev: InviteState, formData: FormData): Prom
   });
 
   revalidatePath("/settings");
-  return { ok: true, email, code };
+
+  // The invitation is written before anything is sent, and the send cannot unwrite it.
+  // Mail is the delivery, not the invitation: a send that fails leaves an admin with a
+  // code to pass on by hand, which is exactly what they had before there was any mail.
+  const delivery = await deliverInvite({ email, code, homeId, invitedBy: user.name, expiresAt });
+  return { ok: true, email, code, ...delivery };
+}
+
+/**
+ * Emails the invitation, and says what happened in the words the admin will read.
+ *
+ * The link is built here rather than in the message, because it needs this
+ * installation's own address and that is a question only a request can answer. Without
+ * one there is nothing to send that is worth sending: an invitation with no link is a
+ * code, and the code is already on the admin's screen.
+ */
+async function deliverInvite(details: {
+  email: string;
+  code: string;
+  homeId: string;
+  invitedBy: string;
+  expiresAt: Date;
+}): Promise<{ link: string | null; sent: boolean; reason?: string }> {
+  const origin = await appOrigin();
+  if (!origin) {
+    return { link: null, sent: false, reason: "The app could not work out its own address." };
+  }
+
+  const link = inviteLink(origin, details.email, details.code);
+  if (!mailConfigured()) {
+    return { link, sent: false, reason: "Email is not configured on this installation." };
+  }
+
+  // Only for the message's own wording. The caller has already established that this
+  // admin runs this home.
+  const home = await prisma.home.findUnique({ where: { id: details.homeId }, select: { name: true } });
+  if (!home) return { link, sent: false, reason: "That home no longer exists." };
+
+  const outcome = await sendEmail(
+    inviteMessage({
+      email: details.email,
+      code: details.code,
+      link,
+      homeName: home.name,
+      invitedBy: details.invitedBy,
+      expiresAt: details.expiresAt,
+    }),
+  );
+
+  return outcome.sent ? { link, sent: true } : { link, sent: false, reason: outcome.reason };
 }
 
 export async function revokeInvite(formData: FormData) {

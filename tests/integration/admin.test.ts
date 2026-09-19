@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/auth";
 import { inviteCodeMatches } from "@/lib/invite-code";
@@ -26,6 +26,7 @@ import {
   signIn,
 } from "../helpers/factories";
 import { expectRedirect } from "../helpers/expect";
+import { headerStore } from "../helpers/next-mocks";
 
 describe("createInvite", () => {
   it("issues a code an admin can pass on, and stores only its hash", async () => {
@@ -134,6 +135,146 @@ describe("createInvite", () => {
     ).toEqual({ ok: false, error: "Enter a valid email address." });
 
     expect(await prisma.invite.count()).toBe(0);
+  });
+
+  describe("sending it", () => {
+    /**
+     * Mail is off by default in this suite, exactly as it is on an installation nobody
+     * has configured — see the note beside the VAPID keys in vitest.config.mts. A test
+     * that wants a send turns it on for itself and stubs the network, so nothing here
+     * can leave the machine.
+     */
+    function configureMail(response: Response | Error = new Response(null, { status: 200 })) {
+      vi.stubEnv("RESEND_API_KEY", "re_test_key");
+      vi.stubEnv("EMAIL_FROM", "HomeHub <hub@example.com>");
+      headerStore.set("host", "home.example");
+
+      const fetchMock = vi.fn(async () => {
+        if (response instanceof Error) throw response;
+        return response;
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      return fetchMock;
+    }
+
+    function sentBody(fetchMock: ReturnType<typeof configureMail>) {
+      const init = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1];
+      return JSON.parse(init.body as string) as { to: string[]; subject: string; text: string };
+    }
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    });
+
+    it("emails the invited address a link carrying the code", async () => {
+      const fetchMock = configureMail();
+      const { home, admin } = await createHomeWithMembers();
+      await signIn(admin);
+
+      const result = await createInvite(
+        undefined,
+        formData({ homeId: home.id, email: "Newcomer@Example.com", role: "USER" }),
+      );
+
+      expect(result).toMatchObject({ ok: true, sent: true });
+      const code = result && "code" in result ? result.code : "";
+
+      const body = sentBody(fetchMock);
+      // The lowercased address, which is the one the invitation is filed under and
+      // therefore the only one it can be accepted with.
+      expect(body.to).toEqual(["newcomer@example.com"]);
+      expect(body.subject).toContain(home.name);
+
+      const link = new URL(result && "link" in result ? (result.link ?? "") : "");
+      expect(link.origin).toBe("https://home.example");
+      expect(link.pathname).toBe("/accept-invite");
+      expect(link.searchParams.get("email")).toBe("newcomer@example.com");
+      expect(link.searchParams.get("code")).toBe(code);
+      expect(body.text).toContain(link.toString());
+    });
+
+    it("sends the code that was actually stored, so the emailed link works", async () => {
+      const fetchMock = configureMail();
+      const { home, admin } = await createHomeWithMembers();
+      await signIn(admin);
+
+      await createInvite(
+        undefined,
+        formData({ homeId: home.id, email: "a@example.com", role: "USER" }),
+      );
+
+      const emailed = new URL(
+        sentBody(fetchMock).text.match(/https:\/\/\S+/)![0],
+      ).searchParams.get("code")!;
+      const invite = await prisma.invite.findFirstOrThrow();
+      expect(inviteCodeMatches(emailed, invite.codeHash)).toBe(true);
+    });
+
+    it("keeps the invitation when the mail server refuses it, and says why", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      configureMail(new Response("no such sending domain", { status: 403 }));
+      const { home, admin } = await createHomeWithMembers();
+      await signIn(admin);
+
+      const result = await createInvite(
+        undefined,
+        formData({ homeId: home.id, email: "a@example.com", role: "USER" }),
+      );
+
+      // The delivery failed; the invitation did not. An admin with the code on screen
+      // can still pass it on, which is the whole arrangement.
+      expect(result).toMatchObject({
+        ok: true,
+        sent: false,
+        reason: "The mail server rejected this installation's key.",
+      });
+      expect(result && "link" in result && result.link).toContain("/accept-invite?");
+      expect(await prisma.invite.count()).toBe(1);
+    });
+
+    it("issues the invitation without sending anything where mail is not configured", async () => {
+      headerStore.set("host", "home.example");
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      const { home, admin } = await createHomeWithMembers();
+      await signIn(admin);
+
+      const result = await createInvite(
+        undefined,
+        formData({ homeId: home.id, email: "a@example.com", role: "USER" }),
+      );
+
+      expect(result).toMatchObject({
+        ok: true,
+        sent: false,
+        reason: "Email is not configured on this installation.",
+      });
+      // The link is still built and still shown: it is the thing an admin passes on
+      // by hand, and it is useful precisely when nothing was sent.
+      expect(result && "link" in result && result.link).toContain("/accept-invite?");
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(await prisma.invite.count()).toBe(1);
+    });
+
+    it("sends nothing when it cannot work out its own address to link to", async () => {
+      const fetchMock = configureMail();
+      // No host header and no APP_URL: there is no address to put in a link, and a
+      // message with no link is a message saying less than the screen already does.
+      headerStore.delete("host");
+      const { home, admin } = await createHomeWithMembers();
+      await signIn(admin);
+
+      const result = await createInvite(
+        undefined,
+        formData({ homeId: home.id, email: "a@example.com", role: "USER" }),
+      );
+
+      expect(result).toMatchObject({ ok: true, sent: false, link: null });
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(await prisma.invite.count()).toBe(1);
+    });
   });
 });
 

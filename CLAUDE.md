@@ -257,6 +257,46 @@ not take an avatar for an upload nobody finished and delete it an hour later. An
 home with them, wherever it happens to be filed — otherwise a housemate met in a second
 home would see a broken image.
 
+### Mail is optional, and a send that fails is not an action that failed
+
+`src/lib/email.ts` is the whole of getting a message out — Resend's HTTP API called with
+plain `fetch`, which is why there is no mail dependency in `package.json`: an SMTP client
+holds a socket open, which is the one thing a serverless function cannot do. It never
+throws and never decides anything is fatal. `sendEmail` returns `{ sent }` and the caller
+says so on screen.
+
+**An installation with no `RESEND_API_KEY` is not broken, it is an installation whose
+admins pass invitations on by hand** — which is how this app worked before there was any
+mail. So the invitation is written first and the send comes after it: `createInvite`
+returns the code and the link whether or not anything left the building, and the panel
+changes one line. A send folded into the write, or allowed to fail it, would lose a
+perfectly good invitation over a mail server's bad afternoon.
+
+What the message *says* is `src/lib/invite-email.ts`, separately, so it can be read back
+in a unit test with no network and no key. It is the only place in the app that builds
+HTML as a string, which is why it is also the only place that has to escape by hand what
+React escapes everywhere else — a home's name and a person's name are both typed by
+people and both land inside markup there.
+
+**An emailed link has to be absolute, so the app has to know where it is.** `appOrigin`
+in `src/lib/app-url.ts` works that out from the request, because that is right with
+nothing configured: somebody is administering the app at the address their invitee should
+be sent to. `APP_URL` overrides it for the case the request answers wrongly — a link built
+from a one-off Vercel deployment address points at a frozen snapshot of one build for
+ever, and mail cannot be recalled.
+
+The link carries `email` and `code`, and `/accept-invite` seeds the form from them.
+That is not a weakening of the code: whoever holds the mail holds both halves either way,
+and the invitation is still spent against one named address, still expires, and still
+leaves the invitee proving a password. Arriving accepts nothing — the form is submitted
+and checked exactly as a typed-in code is. Where the link names somebody other than
+whoever is signed in, the page treats it as a different person joining and asks their
+name, rather than filing the new account under whoever happened to be logged in.
+
+Nothing re-sends, and there is no button for it: only the hash of a code is stored. An
+invitation that did not arrive is replaced by creating another for the same address,
+which is what `deleteMany` before the `create` in `createInvite` already means.
+
 ### Form actions report what happened
 
 Actions that read user input take `(previous, formData)` and return `ActionResult`:

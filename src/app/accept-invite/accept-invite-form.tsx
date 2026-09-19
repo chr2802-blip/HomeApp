@@ -14,9 +14,19 @@ import { Button, Card, Input, Label } from "@/components/ui";
  */
 export function AcceptInviteForm({
   account,
+  email,
+  code,
 }: {
-  /** The signed-in person, or null for a visitor with no account yet. */
+  /**
+   * The signed-in person, when this invitation is theirs — null both for a visitor
+   * with no account and for a link naming somebody other than whoever is signed in,
+   * because that is a different person joining and the form has to ask who they are.
+   */
   account: { email: string; name: string } | null;
+  /** The address to start from: the link's, or the signed-in account's. */
+  email: string | null;
+  /** The code an emailed link carried. Still submitted and still checked like a typed one. */
+  code: string | null;
 }) {
   const [state, formAction, pending] = useActionState(acceptInvite, undefined);
 
@@ -30,7 +40,7 @@ export function AcceptInviteForm({
             name="email"
             type="email"
             autoComplete="email"
-            defaultValue={account?.email}
+            defaultValue={email ?? undefined}
             required
           />
         </div>
@@ -41,6 +51,7 @@ export function AcceptInviteForm({
             name="code"
             placeholder="XXXX-XXXX"
             autoComplete="one-time-code"
+            defaultValue={code ?? undefined}
             required
           />
         </div>

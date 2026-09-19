@@ -62,8 +62,10 @@ test.describe("accepting an invite", () => {
     await page.goto("/settings");
 
     await page.getByLabel("Email to invite").fill("newcomer@e2e.test");
-    await page.getByRole("button", { name: "Create invite" }).click();
+    await page.getByRole("button", { name: "Send invite" }).click();
 
+    // No mail is configured for the browser suite, so this is the by-hand path: the
+    // invitation exists and the admin is shown the code to pass on themselves.
     await expect(page.getByText("Invitation ready for newcomer@e2e.test")).toBeVisible();
     const code = (await page.locator("p.font-mono").innerText()).trim();
     expect(code).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
@@ -84,6 +86,35 @@ test.describe("accepting an invite", () => {
 
     const created = await prisma().user.findUnique({ where: { email: "newcomer@e2e.test" } });
     expect(created?.role).toBe("USER");
+  });
+
+  test("the invitation link fills the form in, leaving only a name and a password", async ({
+    page,
+    loginAs,
+  }) => {
+    await loginAs(ACCOUNTS.admin);
+    await page.goto("/settings");
+
+    await page.getByLabel("Email to invite").fill("linked@e2e.test");
+    await page.getByRole("button", { name: "Send invite" }).click();
+
+    // The link shown to the admin is the one the email carries — same builder, same
+    // two parameters — so following it here exercises what an invitee would press.
+    const link = (await page.getByText(/^https?:\/\/.*\/accept-invite/).innerText()).trim();
+
+    await page.getByRole("button", { name: "Log out" }).click();
+    await page.waitForURL(/\/login$/);
+
+    await page.goto(link);
+    await expect(page.getByLabel("Invited email")).toHaveValue("linked@e2e.test");
+    await expect(page.getByLabel("Invitation code")).toHaveValue(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+
+    await page.getByLabel("Your name").fill("Liam Linked");
+    await page.getByLabel("Choose a password").fill("a-good-password");
+    await page.getByRole("button", { name: "Create account" }).click();
+
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByText("Liam Linked")).toBeVisible();
   });
 
   test("a wrong code is refused and no account appears", async ({ page }) => {

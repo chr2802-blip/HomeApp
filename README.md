@@ -174,13 +174,29 @@ home removes its contents and empties it of members, who keep their accounts.
 
 ## Invitations
 
-There is no mail server. An admin creates an invitation for a specific email address and the app
-generates a one-time code. The admin passes that code on however they like (text, chat, in
-person). The invitee goes to `/accept-invite` and must supply **both** the exact invited email
+An admin creates an invitation for a specific email address and the app generates a one-time
+code. The invitee goes to `/accept-invite` and must supply **both** the exact invited email
 **and** the code. Somebody new gets an account; somebody who already has one joins the home
 with it, giving their existing password rather than choosing a new one. Codes are stored
 hashed, expire after 14 days, and are displayed only once — create a new invitation if one
 is lost.
+
+**The invitation is emailed** where mail is configured (`RESEND_API_KEY` and `EMAIL_FROM`).
+The message carries a link to `/accept-invite?email=…&code=…`, which fills both fields in so
+the invitee only chooses a name and a password; the code is written out beside it for typing
+in by hand if the link is mangled. Whoever holds the mail holds both halves either way, and
+the invitation is still spent against one named address, still expires, and still leaves the
+invitee proving a password before they are in anybody's home.
+
+**Mail is optional and failing to send is not an error.** Without the two variables — or when
+Resend refuses the message — the invitation is created all the same and the admin is shown the
+code *and* the link to pass on however they like (text, chat, in person), which is how this
+worked before there was any mail at all. The panel says which of the two happened. Links are
+built from the address the admin is reaching the app at, so nothing needs configuring locally;
+set `APP_URL` where that is not the public address.
+
+Nothing re-sends: the app stores only the hash of a code, so an invitation that did not arrive
+is replaced by creating a new one for the same address, which supersedes the old one.
 
 ## Local setup
 
@@ -196,6 +212,8 @@ Copy `.env.example` to `.env` and fill it in:
 - `AUTH_SECRET` — generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
 - `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` — generate with `npx web-push generate-vapid-keys`.
 - `CRON_SECRET` — any random string; the reminder endpoint requires it.
+- `RESEND_API_KEY` / `EMAIL_FROM` — optional; without them invitations are created but not
+  emailed, and the admin passes the code and link on by hand.
 - `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` — used once, to seed the first account.
 
 2. Create the tables and the first super admin:
@@ -390,6 +408,10 @@ node -e "console.log('CRON_SECRET=' + require('crypto').randomBytes(24).toString
 ```bash
 npx web-push generate-vapid-keys
 ```
+
+For emailed invitations, create an API key at [resend.com](https://resend.com) and verify the
+domain you will send from → `RESEND_API_KEY` and `EMAIL_FROM`. Both are optional: without them
+invitations are created and shown to the admin to pass on by hand.
 
 ### 3. Import into Vercel
 

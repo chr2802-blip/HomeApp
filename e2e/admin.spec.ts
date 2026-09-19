@@ -82,7 +82,7 @@ test.describe("as a home admin", () => {
   test("an invite can be issued and then revoked", async ({ page }) => {
     await page.getByLabel("Email to invite").fill("guest@e2e.test");
     await page.getByLabel("Role").selectOption("ADMIN");
-    await page.getByRole("button", { name: "Create invite" }).click();
+    await page.getByRole("button", { name: "Send invite" }).click();
 
     await expect(page.getByText("Invitation ready for guest@e2e.test")).toBeVisible();
     await expect(page.getByText("guest@e2e.test", { exact: true })).toBeVisible();
@@ -95,14 +95,14 @@ test.describe("as a home admin", () => {
 
   test("inviting somebody already in this home is refused", async ({ page }) => {
     await page.getByLabel("Email to invite").fill(ACCOUNTS.member.email);
-    await page.getByRole("button", { name: "Create invite" }).click();
+    await page.getByRole("button", { name: "Send invite" }).click();
 
     await expect(page.getByText("They are already in this home.")).toBeVisible();
   });
 
   test("somebody with an account in another home can be invited", async ({ page }) => {
     await page.getByLabel("Email to invite").fill(ACCOUNTS.outsider.email);
-    await page.getByRole("button", { name: "Create invite" }).click();
+    await page.getByRole("button", { name: "Send invite" }).click();
 
     await expect(page.getByText(`Invitation ready for ${ACCOUNTS.outsider.email}`)).toBeVisible();
   });
