@@ -37,7 +37,7 @@ export async function SuggestedRecipe({ homeId }: { homeId: string }) {
   const face = (
     <>
       {/* Decorative: the title is right beside it. */}
-      <PhotoThumb photoId={dinner.photoId} alt="" className="h-12 w-12" />
+      <PhotoThumb photoId={dinner.photoId} alt="" className="h-12 w-12" placeholder />
       <div className="min-w-0 flex-1">
         <p className="font-medium">{dinner.title}</p>
         {dinner.description && (

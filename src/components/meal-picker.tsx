@@ -145,15 +145,9 @@ export function MealPicker({
                       className="h-4 w-4 shrink-0 accent-[var(--accent)]"
                     />
 
-                    {option.photoId !== undefined &&
-                      (option.photoId ? (
-                        <PhotoThumb photoId={option.photoId} alt="" className="h-9 w-9" />
-                      ) : (
-                        <div
-                          aria-hidden="true"
-                          className="h-9 w-9 shrink-0 rounded-lg bg-slate-100"
-                        />
-                      ))}
+                    {option.photoId !== undefined && (
+                      <PhotoThumb photoId={option.photoId} alt="" className="h-9 w-9" placeholder />
+                    )}
 
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{option.label}</span>
