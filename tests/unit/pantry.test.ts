@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pantryKey, pantryNote, stripStocked } from "@/lib/pantry";
+import { alreadyOnListNote, namesInWords, pantryKey, pantryNote, stripStocked } from "@/lib/pantry";
 import { shoppingText } from "@/lib/recipes";
 
 /**
@@ -65,24 +65,30 @@ describe("stripStocked", () => {
   });
 });
 
-describe("pantryNote", () => {
-  it("says nothing where the pantry did nothing", () => {
-    expect(pantryNote([])).toBeUndefined();
-  });
-
-  it("names what it covered", () => {
-    expect(pantryNote(["Salt"])).toBe("Salt already in the pantry.");
-    expect(pantryNote(["Salt", "Peber"])).toBe("Salt and Peber already in the pantry.");
-    expect(pantryNote(["Salt", "Peber", "Olie"])).toBe(
-      "Salt, Peber and Olie already in the pantry.",
-    );
+describe("namesInWords", () => {
+  it("joins what there is", () => {
+    expect(namesInWords(["Salt"])).toBe("Salt");
+    expect(namesInWords(["Salt", "Peber"])).toBe("Salt and Peber");
+    expect(namesInWords(["Salt", "Peber", "Olie"])).toBe("Salt, Peber and Olie");
   });
 
   // Past three it stops being a sentence anybody reads to the end, and the point of
   // naming them — so a cook can say "actually we're out of oil" — is already made.
   it("counts the rest once there are more names than anyone reads", () => {
-    expect(pantryNote(["Salt", "Peber", "Olie", "Smør", "Mel"])).toBe(
-      "Salt, Peber, Olie and 2 more already in the pantry.",
+    expect(namesInWords(["Salt", "Peber", "Olie", "Smør", "Mel"])).toBe(
+      "Salt, Peber, Olie and 2 more",
     );
+  });
+});
+
+describe("the two notes", () => {
+  it("say nothing where there is nothing to say", () => {
+    expect(pantryNote([])).toBeUndefined();
+    expect(alreadyOnListNote([])).toBeUndefined();
+  });
+
+  it("name what the press left alone, from either end", () => {
+    expect(pantryNote(["Salt", "Olie"])).toBe("Salt and Olie already in the pantry.");
+    expect(alreadyOnListNote(["Ris"])).toBe("Ris already on the list.");
   });
 });
