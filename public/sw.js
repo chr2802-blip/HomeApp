@@ -81,16 +81,38 @@ self.addEventListener("activate", (event) => {
 });
 
 /**
- * The login page asks for the kept pages to be forgotten.
+ * The login page asks for this browser's copy of the household to be forgotten.
  *
  * A rendered page carries one person's household in it, so it must not outlive their
  * session: whoever opens this browser next is a different person until they have proved
- * otherwise. The page cache is dropped here, and the queue of unsent changes is dropped
- * by the page itself, for the same reason.
+ * otherwise. The queue of unsent changes is dropped by the page itself, for the same
+ * reason.
+ *
+ * **The pictures go too, and for a while they did not.** Only the page cache was
+ * dropped here, on the reading that the assets are chunks named after their own
+ * contents — but `/api/photos/` is kept alongside them, and those are the household's
+ * photographs: its rooms, its cooking, the faces of the people in it. Left behind they
+ * outlived the session with nothing to expire them, and because assets are served
+ * cache-first they were never asked of the server again — so a picture stayed readable
+ * by a browser whose session had ended, and by one whose membership had been revoked.
+ *
+ * Only the pictures are taken. The hashed chunks are nobody's household and dropping
+ * them would make the next person wait for the app to download itself again.
  */
+async function forgetThisHousehold() {
+  await caches.delete(PAGES);
+
+  const assets = await caches.open(ASSETS);
+  for (const request of await assets.keys()) {
+    if (new URL(request.url).pathname.startsWith("/api/photos/")) {
+      await assets.delete(request);
+    }
+  }
+}
+
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "homehub:forget") {
-    event.waitUntil(caches.delete(PAGES));
+    event.waitUntil(forgetThisHousehold());
   }
 });
 
@@ -119,9 +141,11 @@ async function pageFromNetworkThenCache(request, url) {
   try {
     const response = await fetch(request);
 
-    // Sent to the login page: this session is over, so everything kept under it goes.
+    // Sent to the login page: this session is over, so everything kept under it goes —
+    // the same forgetting the login page itself asks for, because arriving there with
+    // an expired cookie ends a session exactly as pressing Log out does.
     if (response.redirected && new URL(response.url).pathname.startsWith("/login")) {
-      await caches.delete(PAGES);
+      await forgetThisHousehold();
       return response;
     }
 

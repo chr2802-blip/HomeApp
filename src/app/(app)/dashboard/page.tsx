@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
+import { openItemCounts } from "@/lib/list-counts";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 import { completeTask, snoozeTask } from "@/app/actions/tasks";
 import { TaskDoneButton } from "@/components/task-done-button";
@@ -35,16 +36,17 @@ const DASHBOARD_LISTS = 4;
  * that is finished as about one nobody has started. The total is still fetched, but
  * only to tell an empty list from a finished one — "All done" on a list that has never
  * had anything on it would be a lie told cheerfully.
+ *
+ * The open half is not here: it is counted for the whole home in one query by
+ * `openItemCounts`, because a relation can only be counted one way per query and this
+ * one is already carrying the total.
  */
-const LIST_COUNTS = {
-  _count: { select: { items: true } },
-  items: { where: { done: false }, select: { id: true } },
-} as const;
+const LIST_COUNTS = { _count: { select: { items: true } } } as const;
 
-function itemsLine(list: { _count: { items: number }; items: unknown[] }) {
-  if (list._count.items === 0) return "Nothing on it yet";
-  if (list.items.length === 0) return "All done";
-  return `${list.items.length} open`;
+function itemsLine(total: number, open: number) {
+  if (total === 0) return "Nothing on it yet";
+  if (open === 0) return "All done";
+  return `${open} open`;
 }
 
 type DueTaskRow = {
@@ -134,7 +136,7 @@ export default async function DashboardPage() {
 
   const db = homeDb(user.homeId);
 
-  const [dueTasks, favorites, recent, week, streak] = await Promise.all([
+  const [dueTasks, favorites, recent, open, week, streak] = await Promise.all([
     db.task.findMany({
       // A one-off already done is not due, however long its date has been in the past.
       where: { nextDueAt: { lte: soon }, ...UNFINISHED },
@@ -155,6 +157,10 @@ export default async function DashboardPage() {
       take: DASHBOARD_LISTS + 1,
       include: LIST_COUNTS,
     }),
+    // How much is left on each of them. Counted for every list in the home rather than
+    // for the four drawn, because which four those are is decided below — after the
+    // favourites have been compared against the recent ones.
+    openItemCounts(user.homeId),
     // Both sides of the week's work, and which side a task falls on — see lib/week.
     weekWorkload(user.homeId, now),
     homeStreak(user.homeId),
@@ -274,28 +280,27 @@ export default async function DashboardPage() {
           </EmptyState>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">
-            {lists.map((list) => (
-              <Link key={list.id} href={`/lists/${list.id}`}>
-                <Card className="relative flex items-center gap-3 overflow-hidden transition hover:border-slate-400">
-                  {/* Decorative: the list's own name is right beside it. */}
-                  <PhotoThumb photoId={list.photoId} alt="" className="h-11 w-11" placeholder="list" />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium">{list.title}</p>
-                    <p className="text-xs text-slate-500">{itemsLine(list)}</p>
-                  </div>
-                  {/* The same edge the lists page draws, and only where there is
-                      something to be a proportion of — a list with nothing on it is
-                      not done. */}
-                  {list._count.items > 0 && (
-                    <ProgressBar
-                      edge
-                      done={list._count.items - list.items.length}
-                      total={list._count.items}
-                    />
-                  )}
-                </Card>
-              </Link>
-            ))}
+            {lists.map((list) => {
+              const total = list._count.items;
+              const stillOpen = open.get(list.id) ?? 0;
+
+              return (
+                <Link key={list.id} href={`/lists/${list.id}`}>
+                  <Card className="relative flex items-center gap-3 overflow-hidden transition hover:border-slate-400">
+                    {/* Decorative: the list's own name is right beside it. */}
+                    <PhotoThumb photoId={list.photoId} alt="" className="h-11 w-11" placeholder="list" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">{list.title}</p>
+                      <p className="text-xs text-slate-500">{itemsLine(total, stillOpen)}</p>
+                    </div>
+                    {/* The same edge the lists page draws, and only where there is
+                        something to be a proportion of — a list with nothing on it is
+                        not done. */}
+                    {total > 0 && <ProgressBar edge done={total - stillOpen} total={total} />}
+                  </Card>
+                </Link>
+              );
+            })}
           </div>
         )}
         {!starred && lists.length > 0 && (

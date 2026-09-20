@@ -22,8 +22,12 @@ const MAX_AGE = 60 * 60 * 24 * 30;
  * same `jwtVerify` it applies to a real one, and the login form itself is still driven
  * by hand in `auth.spec.ts`, which is the spec that is about it.
  */
-export async function sessionCookie(userId: string, url: string) {
-  const token = await new SignJWT({ sub: userId })
+export async function sessionCookie(userId: string, url: string, tokenVersion = 0) {
+  // `ver` mirrors SESSION_VERSION_CLAIM in src/lib/auth.ts: the app refuses a cookie
+  // naming a version the account has moved past, which is how changing a password ends
+  // the sessions opened under the old one. A seeded account has never changed one, so
+  // zero is right unless a spec says otherwise.
+  const token = await new SignJWT({ sub: userId, ver: tokenVersion })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${MAX_AGE}s`)

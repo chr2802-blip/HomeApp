@@ -32,6 +32,13 @@ export type OpKind = OfflineOp["kind"];
 /** How many ops one request may carry. A shop is dozens of ticks, never thousands. */
 export const MAX_OPS = 200;
 
+/**
+ * The longest a list item's text may be, here and in `addListItem` both — imported by
+ * the action rather than repeated there, because the two disagreeing would mean a line
+ * accepted at the kitchen table and refused in the aisle.
+ */
+export const MAX_ITEM_TEXT = 500;
+
 const id = z.string().min(1).max(64);
 const amount = z.number().int().min(MIN_AMOUNT).max(MAX_AMOUNT);
 
@@ -42,7 +49,7 @@ const opSchema = z.discriminatedUnion("kind", [
     kind: z.literal("add"),
     listId: id,
     itemId: id,
-    text: z.string().min(1).max(500),
+    text: z.string().min(1).max(MAX_ITEM_TEXT),
     amount,
   }),
   z.object({ id, kind: z.literal("amount"), listId: id, itemId: id, amount }),

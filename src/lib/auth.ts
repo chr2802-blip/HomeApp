@@ -24,8 +24,20 @@ export function verifyPassword(password: string, hash: string) {
   return bcrypt.compare(password, hash);
 }
 
-export async function createSession(userId: string) {
-  const token = await new SignJWT({ sub: userId })
+/**
+ * The claim that lets a session be ended from the outside.
+ *
+ * A cookie is a bearer token: whoever holds it is the account for thirty days, and
+ * nothing the owner does afterwards used to change that — changing the password left
+ * every session already open still working, including the one being changed *because
+ * of*. So the cookie names the account's `tokenVersion`, `getCurrentUser` checks it
+ * against the stored one, and bumping the column turns every cookie in existence into
+ * a cookie for a version nobody has.
+ */
+export const SESSION_VERSION_CLAIM = "ver";
+
+export async function createSession(userId: string, tokenVersion: number) {
+  const token = await new SignJWT({ sub: userId, [SESSION_VERSION_CLAIM]: tokenVersion })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${MAX_AGE}s`)
@@ -95,10 +107,17 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   if (!token) return null;
 
   let userId: string;
+  let version: number;
   try {
     const { payload } = await jwtVerify(token, secret());
     if (typeof payload.sub !== "string") return null;
     userId = payload.sub;
+    // A cookie written before this claim existed is a version 0 session, which is what
+    // every account starts at — so deploying this does not sign the household out. The
+    // first password change after it bumps past 0 and those cookies stop working, which
+    // is the whole point.
+    const claimed = payload[SESSION_VERSION_CLAIM];
+    version = typeof claimed === "number" ? claimed : 0;
   } catch {
     return null;
   }
@@ -117,6 +136,10 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     },
   });
   if (!user) return null;
+  // The session is for a password this account no longer has. Not an error and not a
+  // redirect — simply not a session, the same answer a cookie signed with the wrong
+  // secret gets, so the caller sends them to log in as it already does for anyone else.
+  if (user.tokenVersion !== version) return null;
 
   const homes: Membership[] = user.memberships.map((membership) => ({
     ...membership.home,
