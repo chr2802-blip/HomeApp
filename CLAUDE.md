@@ -76,7 +76,10 @@ password, picture and notifications, one page however many households they are i
 in the same menu because that menu is "this home, and me in it".
 
 **The header's name is a menu for everybody**, not only for somebody with a home to switch
-to — it is how Settings and Profile are reached. `HomeMenu` in
+to — it is how the Pantry, Settings and Profile are reached. The pantry is in it and is
+not administration: it is above Settings and drawn for every member, because what the
+household has in the cupboard is everyday business rather than a setting (see *The
+household has a cupboard*). `HomeMenu` in
 `src/components/home-menu.tsx` draws it; the list of other homes appears inside it only
 when there is more than one, because a chooser with a single choice is furniture.
 
@@ -399,6 +402,76 @@ Two deliberately independent halves: **the page comes back from the service work
 
 **[`docs/design/lists.md`](docs/design/lists.md) has the reasoning.**
 
+### The household has a cupboard, and the shopping list is told about it
+
+Almost every recipe opens with salt, pepper, oil and butter, and almost no household
+needs to buy any of them. Before `PantryItem` existed, "add the lasagne" put those four
+lines on the shop every time and the three that mattered were somewhere in among them —
+so the note under each item saying which recipe asked for it was answering a question
+nobody had, about salt.
+
+**A pantry entry is a name and one bit**: `inStock`, which is the whole of what a
+cupboard says. There is rice or there is not. Running out is therefore **unticking**
+rice rather than deleting it, and the next recipe that wants rice puts rice back on the
+list — which is the second half of what the feature is for, and why the boolean is not
+just an absence. Deleting is the different sentence: this household has stopped treating
+it as something it always has in.
+
+**What matches is `key`, not `name`.** `pantryKey` in `src/lib/pantry.ts` is
+`shoppingText` again, lower-cased — the same normalisation that decides two recipes'
+lines land on one row of the shop. Matching on anything else would be a second opinion
+about what two lines have in common, and the one that quietly disagreed would be this
+one: an entry reading "Salt" on the page and silently failing against "2 tsk salt",
+which looks like bad luck rather than a bug. The key is derived and never typed —
+written in that one function, rewritten on **every** save, so a rename moves what the
+entry answers for. `@@unique([homeId, key])` is on the key for the same reason the
+matching is: the invariant worth holding is one entry per row of shopping, and "Salt"
+and "salt" are not two basic goods. A name that normalises to nothing at all ("`,`") is
+refused rather than stored — it would match no ingredient line ever written, and then
+claim the next such entry was a duplicate of it.
+
+**The cupboard is taken out in one place**, `writeRecipesToList` in
+`src/app/actions/lists.ts`, so a recipe added from its own page and a whole week added
+from the meal plan cannot come to disagree about it. It is read at the press rather than
+when the page was drawn, because the pantry is a thing somebody may have just corrected
+on the way to the shop, and the split is made **before** anything is read or written: a
+press the pantry answers for in full leaves without opening a transaction, and the two
+things the caller has to say — what went on, what was left out — are decided together.
+
+**What was left out is said.** A line that quietly never arrives reads as one the app
+forgot, and a household that cannot tell "we already have salt" from "the salt went
+missing" stops trusting the button either way. `ActionResult` carries an optional `note`
+for exactly this, and `pantryNote` names what was covered up to three of them and counts
+the rest — "Salt, Peber and Olie" is something a cook can disagree with, and "3 skipped"
+is something they can only take on trust. A recipe the pantry answers for **in full** is
+a refusal rather than a cheerful "Added to Shopping", because nothing was added.
+
+**It answers what a recipe assumed, never what a person asked for.** Typing "salt" into
+the add box puts salt on the list, pantry or no pantry: that is somebody asking on
+purpose, and second-guessing it would be an app arguing with its own add button.
+
+**`/pantry` is reached from the home's name in the header, above Settings, and it is
+everybody's.** The actions take the home from the session and go through `homeDb`, and
+they make **no admin check at all** — unlike the recipe-category ones beside them.
+Which household ran out of rice on a Tuesday is not a question about who runs the
+household, and a pantry only an admin could correct would be out of date by Thursday.
+The page is ordered by name and never by what has run out: both questions asked of it
+("is the rice in", "we've run out of rice") begin by finding rice, and a list that
+reordered itself under the household's thumb on every tick would answer neither.
+
+The tick is one control with the name inside it rather than a box with a label beside
+it — this is pressed at an open cupboard door — and it is optimistic, and it is told the
+state to land in rather than "the other one", so the second press of a double tap leaves
+the cupboard saying what the thumb meant. Editing and deleting stay behind the three
+dots at the far end of the row, where a thumb aiming at "we're out of rice" cannot reach
+them.
+
+**An in-stock entry also counts as a staple for the meal suggestions.** `staplesOf`
+exists so a household need not keep a list of its own cupboard for the ranking to be
+worth reading — but a home that keeps one anyway has said something better than any
+inference from its recipes, and an ingredient nobody is buying either way cannot be what
+two dinners have in common. `weekSuggestions` on `/meals` unions the two.
+
 ### The week's meals are a row per day, and the row is the decision
 
 - `MealPlan` is one row per home per day. `recipeId` is what is being cooked, `leftoverOf`
@@ -601,3 +674,42 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
 
 Open a branch, keep `npm run verify` green, and open a PR rather than pushing to `main`.
 Explain in the PR what changed and why, and flag anything you decided rather than knew.
+
+### Every session leaves a note behind
+
+A change here goes idea → branch → `npm run verify` → PR → merge → production, usually in
+one sitting. Git records what was built. Nothing records **where the time actually went**,
+which is the only half that can be made faster — the diff is identical whether the colour
+was found in one file or in four, so twenty minutes spent working out which file owned it
+leaves no trace at all and nobody ever fixes it.
+
+So every session that changed anything writes one file into `docs/sessions/`, named
+`YYYY-MM-DD-slug.md`, from `docs/sessions/TEMPLATE.md`. **One file per session, never one
+growing log**: two sessions on two branches collide on the same lines every time, and a log
+that cannot be written from two branches at once is a log that stops being written.
+
+It is committed **with** the work it describes, not afterwards, and that is what makes it
+honest — a note written a week later is a note about what the diff says, which is the half
+that was already recorded. It costs nothing to push either: `docs/` is outside the pre-push
+hook's `CODE_PATHS`, so a session note on its own skips the integration and browser suites.
+
+**The line that earns the whole file is "what should have been quicker".** Everything above
+it is context for it. A session that answers "nothing" has written a diary entry; the
+question the file is asking is what somebody reading five of these in a row would fix first,
+and an entry naming no cost contributes nothing to that.
+
+**A gap in this file is a finding, not an excuse.** The commonest reason a session is slow
+is that something it needed to know about this codebase was not written down — which is
+exactly what the rest of CLAUDE.md is for. So the note names the gap and the same PR closes
+it wherever the answer is now known. That is the difference between a log that compounds and
+one that merely accumulates: the next session reads the convention instead of rediscovering
+it. When the same gap turns up three times it has stopped being a note, and wants a
+convention here or a check that enforces it.
+
+`scripts/session-summary.mjs` is the pair of hooks behind it, wired up in
+`.claude/settings.json`: **SessionStart** writes down the commit the session opened on and
+**Stop** compares against it. What counts as this session's work is measured from that
+commit and not from `main` — a checkout whose `origin/main` is a hundred commits stale is
+every shallow clone and every fresh container, and a hook that reports a hundred files is a
+hook nobody reads. It asks **once**: `stop_hook_active` ends it, because a hook that cannot
+be got past is a hook somebody switches off, and then nothing is logged at all.
