@@ -57,6 +57,11 @@ export function MealWeek({ days, action }: { days: MealDayInfo[]; action: FormAc
   const [state, setState] = useState<ActionResult>(undefined);
   const [pending, startTransition] = useTransition();
 
+  // Which way the content should slide in — set only by a swipe landing, and read once,
+  // by the `key` below forcing a remount to replay it. A row press or Save/Cancel needs
+  // none of this: the Modal's own entrance and exit already say something happened.
+  const [enter, setEnter] = useState<"forward" | "back" | null>(null);
+
   // The picker reads back the day's own stored answer whenever the sheet lands on a
   // different one — whether that is the row somebody just pressed, or the day a swipe
   // just saved and moved on from. And whatever the previous day's save had to say is not
@@ -73,6 +78,7 @@ export function MealWeek({ days, action }: { days: MealDayInfo[]; action: FormAc
 
   function openAt(index: number) {
     if (days[index]!.disabled) return;
+    setEnter(null);
     setOpenIndex(index);
   }
 
@@ -121,8 +127,15 @@ export function MealWeek({ days, action }: { days: MealDayInfo[]; action: FormAc
       const result = await write(from.date, choice);
       setState(result);
       if (result?.ok === false) return;
-      if (target === null) close();
-      else setOpenIndex(target);
+      if (target === null) {
+        close();
+      } else {
+        // Forward reveals the day to the right, the way dragging the page itself would;
+        // back reveals the one to the left. Set before the day changes, so the new
+        // content is born already carrying the class its entrance animation reads.
+        setEnter(direction === 1 ? "forward" : "back");
+        setOpenIndex(target);
+      }
     });
   }
 
@@ -181,24 +194,33 @@ export function MealWeek({ days, action }: { days: MealDayInfo[]; action: FormAc
       <Modal open={day !== null} onClose={close} title={shown?.title ?? ""}>
         {shown && (
           <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
-            <ModalBody className="space-y-4">
-              {/* Where the swipe is read: a horizontal drag anywhere in here saves this
-                  day and moves to the next or previous one, so this has to wrap the
-                  whole body a thumb might start the gesture on, not just the picker's
-                  own rows. */}
-              <div
-                className="touch-pan-y space-y-4"
-                onPointerDown={onPointerDown}
-                onPointerUp={onPointerUp}
-              >
-                <input type="hidden" name="date" value={shown.date} />
-                <MealPicker
-                  name={PLAN_FIELD}
-                  groups={shown.groups}
-                  selected={choice}
-                  onSelect={setChoice}
-                />
-              </div>
+            {/* Where the swipe is read: a horizontal drag anywhere in the body saves this
+                day and moves to the next or previous one — `ModalBody` itself, since it
+                is the one element here guaranteed to fill the sheet's full height
+                whatever the picker draws, where a wrapper sized to its own short content
+                would leave the empty space below it deaf to a drag. Keyed on the date so
+                a swipe's slide replays: the animation runs from the moment the element is
+                in the document, and a class changed on the same node that is already on
+                screen would not run it again. */}
+            <ModalBody
+              key={shown.date}
+              className={`touch-pan-y space-y-4 ${
+                enter === "forward"
+                  ? "animate-page-forward"
+                  : enter === "back"
+                    ? "animate-page-back"
+                    : ""
+              }`}
+              onPointerDown={onPointerDown}
+              onPointerUp={onPointerUp}
+            >
+              <input type="hidden" name="date" value={shown.date} />
+              <MealPicker
+                name={PLAN_FIELD}
+                groups={shown.groups}
+                selected={choice}
+                onSelect={setChoice}
+              />
             </ModalBody>
             <ModalFooter>
               {state?.ok === false && (

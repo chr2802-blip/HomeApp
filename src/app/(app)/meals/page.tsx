@@ -359,7 +359,7 @@ export default async function MealsPage({
             {/* Only away from the live week: a link back to where you already are is
                 furniture, and it is the one link here whose target is not relative. */}
             {week !== thisWeek && (
-              <ButtonLink href="/meals" variant="ghost" className="px-1 py-0 text-xs">
+              <ButtonLink href="/meals" variant="info" className="px-2 py-1 text-xs">
                 Back to this week
               </ButtonLink>
             )}

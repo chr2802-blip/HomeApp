@@ -122,12 +122,16 @@ export function Modal({
 export function ModalBody({
   className = "",
   children,
-}: {
-  className?: string;
-  children: React.ReactNode;
-}) {
+  ...rest
+}: { className?: string; children: React.ReactNode } & Omit<
+  React.ComponentProps<"div">,
+  "className" | "children"
+>) {
   return (
-    <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 ${className}`}>
+    <div
+      className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 ${className}`}
+      {...rest}
+    >
       {children}
     </div>
   );
