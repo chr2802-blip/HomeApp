@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { ACCOUNTS, expect, openDialog, test } from "./helpers/fixtures";
 import { CATEGORIES, HOME_NAME, prisma } from "./helpers/database";
+import { formatDayInZone, nextWeekStart, weekStartInZone } from "../src/lib/time";
 
 /*
  * Movement that silently is not movement.
@@ -125,6 +126,43 @@ test.describe("a page", () => {
     await page.getByRole("link", { name: "Tasks" }).first().click();
     await page.waitForURL(/\/tasks$/);
     await expectArrival(page, "page-switch");
+  });
+});
+
+test.describe("swiping between meal-plan days", () => {
+  test("slides the content the way the drag went, rather than swapping it silently", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 680 });
+    // Next week rather than this one: today might be its own week's last day, with
+    // nowhere later in it to swipe on to, and every day of a week that has not arrived
+    // yet is open regardless of which weekday today happens to be.
+    const monday = nextWeekStart(weekStartInZone());
+    await page.goto(`/meals?week=${monday}`);
+    await forget(page);
+
+    const row = page.getByRole("button", {
+      name: new RegExp(`^${formatDayInZone(monday, "EEEE")}`),
+    });
+    await expect(row).toHaveAttribute("data-ready", "true");
+    await row.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    // Waited for rather than just cleared: the sheet's own entrance is recorded at the
+    // end of a frame, which can land after a plain `forget` here — and then it is the
+    // swipe's own animation that gets lost in the noise of the one still arriving.
+    await expectPlayed(page, "sheet-in");
+    await forget(page);
+
+    const box = (await dialog.boundingBox())!;
+    const y = box.y + box.height / 2;
+    // Right to left: the same direction a thumb drags to bring tomorrow into view.
+    await page.mouse.move(box.x + box.width * 0.85, y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.15, y, { steps: 5 });
+    await page.mouse.up();
+
+    await expectPlayed(page, "page-forward");
   });
 });
 

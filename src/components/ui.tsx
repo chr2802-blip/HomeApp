@@ -12,6 +12,10 @@ const variants = {
   /* Outlined, and red however the home is dressed: what it does is the same everywhere,
      and a filled primary beside it is what keeps the two apart at a glance. */
   danger: "border border-red-200 bg-white text-red-600 hover:bg-red-50",
+  /* Outlined and blue, the same shape as danger for a pair that sits beside it — a way
+     back rather than a way to undo something, so it is never the home's own colour or
+     one of the three meanings red, green and amber already carry. */
+  info: "border border-blue-200 bg-white text-blue-600 hover:bg-blue-50",
   ghost: "text-slate-500 hover:bg-slate-100 hover:text-slate-900",
   /** Adding something. The one green in the app, so it means only that. */
   create: "bg-emerald-600 text-white hover:bg-emerald-700",
