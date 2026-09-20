@@ -16,7 +16,8 @@ export type HomeOption = {
 
 /**
  * The household you are reading, and everything that is about you rather than about
- * the lists: its settings, your profile, and the way into the other homes you belong to.
+ * the lists: its pantry, its settings, your profile, and the way into the other homes
+ * you belong to.
  *
  * It is the home's picture and name in the header, because that is already the thing a
  * person points at when they mean "this home, and me in it". Administering a household
@@ -109,6 +110,17 @@ export function HomeMenu({
           aria-label="This home and you"
           className="animate-row-in absolute top-full left-0 z-50 mt-2 min-w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
         >
+          {/* Above Settings, and drawn for everybody: the pantry is this household's
+              cupboard rather than its configuration, and the person who finds the rice
+              jar empty is not necessarily the person who runs the house. */}
+          <Link
+            href="/pantry"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className={`${entry} text-slate-700`}
+          >
+            Pantry
+          </Link>
           {canAdminister && (
             <Link
               href="/settings"

@@ -20,6 +20,7 @@ import {
   weekLabel,
   weekdayName,
 } from "@/lib/meals";
+import { stockedKeys } from "@/lib/pantry";
 import {
   ingredientKeys,
   rankByOverlap,
@@ -152,7 +153,7 @@ export default async function MealsPage({
   // before it would be the one week in seven where the offer disappeared.
   const sundayBefore = weekDays(previousWeekStart(week))[6]!;
 
-  const [plans, recipes, recentPlans, shoppingLists] = await Promise.all([
+  const [plans, recipes, recentPlans, shoppingLists, stocked] = await Promise.all([
     // Seven days by name rather than a range: the week is seven calendar days in the
     // home's own zone, and comparing strings is what the column is stored as text for.
     db.mealPlan.findMany({
@@ -203,6 +204,10 @@ export default async function MealsPage({
       orderBy: { title: "asc" },
       select: { id: true, title: true, _count: { select: { items: { where: { done: false } } } } },
     }),
+    // What the household keeps in. It is read here for the ranking below, which counts
+    // an ingredient as shared only where sharing it says something — see
+    // `weekSuggestions`.
+    stockedKeys(user.homeId),
   ]);
 
   const planned = new Map(plans.map((plan) => [plan.date, plan]));
@@ -245,6 +250,7 @@ export default async function MealsPage({
     // shop before this one, and counting it would have the week sharing with a basket
     // nobody is going to buy again.
     days.map((day) => planned.get(day)?.recipe?.id).filter((id) => id !== undefined),
+    stocked,
   );
 
   const byId = new Map(recipes.map((recipe) => [recipe.id, recipe]));
@@ -441,7 +447,8 @@ function planSelection(plan: PlannedDay["plan"] | undefined) {
  * The shortlist an empty day is offered, from the week's own cooking.
  *
  * Every recipe in the home is weighed for staples — what a household cooks is the best
- * description of its cupboard there is — while only the ones not already on the week,
+ * description of its cupboard there is, short of the pantry it keeps by hand — while
+ * only the ones not already on the week,
  * and not filed under a heading its admins excluded, can be offered. The exclusion is
  * the same rule `suggestedRecipeFor` follows for the dashboard's dinner, applied here to
  * rows already in hand rather than asked for again.
@@ -451,6 +458,7 @@ function weekSuggestions(
     categories: { category: { excludeFromSuggestion: boolean } }[];
   })[],
   cookingIds: string[],
+  stocked: Set<string>,
 ): MealSuggestion[] {
   const cooking = new Set(cookingIds);
 
@@ -467,6 +475,11 @@ function weekSuggestions(
         !recipe.categories.some((link) => link.category.excludeFromSuggestion),
     ),
     basket,
-    staples: staplesOf(recipes),
+    // The derived staples and the declared ones together. `staplesOf` exists so a
+    // household need not keep a list of its own cupboard for the suggestions to be worth
+    // reading — but a home that keeps one anyway has said something better than any
+    // inference from its recipes, and an ingredient nobody is buying either way cannot
+    // be what two dinners have in common.
+    staples: new Set([...staplesOf(recipes), ...stocked]),
   });
 }

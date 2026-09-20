@@ -5,9 +5,22 @@
  *
  * `undefined` is the state before the first submission.
  */
-export type ActionResult = { ok: true } | { ok: false; error: string } | undefined;
+export type ActionResult =
+  | {
+      ok: true;
+      /**
+       * Something worth saying about a submission that worked. Success usually needs no
+       * words — the form said what it was going to do and it did it — but a press whose
+       * effect was quietly smaller than asked for does: adding a recipe to a list leaves
+       * out whatever the pantry already answers for, and a line that simply never
+       * arrives reads as one the app forgot.
+       */
+      note?: string;
+    }
+  | { ok: false; error: string }
+  | undefined;
 
-export const ok = (): ActionResult => ({ ok: true });
+export const ok = (note?: string): ActionResult => (note ? { ok: true, note } : { ok: true });
 
 export const fail = (error: string): ActionResult => ({ ok: false, error });
 

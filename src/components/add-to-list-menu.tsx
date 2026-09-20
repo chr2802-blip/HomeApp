@@ -50,7 +50,13 @@ export function AddToListMenu({
       setResult(
         outcome?.ok === false
           ? { ok: false, message: outcome.error }
-          : { ok: true, message: `Added to ${list.title}.` },
+          : {
+              ok: true,
+              // The note is what the pantry took care of. Said here rather than left
+              // out, because a household that cannot tell "we already have salt" from
+              // "the salt went missing" stops trusting the button either way.
+              message: [`Added to ${list.title}.`, outcome?.note].filter(Boolean).join(" "),
+            },
       );
     });
   }

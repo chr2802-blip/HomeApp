@@ -73,6 +73,8 @@ model Home {
   clearedWeeks     ClearedWeek[]
   /// The days this household has planned something to eat on — see MealPlan.
   mealPlans        MealPlan[]
+  /// The basic goods this household keeps in — see PantryItem.
+  pantry           PantryItem[]
   /// Every picture filed under this home, whatever it is attached to.
   photos           Photo[]          @relation("PhotoHome")
   photo            Photo?           @relation("HomePhoto", fields: [photoId], references: [id], onDelete: SetNull)
@@ -470,6 +472,43 @@ model RecipeCategoryLink {
   // One row per pairing, and the lookup that asks what is filed under a category.
   @@id([recipeId, categoryId])
   @@index([categoryId])
+}
+
+/**
+ * One basic good a household keeps in the cupboard, and whether it has it.
+ * Salt, pepper, oil, flour, rice: the lines almost every recipe asks for and almost
+ * nobody needs to buy. A recipe's ingredients are put on a shopping list through
+ * `writeRecipesToList`, which leaves out every line the pantry says is already in —
+ * so "add the lasagne" adds the mince and not the salt.
+ * `inStock` is the whole of what an entry says, because that is the whole of what a
+ * cupboard says: there is rice or there is not. Running out is therefore not deleting
+ * the entry but unticking it — and the next recipe that wants rice puts rice back on
+ * the list, which is the second half of what this is for. Deleting is for something
+ * the household has stopped treating as a basic good at all.
+ * `name` is what somebody typed, and `key` is that name as a shopping list would have
+ * written it — `pantryKey` in lib/pantry.ts, which is `shoppingText` again, the same
+ * normalisation that decides whether two recipes' lines land on one row of the shop.
+ * It is derived and never typed: every write goes through that one function, so the
+ * two cannot come to disagree. It is the key rather than the name that is unique per
+ * home, because the invariant worth holding is one entry per row of shopping — "Salt"
+ * and "salt" are not two basic goods.
+ */
+model PantryItem {
+  id        String   @id @default(cuid())
+  homeId    String
+  /// What it is called, as the household wrote it.
+  name      String
+  /// The same thing as the shopping list would write it: `pantryKey(name)`.
+  key       String
+  /// Whether the household has it. Ticked is "no need to buy this".
+  inStock   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  home Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
+
+  // One entry per row of shopping per home, and — being keyed on the home first — the
+  // lookup that asks what one household keeps in, so there is no second index for it.
+  @@unique([homeId, key])
 }
 
 /**
