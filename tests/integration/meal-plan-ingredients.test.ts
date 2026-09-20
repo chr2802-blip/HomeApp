@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { addMealPlanIngredients } from "@/app/actions/lists";
 import { planMeal } from "@/app/actions/meals";
 import { PLAN_FIELD, PLAN_OUT, leftoversChoice } from "@/lib/meals";
-import { todayInZone, weekStartOn } from "@/lib/time";
+import { todayInZone, weekDays, weekStartOn } from "@/lib/time";
 import {
   createHome,
   createHomeWithMembers,
@@ -180,6 +180,52 @@ describe("addMealPlanIngredients", () => {
       addMealPlanIngredients(formData({ listId: theirList.id, week: WEEK })),
     );
     expect(await prisma.listItem.count()).toBe(0);
+  });
+
+  /**
+   * The size case, which is the one that bites in production rather than in a fixture.
+   *
+   * A full week is seven recipes, not one, and each line of each of them is its own
+   * round trip inside a single transaction — the amounts differ per line, so there is
+   * no one statement that writes them. Prisma's default ceiling on an interactive
+   * transaction is five seconds, and a week of real recipes against a pooled connection
+   * can reach it; past it the write fails as P2028, nothing is saved, and the cook is
+   * told only that something went wrong.
+   *
+   * So this plans a genuinely full week and asserts the whole of it landed. It is not a
+   * benchmark — a local socket will never reproduce the latency that makes this fail —
+   * but it is the shape of the call the ceiling applies to, and it fails loudly if the
+   * work per line grows back.
+   */
+  it("writes a full week of distinct recipes in one go", async () => {
+    const list = await listFor();
+    const days = weekDays(WEEK);
+
+    // Seven recipes of twelve lines each, sharing nothing, so every line is a row of
+    // its own rather than an increment on one already there.
+    const recipes = await Promise.all(
+      days.map((day, index) =>
+        recipeFor({
+          title: `Dinner ${index + 1}`,
+          ingredients: Array.from({ length: 12 }, (_, line) => `Item ${index + 1}-${line + 1}`).join("\n"),
+        }).then(async (recipe) => {
+          await plan(day, recipe.id);
+          return recipe;
+        }),
+      ),
+    );
+
+    const result = await addMealPlanIngredients(formData({ listId: list.id, week: WEEK }));
+
+    expect(result).toEqual({ ok: true });
+
+    const items = await itemsOnList();
+    expect(items).toHaveLength(7 * 12);
+    // Every line names the one recipe that asked for it, which is the half written in a
+    // single statement after the items rather than one upsert per line.
+    expect(await prisma.listItemSource.count()).toBe(7 * 12);
+    expect(await recipesBehind("Item 1-1")).toEqual([recipes[0]!.title]);
+    expect(await recipesBehind("Item 7-12")).toEqual([recipes[6]!.title]);
   });
 
   it("never reaches into another home's meal plan", async () => {

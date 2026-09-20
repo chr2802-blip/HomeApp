@@ -297,6 +297,16 @@ export async function renameListItem(formData: FormData) {
  * comparison — "1 dl mælk" and "5 dl mælk" are the same errand wanted twice, not two
  * different lines that happen to disagree about how much.
  */
+/**
+ * How long the write below may take before it is given up on.
+ *
+ * Generous rather than tight: it is not a performance target, it is the line past which
+ * something has gone wrong enough that failing cleanly beats holding a transaction
+ * open. Prisma's own default is five seconds, which a week's worth of recipes can
+ * genuinely reach on a slow connection without anything being broken at all.
+ */
+const WRITE_TIMEOUT_MS = 20_000;
+
 function dedupedIngredients(ingredients: string): Map<string, string> {
   const wanted = new Map<string, string>();
   for (const line of ingredientLines(ingredients)) {
@@ -342,45 +352,64 @@ async function writeRecipesToList(
   /*
    * One transaction: a half-added run is a shopping list nobody can trust, and the cook
    * has no way of telling which half arrived.
+   *
+   * What the transaction may not be is long. Every item is its own round trip — the
+   * amounts differ per line, so there is no one statement that writes them — and this
+   * is called with a whole week's cooking as well as with a single recipe: seven
+   * recipes of a dozen lines each is eighty-odd of them, one after another, against a
+   * pooled connection. Prisma's default ceiling is five seconds, which that can reach;
+   * past it the write fails as P2028 with nothing saved and "Something went wrong" on
+   * screen. So the ceiling is said out loud rather than inherited, and the one part
+   * that *can* be a single statement is.
    */
-  await prisma.$transaction(async (tx) => {
-    for (const recipe of recipes) {
-      for (const [key, text] of dedupedIngredients(recipe.ingredients)) {
-        const existing = byText.get(key);
+  await prisma.$transaction(
+    async (tx) => {
+      // Which recipe asked for which item, gathered as the items are written and saved
+      // in one statement at the end. It used to be an upsert per line, which doubled
+      // the number of round trips inside the transaction to write rows that carry
+      // nothing but two ids.
+      const pairs: { itemId: string; recipeId: string }[] = [];
 
-        const itemId = existing
-          ? (
-              await tx.listItem.update({
-                where: { id: existing.id, listId: list.id },
-                data: existing.done
-                  ? { done: false, amount: MIN_AMOUNT, position: position++ }
-                  : { amount: clampAmount(existing.amount + 1) },
-                select: { id: true },
-              })
-            ).id
-          : (
-              await tx.listItem.create({
-                data: { listId: list.id, text, amount: MIN_AMOUNT, position: position++ },
-                select: { id: true },
-              })
-            ).id;
+      for (const recipe of recipes) {
+        for (const [key, text] of dedupedIngredients(recipe.ingredients)) {
+          const existing = byText.get(key);
 
-        byText.set(key, {
-          id: itemId,
-          done: false,
-          amount: existing ? clampAmount(existing.amount + 1) : MIN_AMOUNT,
-        });
+          const itemId = existing
+            ? (
+                await tx.listItem.update({
+                  where: { id: existing.id, listId: list.id },
+                  data: existing.done
+                    ? { done: false, amount: MIN_AMOUNT, position: position++ }
+                    : { amount: clampAmount(existing.amount + 1) },
+                  select: { id: true },
+                })
+              ).id
+            : (
+                await tx.listItem.create({
+                  data: { listId: list.id, text, amount: MIN_AMOUNT, position: position++ },
+                  select: { id: true },
+                })
+              ).id;
 
-        // One row per pairing, so the second run finds it already there and the item
-        // still names the recipe once.
-        await tx.listItemSource.upsert({
-          where: { itemId_recipeId: { itemId, recipeId: recipe.id } },
-          create: { itemId, recipeId: recipe.id },
-          update: {},
-        });
+          byText.set(key, {
+            id: itemId,
+            done: false,
+            amount: existing ? clampAmount(existing.amount + 1) : MIN_AMOUNT,
+          });
+
+          pairs.push({ itemId, recipeId: recipe.id });
+        }
       }
-    }
-  });
+
+      // One row per pairing, so a second run finds it already there and the item still
+      // names the recipe once. `skipDuplicates` is what the upsert's empty `update` was
+      // saying: a pairing that exists is a pairing that is already right.
+      if (pairs.length > 0) {
+        await tx.listItemSource.createMany({ data: pairs, skipDuplicates: true });
+      }
+    },
+    { timeout: WRITE_TIMEOUT_MS },
+  );
 
   revalidatePath(`/lists/${list.id}`);
   revalidatePath("/lists");

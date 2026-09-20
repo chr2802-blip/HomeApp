@@ -1,5 +1,6 @@
 import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
+import { openItemCounts } from "@/lib/list-counts";
 import { createList } from "@/app/actions/lists";
 import { Input, Label, PageHeader } from "@/components/ui";
 import { FormDialog } from "@/components/form-dialog";
@@ -10,16 +11,21 @@ import { ListDirectory, type ListSummary } from "@/components/list-directory";
 export default async function ListsPage() {
   const user = await requireHomeUser();
 
-  const lists = await homeDb(user.homeId).list.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      _count: { select: { items: true } },
-      items: { where: { done: false }, select: { id: true } },
-      // Only the caller's own star: favourites are personal, and the page has no use
-      // for anybody else's.
-      favorites: { where: { userId: user.id }, select: { userId: true } },
-    },
-  });
+  // The lists themselves, and how much of each is still open. Two queries rather than
+  // one because a relation can only be counted one way per query — see `openItemCounts`
+  // — and both are counts, so neither fetches an item row to arrive at a number.
+  const [lists, open] = await Promise.all([
+    homeDb(user.homeId).list.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        _count: { select: { items: true } },
+        // Only the caller's own star: favourites are personal, and the page has no use
+        // for anybody else's.
+        favorites: { where: { userId: user.id }, select: { userId: true } },
+      },
+    }),
+    openItemCounts(user.homeId),
+  ]);
 
   // Favourites first, each group keeping the newest-first order. Sorted here rather
   // than in the query because "is starred by this person" is a property of the
@@ -30,7 +36,7 @@ export default async function ListsPage() {
       title: list.title,
       photoId: list.photoId,
       trackAmounts: list.trackAmounts,
-      open: list.items.length,
+      open: open.get(list.id) ?? 0,
       total: list._count.items,
       favorite: list.favorites.length > 0,
     }))
