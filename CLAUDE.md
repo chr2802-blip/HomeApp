@@ -561,7 +561,39 @@ from a link**. Three steps, all inside the one `Modal`.
   address actually landed on, checked the same way, downscaled server-side and stored through
   `storePhoto`; one that cannot be fetched is left out quietly.
 - The title, ingredients, instructions, picture and total time come from the fetch; the video
-  link and categories are the form's own fields either way.
+  link and categories are the form's own fields either way — **except for a reel**, where the
+  pasted link *is* the video and fills `videoUrl`.
+
+### A reel keeps its recipe in the caption, so that is what is read
+
+Instagram, Facebook and TikTok publish no `schema.org/Recipe` markup, so the rule above can
+only ever refuse a reel correctly. What a recipe reel has instead is the paragraph under the
+video. **`isReelUrl` routes those links elsewhere before anything is fetched**, and
+`captionSources` in `src/lib/reel-import.ts` is the one opinion about which links those are —
+`parseSocialEmbed` in `embed.ts` knows the same hosts for a different job (building an iframe
+`src`) and the two stay apart.
+
+- **Three modules, split by what can be wrong about them.** `caption-recipe.ts` is text in,
+  text out — no network, no database — because the half that can be wrong while everything
+  else works is the *reading*. `reel-import.ts` is the addresses and the markup.
+  `recipe-import.ts` keeps the fetching, so a reel's requests still go through the one
+  `isBlockedHost`, timeout and size limit.
+- **None of the addresses is a supported API, and all of them failing is an ordinary
+  outcome**, not a bug: Meta refuses a signed-out request from a datacenter often enough that
+  a feature resting on it alone would work on a laptop and not on Vercel. So the sources are
+  tried in order, best first.
+- **Which is why the paste box is the load-bearing half.** `importPastedCaption` runs the
+  very same parser, so a caption means one thing here however it arrived — and nothing on
+  Meta's side can block it. Offered on any `notARecipe` failure **and** from a button under
+  the link field, so a cook who knows how this reel ends need not sit out two timeouts.
+- **The parser is shy on purpose**: a caption it cannot recognise is refused rather than
+  turned into a recipe whose ingredients are somebody's tagged friends. Headings
+  ("Ingredienser"/"Fremgangsmåde", and the English pair) are simply obeyed; a caption naming
+  none needs three ingredient-shaped lines before it is a recipe at all.
+- **The total time is read only beside a phrase meaning the whole dish** — a bare "20 min" is
+  nearly always one step's own timing — and **the line that said it is then dropped**, or
+  every such caption ends with a step telling the cook how long the thing they just made
+  takes.
 
 **[`docs/design/recipes.md`](docs/design/recipes.md) has the reasoning.**
 
