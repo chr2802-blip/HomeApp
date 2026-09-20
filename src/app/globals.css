@@ -246,6 +246,21 @@ h3 {
 }
 
 /*
+ * A row that scrolls sideways rather than wrapping, with nothing to show for it: the
+ * chips still scroll with a finger or a trackpad, but a scrollbar under a row of pills is
+ * a second, uglier way of saying "there is more" when the clipped last chip already says
+ * it.
+ */
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+/*
  * Moving between screens.
  *
  * Which way a page arrives from says where it came from, the way a phone's own apps do:
