@@ -5,6 +5,7 @@ import {
   createList,
   deleteList,
   deleteListItem,
+  renameListItem,
   reorderListItems,
   restoreListItem,
   setListItemAmount,
@@ -492,6 +493,69 @@ describe("amounts", () => {
       amount: 5,
       done: false,
     });
+  });
+});
+
+describe("renaming an item", () => {
+  async function listWithItem(text = "Milk") {
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+    await addListItem(undefined, formData({ listId: list.id, text }));
+    return { list, item: await prisma.listItem.findFirstOrThrow() };
+  }
+
+  it("changes what the item says", async () => {
+    const { item } = await listWithItem();
+
+    await renameListItem(formData({ itemId: item.id, text: "Oat milk" }));
+
+    expect((await prisma.listItem.findUniqueOrThrow({ where: { id: item.id } })).text).toBe(
+      "Oat milk",
+    );
+  });
+
+  it("trims what was typed", async () => {
+    const { item } = await listWithItem();
+
+    await renameListItem(formData({ itemId: item.id, text: "  Oat milk  " }));
+
+    expect((await prisma.listItem.findUniqueOrThrow({ where: { id: item.id } })).text).toBe(
+      "Oat milk",
+    );
+  });
+
+  // The editor falls back to the row's own wording rather than sending nothing here to
+  // be rejected, so blank arriving at all means a request written by hand.
+  it("ignores blank text and leaves the item as it was", async () => {
+    const { item } = await listWithItem();
+
+    await renameListItem(formData({ itemId: item.id, text: "   " }));
+
+    expect((await prisma.listItem.findUniqueOrThrow({ where: { id: item.id } })).text).toBe(
+      "Milk",
+    );
+  });
+
+  it("quietly ignores an item that no longer exists", async () => {
+    await expect(
+      renameListItem(formData({ itemId: "missing", text: "Oat milk" })),
+    ).resolves.toBeUndefined();
+  });
+
+  it("refuses another home's item", async () => {
+    const neighbour = await createHomeWithMembers();
+    const otherList = await seedList({ homeId: neighbour.home.id, createdById: neighbour.member.id });
+    const item = await prisma.listItem.create({
+      data: { listId: otherList.id, text: "Milk", position: 1 },
+    });
+
+    // `member` is signed in and belongs to `home`, not `neighbour.home`.
+    await expect(
+      renameListItem(formData({ itemId: item.id, text: "Oat milk" })),
+    ).rejects.toThrow();
+
+    expect((await prisma.listItem.findUniqueOrThrow({ where: { id: item.id } })).text).toBe(
+      "Milk",
+    );
   });
 });
 

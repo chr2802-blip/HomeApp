@@ -132,3 +132,8 @@ export async function addItem(
 export async function setItemAmount(itemId: string, amount: number) {
   await prisma.listItem.update({ where: { id: itemId }, data: { amount } });
 }
+
+/** What an item is called. Blank text is not a state this writes; callers refuse it first. */
+export async function setItemText(itemId: string, text: string) {
+  await prisma.listItem.update({ where: { id: itemId }, data: { text } });
+}
