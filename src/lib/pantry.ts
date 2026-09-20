@@ -74,29 +74,41 @@ export function stripStocked(
   return { keep, covered };
 }
 
-/** How many of the covered lines are named before the rest become a number. */
+/** How many things are named before the rest become a number. */
 const NAMED = 3;
+
+/**
+ * A handful of names as a sentence's worth of them: "Salt, Peber and Olie", or "Salt,
+ * Peber, Olie and 2 more".
+ *
+ * Named rather than counted, up to a point: a cook can disagree with a name — "actually
+ * we're out of oil" — and can only take a number on trust. Past three it stops being a
+ * sentence anybody reads to the end, so the rest becomes the number it may as well have
+ * been.
+ */
+export function namesInWords(names: string[]): string {
+  const named = names.slice(0, NAMED);
+  const rest = names.length - named.length;
+  const parts = rest > 0 ? [...named, `${rest} more`] : named;
+
+  return parts.length === 1
+    ? parts[0]
+    : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
 
 /**
  * What the pantry took care of, in words, or nothing at all where it took care of
  * nothing — which is what a successful press usually has to say for itself.
- *
- * Named rather than counted, up to a point: "Salt, Peber and Olie" is something a cook
- * can disagree with — "actually we're out of oil" — and "3 skipped" is something they
- * can only take on trust. Past three names it is a sentence nobody reads to the end, so
- * the rest becomes the number it may as well have been.
  */
 export function pantryNote(covered: string[]): string | undefined {
-  if (covered.length === 0) return undefined;
+  return covered.length === 0 ? undefined : `${namesInWords(covered)} already in the pantry.`;
+}
 
-  const named = covered.slice(0, NAMED);
-  const rest = covered.length - named.length;
-  const parts = rest > 0 ? [...named, `${rest} more`] : named;
-
-  const list =
-    parts.length === 1
-      ? parts[0]
-      : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
-
-  return `${list} already in the pantry.`;
+/**
+ * The same sentence from the other end: what a restock run found the list already
+ * saying, so a household that presses "Add to list" and sees two rows appear out of
+ * five knows the other three were not lost.
+ */
+export function alreadyOnListNote(names: string[]): string | undefined {
+  return names.length === 0 ? undefined : `${namesInWords(names)} already on the list.`;
 }
