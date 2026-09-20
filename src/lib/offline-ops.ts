@@ -137,11 +137,13 @@ export function applyPending(items: ListRow[], ops: OfflineOp[], by: Person): Li
     next = next.map((item) => {
       if (item.id !== op.itemId) return item;
       if (op.kind === "amount") return { ...item, amount: op.amount };
-      // Ticking off drops the recipes that put it there and names whoever pressed it,
-      // exactly as the server will when the op arrives — see `setItemDone`.
+      // Ticking off drops the recipes that put it there, resets the amount to one and
+      // names whoever pressed it, exactly as the server will when the op arrives — see
+      // `setItemDone`.
       return {
         ...item,
         done: op.done,
+        amount: op.done ? MIN_AMOUNT : item.amount,
         sources: op.done ? [] : item.sources,
         completedBy: op.done ? by : null,
       };
