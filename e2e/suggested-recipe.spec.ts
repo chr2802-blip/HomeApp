@@ -1,5 +1,6 @@
 import { ACCOUNTS, expect, test } from "./helpers/fixtures";
 import { CATEGORIES, HOME_NAME, prisma } from "./helpers/database";
+import { todayInZone } from "../src/lib/time";
 
 async function seedRecipe(title: string, categoryNames: string[] = [CATEGORIES[0]]) {
   const db = prisma();
@@ -121,4 +122,41 @@ test("never suggests a recipe filed only under an excluded category", async ({ p
   await seedRecipe("Feta pasta", [CATEGORIES[1]]);
   await page.reload();
   await expect(page.getByRole("link", { name: "Feta pasta" })).toBeVisible();
+});
+
+test("shows a recipe already planned by hand on /meals, still with Find new", async ({ page }) => {
+  const recipe = await seedRecipe("Pancakes");
+  const db = prisma();
+  const home = await db.home.findFirstOrThrow({ where: { name: HOME_NAME } });
+  await db.mealPlan.create({ data: { homeId: home.id, date: todayInZone(), recipeId: recipe.id } });
+
+  await page.goto("/dashboard");
+  await expect(page.getByRole("link", { name: "Pancakes" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Find new" })).toBeVisible();
+});
+
+test("says nothing when tonight is already an eating-out night", async ({ page }) => {
+  await seedRecipe("Pancakes");
+  const db = prisma();
+  const home = await db.home.findFirstOrThrow({ where: { name: HOME_NAME } });
+  await db.mealPlan.create({ data: { homeId: home.id, date: todayInZone() } });
+
+  await page.goto("/dashboard");
+  // A night out is a decision already made, not something to suggest instead of.
+  await expect(page.getByRole("heading", { name: "Tonight's dinner" })).toHaveCount(0);
+});
+
+test("shows leftovers as what they are the leftovers of, with no Find new", async ({ page }) => {
+  const lasagne = await seedRecipe("Lasagne");
+  const db = prisma();
+  const home = await db.home.findFirstOrThrow({ where: { name: HOME_NAME } });
+  const yesterday = todayInZone(new Date(Date.now() - 24 * 60 * 60 * 1000));
+  await db.mealPlan.create({ data: { homeId: home.id, date: yesterday, recipeId: lasagne.id } });
+  await db.mealPlan.create({ data: { homeId: home.id, date: todayInZone(), leftoverOf: yesterday } });
+
+  await page.goto("/dashboard");
+  await expect(page.getByText(/Leftovers.*Lasagne/)).toBeVisible();
+  // Overriding a leftovers day with a random pick would be arguing with a decision the
+  // household already made on /meals.
+  await expect(page.getByRole("button", { name: "Find new" })).toHaveCount(0);
 });

@@ -13,7 +13,6 @@ datasource db {
 /**
  * What somebody may do across the whole installation, which is now the one question:
  * are they the super admin who looks after every household, or an ordinary person?
- *
  * Being an admin is no longer answered here. It is answered per home, on HomeMember,
  * because somebody can run one household and merely live in another.
  */
@@ -31,12 +30,10 @@ enum MemberRole {
 /**
  * The colour a home is dressed in, so the household on screen is known at a glance
  * rather than read off the header.
- *
  * A fixed set rather than a colour of one's own: every one of these is checked against
  * white text and against the page behind it, and a free choice is a household one
  * afternoon away from a header nobody can read. What each one looks like is in
  * globals.css, keyed by these names; `src/lib/theme.ts` is only what they are called.
- *
  * None of them is green, red or amber. Those three already say something here — added,
  * about to be deleted, overdue — and a home dressed in one would be saying it on every
  * screen.
@@ -72,7 +69,6 @@ model Home {
   tasks            Task[]
   recipes          Recipe[]
   recipeCategories RecipeCategory[]
-  recipeSuggestion RecipeSuggestion?
   /// The weeks this household cleared a list in — see ClearedWeek.
   clearedWeeks     ClearedWeek[]
   /// The days this household has planned something to eat on — see MealPlan.
@@ -84,10 +80,8 @@ model Home {
 
 /**
  * One person, who may belong to any number of homes.
- *
  * Which homes those are is `memberships`. `activeHomeId` is only which of them they
  * are looking at now — a pointer into that set, never the set itself.
- *
  * So what somebody may reach is answered from `memberships`; asking `activeHomeId`
  * would answer "the one home they happen to have open", which is a different question
  * wearing the same clothes.
@@ -133,12 +127,10 @@ model User {
 
 /**
  * One person in one home, and what they may do there.
- *
  * This is the row that says somebody is part of a household, so a person in three
  * homes has three of them and is an admin in exactly the ones that say so. It is what
  * homeDb scopes when a page asks who is in a home — User is not home-scoped any more,
  * because a user is not in one home.
- *
  * Cascaded from both sides: deleting the account takes its memberships with it, and
  * deleting a home takes them too. Either way what goes is the belonging, not the
  * account, and not the lists, tasks and recipes that person wrote in other homes.
@@ -227,16 +219,15 @@ model ListItem {
    * still open, and cleared again when somebody puts it back — it answers "who is
    * picking this up", which is a question about the shop still to do rather than a
    * record kept, exactly like the recipe note beside it.
-   *
    * SetNull rather than Cascade: somebody leaving the installation must not take the
    * household's shopping with them.
    */
   completedById String?
 
-  list        List  @relation(fields: [listId], references: [id], onDelete: Cascade)
-  completedBy User? @relation(fields: [completedById], references: [id], onDelete: SetNull)
+  list        List             @relation(fields: [listId], references: [id], onDelete: Cascade)
+  completedBy User?            @relation(fields: [completedById], references: [id], onDelete: SetNull)
   /// The recipes that put this item on the list, if any did.
-  sources ListItemSource[]
+  sources     ListItemSource[]
 
   @@index([listId])
   @@index([completedById])
@@ -244,17 +235,14 @@ model ListItem {
 
 /**
  * One list item, and a recipe whose ingredients asked for it.
- *
  * It exists so a shopping list can say where a line came from: three items in among
  * twenty read differently once the list says they are the lasagne. A line nobody
  * attached to a recipe — typed into the add box — has no row here and says nothing,
  * which is what keeps the note meaningful where it does appear.
- *
  * One row per pairing rather than one per addition, so a recipe added twice bumps the
  * amount and still names itself once: "Lasagne, Lasagne" under an onion tells nobody
  * anything. Two different recipes wanting the same onion are two rows, and the item
  * names both.
- *
  * The rows go when the item is ticked off, in `toggleListItem`: the note is about what
  * is still to buy, and a ticked item is next week's vocabulary rather than this week's
  * lasagne. They also go with the recipe itself — a note pointing at a recipe that no
@@ -277,11 +265,9 @@ model ListItemSource {
 
 /**
  * Something the household has to do: once, or over and over.
- *
  * Which of the two it is, is `intervalDays`. A number is the recurring kind — marking
  * it done books it in again that many days out — and null is a one-off, which is
  * finished once it has been done and stays that way.
- *
  * A one-off is therefore finished when `lastCompletedAt` is set, and a recurring task
  * never is: see lib/tasks.ts, where that pair of columns is read in one place rather
  * than spelled out at every query.
@@ -345,10 +331,9 @@ model Recipe {
   categories RecipeCategoryLink[]
   /// The list items this recipe's ingredients have been added to.
   listItems  ListItemSource[]
-  /// The home this is suggested to today, if it is anybody's current pick.
-  suggestedFor RecipeSuggestion?
-  /// The days a household has planned to cook this on.
-  mealPlans    MealPlan[]
+  /// The days a household has planned to cook this on — including, when nothing else
+  /// has been decided yet, today's own auto-picked suggestion (see MealPlan).
+  mealPlans  MealPlan[]
 
   @@index([homeId])
 }
@@ -361,14 +346,14 @@ model Recipe {
  * decided it is.
  */
 model RecipeCategory {
-  id        String   @id @default(cuid())
-  homeId    String
-  name      String
+  id                    String   @id @default(cuid())
+  homeId                String
+  name                  String
   /// Kept out of the daily dinner suggestion — a household with a "Baby food" heading
   /// does not want it turning up as tonight's dinner. Off by default: a category a home
   /// never thought about here is one it wants suggested, same as before this existed.
-  excludeFromSuggestion Boolean @default(false)
-  createdAt DateTime @default(now())
+  excludeFromSuggestion Boolean  @default(false)
+  createdAt             DateTime @default(now())
 
   home    Home                 @relation(fields: [homeId], references: [id], onDelete: Cascade)
   recipes RecipeCategoryLink[]
@@ -380,42 +365,15 @@ model RecipeCategory {
 }
 
 /**
- * The recipe suggested to one home for dinner today.
- *
- * One row per home, replaced rather than added to: a second pick the same day is
- * "instead of", not "as well as", which is what makes the "Find new" button mean what
- * it says. `date` is the day it was picked for, read the household's own way
- * (`todayInZone`, never the server's clock) — a suggestion picked yesterday is not
- * today's, whatever the server's day happens to be when it is asked.
- *
- * Cascades from both sides: deleting the home is the end of the question, and deleting
- * the suggested recipe itself leaves nothing worth keeping a pointer to — the next visit
- * simply picks again, which is the same thing that happens on any other day nothing was
- * stored yet.
- */
-model RecipeSuggestion {
-  homeId    String   @id
-  recipeId  String   @unique
-  date      String
-  updatedAt DateTime @default(now()) @updatedAt
-
-  home   Home   @relation(fields: [homeId], references: [id], onDelete: Cascade)
-  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-}
-
-/**
  * One row per home per week in which the household cleared a list.
- *
  * The household's rhythm, not a person's: what is recorded is that a list was finished
  * here, never by whom. A week with no row is a week nothing was cleared in, which is
  * what makes a run of consecutive rows a streak — see `lib/streak.ts`.
- *
  * `week` is the Monday of that week as "yyyy-MM-dd" in the home's own zone, the same
- * way RecipeSuggestion keeps its day. A Monday rather than an ISO week number because
+ * way MealPlan.date keeps its day. A Monday rather than an ISO week number because
  * the week before one is the Monday seven days earlier and nothing else — no year
  * boundary where week 1 follows week 52 of another year, which is the arithmetic a
  * streak would otherwise get wrong once a year.
- *
  * `@@id([homeId, week])` is the whole shape: a week is either in the household's
  * history or it is not, and clearing a second list in the same week raises `count`
  * rather than adding a row. That also bounds the table at a row per home per week.
@@ -435,7 +393,6 @@ model ClearedWeek {
 
 /**
  * What a household is eating on one day.
- *
  * A row means the day has been decided, and which of its two optional columns is filled
  * says how: `recipeId` is what is being cooked, `leftoverOf` is the earlier day whose
  * cooking this is a second helping of, and neither is a night out. **No row at all is a
@@ -443,31 +400,27 @@ model ClearedWeek {
  * or absence of the row rather than two columns that can disagree about the same
  * evening, the way a flag beside a recipe would be a second answer to the question the
  * recipe already answers.
- *
  * The two are mutually exclusive, and nothing in the database says so: a check
  * constraint here would be drift `db:check` cannot see in schema.prisma, so the
  * invariant is `planMeal`'s to keep and `tests/integration/meals.test.ts`'s to hold.
  * Every reader asks `recipeId` first, so a row that somehow held both would read as the
  * cooking it names rather than as nothing at all.
- *
  * `date` is the day in the home's own zone as "yyyy-MM-dd", never an instant, for the
  * same reason ClearedWeek.week is: Thursday's dinner is Thursday's wherever the server
  * happens to be, and a plan stored as midnight somewhere else lands on Wednesday for
  * half the year.
- *
  * @@id([homeId, date]) is the whole shape. Replanning a day overwrites it rather than
  * leaving two answers to argue over, and the table is bounded by the days a household
  * has actually planned.
  */
 model MealPlan {
-  homeId    String
-  date      String
+  homeId     String
+  date       String
   /// What is being cooked, or null for a night out or a day living off an earlier one.
-  recipeId  String?
+  recipeId   String?
   /**
    * The earlier day this is the leftovers of, as "yyyy-MM-dd" — Wednesday saying it is
    * Tuesday's lasagne again.
-   *
    * A plain string and not a relation: the target is this table's own composite key, and
    * a self-reference on it could not be `SetNull` (the home is half of the key and is
    * not nullable), so the cascade would have to delete Wednesday because Tuesday
@@ -476,7 +429,7 @@ model MealPlan {
    * still says "Leftovers", which is the true half of what it knew.
    */
   leftoverOf String?
-  updatedAt DateTime @default(now()) @updatedAt
+  updatedAt  DateTime @default(now()) @updatedAt
 
   home   Home    @relation(fields: [homeId], references: [id], onDelete: Cascade)
   /**
@@ -556,7 +509,7 @@ model Photo {
    * things holding them in one statement, and Postgres checks Restrict the instant the
    * referenced row goes. SetNull has no such ordering to get wrong.
    */
-  homes   Home[]          @relation("HomePhoto")
+  homes   Home[]   @relation("HomePhoto")
   lists   List[]
   tasks   Task[]
   recipes Recipe[]
@@ -568,7 +521,7 @@ model Photo {
    * all the same, or the sweep below would count an avatar as an upload nobody
    * finished and delete it an hour after it was chosen.
    */
-  users   User[]          @relation("UserPhoto")
+  users   User[]   @relation("UserPhoto")
 
   @@index([homeId])
   // The sweep for unreferenced uploads asks for one home's oldest pictures.

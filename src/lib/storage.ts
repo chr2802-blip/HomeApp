@@ -94,8 +94,6 @@ function breakdown(scope: Prisma.Sql) {
       SELECT r."homeId", 'recipes', pg_column_size(k.*)
         FROM "RecipeCategoryLink" k JOIN "Recipe" r ON r.id = k."recipeId"
       UNION ALL
-      SELECT s."homeId", 'recipes', pg_column_size(s.*) FROM "RecipeSuggestion" s
-      UNION ALL
       SELECT l."homeId", 'lists', pg_column_size(l.*) FROM "List" l
       UNION ALL
       SELECT l."homeId", 'lists', pg_column_size(i.*)
