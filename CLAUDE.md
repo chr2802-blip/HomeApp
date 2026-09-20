@@ -670,29 +670,6 @@ include on a list query that went through `homeDb`. Both ids the action is given
 recipe's and the list's — are checked against the caller's homes, because one press
 sends both.
 
-### Tonight's dinner is cached for the day, not recomputed on every visit
-
-`RecipeSuggestion` is one row per home: the recipe currently suggested, and the date (in
-the home's own zone) it was picked for. The dashboard reads it, and picks a fresh one
-only when that date is not today's — `src/lib/recipe-suggestion.ts` is the whole of that
-logic. Without the row, opening the dashboard twice in an evening would show two
-different dinners, which is not what "today's suggestion" means; a plain random pick on
-every render would be simpler code for a feature that has to look like it remembers.
-
-"Find new" replaces the stored pick rather than adding to it — `@id` on `homeId` makes
-that the only shape the row can take — and prefers whichever eligible recipe is not the
-one already showing, so the button visibly does something when there is anything else to
-offer. Deleting the suggested recipe takes the row with it (`onDelete: Cascade` on both
-sides), so a stale pointer is never left behind: the next visit just picks again, the
-same as any other day nothing was stored yet.
-
-A category's `excludeFromSuggestion` keeps its recipes out of the pool entirely — a
-recipe filed under an excluded heading and an ordinary one is still excluded, because a
-household that ticked "Baby food" for exactly this reason does not want it back for
-having a second category. The checkbox lives beside the name on both the add and rename
-forms in `RecipeCategoriesAdmin`, read the same way `List.trackAmounts` is: an unticked
-box is absent from the form rather than present and false.
-
 ### The week's meals are a row per day, and the row is the decision
 
 `MealPlan` is one row per home per day, and which of its two optional columns is filled
@@ -845,6 +822,48 @@ because the value is normalised to its Monday, and a day that never existed
 ("2026-02-31") falls back to the live week rather than drawing seven days of arithmetic
 nobody can read. Pressing a day's row opens its sheet: there is exactly one thing to do
 with a day, so a three-dot menu would be a menu of one entry standing in front of it.
+
+### Tonight's dinner is today's row on the meal plan, not a pick kept apart from it
+
+It used to be: `RecipeSuggestion` was one row per home, a pick with nothing to do with
+whatever `/meals` said about the same evening — a household could tell `/meals` it was
+eating out tonight and still see a suggested recipe on the dashboard, two different
+answers to the same question. `tonightsDinner` in `src/lib/recipe-suggestion.ts` reads
+today's `MealPlan` row instead, so the two pages agree because they are reading the same
+one.
+
+**A day already decided is shown as it was decided, and "Find new" is offered only where
+it would not be arguing with the household.** A recipe — auto-picked by this component or
+chosen by hand on `/meals`, the row cannot tell the two apart and does not need to — is a
+suggestion, so the button replaces it. Leftovers and a night out are not: the row says
+what the leftovers are the leftovers of (or nothing at all for a night out, the same
+"absent entirely" the dashboard uses for a heading with nothing behind it), and stops
+there, the same reason `/meals` never draws a suggestion beside a day already planned.
+
+**A day with no row yet is where the auto-pick belongs.** One eligible recipe — the same
+pool `excludeFromSuggestion` narrows for `/meals`' own suggestions — is written into
+`MealPlan` as today's `recipeId` before this returns, so a second visit the same evening
+shows the same dinner rather than a fresh coin flip, and `/meals` shows the same plan for
+today the moment either page is opened next. A plain random pick on every render would be
+simpler code for a feature that has to look like it remembers, and would leave `/meals`
+not knowing what the dashboard had just decided on the household's behalf.
+
+"Find new" replaces `recipeId` for today rather than adding to it — `@@id([homeId,
+date])` on `MealPlan` already makes that the only shape a day's row can take — and
+prefers whichever eligible recipe is not the one already showing, so the button visibly
+does something when there is anything else to offer. It revalidates `/meals` alongside
+the dashboard, because a household glancing at the week right after pressing it would
+otherwise see yesterday's pick. Deleting the planned recipe takes the day back to nothing
+planned (`onDelete: Cascade` on `MealPlan.recipe`, the same as any other recipe deleted
+out from under a plan), so a stale pointer is never left behind: the next visit just
+picks again, the same as any other day nothing was stored yet.
+
+A category's `excludeFromSuggestion` keeps its recipes out of the pool entirely — a
+recipe filed under an excluded heading and an ordinary one is still excluded, because a
+household that ticked "Baby food" for exactly this reason does not want it back for
+having a second category. The checkbox lives beside the name on both the add and rename
+forms in `RecipeCategoriesAdmin`, read the same way `List.trackAmounts` is: an unticked
+box is absent from the form rather than present and false.
 
 ### A new recipe starts by asking how, not with a field buried in the form
 
