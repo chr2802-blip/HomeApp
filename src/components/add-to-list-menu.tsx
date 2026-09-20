@@ -99,10 +99,12 @@ export function AddToListMenu({
       </ContextMenu>
 
       {/* A live region, so the outcome is announced rather than only drawn: the press
-          that caused it moved focus nowhere. */}
+          that caused it moved focus nowhere. Bounded and right-aligned rather than one
+          long line — the pantry note can run to a full sentence, and an unbounded line
+          here is wide enough to squeeze the page title beside it down to nothing. */}
       <p
         role="status"
-        className={`text-xs ${result?.ok === false ? "text-red-600" : "text-slate-500"}`}
+        className={`max-w-40 text-right text-xs ${result?.ok === false ? "text-red-600" : "text-slate-500"}`}
       >
         {pending ? "Adding…" : (result?.message ?? "")}
       </p>
