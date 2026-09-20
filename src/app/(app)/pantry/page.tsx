@@ -1,10 +1,10 @@
 import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
-import { createPantryItem, deletePantryItem, renamePantryItem } from "@/app/actions/pantry";
+import { addPantryToList, createPantryItem } from "@/app/actions/pantry";
 import { Card, EmptyState, Input, Label, PageHeader } from "@/components/ui";
 import { ActionForm } from "@/components/action-form";
-import { ItemMenu } from "@/components/item-menu";
-import { PantryStock } from "@/components/pantry-stock";
+import { AddToListMenu } from "@/components/add-to-list-menu";
+import { PantryRow } from "@/components/pantry-row";
 
 /**
  * What the household keeps in, so that adding a recipe to a shopping list stops asking
@@ -19,17 +19,46 @@ import { PantryStock } from "@/components/pantry-stock";
  * Ordered by name and not by what has run out. The two questions asked of this page are
  * "is the rice in" and "we've run out of rice" — both of them begin by finding rice, and
  * a list that reordered itself under the household's thumb every time something was
- * ticked would answer neither.
+ * switched off would answer neither.
  */
 export default async function PantryPage() {
   const user = await requireHomeUser();
-  const items = await homeDb(user.homeId).pantryItem.findMany({ orderBy: { name: "asc" } });
+  const db = homeDb(user.homeId);
+
+  const [items, shoppingLists] = await Promise.all([
+    db.pantryItem.findMany({ orderBy: { name: "asc" } }),
+    // The same lists the recipe page and the meal plan offer, filtered the same way: an
+    // ingredient line is a quantity, and a list that ignores amounts has nowhere to put
+    // one.
+    db.list.findMany({
+      where: { trackAmounts: true },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, title: true, _count: { select: { items: { where: { done: false } } } } },
+    }),
+  ]);
 
   return (
     <>
       <PageHeader
         title="Pantry"
-        description="The basics you always have in. A recipe added to a shopping list leaves these off — untick anything you have run out of and it goes back on."
+        description="The basics you always have in. A recipe added to a shopping list leaves these off — switch off anything you have run out of and it goes back on."
+        action={
+          // Drawn whenever the pantry has anything in it at all, rather than only when
+          // something has run out: the switches are optimistic, so a button that came
+          // and went with the count would arrive a beat after the thumb that caused it.
+          // Pressed on a full cupboard it says so, which is the same answer.
+          items.length > 0 ? (
+            <AddToListMenu
+              lists={shoppingLists.map((list) => ({
+                id: list.id,
+                title: list.title,
+                open: list._count.items,
+              }))}
+              action={addPantryToList}
+              extraData={{}}
+            />
+          ) : undefined
+        }
       />
 
       <Card>
@@ -59,31 +88,7 @@ export default async function PantryPage() {
       ) : (
         <Card className="mt-3 divide-y divide-slate-100 p-0">
           {items.map((item) => (
-            <div key={item.id} className="flex items-center gap-2 px-4 py-1.5">
-              <PantryStock id={item.id} name={item.name} inStock={item.inStock} />
-              <ItemMenu
-                name="pantryItemId"
-                id={item.id}
-                label={item.name}
-                editTitle="Rename"
-                editAction={renamePantryItem}
-                deleteAction={deletePantryItem}
-                deleteTitle="Remove from pantry"
-                deleteMessage={`Stop treating “${item.name}” as something you always have in? Recipes asking for it will put it on the shopping list again.`}
-                deleteConfirmLabel="Remove"
-                className="-mr-2"
-              >
-                <div className="space-y-1">
-                  <Label htmlFor={`pantry-name-${item.id}`}>Name</Label>
-                  <Input
-                    id={`pantry-name-${item.id}`}
-                    name="name"
-                    defaultValue={item.name}
-                    required
-                  />
-                </div>
-              </ItemMenu>
-            </div>
+            <PantryRow key={item.id} id={item.id} name={item.name} inStock={item.inStock} />
           ))}
         </Card>
       )}
