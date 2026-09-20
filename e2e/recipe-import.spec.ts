@@ -158,3 +158,59 @@ test.describe("a recipe link already on the clipboard", () => {
     await expect(page.getByLabel("Recipe link")).toHaveValue("");
   });
 });
+
+/*
+ * A reel keeps its recipe in the paragraph under the video, and Meta refuses a
+ * signed-out request for that paragraph often enough that the automatic read cannot be
+ * the only way in. The box is therefore reachable on purpose and not only after a
+ * failure — which is also what lets this test drive the whole route with no network at
+ * all: nothing here fetches anything, exactly like every other test in this file.
+ */
+test.describe("pasting a reel's description", () => {
+  const CAPTION = [
+    "🍝 Cremet pasta med kylling",
+    "",
+    "Ingredienser",
+    "- 400 g pasta",
+    "- 500 g kyllingebryst",
+    "- 2 dl fløde",
+    "",
+    "Fremgangsmåde",
+    "1. Kog pastaen.",
+    "2. Steg kyllingen.",
+    "",
+    "Klar på 25 minutter i alt",
+    "#aftensmad #pasta",
+  ].join("\n");
+
+  test("reads a pasted description into the create form", async ({ page }) => {
+    await openDialog(page, "New recipe");
+    await page.getByRole("button", { name: "Import from a link" }).click();
+    await page.getByRole("button", { name: "Paste the description instead" }).click();
+
+    await page.getByLabel("Paste the description instead").fill(CAPTION);
+    await page.getByRole("button", { name: "Read the description" }).click();
+
+    // Straight into the ordinary create form, filled in and still entirely editable.
+    await expect(page.getByLabel("Title")).toHaveValue("Cremet pasta med kylling");
+    await expect(page.getByLabel("Ingredients")).toHaveValue(
+      "400 g pasta\n500 g kyllingebryst\n2 dl fløde",
+    );
+    await expect(page.getByLabel("Instructions")).toHaveValue("Kog pastaen.\nSteg kyllingen.");
+    await expect(page.getByLabel("Total time (minutes)")).toHaveValue("25");
+  });
+
+  test("says so when the description is not a recipe, without leaving the step", async ({
+    page,
+  }) => {
+    await openDialog(page, "New recipe");
+    await page.getByRole("button", { name: "Import from a link" }).click();
+    await page.getByRole("button", { name: "Paste the description instead" }).click();
+
+    await page.getByLabel("Paste the description instead").fill("Sikke en dejlig aften i haven");
+    await page.getByRole("button", { name: "Read the description" }).click();
+
+    await expect(page.getByText("Couldn't find a recipe in that description")).toBeVisible();
+    await expect(page.getByLabel("Title")).toHaveCount(0);
+  });
+});

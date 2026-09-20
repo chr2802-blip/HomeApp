@@ -411,8 +411,8 @@ so the note under each item saying which recipe asked for it was answering a que
 nobody had, about salt.
 
 **A pantry entry is a name and one bit**: `inStock`, which is the whole of what a
-cupboard says. There is rice or there is not. Running out is therefore **unticking**
-rice rather than deleting it, and the next recipe that wants rice puts rice back on the
+cupboard says. There is rice or there is not. Running out is therefore **switching rice
+off** rather than deleting it, and the next recipe that wants rice puts rice back on the
 list — which is the second half of what the feature is for, and why the boolean is not
 just an absence. Deleting is the different sentence: this household has stopped treating
 it as something it always has in.
@@ -459,12 +459,36 @@ The page is ordered by name and never by what has run out: both questions asked 
 ("is the rice in", "we've run out of rice") begin by finding rice, and a list that
 reordered itself under the household's thumb on every tick would answer neither.
 
-The tick is one control with the name inside it rather than a box with a label beside
-it — this is pressed at an open cupboard door — and it is optimistic, and it is told the
-state to land in rather than "the other one", so the second press of a double tap leaves
-the cupboard saying what the thumb meant. Editing and deleting stay behind the three
-dots at the far end of the row, where a thumb aiming at "we're out of rice" cannot reach
-them.
+**The state is a switch, not a tick, and the name is edited by pressing it.** A checkbox
+says "this one is selected" — something picked out of a list on the way to doing
+something with it, which is exactly what a shopping list's boxes mean and exactly what
+this is not: a pantry entry is a standing fact about the cupboard, on until somebody
+changes it. The switch is optimistic and is told the state to land in rather than "the
+other one", so the second press of a double tap leaves the cupboard saying what the
+thumb meant. The name beside it opens an editor in place, the same way a list item's
+does — a name is the one thing on a row worth changing without a trip to a sheet, and a
+rename costing a menu, a dialog and a Save is a rename nobody makes. A refused rename
+(the household already keeps something under that name) needs no undoing: the optimistic
+name falls back to the stored one when the transition ends, and the row says why
+underneath itself. **Delete keeps the three dots to itself** — a destructive entry is
+the whole reason that menu exists, and it stays at the far end of the row where a thumb
+aiming at "we're out of rice" cannot reach it.
+
+**Everything switched off goes onto a list in one press.** The pantry already knows what
+is missing, so asking somebody to type those five lines into the shopping list is asking
+them to say it twice: `addPantryToList` is the same `AddToListMenu` the recipe page and
+the meal plan use, pointed at the run-out rows. **Nothing is switched back on** — what
+has run out has run out until somebody has been to the shop, and a list is a plan rather
+than a receipt; flipping the cupboard here would have the pantry telling the next recipe
+that the rice is in because somebody wrote rice down. Each line goes through `addItem`,
+so "already there" means what it means everywhere else: a ticked row comes back at one,
+an open row is left alone (being out of rice is not a reason to buy two), and what was
+left alone is named in the note. Row by row rather than in one transaction, unlike a
+recipe's ingredients: every line is independent and the run is idempotent, so a press
+that failed halfway is finished by pressing again — which beats one that undoes the rows
+it managed. The button is drawn whenever the pantry holds anything at all rather than
+only when something is out, because the switches are optimistic and a control that came
+and went with the count would arrive a beat after the thumb that caused it.
 
 **An in-stock entry also counts as a staple for the meal suggestions.** `staplesOf`
 exists so a household need not keep a list of its own cupboard for the ranking to be
@@ -537,7 +561,39 @@ from a link**. Three steps, all inside the one `Modal`.
   address actually landed on, checked the same way, downscaled server-side and stored through
   `storePhoto`; one that cannot be fetched is left out quietly.
 - The title, ingredients, instructions, picture and total time come from the fetch; the video
-  link and categories are the form's own fields either way.
+  link and categories are the form's own fields either way — **except for a reel**, where the
+  pasted link *is* the video and fills `videoUrl`.
+
+### A reel keeps its recipe in the caption, so that is what is read
+
+Instagram, Facebook and TikTok publish no `schema.org/Recipe` markup, so the rule above can
+only ever refuse a reel correctly. What a recipe reel has instead is the paragraph under the
+video. **`isReelUrl` routes those links elsewhere before anything is fetched**, and
+`captionSources` in `src/lib/reel-import.ts` is the one opinion about which links those are —
+`parseSocialEmbed` in `embed.ts` knows the same hosts for a different job (building an iframe
+`src`) and the two stay apart.
+
+- **Three modules, split by what can be wrong about them.** `caption-recipe.ts` is text in,
+  text out — no network, no database — because the half that can be wrong while everything
+  else works is the *reading*. `reel-import.ts` is the addresses and the markup.
+  `recipe-import.ts` keeps the fetching, so a reel's requests still go through the one
+  `isBlockedHost`, timeout and size limit.
+- **None of the addresses is a supported API, and all of them failing is an ordinary
+  outcome**, not a bug: Meta refuses a signed-out request from a datacenter often enough that
+  a feature resting on it alone would work on a laptop and not on Vercel. So the sources are
+  tried in order, best first.
+- **Which is why the paste box is the load-bearing half.** `importPastedCaption` runs the
+  very same parser, so a caption means one thing here however it arrived — and nothing on
+  Meta's side can block it. Offered on any `notARecipe` failure **and** from a button under
+  the link field, so a cook who knows how this reel ends need not sit out two timeouts.
+- **The parser is shy on purpose**: a caption it cannot recognise is refused rather than
+  turned into a recipe whose ingredients are somebody's tagged friends. Headings
+  ("Ingredienser"/"Fremgangsmåde", and the English pair) are simply obeyed; a caption naming
+  none needs three ingredient-shaped lines before it is a recipe at all.
+- **The total time is read only beside a phrase meaning the whole dish** — a bare "20 min" is
+  nearly always one step's own timing — and **the line that said it is then dropped**, or
+  every such caption ends with a step telling the cook how long the thing they just made
+  takes.
 
 **[`docs/design/recipes.md`](docs/design/recipes.md) has the reasoning.**
 

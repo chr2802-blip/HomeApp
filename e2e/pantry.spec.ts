@@ -20,8 +20,8 @@ import { CATEGORIES } from "./helpers/database";
  * keep for a week.
  */
 
-/** The row's tick, which is the row: the name is inside the control, not beside it. */
-const entry = (page: Page, name: string) => page.getByRole("checkbox", { name });
+/** The row's switch, which is also where its name is read from. */
+const entry = (page: Page, name: string) => page.getByRole("switch", { name, exact: true });
 
 /**
  * Presses a control until it takes.
@@ -37,6 +37,14 @@ async function keepIn(page: Page, name: string) {
   await page.getByLabel("Something you keep in").fill(name);
   await page.getByRole("button", { name: "Add to pantry" }).click();
   await expect(entry(page, name)).toBeVisible();
+}
+
+/** Switches something off, which is the household saying it has run out of it. */
+async function runOut(page: Page, name: string) {
+  await retry(async () => {
+    await entry(page, name).click();
+    await expect(entry(page, name)).not.toBeChecked({ timeout: 1000 });
+  });
 }
 
 async function newList(page: Page, title: string) {
@@ -79,31 +87,48 @@ test("the pantry is reached from the home's own name, and kept there", async ({ 
   await keepIn(page, "Salt");
   await expect(entry(page, "Salt")).toBeChecked();
 
-  // Running out is an untick, not a delete — the entry stays, and the line goes back on
+  // Running out is a switch, not a delete — the entry stays, and the line goes back on
   // the shopping the next time a recipe asks for it.
-  await retry(async () => {
-    await entry(page, "Salt").click();
-    await expect(entry(page, "Salt")).not.toBeChecked({ timeout: 1000 });
-  });
-  // And it is still out after a reload, which is the difference between a tick that
-  // was written and one that was only drawn. The row says so in words too, beside a
-  // box that would otherwise only be empty.
+  await runOut(page, "Salt");
+  // And it is still out after a reload, which is the difference between a switch that
+  // was written and one that was only drawn.
   await page.reload();
   await expect(entry(page, "Salt")).not.toBeChecked();
-  await expect(page.getByRole("checkbox", { name: "Salt Run out" })).toBeVisible();
+  await expect(page.getByText("Run out", { exact: true })).toBeVisible();
 
-  // Renaming is the only edit there is, and it lives behind the three dots with the
-  // delete — a destructive button beside a tick is a destructive button pressed by a
-  // thumb aiming at the tick.
-  await openMenu(page, { label: "Salt" });
-  await page.getByRole("menuitem", { name: "Edit" }).click();
-  await page.getByRole("dialog").getByLabel("Name").fill("Havsalt");
-  await page.getByRole("dialog").getByRole("button", { name: "Save changes" }).click();
+  // The name is edited by pressing it, the way a list item's is — no menu, no sheet, no
+  // Save. Delete keeps the three dots to itself.
+  await retry(async () => {
+    await page.getByRole("button", { name: "Edit Salt" }).click();
+    await expect(page.getByLabel("Edit Salt")).toBeVisible({ timeout: 1000 });
+  });
+  await page.getByLabel("Edit Salt").fill("Havsalt");
+  await page.getByLabel("Edit Salt").press("Enter");
   await expect(entry(page, "Havsalt")).toBeVisible();
+  // The rename moved the entry, it did not switch it back on.
+  await expect(entry(page, "Havsalt")).not.toBeChecked();
 
   await openMenu(page, { label: "Havsalt" });
   await clickAndConfirm(page, "Delete", { confirmLabel: "Remove" });
   await expect(entry(page, "Havsalt")).toHaveCount(0);
+});
+
+test("a name the household already keeps is refused, and the row says what it says", async ({
+  page,
+}) => {
+  await page.goto("/pantry");
+  await keepIn(page, "Salt");
+  await keepIn(page, "Sukker");
+
+  await retry(async () => {
+    await page.getByRole("button", { name: "Edit Sukker" }).click();
+    await expect(page.getByLabel("Edit Sukker")).toBeVisible({ timeout: 1000 });
+  });
+  await page.getByLabel("Edit Sukker").fill("salt");
+  await page.getByLabel("Edit Sukker").press("Enter");
+
+  await expect(page.getByText("“salt” is already in the pantry.")).toBeVisible();
+  await expect(entry(page, "Sukker")).toBeVisible();
 });
 
 test("a recipe leaves the pantry's own lines off the shopping list", async ({ page }) => {
@@ -112,12 +137,9 @@ test("a recipe leaves the pantry's own lines off the shopping list", async ({ pa
   await page.goto("/pantry");
   await keepIn(page, "Salt");
   await keepIn(page, "Ris");
-  await retry(async () => {
-    // Out of rice, so rice is shopping again — the other half of the one bit an entry
-    // carries.
-    await entry(page, "Ris").click();
-    await expect(entry(page, "Ris")).not.toBeChecked({ timeout: 1000 });
-  });
+  // Out of rice, so rice is shopping again — the other half of the one bit an entry
+  // carries.
+  await runOut(page, "Ris");
 
   await newRecipe(page, "Karry", "2 tsk salt\n2 dl ris\n500 g kylling");
   await addToList(page, "Groceries");
@@ -132,6 +154,29 @@ test("a recipe leaves the pantry's own lines off the shopping list", async ({ pa
 
   await expect(page.getByText("Kylling", { exact: true })).toBeVisible();
   await expect(page.getByText("Ris", { exact: true })).toBeVisible();
+  await expect(page.getByText("Salt", { exact: true })).toHaveCount(0);
+});
+
+test("everything that has run out goes onto a list in one press", async ({ page }) => {
+  await newList(page, "Groceries");
+
+  await page.goto("/pantry");
+  await keepIn(page, "Salt");
+  await keepIn(page, "Ris");
+  await keepIn(page, "Mel");
+  await runOut(page, "Ris");
+  await runOut(page, "Mel");
+
+  await addToList(page, "Groceries");
+  await expect(page.getByText("Added to Groceries.")).toBeVisible();
+
+  await page.goto("/lists");
+  await page.getByRole("link", { name: /Groceries/ }).click();
+  await page.waitForURL(/\/lists\/[a-z0-9]+$/);
+
+  await expect(page.getByText("Ris", { exact: true })).toBeVisible();
+  await expect(page.getByText("Mel", { exact: true })).toBeVisible();
+  // What is in the cupboard was never the question.
   await expect(page.getByText("Salt", { exact: true })).toHaveCount(0);
 });
 

@@ -1,7 +1,17 @@
 import * as cheerio from "cheerio";
 import sharp from "sharp";
+import { parseRecipeFromCaption } from "./caption-recipe";
 import { MAX_EDGE, THUMB_EDGE } from "./downscale";
 import { storePhoto } from "./photos";
+import {
+  captionFromHtml,
+  captionFromOEmbed,
+  captionSources,
+  isReelUrl,
+  recipeFromReelCaption,
+  type CaptionSource,
+  type ReelCaption,
+} from "./reel-import";
 
 /** What a page's own markup says its recipe is, before an image has been fetched. */
 type ParsedRecipe = {
@@ -18,6 +28,14 @@ export type ImportedRecipe = {
   instructions: string;
   photoId: string | null;
   totalTimeMinutes: number | null;
+  /**
+   * Filled in only for a reel, where the link that was pasted *is* the video — so the
+   * recipe keeps playing the thing it was copied from, through the embed `embed.ts`
+   * already knows how to build. An ordinary recipe page is not a video and leaves this
+   * null, which is what it has always been: the field is the create form's own, and a
+   * cook may still paste something else into it before saving.
+   */
+  videoUrl: string | null;
 };
 /**
  * `notARecipe` marks a failure where the page was reached fine and simply had nothing
@@ -35,6 +53,17 @@ export type ImportOutcome =
 
 const GENERIC_ERROR =
   "Couldn't read a recipe from that page. Check the link, or fill the form in by hand.";
+
+/**
+ * The two ways a reel fails, kept apart because they ask the cook for different things.
+ * Meta refusing a signed-out request is the common one and says nothing about the post;
+ * a caption that was read and is not a recipe is usually `og:description`'s truncated
+ * copy of one, which pasting the whole thing fixes. Both point at the same box.
+ */
+const CAPTION_UNREACHABLE =
+  "Couldn't read that reel's description — Instagram and Facebook often refuse. Paste it in below instead.";
+const CAPTION_NOT_A_RECIPE =
+  "Couldn't find a recipe in that description. Paste the whole thing in below, or fill the form in by hand.";
 
 /** How much of a page is ever read — a bound on the request, not a claim about recipes. */
 const MAX_RESPONSE_BYTES = 3 * 1024 * 1024;
@@ -406,6 +435,11 @@ export async function fetchRecipeFromUrl(rawUrl: string, homeId: string): Promis
   const url = safeImportUrl(rawUrl);
   if (!url) return { ok: false, error: "That doesn't look like a web address." };
 
+  // A reel publishes no `schema.org/Recipe` markup and never will, so it takes the
+  // other route entirely rather than being fetched here and correctly reported as a
+  // page with nothing to cook from.
+  if (isReelUrl(url.toString())) return fetchRecipeFromReel(url, homeId);
+
   let response: Response;
   try {
     response = await fetch(url, {
@@ -444,8 +478,129 @@ export async function fetchRecipeFromUrl(rawUrl: string, homeId: string): Promis
       instructions: parsed.instructions,
       photoId,
       totalTimeMinutes: parsed.totalTimeMinutes,
+      videoUrl: null,
     },
   };
+}
+
+/**
+ * The second route in: a reel, read from its own caption.
+ *
+ * Each of the addresses `captionSources` names is tried in turn and the first that
+ * hands back something readable wins — they are ordered best-first, and a source that
+ * refuses, times out or answers with a login wall is simply the next one's turn. None
+ * of them is a supported API, so all of them failing is an ordinary outcome rather than
+ * a bug, and the answer to it is the paste box rather than an apology: `notARecipe`
+ * puts that in front of the cook, and the wording says which of the two things went
+ * wrong, because "we couldn't read the description" and "the description isn't a
+ * recipe" want different things from them next.
+ *
+ * The link itself becomes the recipe's video, so a reel saved this way still plays on
+ * the recipe page even where every one of these sources refused and the cook pasted the
+ * caption in by hand.
+ */
+async function fetchRecipeFromReel(url: URL, homeId: string): Promise<ImportOutcome> {
+  let sawCaption = false;
+
+  for (const source of captionSources(url.toString())) {
+    const read = await readCaptionSource(source);
+    if (!read) continue;
+    sawCaption = true;
+
+    const recipe = recipeFromReelCaption(read);
+    if (!recipe) continue;
+
+    const photoId = await importRecipeImage(read.imageUrl, source.url, homeId);
+    return {
+      ok: true,
+      recipe: { ...recipe, photoId, videoUrl: url.toString() },
+    };
+  }
+
+  return {
+    ok: false,
+    error: sawCaption ? CAPTION_NOT_A_RECIPE : CAPTION_UNREACHABLE,
+    notARecipe: true,
+  };
+}
+
+/**
+ * Reads a recipe out of a caption the cook pasted in themselves, which is the one route
+ * into this that nothing on Meta's side can refuse.
+ *
+ * `rawUrl` is whatever was in the link field when they gave up on it — optional,
+ * because a caption pasted on its own is still a recipe. Where there is one and it is a
+ * reel, two things are still worth having from it: the link becomes the recipe's video,
+ * and the poster frame is fetched for its picture. That fetch is best-effort and
+ * usually the same request that just failed, so it is allowed to fail again quietly —
+ * a recipe whose text is all there is never refused for want of decoration.
+ */
+export async function importPastedCaption(
+  caption: string,
+  rawUrl: string,
+  homeId: string,
+): Promise<ImportOutcome> {
+  const text = caption.trim();
+  if (!text) return { ok: false, error: "Paste the reel's description first." };
+
+  const recipe = parseRecipeFromCaption(text);
+  if (!recipe) return { ok: false, error: CAPTION_NOT_A_RECIPE };
+
+  const url = safeImportUrl(rawUrl);
+  const isReel = url !== null && isReelUrl(url.toString());
+
+  return {
+    ok: true,
+    recipe: {
+      ...recipe,
+      photoId: isReel ? await fetchReelThumbnail(url, homeId) : null,
+      videoUrl: isReel ? url.toString() : null,
+    },
+  };
+}
+
+/**
+ * A reel's poster frame, or null. Only the first source is asked: this runs on the path
+ * where the automatic read already failed, and a cook waiting on a form they have
+ * already filled in by hand should not wait through the whole chain again for a picture
+ * they will be offered the chance to replace anyway.
+ */
+async function fetchReelThumbnail(url: URL, homeId: string): Promise<string | null> {
+  const [first] = captionSources(url.toString());
+  if (!first) return null;
+
+  const read = await readCaptionSource(first);
+  return read ? importRecipeImage(read.imageUrl, first.url, homeId) : null;
+}
+
+/** One caption source fetched and read, under the same limits as any other link. */
+async function readCaptionSource(source: CaptionSource): Promise<ReelCaption | null> {
+  const url = safeImportUrl(source.url);
+  if (!url) return null;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      headers: REQUEST_HEADERS,
+    });
+  } catch {
+    return null;
+  }
+  if (!response.ok || !response.body) return null;
+  if (isBlockedHost(new URL(response.url).hostname)) return null;
+
+  const contentType = response.headers.get("content-type") ?? "";
+  let bytes: Uint8Array;
+  try {
+    bytes = await readLimited(response.body, MAX_RESPONSE_BYTES);
+  } catch {
+    return null;
+  }
+
+  const body = decodeHtml(bytes, contentType);
+  return source.kind === "json" ? captionFromOEmbed(body) : captionFromHtml(body);
 }
 
 /**

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchRecipeFromUrl, parseRecipeFromHtml } from "@/lib/recipe-import";
+import { fetchRecipeFromUrl, importPastedCaption, parseRecipeFromHtml } from "@/lib/recipe-import";
 
 const HOME_ID = "home-1";
 
@@ -406,6 +406,7 @@ describe("fetchRecipeFromUrl", () => {
         instructions: "Fry.",
         photoId: null,
         totalTimeMinutes: null,
+        videoUrl: null,
       },
     });
   });
@@ -523,6 +524,7 @@ describe("fetchRecipeFromUrl", () => {
         instructions: "Brun kødet.",
         photoId: null,
         totalTimeMinutes: null,
+        videoUrl: null,
       },
     });
   });
@@ -624,8 +626,146 @@ describe("fetchRecipeFromUrl", () => {
         instructions: "Fry.",
         photoId: null,
         totalTimeMinutes: null,
+        videoUrl: null,
       },
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * A reel takes the other route through this module entirely: no `schema.org/Recipe`
+ * markup is ever coming, so the caption is the recipe and the link is the video. What
+ * is pinned here is the wiring — which addresses are asked, in which order, and what
+ * happens when every one of them refuses, which on Meta's side is an ordinary Tuesday.
+ * The reading itself belongs to `reel-import.test.ts` and `caption-recipe.test.ts`.
+ */
+describe("fetchRecipeFromUrl — a reel", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const REEL = "https://www.instagram.com/reel/ABC123/";
+
+  const embedPage = `<html><body>
+    <img class="EmbeddedMediaImage" src="https://scontent.example/poster.jpg" />
+    <div class="Caption">
+      <a class="CaptionUsername">somekitchen</a>
+      Pasta al limone<br>Ingredienser<br>400 g spaghetti<br>2 citroner<br>1 dl fløde<br>Fremgangsmåde<br>Kog pastaen.<br>Riv citronskallen i.
+      <div class="CaptionComments">57 comments</div>
+    </div>
+  </body></html>`;
+
+  it("reads the recipe out of the caption, and keeps the link as the video", async () => {
+    // The picture is fetched and stored like any other upload, which wants a database
+    // this suite does not have — so it fails quietly, exactly as a blocked one would.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(embedPage, { url: REEL })));
+
+    expect(await fetchRecipeFromUrl(REEL, HOME_ID)).toEqual({
+      ok: true,
+      recipe: {
+        title: "Pasta al limone",
+        ingredients: "400 g spaghetti\n2 citroner\n1 dl fløde",
+        instructions: "Kog pastaen.\nRiv citronskallen i.",
+        photoId: null,
+        totalTimeMinutes: null,
+        videoUrl: REEL,
+      },
+    });
+  });
+
+  it("asks the embed page first, and never the recipe route's own parser", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(htmlResponse(embedPage, { url: REEL }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchRecipeFromUrl(REEL, HOME_ID);
+
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      "https://www.instagram.com/reel/ABC123/embed/captioned/",
+    );
+  });
+
+  it("tries the next source when the first refuses, rather than giving up on the reel", async () => {
+    const withOgDescription = `<html><head>
+      <meta property="og:description" content="12 likes - somekitchen: &quot;Boller&#10;Ingredienser&#10;500 g mel&#10;25 g gær&#10;Fremgangsmåde&#10;Ælt det sammen.&quot;" />
+    </head></html>`;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, url: REEL, body: null, headers: new Headers() } as Response)
+      .mockResolvedValue(htmlResponse(withOgDescription, { url: REEL }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchRecipeFromUrl(REEL, HOME_ID);
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.recipe.title).toBe("Boller");
+  });
+
+  it("offers the paste box when every source refuses, and says why", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("refused")));
+
+    const result = await fetchRecipeFromUrl(REEL, HOME_ID);
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.stringContaining("Paste it in below"),
+      notARecipe: true,
+    });
+  });
+
+  it("says the other thing when a caption was read and is not a recipe", async () => {
+    const chat = `<html><body><div class="Caption">Sikke en dejlig aften i haven</div></body></html>`;
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(chat, { url: REEL })));
+
+    const result = await fetchRecipeFromUrl(REEL, HOME_ID);
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.stringContaining("Couldn't find a recipe in that description"),
+      notARecipe: true,
+    });
+  });
+});
+
+describe("importPastedCaption", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const CAPTION = "Boller\nIngredienser\n500 g mel\n25 g gær\nFremgangsmåde\nÆlt det sammen.";
+
+  it("reads a pasted caption, and keeps the reel beside it as the video", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("still refused")));
+
+    expect(
+      await importPastedCaption(CAPTION, "https://www.instagram.com/reel/ABC123/", HOME_ID),
+    ).toEqual({
+      ok: true,
+      recipe: {
+        title: "Boller",
+        ingredients: "500 g mel\n25 g gær",
+        instructions: "Ælt det sammen.",
+        photoId: null,
+        totalTimeMinutes: null,
+        videoUrl: "https://www.instagram.com/reel/ABC123/",
+      },
+    });
+  });
+
+  it("reads a caption pasted with no link at all", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await importPastedCaption(CAPTION, "", HOME_ID);
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.recipe.videoUrl).toBeNull();
+    // Nothing to fetch a poster frame from, so nothing is fetched.
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses an empty paste, and text that is not a recipe", async () => {
+    expect((await importPastedCaption("   ", "", HOME_ID)).ok).toBe(false);
+    expect((await importPastedCaption("Sikke en dejlig aften i haven", "", HOME_ID)).ok).toBe(false);
   });
 });

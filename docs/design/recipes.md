@@ -1,4 +1,4 @@
-# Recipes: categories, the new-recipe dialog, and importing from a link
+# Recipes: categories, the new-recipe dialog, and importing from a link or a reel
 
 Moved out of CLAUDE.md, which keeps the rules. This is the reasoning behind them.
 
@@ -79,7 +79,7 @@ prose: a wrong guess dropped silently into the form is worse than a cook typing 
 hand, which is what happens either way once the fields are left blank.
 
 **A link that reaches a page with nothing to cook from is not a dead end.** `notARecipe`
-on `ImportOutcome` marks exactly that failure — a reel, a shop page, anything the parser
+on `ImportOutcome` marks exactly that failure — a shop page, anything the parser
 above refuses — as distinct from a mistyped address or a page that would not load, which
 are worth retrying as typed rather than abandoning. `NewRecipeDialog` turns that flag into
 a "Start from scratch" button beside the error, which matters most when a clipboard link
@@ -120,3 +120,69 @@ app answers a question the two would disagree about: the recipe list's own time 
 (`RecipeDirectory`) is a straight "under 30 minutes or not", the same question a cook
 actually has on a Tuesday, and offered only once something in the home has a time to
 filter by.
+
+## A reel keeps its recipe in the caption, so that is what is read
+
+A reel is the one link the section above can only ever refuse correctly. Instagram,
+Facebook and TikTok publish no `schema.org/Recipe` markup and are not going to, so the
+page loads perfectly and has nothing to cook from — which is exactly what
+`parseRecipeFromHtml` reports. What a recipe reel has instead is the paragraph under the
+video: whoever posted it wrote the ingredients and the steps there, because there is
+nowhere else on that page to put them.
+
+So **a reel takes a second route through `recipe-import.ts` entirely**, chosen by
+`isReelUrl` before anything is fetched. There is one opinion in this app about what
+counts as a reel and it is `captionSources` in `src/lib/reel-import.ts`: a link it has
+no addresses for is not a reel, and takes the ordinary route. `parseSocialEmbed` in
+`embed.ts` knows the same hosts for a different job — building an iframe `src` for the
+browser — and the two are deliberately apart, because one is about what this app
+fetches and the other about what the recipe page renders.
+
+**The three parts are split by what can be wrong about them.**
+`src/lib/caption-recipe.ts` is text in and text out, no network and no database, because
+the half that can be wrong while everything else works is the *reading* — which line was
+a heading, which was an ingredient, where the hashtags started.
+`src/lib/reel-import.ts` is the addresses and the markup: which endpoints to ask, and
+how to get a caption out of what each one answers. `recipe-import.ts` keeps the fetching,
+so every outbound request from a pasted link still goes through the one `isBlockedHost`,
+the one timeout and the one size limit.
+
+**None of the addresses is a supported API, and the design says so out loud.**
+Instagram's `/embed/captioned/` is the page its own embed widget loads and is the only
+one that carries a caption to a caller with no account; Meta's real oEmbed needs an app
+token this household does not have; TikTok's oEmbed is the one genuinely open endpoint
+of the three. The sources are therefore a list tried in order, best first, and **all of
+them failing is an ordinary outcome rather than a bug** — Meta refuses a signed-out
+request from a datacenter often enough that a feature resting on it alone would be a
+feature that works on a laptop and not on Vercel.
+
+**Which is why the paste box is the load-bearing half.** `importPastedCaption` reads a
+caption the cook pasted themselves, through the very same parser, so a caption means one
+thing here however it arrived — and that route nothing on Meta's side can block. It is
+offered on any `notARecipe` failure *and* from a button under the link field, so a cook
+who already knows how this reel ends does not sit through two eight-second timeouts to
+be handed a box they were always going to use. The two failures are worded apart
+because they ask for different things next: a caption that could not be read at all, and
+one that was read and is not a recipe — the second is usually `og:description`'s
+truncated copy, which pasting the whole thing fixes.
+
+**A reel fills the video link, which an ordinary recipe page does not.** There the
+pasted link *is* the video, so `ImportedRecipe.videoUrl` carries it and the recipe page
+plays it through the embed `embed.ts` already builds — including on the paste route,
+where it is the one thing the pasted text cannot say. The poster frame is the nearest
+thing a reel has to a photograph of the finished dish and is stored exactly as any
+upload is, quietly failing like any other picture rather than refusing a recipe whose
+text was perfectly good.
+
+**The parser is shy on purpose.** A caption it cannot recognise is refused rather than
+turned into a recipe whose ingredients are somebody's tagged friends: a cook handed a
+form full of nonsense has to clear it out before typing the real thing, so a bad guess
+costs more than no guess — the same reasoning that makes `parseRecipeFromHtml` refuse a
+page rather than scrape prose off it. A caption naming a heading ("Ingredienser",
+"Fremgangsmåde", and the English pair) is simply obeyed, since the cook who wrote it has
+already answered the only hard question; one naming none is read by the shape of its
+lines and needs three that look like shopping before it is a recipe at all. The total
+time is read **only** beside a phrase that means the whole dish — a bare "20 min" is
+nearly always one step's own timing, and recording that would put a two-hour braise on
+the `/recipes` quick filter — and the line that said it is then dropped, or every such
+caption ends with a step telling the cook how long the thing they just made takes.

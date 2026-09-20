@@ -6,8 +6,11 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
+import { homeScoped } from "@/lib/scoped";
 import { readForm, requiredText } from "@/lib/form";
-import { pantryKey } from "@/lib/pantry";
+import { addItem } from "@/lib/list-writes";
+import { MIN_AMOUNT } from "@/lib/amount";
+import { alreadyOnListNote, pantryKey } from "@/lib/pantry";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 
 /**
@@ -30,6 +33,9 @@ async function itemInScope(id: string) {
   const user = await requireHomeUser();
   return homeDb(user.homeId).pantryItem.findUnique({ where: { id } });
 }
+
+/** The list a restock run writes to, checked the same way every other action checks one. */
+const listInScope = homeScoped("List", (id) => prisma.list.findUnique({ where: { id } }));
 
 /**
  * What the pantry page and the meal planner both read.
@@ -94,16 +100,19 @@ export async function createPantryItem(
 
 /**
  * Renames an entry — the only thing there is to edit about one, since the other half of
- * what it says is a tick.
+ * what it says is the switch beside it.
  *
  * The key is rewritten from the new name on the way past, never left as it was: an entry
  * renamed from "Salt" to "Sukker" that went on matching salt would be the one failure
  * this whole arrangement is arranged to avoid, and it would be invisible from the page.
+ *
+ * Like `addRecipeIngredients` it takes the form data alone: it is not submitted by a
+ * form but committed by pressing away from the name on the row, so there is no previous
+ * state for React to hand it. It still reports — a name the household already keeps
+ * something under is refused, and the row has to be able to say why it went back to
+ * what it said.
  */
-export async function renamePantryItem(
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
+export async function renamePantryItem(formData: FormData): Promise<ActionResult> {
   const item = await itemInScope(String(formData.get("pantryItemId")));
   if (!item) return fail("That is no longer in the pantry.");
 
@@ -154,4 +163,56 @@ export async function deletePantryItem(formData: FormData) {
 
   await prisma.pantryItem.delete({ where: { id: item.id } });
   refreshPantryViews();
+}
+
+/**
+ * Puts everything the household has run out of onto one of its lists.
+ *
+ * The pantry already knows what is missing — that is what the switches are — so asking
+ * somebody to type those five lines into the shopping list is asking them to say it
+ * twice. This is the press that says it once: the button is where the answer already
+ * lives.
+ *
+ * **Nothing is switched back on.** What has run out has run out until somebody has been
+ * to the shop, and a list is a plan rather than a receipt — flipping the cupboard here
+ * would have the pantry telling the next recipe that the rice is in because somebody
+ * wrote rice down.
+ *
+ * Each line goes through `addItem`, the same write the add box and the offline queue
+ * use, so "already there" means here exactly what it means everywhere else: a ticked row
+ * comes back at one, and an open row is left exactly as it is — being out of rice is not
+ * a reason to buy two. Row by row rather than in one transaction, unlike a recipe's
+ * ingredients: every line here is independent and the run is idempotent, so a press that
+ * failed halfway is finished by pressing again, which is a better answer than one that
+ * undoes the rows it managed.
+ */
+export async function addPantryToList(formData: FormData): Promise<ActionResult> {
+  const user = await requireHomeUser();
+  const list = await listInScope(String(formData.get("listId")));
+
+  const missing = await homeDb(user.homeId).pantryItem.findMany({
+    where: { inStock: false },
+    orderBy: { name: "asc" },
+  });
+  if (missing.length === 0) return fail("Nothing in the pantry has run out.");
+
+  const already: string[] = [];
+  let added = 0;
+
+  for (const item of missing) {
+    const outcome = await addItem(list.id, item.name, MIN_AMOUNT);
+    if (outcome.ok) added += 1;
+    else already.push(outcome.clash);
+  }
+
+  if (added === 0) return fail("Everything that has run out is already on the list.");
+
+  // The three views a list is read in, refreshed together — the same three
+  // `refreshListViews` covers in the list actions, which cannot be shared from a module
+  // whose every export has to be a server action.
+  revalidatePath(`/lists/${list.id}`);
+  revalidatePath("/lists");
+  revalidatePath("/dashboard");
+
+  return ok(alreadyOnListNote(already));
 }
