@@ -102,7 +102,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
 
       {/* Above the video, when there is both: the picture is what the dish should end
           up looking like, and it loads instantly where an embed does not. */}
-      <PhotoBanner photoId={recipe.photoId} alt={recipe.title} className="mb-6" placeholder />
+      <PhotoBanner photoId={recipe.photoId} alt={recipe.title} className="mb-6" placeholder="recipe" />
 
       <SocialVideoEmbed url={recipe.videoUrl} title={recipe.title} />
 

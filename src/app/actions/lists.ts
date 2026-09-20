@@ -14,7 +14,14 @@ import { ingredientLines, shoppingText } from "@/lib/recipes";
 import { weekDays, weekStartInZone, weekStartOn } from "@/lib/time";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
-import { addItem, nextPosition, restoreItem, setItemAmount, setItemDone } from "@/lib/list-writes";
+import {
+  addItem,
+  nextPosition,
+  restoreItem,
+  setItemAmount,
+  setItemDone,
+  setItemText,
+} from "@/lib/list-writes";
 
 /**
  * The three places a list's state is read, refreshed together.
@@ -262,6 +269,25 @@ export async function setListItemAmount(formData: FormData) {
   if (!item) return;
 
   await setItemAmount(item.id, clampAmount(formData.get("amount")));
+  revalidatePath(`/lists/${item.listId}`);
+}
+
+/**
+ * Renames an item, pressed into from the text itself rather than a form of its own.
+ *
+ * Like toggling, deleting and the amount it acts on one id and reports nothing: blank
+ * text is not sent here to be rejected — the row it was pressed from already has the
+ * only wording there is, so the editor falls back to that instead of asking the person
+ * to type it again.
+ */
+export async function renameListItem(formData: FormData) {
+  const item = await itemInScope(String(formData.get("itemId")));
+  if (!item) return;
+
+  const text = String(formData.get("text") ?? "").trim();
+  if (!text) return;
+
+  await setItemText(item.id, text);
   revalidatePath(`/lists/${item.listId}`);
 }
 

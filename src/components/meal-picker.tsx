@@ -146,7 +146,7 @@ export function MealPicker({
                     />
 
                     {option.photoId !== undefined && (
-                      <PhotoThumb photoId={option.photoId} alt="" className="h-9 w-9" placeholder />
+                      <PhotoThumb photoId={option.photoId} alt="" className="h-9 w-9" placeholder="recipe" />
                     )}
 
                     <span className="min-w-0 flex-1">

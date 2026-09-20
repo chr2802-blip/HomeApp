@@ -29,6 +29,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   deleteListItem,
+  renameListItem,
   reorderListItems,
   setListItemAmount,
   toggleListItem,
@@ -55,6 +56,7 @@ type Change =
   | { type: "toggle"; id: string; by: Person }
   | { type: "remove"; id: string }
   | { type: "amount"; id: string; amount: number }
+  | { type: "rename"; id: string; text: string }
   | { type: "reorder"; ids: string[] };
 
 function applyTo(items: Item[], change: Change): Item[] {
@@ -79,6 +81,9 @@ function applyTo(items: Item[], change: Change): Item[] {
   }
   if (change.type === "amount") {
     return items.map((item) => (item.id === change.id ? { ...item, amount: change.amount } : item));
+  }
+  if (change.type === "rename") {
+    return items.map((item) => (item.id === change.id ? { ...item, text: change.text } : item));
   }
 
   // Re-number to the dragged order so the row stays where it was dropped while the
@@ -113,6 +118,7 @@ function Row({
   onPress,
   onToggle,
   onAmount,
+  onRename,
   onRemove,
 }: {
   item: Item;
@@ -125,12 +131,41 @@ function Row({
   onPress: (done: boolean) => void;
   onToggle: () => void;
   onAmount: (amount: number) => void;
+  onRename: (text: string) => void;
   onRemove: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
     disabled: !draggable,
   });
+
+  /*
+   * Pressing the text is what opens it, rather than a menu entry — a name is the one
+   * thing on the row worth editing without a trip to a sheet. Editing is this row's own
+   * state rather than something `ListItems` tracks, since nothing else on the page needs
+   * to know one row is mid-edit.
+   */
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(item.text);
+
+  // The stored text can move under an editor that is not open — another phone's rename
+  // landing, or this one's own optimistic copy settling — so it is adopted on every
+  // render rather than only when the editor opens. Not while editing: that would
+  // overwrite what is being typed the moment the optimistic change lands.
+  if (!editing && draft !== item.text) setDraft(item.text);
+
+  function commit() {
+    setEditing(false);
+    const text = draft.trim();
+    // Blank is not a name; the row already has the only wording there is, so the
+    // editor falls back to that rather than asking the press to be repeated.
+    if (!text) {
+      setDraft(item.text);
+      return;
+    }
+    setDraft(text);
+    if (text !== item.text) onRename(text);
+  }
 
   return (
     <div
@@ -176,13 +211,40 @@ function Row({
           {item.done ? "✓" : ""}
         </button>
         <span className="min-w-0 flex-1">
-          <span
-            className={`block text-left text-sm transition-colors duration-150 ${
-              item.done ? "text-slate-400 line-through" : ""
-            }`}
-          >
-            {item.text}
-          </span>
+          {editing ? (
+            <input
+              autoFocus
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onBlur={commit}
+              onKeyDown={(event) => {
+                // Enter inside a text input in this form would otherwise submit it —
+                // the checkbox is the form's submit button — which is a tick, not a
+                // save. Escape reverts rather than committing whatever is half-typed.
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                } else if (event.key === "Escape") {
+                  event.preventDefault();
+                  setDraft(item.text);
+                  setEditing(false);
+                }
+              }}
+              aria-label={`Edit ${item.text}`}
+              className="block w-full rounded border border-slate-300 bg-white px-1 py-0.5 text-sm outline-none focus-visible:border-slate-500"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              aria-label={`Edit ${item.text}`}
+              className={`block w-full rounded py-0.5 text-left text-sm transition-colors duration-150 hover:bg-slate-50 ${
+                item.done ? "text-slate-400 line-through" : ""
+              }`}
+            >
+              {item.text}
+            </button>
+          )}
           {/* Why this is on the list, when something other than a person put it there.
               A line that was typed into the add box says nothing, which is what makes
               this worth reading where it does appear. */}
@@ -495,6 +557,20 @@ export function ListItems({
               [{ id: newId(), kind: "amount", listId, itemId: item.id, amount }],
               () => setListItemAmount(data),
             );
+          });
+        }}
+        onRename={(text) => {
+          const data = new FormData();
+          data.set("itemId", item.id);
+          data.set("text", text);
+
+          // Online-only, like the drag and the delete beside it: a rename is a
+          // kitchen-table edit rather than an aisle one, and two phones renaming the
+          // same row while apart would need a rule for which name wins. Left this way,
+          // the optimistic text simply comes back when the action fails.
+          startTransition(async () => {
+            applyChange({ type: "rename", id: item.id, text });
+            await onlyOnline(() => renameListItem(data));
           });
         }}
         onRemove={async () => {
