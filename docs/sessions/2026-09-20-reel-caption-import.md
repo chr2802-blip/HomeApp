@@ -74,7 +74,10 @@ does the same thing again. Not worth changing now; worth knowing before adding t
    `pg_ctl start` on 5432; an `.env` with `DATABASE_URL`/`DIRECT_URL` pointing at it
    plus `AUTH_SECRET` and `CRON_SECRET`; and, where `/opt/pw-browsers` holds a different
    build number than the lockfile wants, symlink the expected directory onto the
-   installed one rather than running `playwright install`. If a third session pays this
+   installed one rather than running `playwright install`. And `E2E_WORKERS=2`: the
+   suite's default worker count exhausts this container, which costs a whole `git push`
+   — the pre-push hook gets as far as the browser suite, fails there, and the five
+   minutes before it are spent again on the retry. If a third session pays this
    again it has stopped being a note and wants a script.
 
 2. **That a reel is a deliberate non-target of the link importer.** CLAUDE.md said
