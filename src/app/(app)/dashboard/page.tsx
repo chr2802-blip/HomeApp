@@ -67,26 +67,47 @@ type DueTaskRow = {
  * a task is most often put off, but it reaches three days ahead — and "snooze to
  * tomorrow" about something due on Friday would be bringing it forward, so `isSnoozable`
  * decides.
+ *
+ * **The name gets a row to itself, and what to do about it gets the next one.** All five
+ * pieces used to share one line, wrapping when they ran out of room — which on a phone
+ * they always did: the badge and the button are as wide as their own words whatever the
+ * screen, so every pixel they took came out of the one column that could give any, and
+ * "Tørre køleskab af" came out broken across three lines with a word split down the
+ * middle. A task nobody can read is a task nobody does. The second row costs about the
+ * height those wrapped lines cost anyway, and spends it on the answer rather than on the
+ * question: the date is read from the left, the press is made from the right, and the
+ * menu sits out of the thumb's way in the corner above.
  */
 function DueTask({ task, now }: { task: DueTaskRow; now: Date }) {
   return (
-    <Card className="flex flex-wrap items-center gap-3 py-3">
-      {/* Decorative: the task's own name is right beside it. */}
-      <PhotoThumb photoId={task.photoId} alt="" className="h-11 w-11" placeholder="task" />
-      <div className="min-w-0 flex-1">
-        <p className="font-medium">{task.title}</p>
-        <p className="text-xs text-slate-500">
-          {repeatLabel(task)}
-          {task.assignee && ` · ${task.assignee.name}`}
-        </p>
+    <Card className="py-3">
+      <div className="flex items-start gap-3">
+        {/* Decorative: the task's own name is right beside it. */}
+        <PhotoThumb photoId={task.photoId} alt="" className="h-11 w-11" placeholder="task" />
+        <div className="min-w-0 flex-1">
+          <p className="font-medium">{task.title}</p>
+          <p className="text-xs text-slate-500">
+            {repeatLabel(task)}
+            {task.assignee && ` · ${task.assignee.name}`}
+          </p>
+        </div>
+        {/* In the corner rather than beside Done, which is the same distance a thumb
+            aiming at "later" has to miss by — see `TaskSnoozeMenu`. */}
+        {isSnoozable(task, now) && (
+          <TaskSnoozeMenu
+            taskId={task.id}
+            title={task.title}
+            action={snoozeTask}
+            className="-mt-1 -mr-2"
+          />
+        )}
       </div>
-      <Badge tone={dueTone(task.nextDueAt, now)}>{dueLabel(task.nextDueAt, now)}</Badge>
-      {/* The same press as the one on the tasks page, drawn by the same component so
-          the tick rises out of it in both places. */}
-      <TaskDoneButton taskId={task.id} action={completeTask} label="Done" />
-      {isSnoozable(task, now) && (
-        <TaskSnoozeMenu taskId={task.id} title={task.title} action={snoozeTask} className="-mr-2" />
-      )}
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <Badge tone={dueTone(task.nextDueAt, now)}>{dueLabel(task.nextDueAt, now)}</Badge>
+        {/* The same press as the one on the tasks page, drawn by the same component so
+            the tick rises out of it in both places. */}
+        <TaskDoneButton taskId={task.id} action={completeTask} label="Done" />
+      </div>
     </Card>
   );
 }
