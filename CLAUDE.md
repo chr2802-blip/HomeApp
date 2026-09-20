@@ -540,6 +540,17 @@ for you, then what is due for somebody else, then the dinner, then the lists. Th
 suggestion used to open the page and is now below the tasks: it is a decision to make
 this evening, not a job that is late, and nothing else on the page is a job at all.
 
+**A due task is two rows: what it is, then what to do about it.** The thumbnail, the
+title, the repeat line, the due badge, the Done button and the three dots all shared one
+row, and the only one of the six that could give up any width was the title — the badge
+and the button are as wide as their own words whatever the screen. On a phone that left
+the name a column narrow enough to break a word down the middle, which is the one thing
+on the card somebody actually reads. The name now has a row to itself beside the
+thumbnail, with the menu in the corner above; the badge and the button share the row
+under it, the date read from the left and the press made from the right. It costs about
+the height the wrapped title was costing anyway, which is why the first screen still
+holds everything `e2e/suggested-recipe.spec.ts` checks for.
+
 **Due for someone else is folded away, with its count on the heading.** It is
 information rather than a job — the clearest case on the page of something worth
 knowing and not worth a card each. The "Done" button inside it stays, because naming
