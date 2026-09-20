@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { fetchRecipeFromUrl } from "@/lib/recipe-import";
+import { fetchRecipeFromUrl, importPastedCaption } from "@/lib/recipe-import";
 import { pngBytes } from "../helpers/images";
 import { createHome } from "../helpers/factories";
 
@@ -153,6 +153,7 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
         instructions: "Fry.",
         photoId: null,
         totalTimeMinutes: null,
+        videoUrl: null,
       },
     });
     expect(await prisma.photo.count()).toBe(0);
@@ -184,6 +185,7 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
         instructions: "Fry.",
         photoId: null,
         totalTimeMinutes: null,
+        videoUrl: null,
       },
     });
     expect(await prisma.photo.count()).toBe(0);
@@ -212,6 +214,7 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
         instructions: "Fry.",
         photoId: null,
         totalTimeMinutes: null,
+        videoUrl: null,
       },
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -245,5 +248,91 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
     });
     expect(stored.homeId).toBe(home.id);
     expect(stored.homeId).not.toBe(otherHome.id);
+  });
+});
+
+/*
+ * A reel's poster frame is the nearest thing it has to a photograph of the finished
+ * dish, and it is stored exactly as any upload is — which is a real write, so it is
+ * here rather than in the unit suite. Reading the caption itself is pure and lives in
+ * tests/unit/caption-recipe.test.ts.
+ */
+describe("a reel's poster frame", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const REEL = "https://www.instagram.com/reel/ABC123/";
+  const EMBED = "https://www.instagram.com/reel/ABC123/embed/captioned/";
+  const POSTER = "https://scontent.example/poster.png";
+
+  const embedPage = `<html><body>
+    <img class="EmbeddedMediaImage" src="${POSTER}" />
+    <div class="Caption">
+      <a class="CaptionUsername">somekitchen</a>
+      Boller<br>Ingredienser<br>500 g mel<br>25 g gær<br>Fremgangsmåde<br>Ælt det sammen.
+    </div>
+  </body></html>`;
+
+  it("stores it under the importing home, with the reel kept as the video", async () => {
+    const home = await createHome();
+    stubFetch({
+      [EMBED]: htmlResponse(embedPage, EMBED),
+      [POSTER]: imageResponse(pngBytes(720, 1280), POSTER),
+    });
+
+    const result = await fetchRecipeFromUrl(REEL, home.id);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.recipe.title).toBe("Boller");
+    expect(result.recipe.videoUrl).toBe(REEL);
+
+    const stored = await prisma.photo.findUniqueOrThrow({
+      where: { id: result.recipe.photoId! },
+    });
+    expect(stored.homeId).toBe(home.id);
+  });
+
+  it("is still worth a try for a caption the cook pasted in by hand", async () => {
+    const home = await createHome();
+    stubFetch({
+      [EMBED]: htmlResponse(embedPage, EMBED),
+      [POSTER]: imageResponse(pngBytes(720, 1280), POSTER),
+    });
+
+    const result = await importPastedCaption(
+      "Boller\nIngredienser\n500 g mel\n25 g gær\nFremgangsmåde\nÆlt det sammen.",
+      REEL,
+      home.id,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.recipe.photoId).toEqual(expect.any(String));
+    expect(await prisma.photo.count()).toBe(1);
+  });
+
+  it("never refuses a pasted recipe for want of a picture it could not fetch", async () => {
+    const home = await createHome();
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Instagram said no")));
+
+    const result = await importPastedCaption(
+      "Boller\nIngredienser\n500 g mel\n25 g gær\nFremgangsmåde\nÆlt det sammen.",
+      REEL,
+      home.id,
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      recipe: {
+        title: "Boller",
+        ingredients: "500 g mel\n25 g gær",
+        instructions: "Ælt det sammen.",
+        photoId: null,
+        totalTimeMinutes: null,
+        videoUrl: REEL,
+      },
+    });
+    expect(await prisma.photo.count()).toBe(0);
   });
 });
