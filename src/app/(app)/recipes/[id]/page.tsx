@@ -4,6 +4,7 @@ import { homeDb } from "@/lib/home-db";
 import { deleteRecipe, updateRecipe } from "@/app/actions/recipes";
 import { Badge, Card } from "@/components/ui";
 import { ItemMenu } from "@/components/item-menu";
+import { AddToMealPlanMenuItem } from "@/components/add-to-meal-plan-menu-item";
 import { RecipeFields } from "@/components/recipe-fields";
 import { PhotoBanner } from "@/components/photo";
 import { SocialVideoEmbed } from "@/components/video-embed";
@@ -84,6 +85,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
             editAction={updateRecipe}
             deleteAction={deleteRecipe}
             deleteMessage={`Delete the recipe "${recipe.title}"?`}
+            extraItems={<AddToMealPlanMenuItem recipeId={recipe.id} />}
             className="-mr-2"
           >
             <RecipeFields
