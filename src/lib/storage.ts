@@ -27,8 +27,9 @@ export type StorageKind = (typeof STORAGE_KINDS)[number];
  * A picture counts towards the thing holding it: a recipe's photo is part of that
  * recipe, because "how much does a recipe cost us" answered without its picture is off
  * by a factor of a hundred and tells nobody anything. `rest` is what is left — the home
- * record, who is in it, who is invited, the home's own picture, the members' own
- * pictures that happen to be filed here, and uploads nothing points at yet.
+ * record, who is in it, who is invited, what it keeps in the pantry, the home's own
+ * picture, the members' own pictures that happen to be filed here, and uploads nothing
+ * points at yet.
  */
 export const STORAGE_LABELS: Record<StorageKind, string> = {
   recipes: "Recipes",
@@ -114,6 +115,8 @@ function breakdown(scope: Prisma.Sql) {
       SELECT m."homeId", 'rest', pg_column_size(m.*) FROM "HomeMember" m
       UNION ALL
       SELECT v."homeId", 'rest', pg_column_size(v.*) FROM "Invite" v
+      UNION ALL
+      SELECT y."homeId", 'rest', pg_column_size(y.*) FROM "PantryItem" y
       UNION ALL
       -- A picture is charged to whatever is showing it, and to the home only once:
       -- the first match wins, so a photo that somehow ended up on two things is still

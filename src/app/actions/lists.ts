@@ -11,6 +11,7 @@ import { homeScoped } from "@/lib/scoped";
 import { readForm, requiredText } from "@/lib/form";
 import { clampAmount, MIN_AMOUNT } from "@/lib/amount";
 import { ingredientLines, shoppingText } from "@/lib/recipes";
+import { pantryNote, stockedKeys, stripStocked } from "@/lib/pantry";
 import { weekDays, weekStartInZone, weekStartOn } from "@/lib/time";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
@@ -320,11 +321,46 @@ function dedupedIngredients(ingredients: string): Map<string, string> {
  * why `byText` is kept up to date as rows are written rather than read once up front: a
  * second recipe in the same run wanting the same ingredient has to land on the row the
  * first one just created, not start a duplicate.
+ *
+ * What the household already keeps in is left out entirely — this is the one place that
+ * happens, so a recipe added from its own page and a whole week added from the meal plan
+ * cannot come to disagree about the cupboard. The pantry is read now rather than when
+ * the page was drawn, because it is a thing somebody may have corrected on the way to
+ * the shop. What was left out comes back with the count, because a line that quietly
+ * never arrives reads as one the app forgot.
  */
 async function writeRecipesToList(
-  list: { id: string },
+  list: { id: string; homeId: string },
   recipes: { id: string; ingredients: string }[],
-): Promise<void> {
+): Promise<{ covered: string[]; added: number }> {
+  // What the household already has in never reaches the list. Read here rather than in
+  // the two actions above it, so a recipe added from its own page and a whole week added
+  // from the meal plan cannot come to disagree about what the cupboard says — and read
+  // now rather than when the page was drawn, because the pantry is a thing somebody may
+  // have just corrected on the way to the shop.
+  const stocked = await stockedKeys(list.homeId);
+
+  /*
+   * The cupboard is taken out of the run before anything is read or written, so a press
+   * the pantry answers for in full leaves without opening a transaction — and so the two
+   * things the caller has to say are both decided in one place: what is being added, and
+   * what it left out.
+   */
+  const covered: string[] = [];
+  const shopping = recipes.map((recipe) => {
+    const { keep, covered: inCupboard } = stripStocked(
+      dedupedIngredients(recipe.ingredients),
+      stocked,
+    );
+    // One mention each across the whole run: two of the week's recipes both asking for
+    // salt is still the one line of shopping nobody has to buy.
+    for (const text of inCupboard) if (!covered.includes(text)) covered.push(text);
+    return { recipe, keep };
+  });
+
+  const added = new Set(shopping.flatMap(({ keep }) => [...keep.keys()])).size;
+  if (added === 0) return { covered, added };
+
   const onList = await prisma.listItem.findMany({
     where: { listId: list.id },
     // An open row wins over a ticked one where a list somehow holds both: what is still
@@ -344,8 +380,8 @@ async function writeRecipesToList(
    * has no way of telling which half arrived.
    */
   await prisma.$transaction(async (tx) => {
-    for (const recipe of recipes) {
-      for (const [key, text] of dedupedIngredients(recipe.ingredients)) {
+    for (const { recipe, keep } of shopping) {
+      for (const [key, text] of keep) {
         const existing = byText.get(key);
 
         const itemId = existing
@@ -385,6 +421,8 @@ async function writeRecipesToList(
   revalidatePath(`/lists/${list.id}`);
   revalidatePath("/lists");
   revalidatePath("/dashboard");
+
+  return { covered, added };
 }
 
 /**
@@ -401,8 +439,15 @@ export async function addRecipeIngredients(formData: FormData): Promise<ActionRe
     return fail("This recipe has no ingredients to add yet.");
   }
 
-  await writeRecipesToList(list, [recipe]);
-  return ok();
+  const { covered, added } = await writeRecipesToList(list, [recipe]);
+
+  // A recipe whose every line is already in the cupboard wrote nothing, and "Added to
+  // Shopping" would be the one thing that did not happen. Said as a refusal because that
+  // is what it is — there was nothing to do — and a cook who disagrees has the pantry
+  // page to say so on.
+  if (added === 0) return fail("Nothing to add — the pantry already has all of it.");
+
+  return ok(pantryNote(covered));
 }
 
 /**
@@ -446,6 +491,8 @@ export async function addMealPlanIngredients(formData: FormData): Promise<Action
     return fail("None of this week's recipes have ingredients to add yet.");
   }
 
-  await writeRecipesToList(list, withIngredients);
-  return ok();
+  const { covered, added } = await writeRecipesToList(list, withIngredients);
+  if (added === 0) return fail("Nothing to add — the pantry already has all of it.");
+
+  return ok(pantryNote(covered));
 }
