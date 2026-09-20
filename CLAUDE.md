@@ -753,9 +753,56 @@ so an option the action would refuse is never drawn — and it reaches one day b
 the Monday on screen, because a week that could not see the Sunday before it would be the
 one week in seven where living off the roast disappeared.
 
-**An empty day is offered up to three recipes, and they fill the picker in and stop
-there.** `src/lib/meal-suggestions.ts` ranks them and is a pure function with no database
-in it, so `tests/unit/meal-suggestions.test.ts` can hold the part that can be wrong while
+**The picker is a list of radios, not a `<select>` and not a combobox.**
+`MealPicker` (`src/components/meal-picker.tsx`) draws it. A native picker holds one line
+of text per row, which is no way to tell two hundred recipes apart, and it cannot be
+searched — a household with a full collection was being asked to scroll all of it. An
+ARIA combobox would draw the same rows and is a pile of roles and keyboard handling to
+get subtly wrong, with no other one in this app to copy from. Radios sharing a `name`
+are already a single-choice group both browsers and screen readers understand, and they
+keep the whole control **to one field**: every state a day has still arrives through
+`PLAN_FIELD`, exactly as it did through the `<select>`.
+
+**The circle is drawn, not hidden behind the row.** An `sr-only` input under a tinted
+border says "chosen" to somebody who can see it and nothing to a thumb looking for what
+to press — and it cannot be clicked at all, which is how the browser suite found it.
+
+**The order is what makes a long collection usable, more than the search box is.**
+Searching only helps somebody who already knows what they want. The groups are for
+everyone else: the two plain choices, then **Leftovers**, then **Suggested**, then
+**Recently planned** (`RECENT_COUNT` of them, read back over `RECENT_LOOKBACK` rows of
+plans strictly before the week on screen — a plan for next month is not something the
+household has *been* cooking), then everything else alphabetically. A home keeps about
+ten recipes in rotation however many it has saved, so **Recently planned** is what means
+most picks never reach the search box at all.
+
+**The groups are a partition, not a set of views.** A recipe is claimed by the first
+group that wants it and is not drawn again below: one lasagne under both *Suggested* and
+*All recipes* reads as the sheet having lost count rather than as two good reasons to
+cook it.
+
+**The chosen row always survives the filter, whatever is typed.** A radio that leaves the
+page takes its value out of the form with it, and a `PLAN_FIELD` that arrives empty does
+not mean "no change" — it means "nothing planned", which **deletes the day**. Searching
+is not a way to clear an evening. That is also why "nothing matches" is counted from the
+hits rather than from what is left on screen: a list down to the chosen row alone has
+still found nothing.
+
+Search reads the ingredients and the description as well as the title, for the reason
+`RecipeDirectory` does — a cook's question is more often "what can I do with the feta"
+than "what was that recipe called" — and it filters on the client, because the recipes
+are already on the page and a round trip per keystroke would feel worse than scrolling.
+The box does **not** autofocus: on a phone the sheet is the whole screen, and a keyboard
+opening with it buries the list somebody has just asked to see. Nothing is virtualised,
+because two hundred rows is nothing for the DOM and `RecipeDirectory` already draws every
+recipe in the home on one page.
+
+**An empty day is offered up to three recipes, as a group inside that list.** They were
+chips above a `<select>` while the list below them could not draw a reason — two
+different ways of choosing a recipe, in one sheet. Now that every row can,
+a suggestion is simply a recipe the list has a reason to put first.
+`src/lib/meal-suggestions.ts` ranks them and is a pure function with no database in it,
+so `tests/unit/meal-suggestions.test.ts` can hold the part that can be wrong while
 everything else works. Two things it does are the whole of why it is worth having:
 
 - **It ranks by the share of a recipe that comes free, not by how few things it adds.**
@@ -783,8 +830,12 @@ week always offers the same three — a suggestion that moved between two render
 nobody could take a second look at. An empty basket offers **nothing at all**: with no
 week to share with, "best" could only mean "shortest", which is a ranking of recipes by
 how little they are, and the recipes page already lists every one of them. Nothing is
-ever written on the household's behalf — pressing a suggestion is the same as scrolling
+ever written on the household's behalf — choosing a suggestion is the same as scrolling
 to that name in the list, and the Save button is still theirs.
+
+The day's trigger carries `data-ready` once its handler is attached, because hydration
+leaves no mark of its own: without it a browser test presses a static page, which passes
+on an idle machine and fails whenever one is busy.
 
 `/meals` is a tab, between Tasks and Recipes — the plan beside the collection it draws
 from. The week is in the address (`?week=`, read through `weekStartOn`), so it is a place
