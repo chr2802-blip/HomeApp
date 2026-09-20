@@ -238,6 +238,12 @@ test("an empty day is offered what shares most with the week, and fills the pick
 
   await plan(page, monday!, "Beef pasta");
 
+  // The dialog closing only says the save resolved, not that this row's own refreshed
+  // data has been committed — Tuesday's suggestions are computed from the same render
+  // pass as Monday's face, so waiting for Monday to say "Beef pasta" is what makes sure
+  // Tuesday is not still holding the groups computed before Monday had a plan at all.
+  await expect(day(page, monday!)).toContainText("Beef pasta");
+
   await openDay(page, tuesday!);
 
   // The stew shares two of its three with Monday, so it is named under Suggested with
