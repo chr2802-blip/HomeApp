@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { verifyPassword } from "@/lib/auth";
+import { getCurrentUser, verifyPassword } from "@/lib/auth";
 import { inviteCodeMatches } from "@/lib/invite-code";
 import {
   createHome,
@@ -26,6 +26,7 @@ import {
   signIn,
 } from "../helpers/factories";
 import { expectRedirect } from "../helpers/expect";
+import { cookieStore } from "../helpers/next-mocks";
 
 describe("createInvite", () => {
   it("issues a code an admin can pass on, and stores only its hash", async () => {
@@ -495,13 +496,125 @@ describe("updateOwnProfile", () => {
 
     const result = await updateOwnProfile(
       undefined,
-      formData({ name: member.name, password: "a-brand-new-password" }),
+      formData({
+        name: member.name,
+        password: "a-brand-new-password",
+        currentPassword: TEST_PASSWORD,
+      }),
     );
 
     expect(result).toEqual({ ok: true });
     const updated = await prisma.user.findUniqueOrThrow({ where: { id: member.id } });
     expect(await verifyPassword("a-brand-new-password", updated.passwordHash)).toBe(true);
     expect(await verifyPassword(TEST_PASSWORD, updated.passwordHash)).toBe(false);
+  });
+
+  /*
+   * A session cookie is a bearer token: whoever holds one is the account. So the two
+   * things below are what stop a borrowed cookie becoming a taken account — the thief
+   * does not know the password, and the owner changing it ends the sessions that were
+   * already open rather than leaving the thief's working for the next thirty days.
+   */
+  it("refuses a new password without the current one", async () => {
+    const { member } = await createHomeWithMembers();
+    await signIn(member);
+
+    const result = await updateOwnProfile(
+      undefined,
+      formData({ name: member.name, password: "a-brand-new-password" }),
+    );
+
+    expect(result).toEqual({ ok: false, error: "That is not your current password." });
+    const after = await prisma.user.findUniqueOrThrow({ where: { id: member.id } });
+    expect(await verifyPassword(TEST_PASSWORD, after.passwordHash)).toBe(true);
+  });
+
+  it("refuses a wrong current password, and keeps the name typed beside it", async () => {
+    const { member } = await createHomeWithMembers();
+    await signIn(member);
+
+    const result = await updateOwnProfile(
+      undefined,
+      formData({ name: "Renamed", password: "a-brand-new-password", currentPassword: "not-it" }),
+    );
+
+    expect(result).toEqual({ ok: false, error: "That is not your current password." });
+    const after = await prisma.user.findUniqueOrThrow({ where: { id: member.id } });
+    // Nothing was written: a wrong password must not also cost them the rename.
+    expect(after.name).toBe(member.name);
+    expect(await verifyPassword(TEST_PASSWORD, after.passwordHash)).toBe(true);
+  });
+
+  it("does not ask for the current password when no new one is being set", async () => {
+    const { member } = await createHomeWithMembers();
+    await signIn(member);
+
+    const result = await updateOwnProfile(undefined, formData({ name: "Just A Rename" }));
+
+    expect(result).toEqual({ ok: true });
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: member.id } })).name).toBe(
+      "Just A Rename",
+    );
+  });
+
+  it("ends the sessions opened under the old password", async () => {
+    const { member } = await createHomeWithMembers();
+    await signIn(member);
+
+    const before = await prisma.user.findUniqueOrThrow({ where: { id: member.id } });
+    expect(before.tokenVersion).toBe(0);
+
+    await updateOwnProfile(
+      undefined,
+      formData({
+        name: member.name,
+        password: "a-brand-new-password",
+        currentPassword: TEST_PASSWORD,
+      }),
+    );
+
+    // The version moved, so every cookie naming the old one is no longer a session.
+    const after = await prisma.user.findUniqueOrThrow({ where: { id: member.id } });
+    expect(after.tokenVersion).toBe(1);
+    // And the person who did the changing is still signed in: the cookie was rewritten.
+    expect(await getCurrentUser()).toMatchObject({ id: member.id });
+  });
+
+  it("makes a cookie held by somebody else stop working", async () => {
+    const { member } = await createHomeWithMembers();
+    await signIn(member);
+
+    // What a borrowed cookie is: the exact bytes of a session opened under the old
+    // password, kept aside while the owner changes it.
+    const stolen = cookieStore.get("homehub_session")!;
+    expect(stolen).toBeTruthy();
+
+    await updateOwnProfile(
+      undefined,
+      formData({
+        name: member.name,
+        password: "a-brand-new-password",
+        currentPassword: TEST_PASSWORD,
+      }),
+    );
+
+    // Hand the old cookie back, as the other device still would.
+    cookieStore.set("homehub_session", stolen);
+
+    // It verifies — it is properly signed and has not expired — and it is still not a
+    // session, because it names a version this account has moved past.
+    expect(await getCurrentUser()).toBeNull();
+  });
+
+  it("leaves the version alone when only the name changes", async () => {
+    const { member } = await createHomeWithMembers();
+    await signIn(member);
+
+    await updateOwnProfile(undefined, formData({ name: "Renamed Again" }));
+
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: member.id } })).tokenVersion,
+    ).toBe(0);
   });
 
   it("attaches a picture chosen in the home on screen", async () => {

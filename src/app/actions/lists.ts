@@ -9,6 +9,7 @@ import { assertHomeAccess } from "@/lib/access";
 import { homeDb } from "@/lib/home-db";
 import { homeScoped } from "@/lib/scoped";
 import { readForm, requiredText } from "@/lib/form";
+import { MAX_ITEM_TEXT } from "@/lib/offline-ops";
 import { clampAmount, MIN_AMOUNT } from "@/lib/amount";
 import { ingredientLines, shoppingText } from "@/lib/recipes";
 import { weekDays, weekStartInZone, weekStartOn } from "@/lib/time";
@@ -62,7 +63,16 @@ const listSchema = z.object({
   title: requiredText("Give the list a name."),
   trackAmounts: checkbox,
 });
-const itemSchema = z.object({ text: requiredText("Write something to add."), amount });
+/*
+ * The same ceiling `opsSchema` puts on a queued add (`lib/offline-ops.ts`). The two have
+ * to agree: a line this accepted and the queue refused would be a line somebody could
+ * type at the kitchen table and not in a shop, which is the one place this app promises
+ * to keep working.
+ */
+const itemSchema = z.object({
+  text: requiredText("Write something to add.", MAX_ITEM_TEXT),
+  amount,
+});
 
 export async function createList(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const user = await requireHomeUser();
@@ -285,7 +295,9 @@ export async function renameListItem(formData: FormData) {
   if (!item) return;
 
   const text = String(formData.get("text") ?? "").trim();
-  if (!text) return;
+  // Blank is nothing to write; past the ceiling is the same ceiling `addListItem` and
+  // the offline queue keep, so renaming cannot get round what adding refuses.
+  if (!text || text.length > MAX_ITEM_TEXT) return;
 
   await setItemText(item.id, text);
   revalidatePath(`/lists/${item.listId}`);

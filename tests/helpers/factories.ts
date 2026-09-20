@@ -87,9 +87,18 @@ export async function createHomeWithMembers() {
   return { home, admin, member };
 }
 
-/** Puts a valid session cookie in place, exactly as a real login would. */
-export async function signIn(user: { id: string }) {
-  await createSession(user.id);
+/**
+ * Puts a valid session cookie in place, exactly as a real login would.
+ *
+ * The version comes from the row rather than being assumed to be zero, so a test that
+ * changes a password and signs in again gets a cookie the app will still accept.
+ */
+export async function signIn(user: { id: string; tokenVersion?: number }) {
+  const version =
+    user.tokenVersion ??
+    (await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { tokenVersion: true } }))
+      .tokenVersion;
+  await createSession(user.id, version);
 }
 
 export function signOut() {

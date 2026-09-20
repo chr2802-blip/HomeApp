@@ -45,6 +45,24 @@ export default async function ProfilePage() {
                 minLength={8}
               />
             </div>
+            {/* Asked for only because the field above exists, and left blank by
+                everybody who came here to change their name. A session cookie is a
+                bearer token, so this is the one thing on the page that somebody who
+                merely has the browser does not also have — and without it, changing a
+                name and taking the account over are the same form. */}
+            <div className="space-y-1 sm:col-span-2">
+              <Label htmlFor="profile-current-password">Current password</Label>
+              <Input
+                id="profile-current-password"
+                name="currentPassword"
+                type="password"
+                autoComplete="current-password"
+                placeholder="Only needed to set a new password"
+              />
+              <p className="text-xs text-slate-500">
+                Changing your password signs out any other device still using the old one.
+              </p>
+            </div>
             <div className="space-y-1 sm:col-span-2">
               <Label>Email</Label>
               {/* Shown, not edited: it is what an invitation was sent to and what you
