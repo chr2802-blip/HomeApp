@@ -76,7 +76,7 @@ function TaskItem({ task, members, now }: { task: TaskRow; members: MemberOption
       snoozeAction={snoozeTask}
       reopenAction={reopenTask}
       deleteAction={deleteTask}
-      photo={<PhotoThumb photoId={task.photoId} alt="" className="h-14 w-14" />}
+      photo={<PhotoThumb photoId={task.photoId} alt="" className="h-14 w-14" placeholder="task" />}
       summary={
         <>
           <div className="flex flex-wrap items-center gap-2">

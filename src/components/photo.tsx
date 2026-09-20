@@ -43,12 +43,21 @@ function Img({ src, alt, className }: { src: string; alt: string; className: str
 }
 
 /**
- * The recipe tab's own icon, muted, standing in for a picture nobody has added yet — a
- * recipe entered by hand or imported from a page with no picture of its own is still the
- * common case, and a blank tile there reads as broken rather than as "no photo".
+ * What can stand in for a picture nobody has added yet. One glyph per kind of thing this
+ * module draws a photo for — a recipe entered by hand, a list or a task with nothing
+ * uploaded are all the common case, not a special one, and a blank tile there reads as
+ * broken rather than as "no photo". Each glyph is the same icon that kind already wears
+ * on its own tab (`nav-items.tsx`), so the placeholder reads as "this is a recipe/list/
+ * task" rather than as a second, unrelated symbol to learn.
+ *
+ * A home's own picture and a person's own picture are deliberately not here: those go
+ * through `PhotoAvatar`, which draws nothing at all for the same reason `HomeMenu`
+ * documents at its own call site — an avatar is who or what the home *is*, not a job to
+ * be done, and a household or a person is never "missing" the way a recipe with no
+ * picture is.
  */
-function RecipeGlyph({ className = "" }: { className?: string }) {
-  return (
+const GLYPHS = {
+  recipe: ({ className = "" }: { className?: string }) => (
     <svg
       viewBox="0 0 24 24"
       className={className}
@@ -62,8 +71,44 @@ function RecipeGlyph({ className = "" }: { className?: string }) {
       <path d="M7 3.5v8M10 3.5v8M8.5 11.5V21M7 3.5a1.5 1.5 0 0 0-1.5 1.5v3A2.5 2.5 0 0 0 8 10.5h1" />
       <path d="M17.5 3.5c-1.7 0-2.5 2.2-2.5 5s.8 4 2.5 4H18V21" />
     </svg>
-  );
-}
+  ),
+  list: ({ className = "" }: { className?: string }) => (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m3 6 1.6 1.6L7.5 4.7" />
+      <path d="m3 13 1.6 1.6 2.9-2.9" />
+      <path d="m3 20 1.6 1.6 2.9-2.9" />
+      <path d="M11 6.5h10M11 13.5h10M11 20.5h10" />
+    </svg>
+  ),
+  task: ({ className = "" }: { className?: string }) => (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21 12a9 9 0 1 1-3.2-6.9" />
+      <path d="M21 4v5h-5" />
+      <path d="M12 7.5V12l3 2" />
+    </svg>
+  ),
+} satisfies Record<string, (props: { className?: string }) => React.ReactElement>;
+
+/** The kinds of thing this module can draw a placeholder for. */
+export type PhotoKind = keyof typeof GLYPHS;
 
 /**
  * A picture across the top of the thing it belongs to.
@@ -91,8 +136,8 @@ export function PhotoBanner({
   className = "",
   bleed = false,
   short = false,
-  placeholder = false,
-}: PhotoProps & { bleed?: boolean; short?: boolean; placeholder?: boolean }) {
+  placeholder,
+}: PhotoProps & { bleed?: boolean; short?: boolean; placeholder?: PhotoKind }) {
   if (!photoId && !placeholder) return null;
 
   const box = `${short ? "h-32 sm:h-48" : "h-44 sm:h-64"} overflow-hidden bg-slate-100 ${
@@ -100,9 +145,10 @@ export function PhotoBanner({
   } ${className}`;
 
   if (!photoId) {
+    const Glyph = GLYPHS[placeholder!];
     return (
       <div className={`${box} flex items-center justify-center text-slate-300`}>
-        <RecipeGlyph className="h-12 w-12" />
+        <Glyph className="h-12 w-12" />
       </div>
     );
   }
@@ -125,7 +171,7 @@ export function PhotoCover({ photoId, alt, className = "" }: PhotoProps) {
   if (!photoId) {
     return (
       <div className={`flex aspect-[16/9] w-full items-center justify-center bg-slate-100 text-slate-300 ${className}`}>
-        <RecipeGlyph className="h-8 w-8" />
+        <GLYPHS.recipe className="h-8 w-8" />
       </div>
     );
   }
@@ -142,16 +188,17 @@ export function PhotoThumb({
   photoId,
   alt,
   className = "",
-  placeholder = false,
-}: PhotoProps & { placeholder?: boolean }) {
+  placeholder,
+}: PhotoProps & { placeholder?: PhotoKind }) {
   if (!photoId && !placeholder) return null;
 
   if (!photoId) {
+    const Glyph = GLYPHS[placeholder!];
     return (
       <div
         className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 text-slate-300 ${className}`}
       >
-        <RecipeGlyph className="h-1/2 w-1/2" />
+        <Glyph className="h-1/2 w-1/2" />
       </div>
     );
   }
