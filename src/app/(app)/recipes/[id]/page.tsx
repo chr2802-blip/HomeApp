@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
 import { deleteRecipe, updateRecipe } from "@/app/actions/recipes";
+import { addRecipeIngredients } from "@/app/actions/lists";
 import { Badge, Card } from "@/components/ui";
 import { ItemMenu } from "@/components/item-menu";
 import { AddToMealPlanMenuItem } from "@/components/add-to-meal-plan-menu-item";
@@ -113,7 +114,8 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
                 otherwise offer to put nothing on a list. */}
             {ingredients.length > 0 && (
               <AddToListMenu
-                recipeId={recipe.id}
+                action={addRecipeIngredients}
+                extraData={{ recipeId: recipe.id }}
                 lists={lists.map((list) => ({
                   id: list.id,
                   title: list.title,

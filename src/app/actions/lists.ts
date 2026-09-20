@@ -6,10 +6,12 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireHomeUser } from "@/lib/auth";
 import { assertHomeAccess } from "@/lib/access";
+import { homeDb } from "@/lib/home-db";
 import { homeScoped } from "@/lib/scoped";
 import { readForm, requiredText } from "@/lib/form";
 import { clampAmount, MIN_AMOUNT } from "@/lib/amount";
 import { ingredientLines, shoppingText } from "@/lib/recipes";
+import { weekDays, weekStartInZone, weekStartOn } from "@/lib/time";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { addItem, nextPosition, restoreItem, setItemAmount, setItemDone } from "@/lib/list-writes";
@@ -264,22 +266,102 @@ export async function setListItemAmount(formData: FormData) {
 }
 
 /**
- * Puts a recipe's ingredients on one of the home's lists.
+ * A recipe's ingredient lines, deduplicated against themselves: a recipe that says
+ * "salt" twice means salt, not two salts. The amount and unit are stripped before the
+ * comparison — "1 dl mælk" and "5 dl mælk" are the same errand wanted twice, not two
+ * different lines that happen to disagree about how much.
+ */
+function dedupedIngredients(ingredients: string): Map<string, string> {
+  const wanted = new Map<string, string>();
+  for (const line of ingredientLines(ingredients)) {
+    const text = shoppingText(line);
+    if (!wanted.has(text.toLowerCase())) wanted.set(text.toLowerCase(), text);
+  }
+  return wanted;
+}
+
+/**
+ * Puts one or more recipes' ingredients on a list.
  *
  * What it means to "add the lasagne" is that every line of its ingredients should be on
- * the list, so a line already there is not a clash to report — it is the same
- * ingredient wanted once more, and the amount goes up by one. A line ticked off earlier
- * comes back at one: what is on a ticked row is what was bought last time, not what
- * this recipe needs now.
- *
- * What counts as "already there" is judged through `shoppingText`, not the line as
- * written: a recipe stating "1 dl mælk" and one stating "5 dl mælk" both go on as
- * "mælk", since the amount already tracks how many times it was asked for.
+ * the list, so a line already there is not a clash — it is the same ingredient wanted
+ * once more, and the amount goes up by one. A line ticked off earlier comes back at one:
+ * what is on a ticked row is what was bought last time, not what this recipe needs now.
  *
  * Each item then carries a note saying which recipe asked for it, so twenty lines of
  * shopping still read as "these three are the lasagne". Adding the same recipe twice
- * bumps the amounts and leaves one note; two recipes wanting onions leave two.
- *
+ * bumps the amounts and leaves one note; two recipes wanting onions leave two — which is
+ * why `byText` is kept up to date as rows are written rather than read once up front: a
+ * second recipe in the same run wanting the same ingredient has to land on the row the
+ * first one just created, not start a duplicate.
+ */
+async function writeRecipesToList(
+  list: { id: string },
+  recipes: { id: string; ingredients: string }[],
+): Promise<void> {
+  const onList = await prisma.listItem.findMany({
+    where: { listId: list.id },
+    // An open row wins over a ticked one where a list somehow holds both: what is still
+    // outstanding is what the cook will be looking at.
+    orderBy: { done: "asc" },
+  });
+  const byText = new Map<string, { id: string; done: boolean; amount: number }>();
+  for (const item of onList) {
+    const key = shoppingText(item.text).toLowerCase();
+    if (!byText.has(key)) byText.set(key, item);
+  }
+
+  let position = await nextPosition(list.id);
+
+  /*
+   * One transaction: a half-added run is a shopping list nobody can trust, and the cook
+   * has no way of telling which half arrived.
+   */
+  await prisma.$transaction(async (tx) => {
+    for (const recipe of recipes) {
+      for (const [key, text] of dedupedIngredients(recipe.ingredients)) {
+        const existing = byText.get(key);
+
+        const itemId = existing
+          ? (
+              await tx.listItem.update({
+                where: { id: existing.id, listId: list.id },
+                data: existing.done
+                  ? { done: false, amount: MIN_AMOUNT, position: position++ }
+                  : { amount: clampAmount(existing.amount + 1) },
+                select: { id: true },
+              })
+            ).id
+          : (
+              await tx.listItem.create({
+                data: { listId: list.id, text, amount: MIN_AMOUNT, position: position++ },
+                select: { id: true },
+              })
+            ).id;
+
+        byText.set(key, {
+          id: itemId,
+          done: false,
+          amount: existing ? clampAmount(existing.amount + 1) : MIN_AMOUNT,
+        });
+
+        // One row per pairing, so the second run finds it already there and the item
+        // still names the recipe once.
+        await tx.listItemSource.upsert({
+          where: { itemId_recipeId: { itemId, recipeId: recipe.id } },
+          create: { itemId, recipeId: recipe.id },
+          update: {},
+        });
+      }
+    }
+  });
+
+  revalidatePath(`/lists/${list.id}`);
+  revalidatePath("/lists");
+  revalidatePath("/dashboard");
+}
+
+/**
  * Unlike the other actions that report, this one takes the form data alone: it is not
  * submitted by a form but pressed in a menu, so there is no previous state for React to
  * hand it. It still reports, because there are two things worth saying — a recipe with
@@ -289,68 +371,55 @@ export async function addRecipeIngredients(formData: FormData): Promise<ActionRe
   const recipe = await recipeInScope(String(formData.get("recipeId")));
   const list = await listInScope(String(formData.get("listId")));
 
-  // Deduplicated against itself as well as against the list: a recipe that says "salt"
-  // twice means salt, not two salts. The amount and unit are stripped before the
-  // comparison — "1 dl mælk" and "5 dl mælk" are the same errand wanted twice, not two
-  // different lines that happen to disagree about how much.
-  const wanted = new Map<string, string>();
-  for (const line of ingredientLines(recipe.ingredients)) {
-    const text = shoppingText(line);
-    if (!wanted.has(text.toLowerCase())) wanted.set(text.toLowerCase(), text);
-  }
-  if (wanted.size === 0) return fail("This recipe has no ingredients to add yet.");
-
-  const onList = await prisma.listItem.findMany({
-    where: { listId: list.id },
-    // An open row wins over a ticked one where a list somehow holds both: what is still
-    // outstanding is what the cook will be looking at.
-    orderBy: { done: "asc" },
-  });
-  const byText = new Map<string, (typeof onList)[number]>();
-  for (const item of onList) {
-    const key = shoppingText(item.text).toLowerCase();
-    if (!byText.has(key)) byText.set(key, item);
+  if (dedupedIngredients(recipe.ingredients).size === 0) {
+    return fail("This recipe has no ingredients to add yet.");
   }
 
-  let position = await nextPosition(list.id);
+  await writeRecipesToList(list, [recipe]);
+  return ok();
+}
 
-  /*
-   * One transaction: a half-added recipe is a shopping list nobody can trust, and the
-   * cook has no way of telling which half arrived.
-   */
-  await prisma.$transaction(async (tx) => {
-    for (const [key, text] of wanted) {
-      const existing = byText.get(key);
+/**
+ * Puts every recipe the week has planned onto one of the home's lists in one press — the
+ * days with a recipe, never a night out or leftovers, which name nothing to shop for.
+ *
+ * `week` names which week rather than the client sending the recipe ids it saw on the
+ * page: a plan can change between the page rendering and the press landing, and the
+ * write should reflect whatever the week actually says now, not a snapshot of it.
+ * Pressed from the same kind of menu `addRecipeIngredients` is, so it reports the same
+ * way.
+ */
+export async function addMealPlanIngredients(formData: FormData): Promise<ActionResult> {
+  const user = await requireHomeUser();
+  const list = await listInScope(String(formData.get("listId")));
+  const week = weekStartOn(String(formData.get("week") ?? "")) ?? weekStartInZone(new Date());
 
-      const itemId = existing
-        ? (
-            await tx.listItem.update({
-              where: { id: existing.id, listId: list.id },
-              data: existing.done
-                ? { done: false, amount: MIN_AMOUNT, position: position++ }
-                : { amount: clampAmount(existing.amount + 1) },
-              select: { id: true },
-            })
-          ).id
-        : (
-            await tx.listItem.create({
-              data: { listId: list.id, text, amount: MIN_AMOUNT, position: position++ },
-              select: { id: true },
-            })
-          ).id;
-
-      // One row per pairing, so the second run finds it already there and the item
-      // still names the recipe once.
-      await tx.listItemSource.upsert({
-        where: { itemId_recipeId: { itemId, recipeId: recipe.id } },
-        create: { itemId, recipeId: recipe.id },
-        update: {},
-      });
-    }
+  const db = homeDb(user.homeId);
+  const plans = await db.mealPlan.findMany({
+    where: { date: { in: weekDays(week) }, recipeId: { not: null } },
+    select: { recipeId: true },
   });
+  if (plans.length === 0) return fail("Nothing is being cooked this week yet.");
 
-  revalidatePath(`/lists/${list.id}`);
-  revalidatePath("/lists");
-  revalidatePath("/dashboard");
+  const recipes = await db.recipe.findMany({
+    where: { id: { in: [...new Set(plans.map((plan) => plan.recipeId!))] } },
+    select: { id: true, ingredients: true },
+  });
+  const byId = new Map(recipes.map((recipe) => [recipe.id, recipe]));
+
+  // One entry per day cooking it, not one per distinct recipe: a recipe planned twice
+  // this week needs its ingredients twice, the same as adding it from its own page
+  // twice over — `writeRecipesToList` already merges repeats the same way either gives
+  // it one, and still names the recipe once underneath the item.
+  const cooking = plans
+    .map((plan) => byId.get(plan.recipeId!))
+    .filter((recipe) => recipe !== undefined);
+
+  const withIngredients = cooking.filter((recipe) => dedupedIngredients(recipe.ingredients).size > 0);
+  if (withIngredients.length === 0) {
+    return fail("None of this week's recipes have ingredients to add yet.");
+  }
+
+  await writeRecipesToList(list, withIngredients);
   return ok();
 }

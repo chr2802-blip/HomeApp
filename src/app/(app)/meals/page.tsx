@@ -1,10 +1,12 @@
 import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
 import { planMeal, resetMealWeek } from "@/app/actions/meals";
+import { addMealPlanIngredients } from "@/app/actions/lists";
 import { Badge, ButtonLink, Card, PageHeader } from "@/components/ui";
+import { AddToListMenu } from "@/components/add-to-list-menu";
 import { ConfirmButton } from "@/components/confirm-button";
 import { PhotoThumb } from "@/components/photo";
-import { MealDay } from "@/components/meal-day";
+import { MealWeek } from "@/components/meal-week";
 import type { PlanGroup, PlanOption } from "@/components/meal-picker";
 import {
   LEFTOVERS_LABEL,
@@ -143,7 +145,7 @@ export default async function MealsPage({
   // before it would be the one week in seven where the offer disappeared.
   const sundayBefore = weekDays(previousWeekStart(week))[6]!;
 
-  const [plans, recipes, recentPlans] = await Promise.all([
+  const [plans, recipes, recentPlans, shoppingLists] = await Promise.all([
     // Seven days by name rather than a range: the week is seven calendar days in the
     // home's own zone, and comparing strings is what the column is stored as text for.
     db.mealPlan.findMany({
@@ -185,6 +187,14 @@ export default async function MealsPage({
       orderBy: { date: "desc" },
       take: RECENT_LOOKBACK,
       select: { date: true, recipeId: true },
+    }),
+    // The home's lists that track amounts, for the "Add to list" menu — the same
+    // filtering the recipe page's own menu uses, and for the same reason: an ingredient
+    // line is a quantity, and a list that ignores amounts has nowhere to put it.
+    db.list.findMany({
+      where: { trackAmounts: true },
+      orderBy: { title: "asc" },
+      select: { id: true, title: true, _count: { select: { items: { where: { done: false } } } } },
     }),
   ]);
 
@@ -305,6 +315,23 @@ export default async function MealsPage({
       <PageHeader
         title="Meals"
         description="What the week is eating. Pick a recipe for a day, or say you are out."
+        action={
+          // Only where there is something cooking this week to shop for — a control
+          // that would only ever answer "nothing is being cooked this week yet" is a
+          // control offering to fail, the same reason the recipe page's own menu is
+          // conditional on having ingredients at all.
+          days.some((day) => planned.get(day)?.recipe) && (
+            <AddToListMenu
+              action={addMealPlanIngredients}
+              extraData={{ week }}
+              lists={shoppingLists.map((list) => ({
+                id: list.id,
+                title: list.title,
+                open: list._count.items,
+              }))}
+            />
+          )
+        }
       />
 
       {/* The week, and the way to the ones either side of it. Links rather than buttons:
@@ -338,8 +365,8 @@ export default async function MealsPage({
                   title="Reset this week?"
                   confirmLabel="Reset"
                   message={`Clear everything planned for ${weekLabel(days)}? The recipes themselves are untouched — only this week's plan.`}
-                  triggerVariant="ghost"
-                  triggerClassName="px-1 py-0 text-xs text-slate-500 hover:text-red-600"
+                  triggerVariant="danger"
+                  triggerClassName="px-2 py-1 text-xs"
                 >
                   Reset week
                 </ConfirmButton>
@@ -357,31 +384,27 @@ export default async function MealsPage({
         </ButtonLink>
       </nav>
 
-      <div className="space-y-3">
-        {days.map((day, index) => (
-          <div
-            key={day}
-            className="animate-row-in"
-            style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
-          >
-            <MealDay
-              date={day}
-              title={`${weekdayName(day)} ${dayAndMonth(day)}`}
-              selected={planSelection(planned.get(day))}
-              groups={groupsFor(day)}
-              action={planMeal}
-              highlighted={day === today}
-            >
-              <DayFace
-                day={day}
-                today={today}
-                plan={planned.get(day)}
-                source={sourceOf(planned.get(day))}
-              />
-            </MealDay>
-          </div>
-        ))}
-      </div>
+      <MealWeek
+        action={planMeal}
+        days={days.map((day) => ({
+          date: day,
+          title: `${weekdayName(day)} ${dayAndMonth(day)}`,
+          selected: planSelection(planned.get(day)),
+          groups: groupsFor(day),
+          highlighted: day === today,
+          // A day already lived through is read-only: there is nothing left to plan for
+          // an evening that has already happened.
+          disabled: day < today,
+          face: (
+            <DayFace
+              day={day}
+              today={today}
+              plan={planned.get(day)}
+              source={sourceOf(planned.get(day))}
+            />
+          ),
+        }))}
+      />
 
       {recipes.length === 0 && (
         <Card className="mt-6 text-sm text-slate-500">
