@@ -72,7 +72,7 @@ function DueTask({ task, now }: { task: DueTaskRow; now: Date }) {
   return (
     <Card className="flex flex-wrap items-center gap-3 py-3">
       {/* Decorative: the task's own name is right beside it. */}
-      <PhotoThumb photoId={task.photoId} alt="" className="h-11 w-11" />
+      <PhotoThumb photoId={task.photoId} alt="" className="h-11 w-11" placeholder="task" />
       <div className="min-w-0 flex-1">
         <p className="font-medium">{task.title}</p>
         <p className="text-xs text-slate-500">
@@ -257,7 +257,7 @@ export default async function DashboardPage() {
               <Link key={list.id} href={`/lists/${list.id}`}>
                 <Card className="relative flex items-center gap-3 overflow-hidden transition hover:border-slate-400">
                   {/* Decorative: the list's own name is right beside it. */}
-                  <PhotoThumb photoId={list.photoId} alt="" className="h-11 w-11" />
+                  <PhotoThumb photoId={list.photoId} alt="" className="h-11 w-11" placeholder="list" />
                   <div className="min-w-0 flex-1">
                     <p className="font-medium">{list.title}</p>
                     <p className="text-xs text-slate-500">{itemsLine(list)}</p>

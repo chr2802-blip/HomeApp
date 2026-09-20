@@ -41,7 +41,7 @@ export async function SuggestedRecipe({ homeId }: { homeId: string }) {
           className="pressable -m-2 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-2 active:scale-[0.98] active:bg-slate-50"
         >
           {/* Decorative: the title is right beside it. */}
-          <PhotoThumb photoId={recipe.photoId} alt="" className="h-12 w-12" placeholder />
+          <PhotoThumb photoId={recipe.photoId} alt="" className="h-12 w-12" placeholder="recipe" />
           <div className="min-w-0 flex-1">
             <p className="font-medium hover:underline">{recipe.title}</p>
             {recipe.description && (

@@ -89,6 +89,11 @@ function DayFace({
   // A leftovers day wears the picture of what is being eaten, because that is what is
   // being eaten. It is the same meal a second time, not a different kind of evening.
   const photoId = recipe?.photoId ?? source?.photoId ?? null;
+  // Whether there is a dish to depict at all: cooking a recipe, or living off one
+  // earlier in the week. A day with neither gets the plain kept-space box below, never
+  // the recipe glyph — that glyph means "a recipe with no picture", and eating out or
+  // nothing planned is not that.
+  const isCooking = !!recipe || !!plan?.leftoverOf;
 
   return (
     <>
@@ -96,6 +101,8 @@ function DayFace({
           keeps the space, so the seven rows read as a week rather than as a ragged list. */}
       {photoId ? (
         <PhotoThumb photoId={photoId} alt="" className="h-12 w-12" />
+      ) : isCooking ? (
+        <PhotoThumb photoId={null} alt="" className="h-12 w-12" placeholder="recipe" />
       ) : (
         <div aria-hidden="true" className="h-12 w-12 shrink-0 rounded-xl bg-slate-100" />
       )}
