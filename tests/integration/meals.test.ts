@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { planMeal } from "@/app/actions/meals";
+import { addRecipeToNextOpenDay, planMeal, resetMealWeek } from "@/app/actions/meals";
 import { PLAN_FIELD, PLAN_OUT, leftoversChoice } from "@/lib/meals";
+import { dueAtDaysFrom, todayInZone, weekDays } from "@/lib/time";
 import {
   createHome,
   createHomeWithMembers,
@@ -282,5 +283,115 @@ describe("deleting a home", () => {
     await prisma.home.delete({ where: { id: home.id } });
 
     expect(await prisma.mealPlan.count()).toBe(0);
+  });
+});
+
+describe("resetMealWeek", () => {
+  const week = "2026-06-01"; // A Monday.
+
+  it("clears every day of the week and only that week", async () => {
+    const days = weekDays(week);
+    await planMeal(undefined, plan(days[0]!, PLAN_OUT));
+    await planMeal(undefined, plan(days[6]!, PLAN_OUT));
+    // The Monday after: outside the week being reset, so it must survive.
+    const nextWeekDay = weekDays("2026-06-08")[0]!;
+    await planMeal(undefined, plan(nextWeekDay, PLAN_OUT));
+
+    await resetMealWeek(formData({ week }));
+
+    const remaining = await prisma.mealPlan.findMany({ select: { date: true } });
+    expect(remaining.map((row) => row.date)).toEqual([nextWeekDay]);
+  });
+
+  it("clears a week with nothing planned without complaining", async () => {
+    await expect(resetMealWeek(formData({ week }))).resolves.toBeUndefined();
+    expect(await prisma.mealPlan.count()).toBe(0);
+  });
+
+  it("does nothing when the week is not a real date", async () => {
+    await planMeal(undefined, plan(week, PLAN_OUT));
+
+    await resetMealWeek(formData({ week: "not-a-week" }));
+
+    expect(await prisma.mealPlan.count()).toBe(1);
+  });
+
+  it("never reaches another home's week", async () => {
+    const elsewhere = await createHome();
+    const neighbour = await createUser({ homeId: elsewhere.id });
+
+    await signIn(neighbour);
+    await planMeal(undefined, plan(week, PLAN_OUT));
+
+    await signIn(member);
+    await resetMealWeek(formData({ week }));
+
+    expect(await prisma.mealPlan.count()).toBe(1);
+    expect((await only()).homeId).toBe(elsewhere.id);
+  });
+});
+
+describe("addRecipeToNextOpenDay", () => {
+  const addTo = (recipeId: string) => formData({ recipeId });
+
+  it("books the recipe on today when today has nothing planned", async () => {
+    const recipe = await createRecipe({ homeId: home.id, createdById: member.id });
+
+    await addRecipeToNextOpenDay(addTo(recipe.id));
+
+    expect(await only()).toMatchObject({
+      homeId: home.id,
+      date: todayInZone(),
+      recipeId: recipe.id,
+    });
+  });
+
+  it("skips days that already have something planned", async () => {
+    const recipe = await createRecipe({ homeId: home.id, createdById: member.id });
+    const today = todayInZone();
+    const tomorrow = todayInZone(dueAtDaysFrom(1));
+    const dayAfter = todayInZone(dueAtDaysFrom(2));
+
+    // Today is cooking something, tomorrow is a night out — both count as planned.
+    await planMeal(undefined, plan(today, PLAN_OUT));
+    await planMeal(undefined, plan(tomorrow, PLAN_OUT));
+
+    await addRecipeToNextOpenDay(addTo(recipe.id));
+
+    const added = await prisma.mealPlan.findFirstOrThrow({ where: { recipeId: recipe.id } });
+    expect(added.date).toBe(dayAfter);
+    // Neither of the two days already planned was touched.
+    expect(await prisma.mealPlan.count()).toBe(3);
+  });
+
+  it("refuses a recipe that is not in this home", async () => {
+    const elsewhere = await createHome();
+    const neighbour = await createUser({ homeId: elsewhere.id });
+    const theirs = await createRecipe({ homeId: elsewhere.id, createdById: neighbour.id });
+
+    await addRecipeToNextOpenDay(addTo(theirs.id));
+
+    expect(await prisma.mealPlan.count()).toBe(0);
+  });
+
+  it("never reaches another home's plans when looking for a free day", async () => {
+    const elsewhere = await createHome();
+    const neighbour = await createUser({ homeId: elsewhere.id });
+    const theirRecipe = await createRecipe({ homeId: elsewhere.id, createdById: neighbour.id });
+
+    await signIn(neighbour);
+    await planMeal(undefined, plan(todayInZone(), theirRecipe.id));
+
+    // Their today is taken; this home's today is still free.
+    await signIn(member);
+    const recipe = await createRecipe({ homeId: home.id, createdById: member.id });
+    await addRecipeToNextOpenDay(addTo(recipe.id));
+
+    expect(
+      await prisma.mealPlan.findFirstOrThrow({ where: { homeId: home.id } }),
+    ).toMatchObject({ date: todayInZone(), recipeId: recipe.id });
+    expect(await prisma.mealPlan.findFirstOrThrow({ where: { homeId: elsewhere.id } })).toMatchObject(
+      { date: todayInZone(), recipeId: theirRecipe.id },
+    );
   });
 });
