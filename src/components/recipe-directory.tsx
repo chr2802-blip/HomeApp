@@ -159,7 +159,7 @@ export function RecipeDirectory({
       <div
         role="group"
         aria-label="Filter by category"
-        className="mb-5 flex flex-nowrap gap-2 overflow-x-auto pb-1"
+        className="scrollbar-hidden mb-3 flex flex-nowrap gap-2 overflow-x-auto"
       >
         <FilterChip
           label="All"
@@ -182,7 +182,7 @@ export function RecipeDirectory({
         <div
           role="group"
           aria-label="Filter by time"
-          className="mb-5 flex flex-nowrap gap-2 overflow-x-auto pb-1"
+          className="scrollbar-hidden mb-5 flex flex-nowrap gap-2 overflow-x-auto"
         >
           <FilterChip
             label="Any time"

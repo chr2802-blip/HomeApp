@@ -43,6 +43,29 @@ function Img({ src, alt, className }: { src: string; alt: string; className: str
 }
 
 /**
+ * The recipe tab's own icon, muted, standing in for a picture nobody has added yet — a
+ * recipe entered by hand or imported from a page with no picture of its own is still the
+ * common case, and a blank tile there reads as broken rather than as "no photo".
+ */
+function RecipeGlyph({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M7 3.5v8M10 3.5v8M8.5 11.5V21M7 3.5a1.5 1.5 0 0 0-1.5 1.5v3A2.5 2.5 0 0 0 8 10.5h1" />
+      <path d="M17.5 3.5c-1.7 0-2.5 2.2-2.5 5s.8 4 2.5 4H18V21" />
+    </svg>
+  );
+}
+
+/**
  * A picture across the top of the thing it belongs to.
  *
  * A fixed height rather than a fixed ratio: a banner sized by its width grows with the
@@ -68,23 +91,44 @@ export function PhotoBanner({
   className = "",
   bleed = false,
   short = false,
-}: PhotoProps & { bleed?: boolean; short?: boolean }) {
-  if (!photoId) return null;
+  placeholder = false,
+}: PhotoProps & { bleed?: boolean; short?: boolean; placeholder?: boolean }) {
+  if (!photoId && !placeholder) return null;
+
+  const box = `${short ? "h-32 sm:h-48" : "h-44 sm:h-64"} overflow-hidden bg-slate-100 ${
+    bleed ? "-mt-8 -mr-4 -ml-4" : "w-full rounded-2xl"
+  } ${className}`;
+
+  if (!photoId) {
+    return (
+      <div className={`${box} flex items-center justify-center text-slate-300`}>
+        <RecipeGlyph className="h-12 w-12" />
+      </div>
+    );
+  }
 
   return (
-    <div
-      className={`${short ? "h-32 sm:h-48" : "h-44 sm:h-64"} overflow-hidden bg-slate-100 ${
-        bleed ? "-mt-8 -mr-4 -ml-4" : "w-full rounded-2xl"
-      } ${className}`}
-    >
+    <div className={box}>
       <Img src={photoUrl(photoId)} alt={alt} className="h-full w-full object-cover" />
     </div>
   );
 }
 
-/** The cover of a card in a directory, above its title. */
+/**
+ * The cover of a card in a directory, above its title.
+ *
+ * The only caller is the recipe grid, so unlike the other shapes here it draws its own
+ * placeholder unconditionally rather than needing to be asked: a card with no picture is
+ * the ordinary case, not a special one to opt into.
+ */
 export function PhotoCover({ photoId, alt, className = "" }: PhotoProps) {
-  if (!photoId) return null;
+  if (!photoId) {
+    return (
+      <div className={`flex aspect-[16/9] w-full items-center justify-center bg-slate-100 text-slate-300 ${className}`}>
+        <RecipeGlyph className="h-8 w-8" />
+      </div>
+    );
+  }
 
   return (
     <div className={`overflow-hidden bg-slate-100 ${className}`}>
@@ -94,8 +138,23 @@ export function PhotoCover({ photoId, alt, className = "" }: PhotoProps) {
 }
 
 /** A small square beside a row of text. */
-export function PhotoThumb({ photoId, alt, className = "" }: PhotoProps) {
-  if (!photoId) return null;
+export function PhotoThumb({
+  photoId,
+  alt,
+  className = "",
+  placeholder = false,
+}: PhotoProps & { placeholder?: boolean }) {
+  if (!photoId && !placeholder) return null;
+
+  if (!photoId) {
+    return (
+      <div
+        className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 text-slate-300 ${className}`}
+      >
+        <RecipeGlyph className="h-1/2 w-1/2" />
+      </div>
+    );
+  }
 
   return (
     <div className={`shrink-0 overflow-hidden rounded-xl bg-slate-100 ${className}`}>
