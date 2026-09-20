@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { deleteRecipe, updateRecipe } from "@/app/actions/recipes";
 import { Card, EmptyState, Input } from "@/components/ui";
 import { ItemMenu } from "@/components/item-menu";
+import { AddToMealPlanMenuItem } from "@/components/add-to-meal-plan-menu-item";
 import { RecipeFields } from "@/components/recipe-fields";
 import { PhotoCover } from "@/components/photo";
 import { QUICK_RECIPE_MINUTES, timeLabel } from "@/lib/recipes";
@@ -279,6 +280,7 @@ export function RecipeDirectory({
                       editAction={updateRecipe}
                       deleteAction={deleteRecipe}
                       deleteMessage={`Delete the recipe "${recipe.title}"?`}
+                      extraItems={<AddToMealPlanMenuItem recipeId={recipe.id} />}
                       className="absolute top-2 right-2 bg-white/80 backdrop-blur-sm"
                     >
                       <RecipeFields recipe={recipe} categories={categories} />
