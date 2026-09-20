@@ -70,7 +70,10 @@ password, picture and notifications, one page however many households they are i
 in the same menu because that menu is "this home, and me in it".
 
 **The header's name is a menu for everybody**, not only for somebody with a home to switch
-to — it is how Settings and Profile are reached. `HomeMenu` in
+to — it is how the Pantry, Settings and Profile are reached. The pantry is in it and is
+not administration: it is above Settings and drawn for every member, because what the
+household has in the cupboard is everyday business rather than a setting (see *The
+household has a cupboard*). `HomeMenu` in
 `src/components/home-menu.tsx` draws it; the list of other homes appears inside it only
 when there is more than one, because a chooser with a single choice is furniture.
 
@@ -311,7 +314,7 @@ connection in order to weigh it, on a page somebody is waiting for.
 Lists and Tasks and not Photos. A recipe's photo is a hundred times its text, so "Recipes:
 40 MB" is something a household can act on and "Photos: 40 MB" is the same number with the
 useful half taken out. What is left — the home record, its members and invites, the home's
-own picture, the avatars filed here and the uploads nobody finished — is `rest`, drawn in
+own picture, its pantry, the avatars filed here and the uploads nobody finished — is `rest`, drawn in
 the one deliberately quiet colour.
 
 The home is bound into the query rather than carried by `homeDb`, which scopes Prisma's
@@ -669,6 +672,76 @@ Like `ListItem` it carries no `homeId`, so `homeDb` refuses it and pages read it
 include on a list query that went through `homeDb`. Both ids the action is given — the
 recipe's and the list's — are checked against the caller's homes, because one press
 sends both.
+
+### The household has a cupboard, and the shopping list is told about it
+
+Almost every recipe opens with salt, pepper, oil and butter, and almost no household
+needs to buy any of them. Before `PantryItem` existed, "add the lasagne" put those four
+lines on the shop every time and the three that mattered were somewhere in among them —
+so the note under each item saying which recipe asked for it was answering a question
+nobody had, about salt.
+
+**A pantry entry is a name and one bit**: `inStock`, which is the whole of what a
+cupboard says. There is rice or there is not. Running out is therefore **unticking**
+rice rather than deleting it, and the next recipe that wants rice puts rice back on the
+list — which is the second half of what the feature is for, and why the boolean is not
+just an absence. Deleting is the different sentence: this household has stopped treating
+it as something it always has in.
+
+**What matches is `key`, not `name`.** `pantryKey` in `src/lib/pantry.ts` is
+`shoppingText` again, lower-cased — the same normalisation that decides two recipes'
+lines land on one row of the shop. Matching on anything else would be a second opinion
+about what two lines have in common, and the one that quietly disagreed would be this
+one: an entry reading "Salt" on the page and silently failing against "2 tsk salt",
+which looks like bad luck rather than a bug. The key is derived and never typed —
+written in that one function, rewritten on **every** save, so a rename moves what the
+entry answers for. `@@unique([homeId, key])` is on the key for the same reason the
+matching is: the invariant worth holding is one entry per row of shopping, and "Salt"
+and "salt" are not two basic goods. A name that normalises to nothing at all ("`,`") is
+refused rather than stored — it would match no ingredient line ever written, and then
+claim the next such entry was a duplicate of it.
+
+**The cupboard is taken out in one place**, `writeRecipesToList` in
+`src/app/actions/lists.ts`, so a recipe added from its own page and a whole week added
+from the meal plan cannot come to disagree about it. It is read at the press rather than
+when the page was drawn, because the pantry is a thing somebody may have just corrected
+on the way to the shop, and the split is made **before** anything is read or written: a
+press the pantry answers for in full leaves without opening a transaction, and the two
+things the caller has to say — what went on, what was left out — are decided together.
+
+**What was left out is said.** A line that quietly never arrives reads as one the app
+forgot, and a household that cannot tell "we already have salt" from "the salt went
+missing" stops trusting the button either way. `ActionResult` carries an optional `note`
+for exactly this, and `pantryNote` names what was covered up to three of them and counts
+the rest — "Salt, Peber and Olie" is something a cook can disagree with, and "3 skipped"
+is something they can only take on trust. A recipe the pantry answers for **in full** is
+a refusal rather than a cheerful "Added to Shopping", because nothing was added.
+
+**It answers what a recipe assumed, never what a person asked for.** Typing "salt" into
+the add box puts salt on the list, pantry or no pantry: that is somebody asking on
+purpose, and second-guessing it would be an app arguing with its own add button.
+
+**`/pantry` is reached from the home's name in the header, above Settings, and it is
+everybody's.** The actions take the home from the session and go through `homeDb`, and
+they make **no admin check at all** — unlike the recipe-category ones beside them.
+Which household ran out of rice on a Tuesday is not a question about who runs the
+household, and a pantry only an admin could correct would be out of date by Thursday.
+The page is ordered by name and never by what has run out: both questions asked of it
+("is the rice in", "we've run out of rice") begin by finding rice, and a list that
+reordered itself under the household's thumb on every tick would answer neither.
+
+The tick is one control with the name inside it rather than a box with a label beside
+it — this is pressed at an open cupboard door — and it is optimistic, and it is told the
+state to land in rather than "the other one", so the second press of a double tap leaves
+the cupboard saying what the thumb meant. Editing and deleting stay behind the three
+dots at the far end of the row, where a thumb aiming at "we're out of rice" cannot reach
+them.
+
+**An in-stock entry also counts as a staple for the meal suggestions.** `staplesOf`
+exists so a household need not keep a list of its own cupboard for the ranking to be
+worth reading — but a home that keeps one anyway has said something better than any
+inference from its recipes, and an ingredient nobody is buying either way cannot be what
+two dinners have in common. `weekSuggestions` on `/meals` unions the two.
 
 ### The week's meals are a row per day, and the row is the decision
 

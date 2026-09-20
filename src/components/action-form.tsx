@@ -35,7 +35,9 @@ export function ActionForm({
             {state.error}
           </p>
         )}
-        {state?.ok && <p className="text-sm text-emerald-700">{successLabel}</p>}
+        {/* What the action had to say about a submission that worked, where it had
+            anything — otherwise the form's own word for having saved. */}
+        {state?.ok && <p className="text-sm text-emerald-700">{state.note ?? successLabel}</p>}
       </div>
     </form>
   );
