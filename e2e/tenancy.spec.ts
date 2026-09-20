@@ -1,4 +1,4 @@
-import { ACCOUNTS, expect, test } from "./helpers/fixtures";
+import { ACCOUNTS, expect, openMenu, test } from "./helpers/fixtures";
 import { HOME_NAME, OTHER_HOME_NAME, prisma } from "./helpers/database";
 
 /**
@@ -31,6 +31,61 @@ async function seedOtherHomeContent() {
 
   return { list, recipe, otherHome };
 }
+
+/**
+ * The screen somebody actually sees when an action is asked for another home's record.
+ *
+ * This is the one case in the app that is *not* a 404: a page for another home's list
+ * is simply not found, but an action carrying another home's id throws, and the app
+ * shell's error boundary draws "Not your home" instead of the generic crash.
+ *
+ * It has to be asserted in the browser, against a production build, because that is the
+ * only place the bug it guards against ever appeared. The boundary used to decide which
+ * screen to draw by reading `error.message`, and Next replaces a server error's message
+ * on its way to the client — so this screen worked on a laptop and never once in
+ * production, where the household got "Something went wrong. Trying again often clears
+ * it" about something that would never work. A unit test could not have caught it and
+ * neither could `next dev`.
+ *
+ * The id is swapped on the form rather than posted by hand, which is what a stale page
+ * amounts to: the household member is genuinely signed in, the form is the app's own,
+ * and only the record it names is one they may not touch.
+ */
+test("an action aimed at another home's record says whose it is", async ({ page, loginAs }) => {
+  const { list: theirs } = await seedOtherHomeContent();
+  await loginAs(ACCOUNTS.member);
+
+  const db = prisma();
+  const home = await db.home.findFirstOrThrow({ where: { name: HOME_NAME } });
+  const owner = await db.user.findFirstOrThrow({ where: { email: ACCOUNTS.member.email } });
+  const mine = await db.list.create({
+    data: { homeId: home.id, createdById: owner.id, title: "My own list" },
+  });
+
+  await page.goto(`/lists/${mine.id}`);
+  await openMenu(page);
+
+  // The confirmation sheet carries a hidden field of its own and is only mounted when it
+  // opens, so the swap has to happen after that and not before — aiming at the menu's
+  // copy deletes the caller's own list, which is how this test first went wrong.
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  const sheet = page.getByRole("dialog");
+  await expect(sheet).toBeVisible();
+
+  // Point the form at the neighbour's list, which is what a page left open across a
+  // membership change amounts to on its own.
+  await sheet.locator('input[name="listId"]').evaluate((input, id) => {
+    (input as HTMLInputElement).value = id;
+  }, theirs.id);
+
+  await sheet.getByRole("button", { name: "Delete", exact: true }).click();
+
+  await expect(page.getByRole("heading", { name: "Not your home" })).toBeVisible();
+  await expect(page.getByText("Something went wrong")).toBeHidden();
+
+  // And it refused: the neighbour still has their list.
+  expect(await db.list.findUnique({ where: { id: theirs.id } })).not.toBeNull();
+});
 
 test.describe("a member of one home", () => {
   test.beforeEach(async ({ loginAs }) => {

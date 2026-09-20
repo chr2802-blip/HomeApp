@@ -5,7 +5,14 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { MemberRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireSuperAdmin, requireUser, hashPassword } from "@/lib/auth";
+import {
+  createSession,
+  hashPassword,
+  requireAdmin,
+  requireSuperAdmin,
+  requireUser,
+  verifyPassword,
+} from "@/lib/auth";
 import { assertHomeAdmin, canAccessHome, canAdministerHome } from "@/lib/access";
 import { generateInviteCode, hashInviteCode } from "@/lib/invite-code";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
@@ -46,6 +53,15 @@ const profileSchema = z.object({
     .refine((value) => !value || value.length >= 8, {
       error: "A new password must be at least 8 characters.",
     }),
+  /**
+   * The one they sign in with now, asked for only when they are setting a new one.
+   *
+   * A session cookie is a bearer token, so without this whoever has one can take the
+   * account outright — and the owner, who still knows the password, is the one person
+   * who then cannot get back in. Knowing the current password is the thing a borrowed
+   * cookie does not carry.
+   */
+  currentPassword: z.string().optional(),
 });
 
 const INVITE_TTL_DAYS = 14;
@@ -265,16 +281,41 @@ export async function updateOwnProfile(
     select: { photoId: true },
   });
 
-  const { name, password } = form.fields;
+  const { name, password, currentPassword } = form.fields;
 
-  await prisma.user.update({
+  /*
+   * Changing the password is the one thing on this page that is not simply "your
+   * details", so it is the one thing that asks for the password again. Checked before
+   * anything is written, like everything else here: a wrong one must not also cost them
+   * the name or the picture they changed in the same submission.
+   */
+  if (password) {
+    const stored = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { passwordHash: true },
+    });
+    if (!stored || !currentPassword || !(await verifyPassword(currentPassword, stored.passwordHash))) {
+      return fail("That is not your current password.");
+    }
+  }
+
+  const updated = await prisma.user.update({
     where: { id: user.id },
     data: {
       name,
-      ...(password ? { passwordHash: await hashPassword(password) } : {}),
+      // A new password ends every session that was opened under the old one — see
+      // `SESSION_VERSION_CLAIM`. Including, for a moment, this one: the cookie is
+      // rewritten below so the person doing the changing stays where they are, and
+      // everybody else holding one is signed out, which is the point.
+      ...(password
+        ? { passwordHash: await hashPassword(password), tokenVersion: { increment: 1 } }
+        : {}),
       photoId: photo.photoId,
     },
+    select: { tokenVersion: true },
   });
+
+  if (password) await createSession(user.id, updated.tokenVersion);
 
   // Only once the row no longer points at it, so a failed update cannot leave somebody
   // holding a picture that has already gone. Discarded through the home on screen: a

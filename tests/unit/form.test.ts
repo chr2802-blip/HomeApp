@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { optionalText, readForm, requiredText } from "@/lib/form";
+import { MAX_BODY, MAX_NAME, MAX_NOTE, bodyText, optionalText, readForm, requiredText } from "@/lib/form";
 import { CATEGORY_FIELD, readCategoryChoice } from "@/lib/recipes";
 
 /**
@@ -20,6 +20,62 @@ const form = (fields: [string, string][]) => {
   for (const [key, value] of fields) data.append(key, value);
   return data;
 };
+
+/**
+ * Every stored piece of text has a ceiling, and until recently none of them did.
+ *
+ * Nothing here is about keeping anybody out of anybody else's home — `homeDb` answers
+ * that. It is about a household member not being able to make their *own* home
+ * unusable: Postgres `text` runs to a gigabyte, and a megabyte-long list title is
+ * carried by every page that draws that list, including the one somebody would go to in
+ * order to delete it.
+ *
+ * The numbers are asserted at the boundary rather than at some comfortable value,
+ * because the boundary is the only part of a limit that can be wrong: exactly at the
+ * limit must pass, one past it must not.
+ */
+describe("length limits", () => {
+  const times = (n: number) => "a".repeat(n);
+
+  it("takes a name exactly at the limit and refuses one past it", () => {
+    const schema = z.object({ title: requiredText("Give it a title.") });
+
+    expect(readForm(schema, form([["title", times(MAX_NAME)]]))).toMatchObject({ ok: true });
+    expect(readForm(schema, form([["title", times(MAX_NAME + 1)]]))).toMatchObject({ ok: false });
+  });
+
+  it("says how long is too long, rather than refusing without saying why", () => {
+    const schema = z.object({ title: requiredText("Give it a title.") });
+
+    const result = readForm(schema, form([["title", times(MAX_NAME + 1)]]));
+
+    expect(result).toEqual({ ok: false, error: `That is too long — keep it under ${MAX_NAME} characters.` });
+  });
+
+  it("measures a name after trimming, so trailing spaces cannot push it over", () => {
+    const schema = z.object({ title: requiredText("Give it a title.") });
+
+    const padded = `  ${times(MAX_NAME)}  `;
+
+    expect(readForm(schema, form([["title", padded]]))).toMatchObject({ ok: true });
+  });
+
+  it("gives a note more room than a name, and a body more than a note", () => {
+    const schema = z.object({ note: optionalText, method: bodyText });
+
+    expect(MAX_NAME).toBeLessThan(MAX_NOTE);
+    expect(MAX_NOTE).toBeLessThan(MAX_BODY);
+    expect(readForm(schema, form([["note", times(MAX_NOTE)], ["method", times(MAX_BODY)]]))).toMatchObject({ ok: true });
+    expect(readForm(schema, form([["note", times(MAX_NOTE + 1)], ["method", ""]]))).toMatchObject({ ok: false });
+    expect(readForm(schema, form([["note", ""], ["method", times(MAX_BODY + 1)]]))).toMatchObject({ ok: false });
+  });
+
+  it("still lets an optional field be left out entirely", () => {
+    const schema = z.object({ note: optionalText, method: bodyText });
+
+    expect(readForm(schema, form([]))).toEqual({ ok: true, fields: { note: null, method: "" } });
+  });
+});
 
 describe("readForm", () => {
   const schema = z.object({

@@ -44,7 +44,7 @@ export async function login(_prev: FormState, formData: FormData): Promise<FormS
   }
 
   await clearAttempts("login", email);
-  await createSession(user.id);
+  await createSession(user.id, user.tokenVersion);
   redirect("/dashboard");
 }
 
@@ -141,6 +141,6 @@ export async function acceptInvite(_prev: FormState, formData: FormData): Promis
 
   await clearAttempts("invite", email);
 
-  await createSession(user.id);
+  await createSession(user.id, user.tokenVersion);
   redirect("/dashboard");
 }

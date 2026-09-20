@@ -1,4 +1,5 @@
 import type { SessionUser } from "./auth";
+import { NotAllowedError } from "./not-allowed";
 
 /**
  * Super admins reach any home; everyone else reaches the ones they are a member of.
@@ -12,7 +13,7 @@ export function canAccessHome(user: SessionUser, homeId: string) {
 }
 
 export function assertHomeAccess(user: SessionUser, homeId: string) {
-  if (!canAccessHome(user, homeId)) throw new Error("Not allowed");
+  if (!canAccessHome(user, homeId)) throw new NotAllowedError();
 }
 
 /** Running a household is per household: an admin of one is an ordinary member of the next. */
@@ -22,7 +23,7 @@ export function canAdministerHome(user: SessionUser, homeId: string) {
 }
 
 export function assertHomeAdmin(user: SessionUser, homeId: string) {
-  if (!canAdministerHome(user, homeId)) throw new Error("Not allowed");
+  if (!canAdministerHome(user, homeId)) throw new NotAllowedError();
 }
 
 /**

@@ -93,6 +93,14 @@ model User {
   email        String       @unique
   name         String
   passwordHash String
+  /**
+   * Bumped whenever the account's password changes, and carried in the session cookie.
+   * A cookie naming an older version is no longer a session — which is what makes
+   * "change your password" do the thing everybody already assumes it does: end the
+   * sessions somebody else was holding. Without it the cookie is a bearer token good
+   * for thirty days whatever the owner does about it afterwards.
+   */
+  tokenVersion Int          @default(0)
   role         PlatformRole @default(USER)
   /**
    * The home being looked at now, or null for somebody who is in no home at all. Held
