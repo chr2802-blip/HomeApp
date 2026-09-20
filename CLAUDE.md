@@ -1182,3 +1182,42 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
 
 Open a branch, keep `npm run verify` green, and open a PR rather than pushing to `main`.
 Explain in the PR what changed and why, and flag anything you decided rather than knew.
+
+### Every session leaves a note behind
+
+A change here goes idea → branch → `npm run verify` → PR → merge → production, usually in
+one sitting. Git records what was built. Nothing records **where the time actually went**,
+which is the only half that can be made faster — the diff is identical whether the colour
+was found in one file or in four, so twenty minutes spent working out which file owned it
+leaves no trace at all and nobody ever fixes it.
+
+So every session that changed anything writes one file into `docs/sessions/`, named
+`YYYY-MM-DD-slug.md`, from `docs/sessions/TEMPLATE.md`. **One file per session, never one
+growing log**: two sessions on two branches collide on the same lines every time, and a log
+that cannot be written from two branches at once is a log that stops being written.
+
+It is committed **with** the work it describes, not afterwards, and that is what makes it
+honest — a note written a week later is a note about what the diff says, which is the half
+that was already recorded. It costs nothing to push either: `docs/` is outside the pre-push
+hook's `CODE_PATHS`, so a session note on its own skips the integration and browser suites.
+
+**The line that earns the whole file is "what should have been quicker".** Everything above
+it is context for it. A session that answers "nothing" has written a diary entry; the
+question the file is asking is what somebody reading five of these in a row would fix first,
+and an entry naming no cost contributes nothing to that.
+
+**A gap in this file is a finding, not an excuse.** The commonest reason a session is slow
+is that something it needed to know about this codebase was not written down — which is
+exactly what the rest of CLAUDE.md is for. So the note names the gap and the same PR closes
+it wherever the answer is now known. That is the difference between a log that compounds and
+one that merely accumulates: the next session reads the convention instead of rediscovering
+it. When the same gap turns up three times it has stopped being a note, and wants a
+convention here or a check that enforces it.
+
+`scripts/session-summary.mjs` is the pair of hooks behind it, wired up in
+`.claude/settings.json`: **SessionStart** writes down the commit the session opened on and
+**Stop** compares against it. What counts as this session's work is measured from that
+commit and not from `main` — a checkout whose `origin/main` is a hundred commits stale is
+every shallow clone and every fresh container, and a hook that reports a hundred files is a
+hook nobody reads. It asks **once**: `stop_hook_active` ends it, because a hook that cannot
+be got past is a hook somebody switches off, and then nothing is logged at all.
