@@ -48,7 +48,7 @@ function ListCards({ lists }: { lists: ListSummary[] }) {
           >
             {/* Decorative: the title is right beside it, and a screen reader
                 reading the same words twice helps nobody. */}
-            <PhotoThumb photoId={list.photoId} alt="" className="h-11 w-11" />
+            <PhotoThumb photoId={list.photoId} alt="" className="h-11 w-11" placeholder="list" />
             <div className="min-w-0 flex-1">
               <p className="font-medium hover:underline">{list.title}</p>
               <p className="mt-1 text-xs text-slate-500">
