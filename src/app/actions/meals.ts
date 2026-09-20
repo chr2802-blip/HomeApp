@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
-import { dueAtOn } from "@/lib/time";
+import { dueAtDaysFrom, dueAtOn, todayInZone, weekDays, weekStartOn } from "@/lib/time";
 import { PLAN_FIELD, PLAN_OUT, leftoversDay } from "@/lib/meals";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 
@@ -96,4 +96,82 @@ export async function planMeal(_prev: ActionResult, formData: FormData): Promise
 
   refreshMealViews();
   return ok();
+}
+
+/**
+ * Clears every day of one week in a single press, for a plan started over rather than
+ * undone one day at a time.
+ *
+ * `week` is checked through `weekStartOn` rather than trusted as given: it comes off the
+ * page's own address, and a hand-edited or stale one is still something the server is
+ * being asked to act on, the same as `planMeal`'s own `date`. `deleteMany` rather than
+ * seven individual clears — a week with nothing planned in it yet is cleared just as
+ * successfully, the same way clearing one day nobody had planned is not an error above.
+ *
+ * Acts on an id (the week) and nothing it can meaningfully fail at once that id is valid,
+ * so — like `toggleListItem` or `snoozeTask` — there is nothing here to report back.
+ */
+export async function resetMealWeek(formData: FormData) {
+  const user = await requireHomeUser();
+
+  const week = weekStartOn(String(formData.get("week") ?? ""));
+  if (!week) return;
+
+  await homeDb(user.homeId).mealPlan.deleteMany({ where: { date: { in: weekDays(week) } } });
+  refreshMealViews();
+}
+
+/**
+ * How far ahead "Add to meal plan" will look for a day with nothing on it yet. A
+ * household that has planned every day for two months solid is not waiting on this
+ * button to find a gap, and an unbounded search would turn one press into a query
+ * scanning forward with no end in sight.
+ */
+const OPEN_DAY_HORIZON_DAYS = 60;
+
+/**
+ * Books a recipe onto the first day, starting today, that has nothing planned for it —
+ * the one-press version of opening that day's sheet and picking the recipe by hand.
+ *
+ * It never overwrites: a day already eating out, living off leftovers, or cooking
+ * something else is exactly as planned as one already holding this same recipe, so the
+ * search moves past all three the same way, by the same rule `groupsFor` on the meals
+ * page uses to decide which days are still worth offering a suggestion.
+ *
+ * Pressed from a menu that closes the instant it is chosen, so — like `snoozeTask` — it
+ * quietly does its one job or quietly does nothing. The one way it can do nothing is a
+ * household with every day of the next two months already spoken for, which is not a
+ * mistake worth a dialog of its own.
+ */
+export async function addRecipeToNextOpenDay(formData: FormData) {
+  const user = await requireHomeUser();
+  const recipeId = String(formData.get("recipeId") ?? "").trim();
+  const db = homeDb(user.homeId);
+
+  // Asked through homeDb, so another home's recipe id is simply not found — the same
+  // check planMeal makes before writing one.
+  const recipe = await db.recipe.findUnique({ where: { id: recipeId } });
+  if (!recipe) return;
+
+  const now = new Date();
+  const start = todayInZone(now);
+  const horizon = todayInZone(dueAtDaysFrom(OPEN_DAY_HORIZON_DAYS, now));
+
+  const planned = new Set(
+    (
+      await db.mealPlan.findMany({
+        where: { date: { gte: start, lte: horizon } },
+        select: { date: true },
+      })
+    ).map((plan) => plan.date),
+  );
+
+  for (let offset = 0; offset <= OPEN_DAY_HORIZON_DAYS; offset++) {
+    const day = todayInZone(dueAtDaysFrom(offset, now));
+    if (planned.has(day)) continue;
+
+    await db.mealPlan.create({ data: { homeId: user.homeId, date: day, recipeId } });
+    refreshMealViews();
+    return;
+  }
 }

@@ -1,7 +1,8 @@
 import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
-import { planMeal } from "@/app/actions/meals";
+import { planMeal, resetMealWeek } from "@/app/actions/meals";
 import { Badge, ButtonLink, Card, PageHeader } from "@/components/ui";
+import { ConfirmButton } from "@/components/confirm-button";
 import { PhotoThumb } from "@/components/photo";
 import { MealDay } from "@/components/meal-day";
 import type { PlanGroup, PlanOption } from "@/components/meal-picker";
@@ -320,13 +321,31 @@ export default async function MealsPage({
 
         <div className="min-w-0 text-center">
           <p className="truncate text-sm font-medium">{weekLabel(days)}</p>
-          {/* Only away from the live week: a link back to where you already are is
-              furniture, and it is the one link here whose target is not relative. */}
-          {week !== thisWeek && (
-            <ButtonLink href="/meals" variant="ghost" className="mt-0.5 px-1 py-0 text-xs">
-              Back to this week
-            </ButtonLink>
-          )}
+          <div className="mt-0.5 flex items-center justify-center gap-2">
+            {/* Only away from the live week: a link back to where you already are is
+                furniture, and it is the one link here whose target is not relative. */}
+            {week !== thisWeek && (
+              <ButtonLink href="/meals" variant="ghost" className="px-1 py-0 text-xs">
+                Back to this week
+              </ButtonLink>
+            )}
+            {/* Only where there is something to clear — a reset that would do nothing is
+                a button offering to fail. */}
+            {days.some((day) => planned.has(day)) && (
+              <form action={resetMealWeek}>
+                <input type="hidden" name="week" value={week} />
+                <ConfirmButton
+                  title="Reset this week?"
+                  confirmLabel="Reset"
+                  message={`Clear everything planned for ${weekLabel(days)}? The recipes themselves are untouched — only this week's plan.`}
+                  triggerVariant="ghost"
+                  triggerClassName="px-1 py-0 text-xs text-slate-500 hover:text-red-600"
+                >
+                  Reset week
+                </ConfirmButton>
+              </form>
+            )}
+          </div>
         </div>
 
         <ButtonLink

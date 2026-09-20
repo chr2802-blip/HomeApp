@@ -31,6 +31,7 @@ export function ItemMenu({
   deleteMessage,
   deleteAction,
   extraFields,
+  extraItems,
   className = "",
   children,
 }: {
@@ -54,6 +55,12 @@ export function ItemMenu({
    * the home they are in, because they may be in several.
    */
   extraFields?: React.ReactNode;
+  /**
+   * Entries for something the record can do besides being edited or deleted — "Add to
+   * meal plan" on a recipe. Drawn between the two, so the destructive entry stays last
+   * whatever else the menu carries.
+   */
+  extraItems?: React.ReactNode;
   className?: string;
   /** The edit form's fields. */
   children?: React.ReactNode;
@@ -69,6 +76,7 @@ export function ItemMenu({
             {editLabel}
           </MenuItem>
         )}
+        {extraItems}
         <MenuItem icon="bin" tone="danger" onSelect={() => setConfirming(true)}>
           {deleteLabel}
         </MenuItem>
