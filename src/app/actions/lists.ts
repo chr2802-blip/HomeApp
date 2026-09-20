@@ -12,7 +12,14 @@ import { readForm, requiredText } from "@/lib/form";
 import { MAX_ITEM_TEXT } from "@/lib/offline-ops";
 import { clampAmount, MIN_AMOUNT } from "@/lib/amount";
 import { ingredientLines, shoppingText } from "@/lib/recipes";
-import { pantryNote, stockedKeys, stripStocked } from "@/lib/pantry";
+import {
+  ambiguousLines,
+  pantryNote,
+  readPantryKeep,
+  stripStocked,
+  type PantryDecision,
+} from "@/lib/pantry";
+import { stockedKeys } from "@/lib/pantry-stock";
 import { weekDays, weekStartInZone, weekStartOn } from "@/lib/time";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
@@ -350,17 +357,36 @@ function dedupedIngredients(ingredients: string): Map<string, string> {
  * the page was drawn, because it is a thing somebody may have corrected on the way to
  * the shop. What was left out comes back with the count, because a line that quietly
  * never arrives reads as one the app forgot.
+ *
+ * A line naming more than one thing where the pantry has some but not all of it is
+ * neither — see `ambiguousLines`. `keepAmbiguous` undefined means nobody has been asked
+ * yet: found one, and this returns before anything is read or written beyond the
+ * pantry. A defined set, even an empty one, means the asking already happened and every
+ * ambiguous line is resolved one way or the other.
  */
 async function writeRecipesToList(
   list: { id: string; homeId: string },
   recipes: { id: string; ingredients: string }[],
-): Promise<{ covered: string[]; added: number }> {
+  keepAmbiguous?: Set<string>,
+): Promise<PantryDecision | { covered: string[]; added: number }> {
   // What the household already has in never reaches the list. Read here rather than in
   // the two actions above it, so a recipe added from its own page and a whole week added
   // from the meal plan cannot come to disagree about what the cupboard says — and read
   // now rather than when the page was drawn, because the pantry is a thing somebody may
   // have just corrected on the way to the shop.
   const stocked = await stockedKeys(list.homeId);
+  const wantedByRecipe = recipes.map((recipe) => ({
+    recipe,
+    wanted: dedupedIngredients(recipe.ingredients),
+  }));
+
+  if (!keepAmbiguous) {
+    const found = new Map<string, ReturnType<typeof ambiguousLines>[number]>();
+    for (const { wanted } of wantedByRecipe) {
+      for (const line of ambiguousLines(wanted, stocked)) found.set(line.key, line);
+    }
+    if (found.size > 0) return { needsDecision: true, lines: [...found.values()] };
+  }
 
   /*
    * The cupboard is taken out of the run before anything is read or written, so a press
@@ -369,11 +395,8 @@ async function writeRecipesToList(
    * what it left out.
    */
   const covered: string[] = [];
-  const shopping = recipes.map((recipe) => {
-    const { keep, covered: inCupboard } = stripStocked(
-      dedupedIngredients(recipe.ingredients),
-      stocked,
-    );
+  const shopping = wantedByRecipe.map(({ recipe, wanted }) => {
+    const { keep, covered: inCupboard } = stripStocked(wanted, stocked, keepAmbiguous);
     // One mention each across the whole run: two of the week's recipes both asking for
     // salt is still the one line of shopping nobody has to buy.
     for (const text of inCupboard) if (!covered.includes(text)) covered.push(text);
@@ -472,9 +495,12 @@ async function writeRecipesToList(
  * Unlike the other actions that report, this one takes the form data alone: it is not
  * submitted by a form but pressed in a menu, so there is no previous state for React to
  * hand it. It still reports, because there are two things worth saying — a recipe with
- * nothing listed, and a list that was written to.
+ * nothing listed, and a list that was written to. A third outcome, `PantryDecision`, is
+ * neither: `AddToListMenu` is what asks and resubmits with an answer.
  */
-export async function addRecipeIngredients(formData: FormData): Promise<ActionResult> {
+export async function addRecipeIngredients(
+  formData: FormData,
+): Promise<ActionResult | PantryDecision> {
   const recipe = await recipeInScope(String(formData.get("recipeId")));
   const list = await listInScope(String(formData.get("listId")));
 
@@ -482,7 +508,9 @@ export async function addRecipeIngredients(formData: FormData): Promise<ActionRe
     return fail("This recipe has no ingredients to add yet.");
   }
 
-  const { covered, added } = await writeRecipesToList(list, [recipe]);
+  const result = await writeRecipesToList(list, [recipe], readPantryKeep(formData));
+  if ("needsDecision" in result) return result;
+  const { covered, added } = result;
 
   // A recipe whose every line is already in the cupboard wrote nothing, and "Added to
   // Shopping" would be the one thing that did not happen. Said as a refusal because that
@@ -501,9 +529,11 @@ export async function addRecipeIngredients(formData: FormData): Promise<ActionRe
  * page: a plan can change between the page rendering and the press landing, and the
  * write should reflect whatever the week actually says now, not a snapshot of it.
  * Pressed from the same kind of menu `addRecipeIngredients` is, so it reports the same
- * way.
+ * way — `PantryDecision` included.
  */
-export async function addMealPlanIngredients(formData: FormData): Promise<ActionResult> {
+export async function addMealPlanIngredients(
+  formData: FormData,
+): Promise<ActionResult | PantryDecision> {
   const user = await requireHomeUser();
   const list = await listInScope(String(formData.get("listId")));
   const week = weekStartOn(String(formData.get("week") ?? "")) ?? weekStartInZone(new Date());
@@ -534,7 +564,9 @@ export async function addMealPlanIngredients(formData: FormData): Promise<Action
     return fail("None of this week's recipes have ingredients to add yet.");
   }
 
-  const { covered, added } = await writeRecipesToList(list, withIngredients);
+  const result = await writeRecipesToList(list, withIngredients, readPantryKeep(formData));
+  if ("needsDecision" in result) return result;
+  const { covered, added } = result;
   if (added === 0) return fail("Nothing to add — the pantry already has all of it.");
 
   return ok(pantryNote(covered));
