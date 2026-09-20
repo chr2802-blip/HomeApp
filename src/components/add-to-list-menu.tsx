@@ -3,38 +3,50 @@
 import { useState, useTransition } from "react";
 import { ContextMenu, MenuItem } from "@/components/context-menu";
 import { buttonClass } from "@/components/ui";
-import { addRecipeIngredients } from "@/app/actions/lists";
+import type { ActionResult } from "@/lib/action-result";
 
 /** One list as the menu offers it: its name, and how much is still outstanding on it. */
 export type ListChoice = { id: string; title: string; open: number };
 
 /**
- * "Add to list" on a recipe: its ingredients, onto whichever of the home's lists that
- * track amounts is chosen. An ingredient line is a quantity, and a list that ignores
- * amounts has nowhere to put it — so `lists` here is already filtered to the ones that
- * do, and a home with none is the same as a home with no lists at all.
+ * "Add to list": a recipe's ingredients, or a whole week's worth of them, onto whichever
+ * of the home's lists that track amounts is chosen. An ingredient line is a quantity, and
+ * a list that ignores amounts has nowhere to put it — so `lists` here is already filtered
+ * to the ones that do, and a home with none is the same as a home with no lists at all.
  *
  * A menu rather than a sheet, because the whole question is which list — a dialog would
  * be a form with one field and two buttons for a choice that is one press. The lists
  * carry how many items are open on each, which is what tells the weekly shop apart from
  * the one somebody started in March.
  *
+ * `action` and `extraData` are what tells this apart from a plain "add ingredients"
+ * button: a recipe page sends its own id, the meal plan sends the week — the menu itself
+ * only ever decides which list, the same choice either way.
+ *
  * What happened is said here rather than left to the page: the menu closes on the press
  * and the list being written to is somewhere else entirely, so without a line of text
  * the only evidence would be on a screen nobody is looking at.
  */
-export function AddToListMenu({ recipeId, lists }: { recipeId: string; lists: ListChoice[] }) {
+export function AddToListMenu({
+  lists,
+  action,
+  extraData,
+}: {
+  lists: ListChoice[];
+  action: (formData: FormData) => Promise<ActionResult>;
+  extraData: Record<string, string>;
+}) {
   const [pending, startAdding] = useTransition();
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   function add(list: ListChoice) {
     const data = new FormData();
-    data.set("recipeId", recipeId);
+    for (const [key, value] of Object.entries(extraData)) data.set(key, value);
     data.set("listId", list.id);
 
     setResult(null);
     startAdding(async () => {
-      const outcome = await addRecipeIngredients(data);
+      const outcome = await action(data);
       setResult(
         outcome?.ok === false
           ? { ok: false, message: outcome.error }

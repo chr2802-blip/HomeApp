@@ -1,6 +1,13 @@
-import { ACCOUNTS, expect, test } from "./helpers/fixtures";
+import { ACCOUNTS, expect, openDialog, test } from "./helpers/fixtures";
 import { CATEGORIES, HOME_NAME, prisma } from "./helpers/database";
-import { formatDayInZone, nextWeekStart, todayInZone, weekDays, weekStartInZone } from "../src/lib/time";
+import {
+  formatDayInZone,
+  nextWeekStart,
+  previousWeekStart,
+  todayInZone,
+  weekDays,
+  weekStartInZone,
+} from "../src/lib/time";
 
 async function seedRecipe(title: string, ingredients = "Something") {
   const db = prisma();
@@ -8,6 +15,19 @@ async function seedRecipe(title: string, ingredients = "Something") {
   const owner = await db.user.findFirstOrThrow({ where: { email: ACCOUNTS.member.email } });
   const category = await db.recipeCategory.findFirstOrThrow({
     where: { homeId: home.id, name: CATEGORIES[0] },
+  });
+
+  // Written before the recipe is, not after: `tonightsDinner` auto-picks a recipe for
+  // today's own row the moment one becomes eligible, and the app's nav bar prefetches
+  // the dashboard the instant its link is on screen — so the window between a home
+  // gaining its first recipe and a test's own next move is exactly when an unasked-for
+  // plan for today could land. A row already there — eating out, same as an untouched
+  // today reads everywhere else in this file — closes that window before it opens:
+  // every test below still writes today's own plan explicitly wherever it means to.
+  await db.mealPlan.upsert({
+    where: { homeId_date: { homeId: home.id, date: todayInZone() } },
+    create: { homeId: home.id, date: todayInZone() },
+    update: {},
   });
 
   return db.recipe.create({
@@ -53,6 +73,36 @@ async function plan(page: import("@playwright/test").Page, date: string, name: s
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
 }
+
+async function newList(page: import("@playwright/test").Page, title: string) {
+  await page.goto("/lists");
+  await openDialog(page, "New list");
+  await page.getByLabel("List name").fill(title);
+  await page.getByLabel("Track amounts").check();
+  await page.getByRole("button", { name: "Create list" }).click();
+  await page.waitForURL(/\/lists\/[a-z0-9]+$/);
+}
+
+/**
+ * Opens the meals page's "Add to list" menu and chooses one — the same menu a recipe's
+ * own page offers, waited on the same way: hydration leaves no mark of its own, so a
+ * press before React has attached looks exactly like a miss.
+ */
+async function addToList(page: import("@playwright/test").Page, listTitle: string) {
+  const trigger = page.getByRole("button", { name: "Add to list" });
+  await expect(trigger).toHaveAttribute("data-ready", "true");
+  await trigger.click();
+  await page.getByRole("menuitem", { name: new RegExp(`^${listTitle}`) }).click();
+  await expect(page.getByText(`Added to ${listTitle}.`)).toBeVisible();
+}
+
+/**
+ * A week guaranteed to hold no day in the past, whatever weekday a test happens to run
+ * on: the live week's own earlier days go from "still to plan" to "already lived
+ * through" as the week goes by, which every test below that needs more than one day to
+ * work with has to be immune to.
+ */
+const FUTURE_WEEK = nextWeekStart(weekStartInZone());
 
 test.beforeEach(async ({ loginAs, page }) => {
   await loginAs(ACCOUNTS.member);
@@ -147,9 +197,9 @@ test("the tab is in the bar, and leads here", async ({ page }) => {
 });
 
 test("a day can live off an earlier one's cooking, and says whose", async ({ page }) => {
-  const [monday, tuesday] = weekDays(weekStartInZone());
+  const [monday, tuesday] = weekDays(FUTURE_WEEK);
   await seedRecipe("Pancakes");
-  await page.reload();
+  await page.goto(`/meals?week=${FUTURE_WEEK}`);
 
   await plan(page, monday!, "Pancakes");
   await plan(page, tuesday!, "Leftovers — Monday's Pancakes");
@@ -160,9 +210,9 @@ test("a day can live off an earlier one's cooking, and says whose", async ({ pag
 });
 
 test("only the days already cooked are offered to be the leftovers of", async ({ page }) => {
-  const [monday, tuesday, wednesday] = weekDays(weekStartInZone());
+  const [monday, tuesday, wednesday] = weekDays(FUTURE_WEEK);
   await seedRecipe("Pancakes");
-  await page.reload();
+  await page.goto(`/meals?week=${FUTURE_WEEK}`);
 
   await plan(page, tuesday!, "Pancakes");
 
@@ -180,11 +230,11 @@ test("only the days already cooked are offered to be the leftovers of", async ({
 test("an empty day is offered what shares most with the week, and fills the picker in", async ({
   page,
 }) => {
-  const [monday, tuesday] = weekDays(weekStartInZone());
+  const [monday, tuesday] = weekDays(FUTURE_WEEK);
   await seedRecipe("Beef pasta", "Beef\nPasta\nOnion");
   await seedRecipe("Beef stew", "Beef\nOnion\nCarrot");
   await seedRecipe("Cod and saffron", "Cod\nSaffron\nCream");
-  await page.reload();
+  await page.goto(`/meals?week=${FUTURE_WEEK}`);
 
   await plan(page, monday!, "Beef pasta");
 
@@ -213,7 +263,7 @@ test("a day with nothing to compare against is offered nothing", async ({ page }
 
   // Nothing planned anywhere, so there is no basket to share with — and "best" would
   // only mean "shortest", which is a ranking of recipes by how little they are.
-  await openDay(page, weekDays(weekStartInZone())[0]!);
+  await openDay(page, todayInZone());
   await expect(page.getByText("Suggested")).toHaveCount(0);
   // The recipe is still there to be chosen, under the heading that claims everything.
   await expect(choice(page, "Beef pasta")).toHaveCount(1);
@@ -224,7 +274,7 @@ test("the picker searches by name and by ingredient", async ({ page }) => {
   await seedRecipe("Cod and saffron", "Cod\nSaffron\nCream");
   await page.reload();
 
-  await openDay(page, weekDays(weekStartInZone())[0]!);
+  await openDay(page, todayInZone());
   const search = page.getByRole("searchbox", { name: "Search recipes" });
 
   await search.fill("cod");
@@ -245,27 +295,27 @@ test("searching never takes away the choice already made", async ({ page }) => {
   // A radio that leaves the page takes its value out of the form with it, and a plan
   // field that arrives empty means "nothing planned" — which deletes the day. Typing in
   // the search box is not a way to clear an evening.
-  const monday = weekDays(weekStartInZone())[0]!;
+  const today = todayInZone();
   await seedRecipe("Beef pasta", "Beef\nPasta\nOnion");
   await seedRecipe("Cod and saffron", "Cod\nSaffron\nCream");
   await page.reload();
 
-  await plan(page, monday, "Beef pasta");
+  await plan(page, today, "Beef pasta");
 
-  await openDay(page, monday);
+  await openDay(page, today);
   await page.getByRole("searchbox", { name: "Search recipes" }).fill("cod");
   await expect(choice(page, "Beef pasta")).toBeChecked();
 
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
-  await expect(day(page, monday)).toContainText("Beef pasta");
+  await expect(day(page, today)).toContainText("Beef pasta");
 });
 
 test("a recipe is offered once, under the first group that claims it", async ({ page }) => {
-  const [monday, tuesday] = weekDays(weekStartInZone());
+  const [monday, tuesday] = weekDays(FUTURE_WEEK);
   await seedRecipe("Beef pasta", "Beef\nPasta\nOnion");
   await seedRecipe("Beef stew", "Beef\nOnion\nCarrot");
-  await page.reload();
+  await page.goto(`/meals?week=${FUTURE_WEEK}`);
 
   await plan(page, monday!, "Beef pasta");
 
@@ -273,4 +323,71 @@ test("a recipe is offered once, under the first group that claims it", async ({ 
   // two places reads as the sheet having lost count, not as two reasons to cook it.
   await openDay(page, tuesday!);
   await expect(choice(page, /Beef stew/)).toHaveCount(1);
+});
+
+test("every recipe planned this week goes onto a chosen list in one press", async ({ page }) => {
+  const [monday, tuesday] = weekDays(FUTURE_WEEK);
+  await seedRecipe("Pancakes", "Milk\nFlour");
+  await seedRecipe("Curry", "Rice\nMilk");
+  await page.goto(`/meals?week=${FUTURE_WEEK}`);
+
+  await plan(page, monday!, "Pancakes");
+  await plan(page, tuesday!, "Curry");
+
+  await newList(page, "Weekly shop");
+  await page.goto(`/meals?week=${FUTURE_WEEK}`);
+  await addToList(page, "Weekly shop");
+
+  await page.goto("/lists");
+  await page.getByRole("link", { name: /Weekly shop/ }).click();
+  await page.waitForURL(/\/lists\/[a-z0-9]+$/);
+
+  for (const item of ["Milk", "Flour", "Rice"]) {
+    await expect(page.getByText(item, { exact: true })).toBeVisible();
+  }
+});
+
+test("a day already lived through cannot be opened", async ({ page }) => {
+  // Every day of the week before this one is strictly earlier than today, whatever day
+  // of its own week today happens to be.
+  const lastWeek = previousWeekStart(weekStartInZone());
+  await page.goto(`/meals?week=${lastWeek}`);
+
+  const row = day(page, weekDays(lastWeek)[0]!);
+  await expect(row).toBeDisabled();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+test("swiping saves the day being left and moves the sheet on to the next one", async ({
+  page,
+}) => {
+  const [monday, tuesday] = weekDays(FUTURE_WEEK);
+  await seedRecipe("Pancakes");
+  await seedRecipe("Curry");
+  await page.goto(`/meals?week=${FUTURE_WEEK}`);
+
+  await openDay(page, monday!);
+  await choice(page, "Pancakes").check();
+
+  const dialog = page.getByRole("dialog");
+  const box = (await dialog.boundingBox())!;
+  const y = box.y + box.height / 2;
+  // Right to left: the same direction a thumb drags to bring tomorrow into view.
+  await page.mouse.move(box.x + box.width * 0.85, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.15, y, { steps: 5 });
+  await page.mouse.up();
+
+  // The sheet is still open, now on the next day — swiping is not a way to close it.
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole("heading", { name: new RegExp(`^${formatDayInZone(tuesday!, "EEEE")}`) }),
+  ).toBeVisible();
+
+  await choice(page, "Curry").check();
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(dialog).toBeHidden();
+
+  await expect(day(page, monday!)).toContainText("Pancakes");
+  await expect(day(page, tuesday!)).toContainText("Curry");
 });
