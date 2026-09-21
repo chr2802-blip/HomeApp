@@ -25,6 +25,20 @@ npm run db:studio    # browse the database
 
 Integration and browser tests need the local Postgres: `docker start homehub-pg`.
 
+**In a bare container with no Docker daemon** (a fresh Claude Code on the web sandbox),
+there is usually a stopped `pg_lsclusters`-managed cluster already on disk instead:
+`service postgresql start`, then point `DATABASE_URL`/`DIRECT_URL` at it (`ALTER USER
+postgres WITH PASSWORD ...` first, since a bare cluster has none). It can stop again
+mid-session with no warning; if every integration test starts failing to connect, check
+`pg_lsclusters` before anything else. Such a container's `/opt/pw-browsers` also ships
+whatever Chromium revision was baked into its image, which drifts behind the revision
+`@playwright/test` wants as the lockfile moves — Playwright then refuses to launch at all.
+Symlinking only the top-level `chromium-<old>` directory to `chromium-<wanted>` is not
+enough: the internal layout can change between revisions (`chrome-linux/headless_shell`
+became `chrome-headless-shell-linux64/chrome-headless-shell` between 1194 and 1243).
+Mirror the whole tree with per-file symlinks under the revision directory name Playwright
+actually asks for, for both `chromium-<rev>` and `chromium_headless_shell-<rev>`.
+
 ## Conventions that are not optional
 
 ### A person belongs to homes, and reads one of them
