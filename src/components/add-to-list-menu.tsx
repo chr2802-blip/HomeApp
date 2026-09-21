@@ -2,11 +2,22 @@
 
 import { useState, useTransition } from "react";
 import { ContextMenu, MenuItem } from "@/components/context-menu";
-import { buttonClass } from "@/components/ui";
+import { Modal, ModalBody, ModalFooter } from "@/components/modal";
+import { Button, buttonClass } from "@/components/ui";
 import type { ActionResult } from "@/lib/action-result";
+import {
+  pantryNote,
+  PANTRY_CONFIRM_FIELD,
+  PANTRY_KEEP_FIELD,
+  type AmbiguousLine,
+  type PantryDecision,
+} from "@/lib/pantry";
 
 /** One list as the menu offers it: its name, and how much is still outstanding on it. */
 export type ListChoice = { id: string; title: string; open: number };
+
+/** A press waiting on an answer: which of its ambiguous lines to still add. */
+type Decision = { list: ListChoice; lines: AmbiguousLine[]; keep: Set<string> };
 
 /**
  * "Add to list": a recipe's ingredients, or a whole week's worth of them, onto whichever
@@ -26,6 +37,10 @@ export type ListChoice = { id: string; title: string; open: number };
  * What happened is said here rather than left to the page: the menu closes on the press
  * and the list being written to is somewhere else entirely, so without a line of text
  * the only evidence would be on a screen nobody is looking at.
+ *
+ * Pressing a list can come back asking a further question rather than saying what
+ * happened — a line naming more than one thing where the pantry has some but not all
+ * of it. Nothing is written until that is answered, which is what `Decision` holds.
  */
 export function AddToListMenu({
   lists,
@@ -33,20 +48,34 @@ export function AddToListMenu({
   extraData,
 }: {
   lists: ListChoice[];
-  action: (formData: FormData) => Promise<ActionResult>;
+  action: (formData: FormData) => Promise<ActionResult | PantryDecision>;
   extraData: Record<string, string>;
 }) {
   const [pending, startAdding] = useTransition();
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [decision, setDecision] = useState<Decision | null>(null);
 
-  function add(list: ListChoice) {
+  function submit(list: ListChoice, resolved?: Set<string>) {
     const data = new FormData();
     for (const [key, value] of Object.entries(extraData)) data.set(key, value);
     data.set("listId", list.id);
+    if (resolved) {
+      data.set(PANTRY_CONFIRM_FIELD, "1");
+      for (const key of resolved) data.append(PANTRY_KEEP_FIELD, key);
+    }
 
     setResult(null);
     startAdding(async () => {
       const outcome = await action(data);
+
+      // Neither success nor failure: a line the pantry only partly answers for, put to
+      // the household rather than guessed at either way. Nothing has been written yet —
+      // confirming re-submits with an answer, which is the only path back to `action`.
+      if (outcome && "needsDecision" in outcome) {
+        setDecision({ list, lines: outcome.lines, keep: new Set(outcome.lines.map((l) => l.key)) });
+        return;
+      }
+
       setResult(
         outcome?.ok === false
           ? { ok: false, message: outcome.error }
@@ -59,6 +88,28 @@ export function AddToListMenu({
             },
       );
     });
+  }
+
+  function add(list: ListChoice) {
+    setDecision(null);
+    submit(list);
+  }
+
+  function toggleKeep(key: string) {
+    setDecision((current) => {
+      if (!current) return current;
+      const keep = new Set(current.keep);
+      if (keep.has(key)) keep.delete(key);
+      else keep.add(key);
+      return { ...current, keep };
+    });
+  }
+
+  function confirmDecision() {
+    if (!decision) return;
+    const { list, keep } = decision;
+    setDecision(null);
+    submit(list, keep);
   }
 
   return (
@@ -106,6 +157,42 @@ export function AddToListMenu({
       >
         {pending ? "Adding…" : (result?.message ?? "")}
       </p>
+
+      {/* Only for the lines the pantry can't answer for on its own — a line it has
+          none of or all of never reaches here at all. Checked by default: leaving
+          every box alone adds the same lines a press always used to. */}
+      <Modal open={decision !== null} onClose={() => setDecision(null)} title="Already have some of this?">
+        {decision && (
+          <>
+            <ModalBody className="space-y-3">
+              {decision.lines.map((line) => (
+                <label key={line.key} className="flex items-start gap-2.5 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={decision.keep.has(line.key)}
+                    onChange={() => toggleKeep(line.key)}
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 accent-slate-900"
+                  />
+                  <span>
+                    <span className="block text-slate-900">{line.text}</span>
+                    <span className="block text-slate-500">{pantryNote(line.matched)}</span>
+                  </span>
+                </label>
+              ))}
+            </ModalBody>
+            <ModalFooter>
+              <div className="flex gap-2">
+                <Button type="button" onClick={confirmDecision} className="flex-1 sm:flex-none">
+                  Add checked
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => setDecision(null)}>
+                  Cancel
+                </Button>
+              </div>
+            </ModalFooter>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
