@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireHomeUser } from "@/lib/auth";
@@ -11,7 +12,7 @@ import { bodyText, optionalText, readForm, requiredText } from "@/lib/form";
 import { safeExternalHref } from "@/lib/embed";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { readCategoryChoice } from "@/lib/recipes";
-import { fail, type ActionResult } from "@/lib/action-result";
+import { fail, ok, type ActionResult } from "@/lib/action-result";
 
 const recipeInScope = homeScoped("Recipe", (id) => prisma.recipe.findUnique({ where: { id } }));
 
@@ -80,6 +81,42 @@ async function chosenCategories(homeId: string, formData: FormData) {
 /** The pairings a recipe is written with, as a nested create on the recipe itself. */
 const filedUnder = (categoryIds: string[]) => categoryIds.map((categoryId) => ({ categoryId }));
 
+const READER_UNAVAILABLE = "Could not prepare these steps just now. Try again in a moment.";
+
+type RecipeText = { title: string; ingredients: string; instructions: string };
+
+/**
+ * The reader, fetched only when something is actually going to be read.
+ *
+ * `cook-steps.ts` pulls in the Anthropic SDK, and this module is imported by four route
+ * segments — the recipe list, a recipe, its edit page and the new-recipe page — none of
+ * which reads anything until a form is submitted. A static import would put the SDK in
+ * all four of their server bundles and pay for loading it on the first request to each.
+ */
+const reader = async () => (await import("@/lib/cook-steps")).prepareCookSteps;
+
+/**
+ * The instructions and the breakdown action mode reads them by, written together.
+ *
+ * **The invariant this exists to keep: a write that changes `ingredients` or
+ * `instructions` also writes `cookSteps`.** The breakdown points at lines by their
+ * position, so one left behind by an edit would put another ingredient under a step —
+ * at the hob, silently. `lib/cook.ts` guards against that by refusing a mapping whose
+ * length has drifted, but the guard is the net; this is the mechanism.
+ *
+ * So a reader that could not answer clears the column rather than leaving what was there.
+ * The recipe still saves, and action mode shows its steps plainly: the feature degrades,
+ * the save does not fail. Nothing about a model being down should stand between a cook
+ * and writing down a recipe.
+ */
+async function withCookSteps(fields: RecipeText, homeId: string) {
+  const read = await (await reader())(fields, homeId);
+
+  return read.ok
+    ? { instructions: read.instructions, cookSteps: { v: 1, steps: read.steps } }
+    : { instructions: fields.instructions, cookSteps: Prisma.DbNull };
+}
+
 export async function createRecipe(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const user = await requireHomeUser();
   const form = readForm(recipeSchema, formData);
@@ -94,6 +131,7 @@ export async function createRecipe(_prev: ActionResult, formData: FormData): Pro
   const recipe = await prisma.recipe.create({
     data: {
       ...form.fields,
+      ...(await withCookSteps(form.fields, user.homeId)),
       photoId: photo.photoId ?? null,
       homeId: user.homeId,
       createdById: user.id,
@@ -116,6 +154,17 @@ export async function updateRecipe(_prev: ActionResult, formData: FormData): Pro
   const photo = await readPhotoChoice(formData, recipe.homeId);
   if (!photo.ok) return fail(photo.error);
 
+  // Read again only where the answer could have changed: the text it was derived from, or
+  // a recipe that has never had one. A title-only edit costs nothing, and — more to the
+  // point — steps left alone are steps that do not drift a little further from the cook's
+  // own words on every unrelated save.
+  const rewrite =
+    form.fields.instructions !== recipe.instructions ||
+    form.fields.ingredients !== recipe.ingredients ||
+    recipe.cookSteps === null;
+
+  const prepared = rewrite ? await withCookSteps(form.fields, recipe.homeId) : null;
+
   // The old pairings go before the new ones are written, in one transaction: a heading
   // that was ticked before and still is would otherwise be written twice, and a recipe
   // must not be left half-filed if the second statement fails.
@@ -125,6 +174,7 @@ export async function updateRecipe(_prev: ActionResult, formData: FormData): Pro
       where: { id: recipe.id },
       data: {
         ...form.fields,
+        ...(prepared ?? {}),
         photoId: photo.photoId,
         categories: { create: filedUnder(categoryIds) },
       },
@@ -138,6 +188,37 @@ export async function updateRecipe(_prev: ActionResult, formData: FormData): Pro
   revalidatePath("/recipes");
   revalidatePath(`/recipes/${recipe.id}`);
   redirect(`/recipes/${recipe.id}`);
+}
+
+/**
+ * Prepares one recipe for action mode on request, rather than as part of a save.
+ *
+ * This is how every recipe written before action mode existed gets its breakdown, and how
+ * one saved while the reader was down gets a second chance — pressed from inside action
+ * mode itself, which is the one place the absence is actually felt. It writes exactly what
+ * a save would write, through the same one function, so there is no second idea here about
+ * what a prepared recipe is.
+ *
+ * Unlike a save it refuses out loud: nothing else happened on this press, so a reader that
+ * would not answer has to be the answer.
+ */
+export async function prepareRecipeSteps(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const recipe = await recipeInScope(String(formData.get("recipeId")));
+
+  const read = await (await reader())(recipe, recipe.homeId);
+  if (!read.ok) return fail(READER_UNAVAILABLE);
+
+  await prisma.recipe.update({
+    where: { id: recipe.id },
+    data: { instructions: read.instructions, cookSteps: { v: 1, steps: read.steps } },
+  });
+
+  revalidatePath(`/recipes/${recipe.id}`);
+  revalidatePath(`/recipes/${recipe.id}/cook`);
+  return ok();
 }
 
 export async function deleteRecipe(formData: FormData) {

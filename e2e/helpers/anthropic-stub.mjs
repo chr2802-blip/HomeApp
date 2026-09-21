@@ -43,6 +43,50 @@ const RECIPE = {
   reviewReason: null,
 };
 
+/**
+ * The other question this stub is asked: breaking a stored recipe into steps for action
+ * mode (`src/lib/cook-steps.ts`). It is told apart from an import by the schema the
+ * request asks for — only the importer's mentions `isRecipe`.
+ *
+ * Here the stub **echoes rather than answers**, and that is deliberate. Every recipe
+ * saved anywhere in this suite now goes through this call, and a fixed reply would
+ * silently rewrite each of their steps into somebody else's — `recipes.spec.ts` asserts
+ * the text it typed is on the page afterwards, and it should. So the steps come back
+ * exactly as they were sent, which is still the whole wiring under test: the request
+ * built, the answer parsed, the breakdown stored and read back under each step.
+ *
+ * The parts it does invent are deterministic and minimal: step *n* uses ingredient *n*
+ * where there is one, so a test can assert a particular line under a particular step, and
+ * the first step carries a ten-minute timer so there is a chip to press.
+ */
+function preparedSteps(sent) {
+  const request = JSON.parse(sent);
+  const text = request.messages?.[0]?.content ?? "";
+
+  const fenced = (start, end) => {
+    const from = text.indexOf(start);
+    const to = text.indexOf(end);
+    return from === -1 || to === -1
+      ? []
+      : text
+          .slice(from + start.length, to)
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean);
+  };
+
+  const ingredients = fenced("--- INGREDIENTS (numbered) ---", "--- END INGREDIENTS ---");
+  const steps = fenced("--- INSTRUCTIONS AS WRITTEN ---", "--- END INSTRUCTIONS ---");
+
+  return {
+    steps: steps.map((step, index) => ({
+      step,
+      uses: index < ingredients.length ? [index] : [],
+      minutes: index === 0 ? 10 : null,
+    })),
+  };
+}
+
 /** The marker a test puts in its text when it wants the other answer. */
 const NOT_A_RECIPE = "aften i haven";
 
@@ -50,6 +94,10 @@ const NOT_A_RECIPE = "aften i haven";
 const NEEDS_REVIEW = "resten i bio";
 
 function answer(sent) {
+  // Only the importer's schema names `isRecipe`, so its presence in the request is what
+  // says which of the two questions this is.
+  if (!sent.includes("isRecipe")) return preparedSteps(sent);
+
   if (sent.includes(NOT_A_RECIPE)) {
     return { ...RECIPE, isRecipe: false, ingredients: [], instructions: [] };
   }

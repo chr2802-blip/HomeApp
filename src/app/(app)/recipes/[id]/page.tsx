@@ -3,7 +3,7 @@ import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
 import { deleteRecipe, updateRecipe } from "@/app/actions/recipes";
 import { addRecipeIngredients } from "@/app/actions/lists";
-import { Badge, Card } from "@/components/ui";
+import { Badge, ButtonLink, Card } from "@/components/ui";
 import { ItemMenu } from "@/components/item-menu";
 import { AddToMealPlanMenuItem } from "@/components/add-to-meal-plan-menu-item";
 import { RecipeFields } from "@/components/recipe-fields";
@@ -11,15 +11,14 @@ import { PhotoBanner } from "@/components/photo";
 import { SocialVideoEmbed } from "@/components/video-embed";
 import { AddToListMenu } from "@/components/add-to-list-menu";
 import { ScreenAwakeToggle } from "@/components/screen-awake-toggle";
-import { ingredientLines, timeLabel } from "@/lib/recipes";
+import { ingredientLines, instructionLines, timeLabel } from "@/lib/recipes";
 
-/** Instructions are written the same way ingredients are: one step to a line. */
-function lines(value: string) {
-  return value
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
+/**
+ * Editing a recipe runs as a server action from this page, and saving one now reads its
+ * steps for action mode in the same press. The platform's default ceiling is shorter
+ * than that is allowed to take.
+ */
+export const maxDuration = 60;
 
 export default async function RecipePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -59,7 +58,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
   if (!recipe) notFound();
 
   const ingredients = ingredientLines(recipe.ingredients);
-  const instructions = lines(recipe.instructions);
+  const instructions = instructionLines(recipe.instructions);
 
   return (
     <>
@@ -105,6 +104,14 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
       <PhotoBanner photoId={recipe.photoId} alt={recipe.title} className="mb-6" placeholder="recipe" />
 
       <SocialVideoEmbed url={recipe.videoUrl} title={recipe.title} />
+
+      {/* The point of the recipe, on the recipe: cooking it. Drawn only where there is
+          something to cook — a recipe that is only a video has no steps to turn. */}
+      {instructions.length > 0 && (
+        <ButtonLink href={`/recipes/${recipe.id}/cook`} className="mb-6 w-full sm:w-auto">
+          Start cooking
+        </ButtonLink>
+      )}
 
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <Card>
