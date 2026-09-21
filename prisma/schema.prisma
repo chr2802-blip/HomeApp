@@ -332,6 +332,18 @@ model Recipe {
   /// this app answers a question they would disagree about; a total is what the recipe
   /// list filters and shows.
   totalTimeMinutes Int?
+  /// What action mode needs and the two text blocks cannot say: which ingredient lines
+  /// each step uses, and how long it takes. One entry per line of `instructions`, in
+  /// order — `{ "v": 1, "steps": [{ "uses": [0, 3], "minutes": 10 }] }`, where `uses`
+  /// are indices into `ingredientLines(ingredients)`.
+  ///
+  /// It deliberately holds **no text**. The steps are `instructions` as they always
+  /// were and an ingredient is its line in `ingredients` as it always was, so nothing
+  /// here can come to disagree with the recipe it describes — the same reason
+  /// `PantryItem.key` is derived rather than typed. It is written by one function
+  /// (`prepareCookSteps`) and rewritten by every save that changes either block; null
+  /// means never prepared, which action mode shows as plain steps rather than a guess.
+  cookSteps        Json?
   photoId          String?
   createdById      String
   createdAt        DateTime @default(now())

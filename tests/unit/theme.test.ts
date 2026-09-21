@@ -142,6 +142,39 @@ describe("home themes", () => {
     expect(app).toContain("pb-[calc(7rem+env(safe-area-inset-bottom))]");
   });
 
+  /*
+   * Action mode is the one surface that escapes that frame — it is fixed over the whole
+   * viewport, portalled past the header and the tab bar — so nothing else is padding for
+   * the phone's bars on its behalf. Held here beside the frame's own insets because the
+   * failure is identical: invisible in a browser, obvious on a phone, and only ever seen
+   * by somebody holding one.
+   */
+  it("pads action mode for the phone's bars itself, since nothing else will", () => {
+    const cook = readFileSync(path.join(process.cwd(), "src/components/cook-mode.tsx"), "utf8");
+
+    expect(cook).toContain("pt-[env(safe-area-inset-top)]");
+    expect(cook).toContain("pb-[max(0.75rem,env(safe-area-inset-bottom))]");
+    expect(cook).toContain("env(safe-area-inset-left)");
+    expect(cook).toContain("env(safe-area-inset-right)");
+  });
+
+  /*
+   * The page turn is a keyframe animation and not a transition, because there is no paint
+   * between a page being mounted and its arrival. A transition written here would look
+   * entirely correct and run nothing — which is also why `e2e/cook-mode.spec.ts` asserts
+   * that the animation actually fired rather than that the class is present.
+   */
+  it("turns action mode's pages with keyframes, in both directions", () => {
+    for (const name of ["page-turn-next", "page-turn-back"]) {
+      expect(stylesheet).toContain(`@keyframes ${name}`);
+      expect(stylesheet).toContain(`.animate-${name}`);
+    }
+
+    // A leaf swings about its spine: forward from the left edge, back from the right.
+    expect(stylesheet).toMatch(/\.animate-page-turn-next\s*\{[^}]*transform-origin:\s*left center/);
+    expect(stylesheet).toMatch(/\.animate-page-turn-back\s*\{[^}]*transform-origin:\s*right center/);
+  });
+
   it("keeps the colours that already mean something out of the palette", () => {
     // Green is "added", red "about to be deleted", amber "overdue". A home dressed in
     // one of them would be saying it on every screen, so its --accent is checked

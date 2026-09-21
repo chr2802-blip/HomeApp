@@ -456,3 +456,102 @@ describe("deleteRecipe", () => {
     expect(await prisma.recipe.count()).toBe(0);
   });
 });
+
+/**
+ * The one invariant action mode rests on: **a write that changes `ingredients` or
+ * `instructions` also writes `cookSteps`.**
+ *
+ * The breakdown points at ingredient lines by their position and holds one entry per
+ * line of instructions, so one left behind by an edit would put another ingredient under
+ * a step — at the hob, with nothing failing anywhere. `lib/cook.ts` refuses a mapping
+ * whose length has drifted, but that is the net; this is the mechanism, and these are the
+ * assertions that it is actually wired to both halves of a save.
+ *
+ * There is no `ANTHROPIC_API_KEY` in this suite, so every preparation here comes back
+ * unavailable — which is the interesting half anyway. A reader that cannot answer must
+ * clear the column rather than leave what was there, and the recipe must still save.
+ */
+describe("what a save leaves in cookSteps", () => {
+  const prepared = { v: 1, steps: [{ uses: [0], minutes: 10 }] };
+
+  /** A recipe already carrying a breakdown of its one stored step, "Mix and fry.". */
+  async function seedPrepared() {
+    const recipe = await seedRecipe({ homeId: home.id, createdById: member.id, categoryIds: [category.id] });
+    await prisma.recipe.update({ where: { id: recipe.id }, data: { cookSteps: prepared } });
+    return recipe;
+  }
+
+  const edit = (recipe: { id: string }, fields: Record<string, string>) =>
+    expectRedirect(
+      () =>
+        updateRecipe(
+          undefined,
+          formData({
+            recipeId: recipe.id,
+            categoryIds: [category.id],
+            title: "Pancakes",
+            ingredients: "Flour\nMilk",
+            instructions: "Mix and fry.",
+            ...fields,
+          }),
+        ),
+      `/recipes/${recipe.id}`,
+    );
+
+  it("clears a breakdown whose steps have been rewritten", async () => {
+    const recipe = await seedPrepared();
+
+    await edit(recipe, { instructions: "Mix.\nFry." });
+
+    expect((await only()).cookSteps).toBeNull();
+  });
+
+  /*
+   * Positions, not names: inserting a line at the top of the ingredients moves every
+   * index by one without touching a step. Nothing about the instructions has changed, and
+   * the breakdown is wrong about all of them.
+   */
+  it("clears a breakdown whose ingredients have moved under it", async () => {
+    const recipe = await seedPrepared();
+
+    await edit(recipe, { ingredients: "Salt\nFlour\nMilk" });
+
+    expect((await only()).cookSteps).toBeNull();
+  });
+
+  it("leaves it alone where neither block changed", async () => {
+    const recipe = await seedPrepared();
+
+    await edit(recipe, { title: "Better pancakes", description: "Improved" });
+
+    expect((await only()).cookSteps).toEqual(prepared);
+  });
+
+  it("saves the recipe anyway when the reader cannot answer", async () => {
+    const recipe = await seedPrepared();
+
+    await edit(recipe, { instructions: "Mix.\nFry.", title: "Better pancakes" });
+
+    expect(await only()).toMatchObject({ title: "Better pancakes", instructions: "Mix.\nFry." });
+  });
+
+  it("writes nothing for a recipe created while the reader is down", async () => {
+    await captureRedirect(() =>
+      createRecipe(
+        undefined,
+        formData({
+          title: "Boller",
+          categoryIds: [category.id],
+          ingredients: "Mel",
+          instructions: "Ælt.\nBag.",
+        }),
+      ),
+    );
+
+    const recipe = await only();
+    expect(recipe.cookSteps).toBeNull();
+    // The cook's own steps survive untouched — a reader that could not read them has no
+    // opinion about them.
+    expect(recipe.instructions).toBe("Ælt.\nBag.");
+  });
+});

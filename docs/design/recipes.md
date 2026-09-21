@@ -350,3 +350,165 @@ photograph of the finished dish and is stored exactly as any upload is, quietly 
 any other picture rather than refusing a recipe whose text was perfectly good. Its address
 is resolved against whichever source answered rather than against the reel link, which has
 to stay what it is so the video points at the post.
+
+## The same recipe, read at the hob
+
+A recipe page is a reference document: ingredients on the left, a numbered method on the
+right, everything visible at once. That is the right shape for deciding what to cook and
+for putting the shopping on a list. It is the wrong shape for standing at the stove, where
+the question is never "what does this recipe contain" but "what am I doing now, and what
+do I need in front of me for it" — and answering it from the reference shape means
+reading a step, looking across at the ingredients, working out which of the eleven lines
+that step meant, and doing it again for the next one, with wet hands.
+
+**Action mode is the second reading, not a second recipe.** One step to a screen, the
+ingredients that step uses beside it, and the pages turned like a cookbook's. Nothing
+about the recipe changes.
+
+### What the two text blocks cannot say
+
+Everything action mode needs was already stored except one thing: nothing in
+`ingredients` points at anything in `instructions`. They are two independent blocks of
+text written by two different sentences of the same cook.
+
+The tempting way to bridge them is to match words — take "Kog kartoflerne i 10 minutter",
+look for ingredient lines mentioning kartofler, show those. It reads as obvious and it is
+the same mistake this app already made once, in the same file's history: a pattern-matcher
+asked a question patterns cannot answer. "Vend dem i olien" names no ingredient at all.
+"Salt" appears in a step about salting the water and in one about seasoning at the end,
+and only one of them means the cupboard's salt. A recipe with both smør in the dough and
+smør in the filling has two right answers and the matcher picks whichever is written
+first. Each of those is a wrong ingredient shown confidently to somebody cooking.
+
+So it is read once, by the thing equipped to read it, and stored.
+
+### The breakdown holds no text, and that is the whole of its safety
+
+`Recipe.cookSteps` is one entry per line of `instructions`, in order, each naming
+*indices* into `ingredientLines(ingredients)` and the step's own minutes:
+
+```json
+{ "v": 1, "steps": [{ "uses": [0, 3], "minutes": 10 }, { "uses": [], "minutes": null }] }
+```
+
+It was tempting to store the steps' text here too, which would have made every reader
+simpler. It would also have been a second answer to "what are the steps" — the failure
+mode most of `CLAUDE.md` exists to prevent, and worse here than usual, because the copy
+that quietly disagreed would be the one somebody is holding at the hob while the recipe
+page shows the other. Storing positions instead means the steps are `instructions` and an
+ingredient is its own stored line, verbatim, with nothing anywhere to drift from.
+
+What positions cost is that they are only meaningful against the exact text they were
+derived from. Insert a line at the top of the ingredients and every index is off by one,
+with no step having changed. So:
+
+**A write that changes `ingredients` or `instructions` also writes `cookSteps`** — to a
+fresh breakdown, or to null where the reader could not answer. That is the invariant, it
+lives in `createRecipe` and `updateRecipe`, and `tests/integration/recipes.test.ts` holds
+it from both sides: a changed block clears it, an unchanged one leaves it alone.
+
+**And the count is the net under that.** `cookSteps` in `src/lib/cook.ts` refuses a stored
+breakdown *whole* unless it holds exactly one entry per instruction line. Not the entry
+that looks wrong — all of them. There is no way to tell which of a stale breakdown's
+entries still line up, and half a right answer is indistinguishable from a wrong one when
+what it produces is a plausible list of ingredients under a step. An index past the end of
+the ingredients is the one thing dropped on its own, because what is left is still a
+subset of what that step genuinely referred to.
+
+A fingerprint of the source text would have been the stricter guard, and was left out: it
+is a second column to keep in step, and the invariant above is what actually holds this
+together. The count check costs nothing and catches the shape of failure that matters.
+
+### An unprepared recipe still cooks
+
+Every recipe written before this existed has no breakdown, and so does one saved while the
+reader was down. Those show their steps plainly — no ingredients, no timers — with the
+offer to prepare them on the first page.
+
+That is honest degradation rather than a floor made of the thing that was getting it
+wrong. Showing no ingredients says "this has not been worked out"; showing guessed ones
+says "these are the ingredients for this step", which is a sentence the app would have no
+grounds for. The same reasoning that deleted the heuristic caption parser rather than
+keeping it as a fallback.
+
+### A second question, not a second reader
+
+`prepareCookSteps` (`src/lib/cook-steps.ts`) is a model call sitting beside
+`normalizeRecipe`, and the distinction between them is what makes it allowed to exist.
+
+The normalizer is asked **"is there a recipe in this text, and what is it"**, about text
+nobody in the household wrote — a scraped page, a caption, something that may not be a
+recipe at all. This one is asked **"how is this household's own recipe cooked"**, about
+lines that are already stored, already numbered, and already the answer to what the recipe
+contains. Neither can give the other's answer, so there is nothing for them to disagree
+about. Two readers of the same text would have been the old `caption-recipe.ts` mistake
+wearing a new hat.
+
+It follows that **the ingredient lines are handed over and never rewritten**. They are the
+contract `shoppingText`, `pantryKey`, `writeRecipesToList` and `staplesOf` all read, and
+the whole point of the answer coming back as numbers is that no new wording of an
+ingredient enters the system. The steps it may rewrite — a run-on instruction covering
+three jobs becomes three steps, a component heading is carried into the steps it belongs
+to rather than left as a screen to swipe past — and that rewrite goes into
+`Recipe.instructions`, the one copy both readings share.
+
+The two traps from the importer apply here unchanged, and for the same reasons: **nothing
+in the schema narrows a value**, because a constraint the wire format drops is one the
+model can innocently break and the SDK then throws the whole answer away; and **every
+`.describe()` comes before its `.nullish()`**, or the converter hoists the type into
+`$defs` and the description never travels. `uses` is the field that matters most — without
+its description the numbers coming back are anchored to nothing.
+
+### It runs inside Save, which is a cost accepted on purpose
+
+Preparing a recipe happens in the same press that saves it, so the cook is waiting on a
+model call behind a pending button. The alternative — return immediately and prepare it in
+the background — saves those seconds and spends something worse: the recipe's own steps
+would rewrite themselves a few seconds after the cook had finished reading them, on a page
+they were already looking at. A press that takes a moment is comprehensible. A page that
+changes by itself is not.
+
+It runs only where the answer could have changed: a title-only edit does not re-read, which
+also stops the steps drifting a little further from the cook's own words on every unrelated
+save. `prepareRecipeSteps` is the same work on request, from inside action mode, for a
+recipe that has never had it.
+
+A reader that is down never fails a save. The recipe stores exactly as typed and the column
+clears — nothing about a model being unavailable should stand between somebody and writing
+down a recipe.
+
+### The surface, and why it is portalled
+
+Action mode is a route (`/recipes/[id]/cook`) so it has an address: the phone's back
+gesture leaves it, and a screen locked mid-dinner comes back to the same step.
+
+It draws itself as a `fixed inset-0 z-50` surface **portalled to `document.body`**, and
+that is not a preference. The app's layout animates the page it renders with a keyframe
+that puts a `transform` on an ancestor, and a transformed ancestor contains a fixed child —
+rendered in place, the surface would be trapped under the header and the tab bar for as
+long as that animation ran. Portalling also clears the tab bar's own `z-40`, and
+`data-theme` still reaches it, since that lives on `<html>`. `e2e/cook-mode.spec.ts` asks
+the browser what is actually at the tab bar's coordinates, because that is the assertion
+that would fail if this were ever moved back.
+
+Being outside the frame means it pads its own `env(safe-area-inset-*)`: nothing else is
+doing it, and every inset is zero in a desktop browser, so getting it wrong is invisible
+until somebody holds a phone.
+
+The turn is a leaf swinging about its spine — two keyframes under a perspective, forward
+from the left edge and back from the right — replayed by a `key` on the page, because an
+animation runs on mount and a transition needs a state the browser has already painted.
+**Leftwards turns forward**, which is what lifting a book's right-hand page over does and
+what every gallery on the phone already means by the gesture. The gesture itself is
+`meal-week.tsx`'s, down and up with a threshold and no live drag, because two swipes in one
+app that disagree about what a swipe is are worse than either.
+
+The screen stays awake for as long as it is open, with no toggle: somebody who has opened
+the cooking view has already said what they are doing for the next half hour.
+`ScreenAwakeToggle` and this share `useWakeLock` rather than keeping two copies of the
+awkward parts — asking, being refused, and getting the lock back after the tab was hidden.
+
+Timers live above the pages rather than on them, so turning to the next step does not end
+the one counting down on the last. They are in memory only and do not notify: a timer that
+survived leaving would want the service worker, which is a feature of its own, and the wake
+lock is what keeps the phone showing them meanwhile.
