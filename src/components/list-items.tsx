@@ -282,8 +282,9 @@ function Row({
         />
       )}
 
-      {/* A ticked item shows what was wanted but offers no picker: it is settled, and a
-          stepper on every row of the completed section is only something to scroll past. */}
+      {/* Ticking off resets the amount to one — see `setItemDone` — so this always reads
+          ×1, shown with no picker: it is settled, and a stepper on every row of the
+          completed section is only something to scroll past. */}
       {showAmount &&
         (item.done ? (
           <span className="shrink-0 text-sm tabular-nums text-slate-400">×{item.amount}</span>

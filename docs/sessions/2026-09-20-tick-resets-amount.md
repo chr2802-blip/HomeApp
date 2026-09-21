@@ -29,36 +29,69 @@ Wrote one integration test asserting the reset survives both a tick and a subseq
 second opinion about how many are wanted). `npm run verify`'s pieces all ran clean:
 lint, `tsc --noEmit`, the full unit and integration suites, `db:check`.
 
+Only the browser suite disagreed, and it was right to: `e2e/list-amounts.spec.ts` had a
+test named "a ticked item shows what was wanted, without a picker" asserting `×4` stayed
+on a completed row — the exact behaviour this session was asked to change. Renamed it to
+"ticking an item resets its amount to one, and shows no picker", asserted `×1` and the
+stored value instead, and rewrote the one code comment (`list-items.tsx`) that said the
+same old thing. A grep across `e2e/` for the pattern first (any other spec asserting an
+amount survives a tick) found nothing else depending on it.
+
 ## Where the time went
 
 | Stage | Roughly | Notes |
 | --- | --- | --- |
-| Understanding the ask | 10% | One sentence; the design doc for lists confirmed the direction was consistent with existing rules. |
-| Reading the codebase | 30% | Tracing every path a tick can arrive by — form action, offline queue replay, optimistic UI — to find the one place to change and the two that had to agree with it. |
-| Building | 15% | Three small, mechanical edits. |
-| Tests | 15% | One integration test in the existing `toggleListItem` block. |
-| Review, CI, deploy | 30% | Standing up Postgres in a bare container to actually run the integration suite rather than trusting the diff. |
+| Understanding the ask | 5% | One sentence; the design doc for lists confirmed the direction was consistent with existing rules. |
+| Reading the codebase | 20% | Tracing every path a tick can arrive by — form action, offline queue replay, optimistic UI — to find the one place to change and the two that had to agree with it. |
+| Building | 10% | Four small, mechanical edits plus one comment and one test rename once the browser suite disagreed. |
+| Tests | 15% | One integration test, one browser test rewritten. |
+| Review, CI, deploy | 50% | Almost all of it standing up and then fighting this container's Postgres and Playwright, twice — see below. |
 
 ## What should have been quicker
 
-**Standing up the test database again.** This container arrived with no `node_modules`
-and no running Postgres, despite a local cluster (`pg_lsclusters` showed one, stopped) and
-a script (`scripts/test-db.mjs`) that assumes one is reachable. `npm ci`, `service
-postgresql start`, an `ALTER USER postgres WITH PASSWORD`, and a throwaway `.env` were all
-needed before `npm run verify`'s DB-touching third could run at all — the same shape of
-cost the previous session's note (`2026-09-20-reel-caption-import.md`) already named for
-Playwright. That note's fix (a written-down bring-up sequence) covers Postgres too; adding
-Postgres's own three lines there rather than duplicating a new "getting started" section
-here.
+**Standing up the test database, again — same cost as the previous session, still
+unfixed.** No `node_modules`, no running Postgres: `npm ci`, `service postgresql start`,
+`ALTER USER postgres WITH PASSWORD`, a throwaway `.env`. The previous session
+(`2026-09-20-reel-caption-import.md`) named this exact cost and proposed writing the
+bring-up sequence down; it wasn't, so this session paid it again from scratch, plus once
+more mid-session when the container's Postgres had gone down on its own between turns
+(silently — the only symptom was every integration test failing at connection). **This is
+now the second session in a row to hit this; it has stopped being a note and gone into
+CLAUDE.md's Commands section below, and into this file's "What CLAUDE.md did not say".**
+
+**Chasing a self-inflicted process pileup cost more than the actual bug.** The Playwright
+build in this container pins revision 1194 while `@playwright/test` wants 1243 — the same
+mismatch the previous session hit and fixed by symlinking. That symlink alone wasn't
+enough here: 1243's own internal layout renamed `chrome-linux/headless_shell` to
+`chrome-headless-shell-linux64/chrome-headless-shell`, so the browser genuinely wasn't at
+the path Playwright looked for, and the first two `git push` attempts (each retrying up to
+4 times on failure, each retry re-running the whole `e2e` script) launched *concurrent*
+copies of the build-and-test pipeline that stepped on each other's ports and on each
+other's `homehub_test_w0_e2e` database. Untangling that — killing zombied `next start`
+and `playwright test` trees, terminating stuck Postgres backends, dropping databases a
+dead run's `DROP DATABASE ... WITH (FORCE)` never got to run — took longer than writing
+`setItemDone`'s one-line fix. The lesson isn't "be more careful with backgrounded retry
+loops" (that's what caused it); it's that a `git push` wrapped in a shell retry loop and a
+pre-push hook that runs a 3-minute browser suite is a bad combination to background and
+walk away from — verify the suite green in one foreground-or-single-background run first,
+*then* push once, plainly.
 
 ## What CLAUDE.md did not say
 
-Nothing new — this session's gap (bringing up Postgres in a bare container) is the same
-one the previous session already wrote down under **What CLAUDE.md did not say** in
-`2026-09-20-reel-caption-import.md`, just missing the one detail this session needed: the
-container's Postgres is a `pg_lsclusters`-managed cluster, started with `service
-postgresql start` rather than `initdb`/`pg_ctl` from scratch, since the data directory
-already exists.
+**How to bring up Postgres and a working Chromium in this sandbox from cold**, which is
+now two sessions' worth of the same rediscovery. Added under **Commands** below rather
+than invented as a new section, since it belongs beside `npm run verify`:
+
+- Postgres is a stopped `pg_lsclusters`-managed cluster already on disk — start it with
+  `service postgresql start`, not `initdb`. It can also stop again mid-session with no
+  warning; if every integration test starts failing to connect, check `pg_lsclusters`
+  before anything else.
+- `/opt/pw-browsers` ships whatever revision was baked into the image (1194 here), which
+  drifts behind the revision `@playwright/test` in `package-lock.json` wants (1243 here).
+  Rather than symlinking just the top-level revision folder (insufficient — the internal
+  layout changed between these two revisions), mirror the whole tree with per-file
+  symlinks under the new revision's expected directory name, for both `chromium-<rev>`
+  and `chromium_headless_shell-<rev>`.
 
 ## Decided rather than known
 
