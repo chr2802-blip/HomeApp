@@ -76,6 +76,17 @@ race, do not add a timeout. An `it.only` left in is the same failure by another 
 file reduced to one test, reading as a pass — so CI refuses one in either suite
 (`forbidOnly` for Playwright, `allowOnly` for vitest).
 
+**Never pipe a suite whose exit code is the thing being asked about.** `npm run e2e |
+tail -30` reports `tail`'s status, not Playwright's, so a run in which every test failed
+came back `0` — a green light over a red suite, which is worse than no check at all,
+because it is the one kind of check nobody re-reads. It was caught by noticing that
+`test-results/` held 249 directories, and with `trace: "retain-on-failure"` that number
+can only be the number of failures. Redirect to a file and read `$?`, or read
+`${PIPESTATUS[0]}`; the same goes for `| head`, `| grep` and `| tee`. This belongs with
+the flaky test and the stray `it.only` above: all three are ways a suite reads as a pass
+without having been one, and that is the only failure mode of a test suite that cannot be
+caught by the test suite.
+
 Two races are worth knowing about, because both passed on an idle machine and only
 showed once the files started running at the same time. **A tick is optimistic**: the
 item folds away the instant it is pressed, before the action has been answered, so a test
