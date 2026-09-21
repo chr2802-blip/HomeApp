@@ -21,19 +21,19 @@ const TITLES: Record<Step, string> = {
  * How long the clipboard is given to answer before the button stops waiting for it.
  *
  * A browser that will not say is not always a browser that says so: `readText()` can
- * sit unresolved behind a permission decision nobody is going to make, and the sheet
- * opens *after* this check — so a promise that never settles is a "New recipe" button
- * that does nothing at all, with no error and nothing to see. Short enough that the
- * sheet still opens at the speed of a press, long enough for a browser that is simply
- * going to answer.
+ * sit unresolved behind a permission decision nobody is going to make, and the link
+ * step opens *after* this check — so a promise that never settles is an "Import from a
+ * link" button that does nothing at all, with no error and nothing to see. Short enough
+ * that the step still opens at the speed of a press, long enough for a browser that is
+ * simply going to answer.
  */
 const CLIPBOARD_GRACE_MS = 500;
 
 /**
- * A recipe link the cook already had on their clipboard when they pressed the button,
- * or null for everything that is not that — nothing copied, a browser that refuses to
- * say, a browser that never gets round to saying, or text that is not a web address.
- * All of those get the same answer: ask, the way the button always has.
+ * A recipe link the cook already had on their clipboard when they chose "Import from a
+ * link", or null for everything that is not that — nothing copied, a browser that
+ * refuses to say, a browser that never gets round to saying, or text that is not a web
+ * address. All of those get the same answer: ask, the way the link step always has.
  */
 async function clipboardRecipeUrl(): Promise<string | null> {
   try {
@@ -59,12 +59,11 @@ async function clipboardRecipeUrl(): Promise<string | null> {
  * The "New recipe" button on the recipes page.
  *
  * A recipe can be started two ways — typed in from scratch, or pulled from a link
- * somebody found online — so the button asks which before showing either form, rather
- * than burying the link importer as one more field inside the create sheet where it
- * would be easy to miss and stranger to explain. A cook who copied a recipe's link
- * specifically to paste it here is not asked, though: the button reads the clipboard
- * itself, and a page's own address goes straight to fetching it, skipping both the
- * question and the paste.
+ * somebody found online — so the button always asks which first, rather than burying
+ * the link importer as one more field inside the create sheet where it would be easy to
+ * miss and stranger to explain. A cook who copied a recipe's link specifically to paste
+ * it here is not asked to paste it by hand, though: choosing "Import from a link" itself
+ * reads the clipboard, and a page's own address goes straight to fetching it.
  *
  * The choice resets on every open rather than on close: resetting on close would show
  * it flashing back to "choose" while the sheet is still animating away.
@@ -83,16 +82,22 @@ export function NewRecipeDialog({
   const [noRecipeFound, setNoRecipeFound] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
-  // The clipboard check runs before the sheet opens rather than after, so it never
-  // shows "choose" for a moment only to jump straight past it once the check resolves.
-  async function openFresh() {
+  function openFresh() {
     setInitial(undefined);
     setNoRecipeFound(false);
     setNote(null);
+    setAutoUrl(undefined);
+    setStep("choose");
+    setOpen(true);
+  }
+
+  // The clipboard check runs before the link step opens rather than after, so it never
+  // shows the field empty for a moment only to jump straight past it once the check
+  // resolves.
+  async function openImportFromLink() {
     const pasted = await clipboardRecipeUrl();
     setAutoUrl(pasted ?? undefined);
-    setStep(pasted ? "url" : "choose");
-    setOpen(true);
+    setStep("url");
   }
 
   function close() {
@@ -106,8 +111,8 @@ export function NewRecipeDialog({
   }
 
   // A link that will not import — a reel, a shop page, anything without a recipe to
-  // read — must not be a dead end just because the clipboard skipped straight past the
-  // "choose" screen that would otherwise offer this.
+  // read — must not be a dead end: this is the way back to the plain form once the
+  // clipboard's own guess has failed.
   function startFromScratch() {
     setInitial(undefined);
     setNote(null);
@@ -143,16 +148,7 @@ export function NewRecipeDialog({
                 <Button type="button" onClick={() => setStep("form")}>
                   Start from scratch
                 </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  // Chosen by hand rather than found on the clipboard: starts blank,
-                  // even if openFresh found something there earlier this same visit.
-                  onClick={() => {
-                    setAutoUrl(undefined);
-                    setStep("url");
-                  }}
-                >
+                <Button type="button" variant="secondary" onClick={openImportFromLink}>
                   Import from a link
                 </Button>
                 <Button type="button" variant="ghost" onClick={close}>
