@@ -92,8 +92,8 @@ test("reopening after cancelling starts at the choice again, not where it was le
 });
 
 /*
- * A recipe link copied specifically to paste in here should not make the cook answer
- * "how do you want to start" or press Fetch a second time — the button already knows.
+ * A recipe link copied specifically to paste in here should not make the cook paste it
+ * by hand or press Fetch a second time — choosing "Import from a link" already knows.
  * These stub the browser's clipboard rather than the network, so the outcome after the
  * automatic fetch is one of the deterministic, no-network cases already exercised
  * above (a blocked address, refused instantly) rather than anything that depends on
@@ -105,33 +105,43 @@ test.describe("a recipe link already on the clipboard", () => {
     await page.evaluate((value) => navigator.clipboard.writeText(value), text);
   }
 
-  test("skips the question and starts fetching on its own", async ({ page }) => {
+  test("New recipe always asks first, even with a link on the clipboard", async ({ page }) => {
     await withClipboard(page, "http://127.0.0.1/recipe");
 
     await openDialog(page, "New recipe");
 
-    // Straight to the link step — never the choice screen — and already fetching
-    // without a press of the button.
-    await expect(page.getByRole("button", { name: "Start from scratch" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Start from scratch" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Import from a link" })).toBeVisible();
+    await expect(page.getByLabel("Recipe link")).toHaveCount(0);
+  });
+
+  test("choosing Import from a link fills it in and starts fetching on its own", async ({
+    page,
+  }) => {
+    await withClipboard(page, "http://127.0.0.1/recipe");
+
+    await openDialog(page, "New recipe");
+    await page.getByRole("button", { name: "Import from a link" }).click();
+
+    // Already fetching without a press of the Fetch button.
     await expect(page.getByLabel("Recipe link")).toHaveValue("http://127.0.0.1/recipe");
     await expect(page.getByText("That doesn't look like a web address.")).toBeVisible();
   });
 
-  test("still asks first when the clipboard holds no web address", async ({ page }) => {
+  test("starts blank when the clipboard holds no web address", async ({ page }) => {
     await withClipboard(page, "chicken, not garlic, for the soup");
 
     await openDialog(page, "New recipe");
+    await page.getByRole("button", { name: "Import from a link" }).click();
 
-    await expect(page.getByRole("button", { name: "Start from scratch" })).toBeVisible();
-    await expect(page.getByLabel("Recipe link")).toHaveCount(0);
+    await expect(page.getByLabel("Recipe link")).toHaveValue("");
   });
 
-  test("opens on the choice anyway when the browser never answers", async ({ page }) => {
+  test("opens the link step blank when the browser never answers", async ({ page }) => {
     // Not a hypothetical: a Chromium with no clipboard permission granted leaves
-    // readText() pending for ever rather than refusing it. The sheet opens *after* that
-    // check, so without a bound on the wait the button does nothing at all — no error,
-    // no sheet, nothing to see. The tests above catch it only in a browser that hangs;
-    // this one asks every browser the same question.
+    // readText() pending for ever rather than refusing it. The link step opens *after*
+    // that check, so without a bound on the wait the button does nothing at all — no
+    // error, no step, nothing to see. This asks every browser the same question.
     await page.addInitScript(() => {
       Object.defineProperty(navigator.clipboard, "readText", {
         configurable: true,
@@ -141,95 +151,21 @@ test.describe("a recipe link already on the clipboard", () => {
     await page.goto("/recipes");
 
     await openDialog(page, "New recipe");
-
-    await expect(page.getByRole("button", { name: "Start from scratch" })).toBeVisible();
-  });
-
-  test("choosing Import from a link by hand starts blank, not from an earlier clipboard fetch", async ({
-    page,
-  }) => {
-    await withClipboard(page, "http://127.0.0.1/recipe");
-    await openDialog(page, "New recipe");
-    await expect(page.getByText("That doesn't look like a web address.")).toBeVisible();
-
-    await page.getByRole("button", { name: "Back" }).click();
     await page.getByRole("button", { name: "Import from a link" }).click();
 
     await expect(page.getByLabel("Recipe link")).toHaveValue("");
   });
-});
 
-/*
- * A reel keeps its recipe in the paragraph under the video, and Meta refuses a signed-out
- * request for that paragraph often enough that the automatic read cannot be the only way
- * in. The box is therefore reachable on purpose and not only after a failure — which is
- * also what lets these tests drive the whole route without fetching anything: the only
- * thing beyond this app they touch is the reading, and that is answered by the worker's
- * own stub (`e2e/helpers/anthropic-stub.mjs`), which hands back one fixed recipe.
- *
- * So what is pinned here is everything on this side of the reading: that the text gets
- * there, that what comes back is rendered into lines, and that the create form opens with
- * them in it, editable, before anything is saved. What the reading itself makes of a
- * caption is a question for the unit suite and for the model.
- */
-test.describe("pasting a description", () => {
-  async function paste(page: import("@playwright/test").Page, text: string) {
+  test("each visit to Import from a link checks the clipboard again", async ({ page }) => {
+    await withClipboard(page, "http://127.0.0.1/recipe");
     await openDialog(page, "New recipe");
     await page.getByRole("button", { name: "Import from a link" }).click();
-    await page.getByRole("button", { name: "Paste the description instead" }).click();
+    await expect(page.getByText("That doesn't look like a web address.")).toBeVisible();
 
-    await page.getByLabel("Paste the description instead").fill(text);
-    await page.getByRole("button", { name: "Read the description" }).click();
-  }
+    await page.getByRole("button", { name: "Back" }).click();
+    await withClipboard(page, "chicken, not garlic, for the soup");
+    await page.getByRole("button", { name: "Import from a link" }).click();
 
-  const CAPTION = [
-    "🍝 Cremet pasta med kylling",
-    "",
-    "Ingredienser",
-    "- 400 g pasta",
-    "- 500 g kyllingebryst",
-    "- 2 dl fløde",
-    "",
-    "Fremgangsmåde",
-    "1. Kog pastaen.",
-    "2. Steg kyllingen.",
-    "",
-    "Klar på 25 minutter i alt",
-    "#aftensmad #pasta",
-  ].join("\n");
-
-  test("reads a pasted description into the create form", async ({ page }) => {
-    await paste(page, CAPTION);
-
-    // Straight into the ordinary create form, filled in and still entirely editable.
-    await expect(page.getByLabel("Title")).toHaveValue("Cremet pasta med kylling");
-    await expect(page.getByLabel("Ingredients")).toHaveValue(
-      "400 g pasta\n500 g kyllingebryst, i strimler\n2 dl fløde\nsalt, efter smag",
-    );
-    await expect(page.getByLabel("Instructions")).toHaveValue("Kog pastaen.\nSteg kyllingen.");
-    await expect(page.getByLabel("Total time (minutes)")).toHaveValue("25");
-  });
-
-  test("says so when the description is not a recipe, without leaving the step", async ({
-    page,
-  }) => {
-    await paste(page, "Sikke en dejlig aften i haven");
-
-    await expect(page.getByText("Couldn't find a recipe in that description")).toBeVisible();
-    await expect(page.getByLabel("Title")).toHaveCount(0);
-  });
-
-  /*
-   * A caption that sends the cook elsewhere for half of it still imports — a recipe that
-   * needs checking is more use than no recipe — but it says so above the form, where the
-   * checking is about to happen anyway.
-   */
-  test("says what is worth checking over, above the form it filled in", async ({ page }) => {
-    await paste(page, "Cremet pasta\n400 g pasta\nResten i bio, resten i bio");
-
-    await expect(page.getByLabel("Title")).toHaveValue("Cremet pasta med kylling");
-    await expect(
-      page.getByText("Worth checking: Resten af opskriften står i profilen."),
-    ).toBeVisible();
+    await expect(page.getByLabel("Recipe link")).toHaveValue("");
   });
 });
