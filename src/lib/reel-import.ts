@@ -20,17 +20,31 @@ import * as cheerio from "cheerio";
  * network.
  *
  * **None of these addresses is a supported API, and that is the honest position.**
- * Instagram's `/embed/captioned/` is the page its own embed widget loads and is the
- * only one that reliably carries a caption to a caller with no account; Meta's actual
- * oEmbed needs an app token this household does not have. So the sources are tried in
- * order and any of them may simply refuse — which is why a failure here is never a dead
- * end but an offer to paste the caption in by hand, the one route nothing can block.
+ * Instagram's `/embed/captioned/` is the page its own embed widget loads; TikTok's oEmbed
+ * is the one genuinely open endpoint of the three; Meta's actual oEmbed needs an app token
+ * this household does not have. So the sources are tried in order and any of them may
+ * simply refuse — which is why a failure here is never a dead end but an offer to paste the
+ * caption in by hand, the one route nothing can block.
+ *
+ * **And each address is read three ways, because a page's markup is the part that moves.**
+ * The `.Caption` element, then `og:description`, then the post as JSON inlined in the page
+ * (`captionFromEmbeddedJson`). The third was added when both Instagram addresses started
+ * answering with an application shell holding neither of the first two — so the order is
+ * also the order in which each was true, and a source is only given up on once all three
+ * have found nothing.
  */
 
 export type CaptionSource = {
   url: string;
   /** `json` is an oEmbed document; `html` is a page to read the caption out of. */
   kind: "html" | "json";
+  /**
+   * The post's own id, where the address is built around one. Nothing in the reading
+   * uses it; the diagnostics do. A body that never mentions the code is an application
+   * shell that was never told which post it is for, and that is a different failure
+   * from markup that moved — the first cannot be fixed by reading the page better.
+   */
+  code?: string;
 };
 
 /** What was read off a reel's page, before any of it has been understood as a recipe. */
@@ -65,7 +79,9 @@ function withoutShareParams(url: URL): string {
  * Instagram's embed page is asked before the post's own page because it is the one
  * written for a caller with no account: the ordinary page answers a signed-out request
  * with a login wall about half the time, and the embed page carries the whole caption
- * where `og:description` carries a truncated copy of it.
+ * where `og:description` carries a truncated copy of it. Both embed addresses are asked —
+ * the reel-shaped one and the `/p/` one — before the post page, because they are cheap and
+ * the post page is the one that can come back as a login wall.
  */
 export function captionSources(rawUrl: string): CaptionSource[] {
   let url: URL;
@@ -87,10 +103,19 @@ export function captionSources(rawUrl: string): CaptionSource[] {
     const kind = segments[kindAt] === "reels" ? "reel" : segments[kindAt];
     const code = kindAt >= 0 ? segments[kindAt + 1] : undefined;
     if (!code || !/^[A-Za-z0-9_-]+$/.test(code)) return [];
-    return [
-      { url: `https://www.instagram.com/${kind}/${code}/embed/captioned/`, kind: "html" },
-      { url: `https://www.instagram.com/${kind}/${code}/`, kind: "html" },
+
+    const sources: CaptionSource[] = [
+      { url: `https://www.instagram.com/${kind}/${code}/embed/captioned/`, kind: "html", code },
     ];
+    // `/p/` is the address Instagram's embed widget was built around, and a reel is also
+    // a post. The reel-shaped embed address answered one of these with a body the same
+    // size as the post page's own — the application shell, not an embed — so the older
+    // address is worth asking as itself rather than assuming the two are one route.
+    if (kind !== "p") {
+      sources.push({ url: `https://www.instagram.com/p/${code}/embed/captioned/`, kind: "html", code });
+    }
+    sources.push({ url: `https://www.instagram.com/${kind}/${code}/`, kind: "html", code });
+    return sources;
   }
 
   if (host === "tiktok.com" || host === "vm.tiktok.com") {
@@ -174,8 +199,178 @@ export function captionFromHtml(html: string): ReelCaption | null {
     ""
   ).trim();
 
-  if (!caption.trim()) return null;
+  if (!caption.trim()) {
+    // Neither the embed markup nor a description of any kind: the page is the application
+    // shell rather than the post. The post may still be in it, as the JSON its own client
+    // would have read, so that is the last place to look before giving up on this source.
+    const embedded = captionFromEmbeddedJson(html);
+    if (!embedded) return null;
+    return {
+      caption: embedded.caption,
+      imageUrl: imageUrl ?? embedded.imageUrl,
+      pageTitle: pageTitle || embedded.pageTitle,
+    };
+  }
   return { caption: caption.trim(), imageUrl, pageTitle };
+}
+
+/**
+ * Where a caption hides once the markup has moved, which by now is the usual case.
+ *
+ * `/embed/captioned/` used to answer a signed-out request with the caption in a `.Caption`
+ * element and an `og:description` beside it. It now answers — to a browser's string and to
+ * an honest crawler alike — with six hundred kilobytes of application shell carrying
+ * neither: `reel_caption_source` logged exactly that twice, 200 OK, no login wall,
+ * `hasCaptionElement` and `hasOgDescription` both false, for both addresses and within
+ * thirty-five bytes of each other.
+ *
+ * What that shell still carries, because the page it boots would otherwise have to ask for
+ * the post a second time, is the post itself as JSON in a `<script>` tag. So this is the
+ * third place to look and deliberately the last: the two above are Instagram stating what
+ * the post says, and this is reading over its shoulder. It is also the one most likely to
+ * survive the next redesign, because those names are an API's field names rather than a
+ * page's class names.
+ *
+ * Three shapes, because three generations of that API are still in circulation:
+ * `edge_media_to_caption` (the GraphQL web shape), `caption.text` (what the newer
+ * `xdt_api__v1__media__*` payloads use), and a bare `caption_text`. **The object is lifted
+ * out by matching braces and handed to `JSON.parse`, never picked apart by pattern** — a
+ * caption is free text and contains quotes, braces and escaped newlines, and a regex that
+ * reads one is a regex that truncates the next.
+ */
+export function captionFromEmbeddedJson(body: string): ReelCaption | null {
+  const direct = scanForCaption(body);
+  if (direct) return direct;
+
+  // Some of these payloads are inlined as a JSON *string* inside another JSON document, so
+  // the whole object arrives escaped once over and none of the keys match as written.
+  return body.includes('\\"') ? scanForCaption(unescapeOnce(body)) : null;
+}
+
+/** Keys whose value is an object holding the post's caption, likeliest shape first. */
+const CAPTION_OBJECT_KEYS = ['"edge_media_to_caption"', '"caption"'];
+
+function scanForCaption(text: string): ReelCaption | null {
+  let caption: string | null = null;
+
+  for (const key of CAPTION_OBJECT_KEYS) {
+    for (let at = text.indexOf(key); at >= 0 && !caption; at = text.indexOf(key, at + key.length)) {
+      const brace = text.indexOf("{", at + key.length);
+      // `"caption": null` and `"caption": "…"` are the same key not holding an object;
+      // anything but a colon between the two means this was some other key's tail.
+      if (brace < 0 || !/^\s*:\s*$/.test(text.slice(at + key.length, brace))) continue;
+      const node = jsonObjectAt(text, brace);
+      if (node) caption = captionOf(node);
+    }
+    if (caption) break;
+  }
+
+  caption ??= firstJsonString(text, /"caption_text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if (!caption?.trim()) return null;
+
+  return {
+    caption: caption.trim(),
+    imageUrl: imageFrom(text),
+    // Not a title so much as who posted it, which is what `og:title` would have said too
+    // and is better than nothing for a caption that never names the dish.
+    pageTitle: firstJsonString(text, /"username"\s*:\s*"((?:[^"\\]|\\.)*)"/) ?? "",
+  };
+}
+
+/**
+ * The poster frame out of the same payload, under whichever name this generation of it
+ * gives the picture. The flat names are one string each; `image_versions2` is a list of
+ * the same frame at every size, largest first, so the first candidate is the one to take.
+ *
+ * Null is a perfectly ordinary answer. A reel's poster frame is decoration for a recipe
+ * whose text is the point, and `captionFromHtml` has the page's own `og:image` to fall
+ * back on either way.
+ */
+function imageFrom(text: string): string | null {
+  const flat = firstJsonString(
+    text,
+    /"(?:display_url|display_src|thumbnail_src|thumbnail_url)"\s*:\s*"((?:[^"\\]|\\.)*)"/,
+  );
+  if (flat) return flat;
+
+  const at = text.indexOf('"image_versions2"');
+  if (at < 0) return null;
+  const brace = text.indexOf("{", at);
+  const node = brace >= 0 ? jsonObjectAt(text, brace) : null;
+  const first: unknown = Array.isArray(node?.candidates) ? node.candidates[0] : null;
+  const url = (first as { url?: unknown } | null)?.url;
+  return typeof url === "string" && url ? url : null;
+}
+
+/** The caption's text out of whichever of the shapes this object turned out to be. */
+function captionOf(node: Record<string, unknown>): string | null {
+  if (typeof node.text === "string" && node.text.trim()) return node.text;
+
+  if (Array.isArray(node.edges)) {
+    for (const edge of node.edges) {
+      const inner: unknown = (edge as { node?: unknown } | null)?.node;
+      const text = (inner as { text?: unknown } | null)?.text;
+      if (typeof text === "string" && text.trim()) return text;
+    }
+  }
+  return null;
+}
+
+/**
+ * The JSON object beginning at `start`, found by matching braces rather than by pattern —
+ * the only way to know where an object ends when its values hold braces of their own.
+ * Strings are tracked so a brace inside a caption cannot close it early.
+ */
+function jsonObjectAt(text: string, start: number): Record<string, unknown> | null {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{") depth += 1;
+    else if (ch === "}" && (depth -= 1) === 0) {
+      try {
+        const parsed: unknown = JSON.parse(text.slice(start, i + 1));
+        return typeof parsed === "object" && parsed !== null
+          ? (parsed as Record<string, unknown>)
+          : null;
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+/** The first match's capture, read back as the JSON string it is rather than as raw text. */
+function firstJsonString(text: string, pattern: RegExp): string | null {
+  const raw = pattern.exec(text)?.[1];
+  if (raw === undefined) return null;
+  try {
+    return JSON.parse(`"${raw}"`) as string;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * One level of JSON string escaping taken off, and nothing else.
+ *
+ * Only `\"` and `\\` are undone: a caption's own newline and its `\u00e6` are doubled in
+ * that form too, and taking exactly one level off leaves them as the ordinary escapes
+ * `JSON.parse` is about to read properly. Undoing them here instead would hand `JSON.parse`
+ * a literal newline inside a string, which is not legal JSON.
+ */
+function unescapeOnce(text: string): string {
+  return text.replace(/\\\\|\\"/g, (match) => (match === '\\"' ? '"' : "\\"));
 }
 
 /**

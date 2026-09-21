@@ -125,7 +125,13 @@ const REQUEST_HEADERS = {
  * What those sites do serve markup to is a crawler, because a link with no preview is a link
  * nobody shares. So the caption sources ask as one — honestly, as this app, with somewhere
  * to look it up. Whether Instagram extends that courtesy to a crawler it has never heard of
- * is exactly the open question; `reel_caption_source` will say.
+ * was the open question, and `reel_caption_source` has now answered it: **no.** The same
+ * shell came back, 636 KB of it, for both addresses and within thirty-five bytes of each
+ * other — which is what a body that is the same whatever post is asked for looks like.
+ *
+ * The string stays as it is anyway. It was never the thing that would get a caption out of
+ * Meta, and this app saying what it is remains the right way to ask; what the shell *does*
+ * still carry is the post as JSON, which is `captionFromEmbeddedJson`'s to find.
  */
 const CRAWLER_HEADERS = {
   Accept: "text/html,application/xhtml+xml",
@@ -500,6 +506,13 @@ async function readCaptionSource(source: CaptionSource): Promise<ReelCaption | n
       looksLikeLoginWall: /accounts\/login|loginForm|"LoginAndSignupPage"/i.test(body),
       hasCaptionElement: body.includes("class=\"Caption"),
       hasOgDescription: body.includes('property="og:description"'),
+      // The two that say whether reading the page harder could ever have worked. A body
+      // that never mentions the post's own code is an application shell that was not told
+      // which post it is for, and no parser can find a caption that was never sent; one
+      // that carries the post's JSON and still yields nothing is a shape
+      // `captionFromEmbeddedJson` has not learned yet, which is an afternoon's work.
+      mentionsCode: source.code ? body.includes(source.code) : null,
+      hasInlineMediaJson: /"edge_media_to_caption"|"caption_text"|\\?"caption\\?"\s*:\s*\{/.test(body),
     });
     return null;
   }

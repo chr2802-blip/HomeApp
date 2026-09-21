@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  captionFromEmbeddedJson,
   captionFromHtml,
   captionFromOEmbed,
   captionSources,
@@ -27,11 +28,29 @@ const INSTAGRAM_EMBED = `<!doctype html><html><head>
 </body></html>`;
 
 describe("captionSources", () => {
-  it("asks Instagram's embed page before the post's own, which answers signed out", () => {
+  it("asks both embed addresses before the post's own page", () => {
     expect(captionSources("https://www.instagram.com/reel/ABC123/")).toEqual([
-      { url: "https://www.instagram.com/reel/ABC123/embed/captioned/", kind: "html" },
-      { url: "https://www.instagram.com/reel/ABC123/", kind: "html" },
+      { url: "https://www.instagram.com/reel/ABC123/embed/captioned/", kind: "html", code: "ABC123" },
+      { url: "https://www.instagram.com/p/ABC123/embed/captioned/", kind: "html", code: "ABC123" },
+      { url: "https://www.instagram.com/reel/ABC123/", kind: "html", code: "ABC123" },
     ]);
+  });
+
+  it("does not ask the same address twice for a link that is already a /p/ one", () => {
+    expect(captionSources("https://www.instagram.com/p/ABC123/").map((s) => s.url)).toEqual([
+      "https://www.instagram.com/p/ABC123/embed/captioned/",
+      "https://www.instagram.com/p/ABC123/",
+    ]);
+  });
+
+  it("carries the post's own code, which is how a diagnostic tells a shell from a page", () => {
+    // A body that never mentions the code was never told which post it is for, and no
+    // amount of reading it better will find a caption in it.
+    expect(captionSources("https://www.instagram.com/smagfuld.hverdag/reel/DdhKTDItV5R/")[0]).toEqual({
+      url: "https://www.instagram.com/reel/DdhKTDItV5R/embed/captioned/",
+      kind: "html",
+      code: "DdhKTDItV5R",
+    });
   });
 
   it("finds the code behind a share sheet's /share/ prefix and a tracking parameter", () => {
@@ -117,8 +136,122 @@ describe("captionFromHtml", () => {
     });
   });
 
+  it("falls through to the post's own JSON where the page has no markup left", () => {
+    // The live failure this was written for: 200 OK, no login wall, and neither a caption
+    // element nor an og:description in six hundred kilobytes of application shell.
+    const read = captionFromHtml(GRAPHQL_SHELL);
+
+    expect(read?.caption).toBe(CAPTION_TEXT);
+    expect(read?.imageUrl).toBe("https://scontent.example/poster.jpg");
+  });
+
+  it("still prefers what the page says about itself to what its payload says", () => {
+    const withBoth = GRAPHQL_SHELL.replace(
+      "<head>",
+      '<head><meta property="og:image" content="https://scontent.example/og.jpg" />',
+    );
+
+    expect(captionFromHtml(withBoth)?.imageUrl).toBe("https://scontent.example/og.jpg");
+  });
+
   it("returns null for a page that says nothing at all about its own content", () => {
     expect(captionFromHtml("<html><head><title>Log in</title></head><body></body></html>")).toBeNull();
+  });
+});
+
+/**
+ * What `/embed/captioned/` answers with now, and what the post page answers with too: an
+ * application shell carrying neither a `.Caption` element nor an `og:description`, with
+ * the post inlined as the JSON its own client would otherwise have had to ask for twice.
+ * Built with `JSON.stringify` rather than written out, so the escaping in the fixture is
+ * the escaping Instagram would actually send.
+ */
+function shellWith(payload: unknown): string {
+  return `<!doctype html><html><head><title>Instagram</title></head><body>
+    <div id="mount"></div>
+    <script type="application/json" data-sjs>${JSON.stringify(payload)}</script>
+  </body></html>`;
+}
+
+const CAPTION_TEXT = "Pasta al limone\nIngredienser\n400 g spaghetti\n2 citroner\nKog pastaen.";
+
+/** The GraphQL web shape, as `PolarisPostRootQueryRelayPreloader` inlines it. */
+const GRAPHQL_SHELL = shellWith({
+  require: [
+    ["RelayPrefetchedStreamCache", "next", [], ["adp_PolarisPostRootQueryRelayPreloader", {
+      __bbox: {
+        result: {
+          data: {
+            xdt_shortcode_media: {
+              shortcode: "ABC123",
+              owner: { username: "somekitchen" },
+              display_url: "https://scontent.example/poster.jpg",
+              edge_media_to_caption: { edges: [{ node: { text: CAPTION_TEXT } }] },
+            },
+          },
+        },
+      },
+    }]],
+  ],
+});
+
+/** The v1 shape the newer `xdt_api__v1__media__*` payloads use. */
+const V1_SHELL = shellWith({
+  items: [
+    {
+      code: "ABC123",
+      user: { username: "somekitchen" },
+      image_versions2: {
+        candidates: [
+          { width: 1080, height: 1920, url: "https://scontent.example/candidate-1080.jpg" },
+          { width: 640, height: 1138, url: "https://scontent.example/candidate-640.jpg" },
+        ],
+      },
+      caption: { pk: "17900000000000000", user_id: 1234, text: CAPTION_TEXT, type: 1 },
+    },
+  ],
+});
+
+describe("captionFromEmbeddedJson", () => {
+  it("reads the GraphQL shape, keeping the line breaks that are the caption's structure", () => {
+    expect(captionFromEmbeddedJson(GRAPHQL_SHELL)).toEqual({
+      caption: CAPTION_TEXT,
+      imageUrl: "https://scontent.example/poster.jpg",
+      pageTitle: "somekitchen",
+    });
+  });
+
+  it("reads the v1 shape, and takes the largest of the poster frame's sizes", () => {
+    expect(captionFromEmbeddedJson(V1_SHELL)).toEqual({
+      caption: CAPTION_TEXT,
+      imageUrl: "https://scontent.example/candidate-1080.jpg",
+      pageTitle: "somekitchen",
+    });
+  });
+
+  it("reads a payload inlined as a string inside another JSON document, escaped once over", () => {
+    // `contextJSON` and friends carry the whole object as a JSON *string*, so every quote
+    // in it arrives backslashed and none of the keys match as written.
+    const nested = shellWith({ contextJSON: JSON.stringify({ caption_text: CAPTION_TEXT }) });
+
+    expect(captionFromEmbeddedJson(nested)?.caption).toBe(CAPTION_TEXT);
+  });
+
+  it("survives a caption containing the quotes and braces that break a pattern", () => {
+    const awkward = 'Gratin "som mor lavede den" {med ost}\nBag i 40 min.';
+
+    expect(captionFromEmbeddedJson(shellWith({ caption: { text: awkward } }))?.caption).toBe(awkward);
+  });
+
+  it("is not fooled by the same key holding something that is not a caption", () => {
+    expect(captionFromEmbeddedJson(shellWith({ caption: null, captionIsEnabled: true }))).toBeNull();
+    expect(captionFromEmbeddedJson(shellWith({ caption: { text: "   " } }))).toBeNull();
+  });
+
+  it("returns null for a shell that was never told which post it is for", () => {
+    // The failure nothing in this file can fix: there is no caption in the body to find.
+    expect(captionFromEmbeddedJson(shellWith({ config: { csrf_token: "abc" } }))).toBeNull();
+    expect(captionFromEmbeddedJson("<html><body>not json at all</body></html>")).toBeNull();
   });
 });
 
