@@ -10,6 +10,7 @@ import {
 import { addListItem, addMealPlanIngredients, addRecipeIngredients } from "@/app/actions/lists";
 import { planMeal } from "@/app/actions/meals";
 import { weekDays, weekStartInZone } from "@/lib/time";
+import { PANTRY_CONFIRM_FIELD, PANTRY_KEEP_FIELD } from "@/lib/pantry";
 import {
   createHome,
   createHomeWithMembers,
@@ -272,6 +273,71 @@ describe("what the pantry does to a recipe's ingredients", () => {
     // Named once across the run, however many of the week's recipes wanted it.
     expect(result).toEqual({ ok: true, note: "Salt already in the pantry." });
     expect((await textsOnList()).sort()).toEqual(["Gulerødder", "Oksekød"]);
+  });
+
+  // A line naming more than one thing is not a second opinion about what the pantry
+  // matches — every part is still checked, just against each half of the line.
+  it("answers for a combined line where every part is stocked, with nothing to ask", async () => {
+    const list = await listFor();
+    await keepIn("Salt");
+    await keepIn("Peber");
+    const recipe = await recipeFor({ ingredients: "Salt og peber\nHakket oksekød" });
+
+    const result = await addRecipeIngredients(formData({ recipeId: recipe.id, listId: list.id }));
+
+    expect(await textsOnList()).toEqual(["Hakket oksekød"]);
+    expect(result).toEqual({ ok: true, note: "Salt og peber already in the pantry." });
+  });
+
+  describe("a combined line the pantry only partly answers for", () => {
+    it("asks rather than guessing, and writes nothing yet", async () => {
+      const list = await listFor();
+      await keepIn("Salt");
+      const recipe = await recipeFor({ ingredients: "Salt og peber\nHakket oksekød" });
+
+      const result = await addRecipeIngredients(formData({ recipeId: recipe.id, listId: list.id }));
+
+      expect(result).toEqual({
+        needsDecision: true,
+        lines: [{ key: "salt og peber", text: "Salt og peber", matched: ["Salt"] }],
+      });
+      expect(await prisma.listItem.count()).toBe(0);
+    });
+
+    it("leaves the line off once told to, the same as a covered line", async () => {
+      const list = await listFor();
+      await keepIn("Salt");
+      const recipe = await recipeFor({ ingredients: "Salt og peber\nHakket oksekød" });
+
+      const result = await addRecipeIngredients(
+        formData({
+          recipeId: recipe.id,
+          listId: list.id,
+          [PANTRY_CONFIRM_FIELD]: "1",
+        }),
+      );
+
+      expect(await textsOnList()).toEqual(["Hakket oksekød"]);
+      expect(result).toEqual({ ok: true, note: "Salt og peber already in the pantry." });
+    });
+
+    it("adds the line whole once told to keep it", async () => {
+      const list = await listFor();
+      await keepIn("Salt");
+      const recipe = await recipeFor({ ingredients: "Salt og peber\nHakket oksekød" });
+
+      const result = await addRecipeIngredients(
+        formData({
+          recipeId: recipe.id,
+          listId: list.id,
+          [PANTRY_CONFIRM_FIELD]: "1",
+          [PANTRY_KEEP_FIELD]: "salt og peber",
+        }),
+      );
+
+      expect((await textsOnList()).sort()).toEqual(["Hakket oksekød", "Salt og peber"]);
+      expect(result).toEqual({ ok: true });
+    });
   });
 });
 

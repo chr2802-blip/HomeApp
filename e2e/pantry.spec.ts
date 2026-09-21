@@ -179,3 +179,54 @@ test("everything that has run out goes onto a list in one press", async ({ page 
   // What is in the cupboard was never the question.
   await expect(page.getByText("Salt", { exact: true })).toHaveCount(0);
 });
+
+test("a line naming two things the pantry only partly has is asked about, not guessed at", async ({
+  page,
+}) => {
+  await newList(page, "Groceries");
+
+  await page.goto("/pantry");
+  await keepIn(page, "Salt");
+
+  await newRecipe(page, "Karry", "Salt og peber\n500 g kylling");
+  await addToList(page, "Groceries");
+
+  const decision = page.getByRole("dialog", { name: "Already have some of this?" });
+  await expect(decision).toBeVisible();
+  await expect(decision.getByText("Salt already in the pantry.")).toBeVisible();
+
+  // Left checked, the default, adds the line exactly as a press always used to.
+  await decision.getByRole("button", { name: "Add checked" }).click();
+
+  await page.goto("/lists");
+  await page.getByRole("link", { name: /Groceries/ }).click();
+  await page.waitForURL(/\/lists\/[a-z0-9]+$/);
+
+  await expect(page.getByText("Salt og peber", { exact: true })).toBeVisible();
+  await expect(page.getByText("Kylling", { exact: true })).toBeVisible();
+});
+
+test("unchecking that line in the dialog leaves it off the list, same as a covered one", async ({
+  page,
+}) => {
+  await newList(page, "Groceries");
+
+  await page.goto("/pantry");
+  await keepIn(page, "Salt");
+
+  await newRecipe(page, "Karry", "Salt og peber\n500 g kylling");
+  await addToList(page, "Groceries");
+
+  const decision = page.getByRole("dialog", { name: "Already have some of this?" });
+  await decision.getByRole("checkbox", { name: /Salt og peber/ }).uncheck();
+  await decision.getByRole("button", { name: "Add checked" }).click();
+
+  await expect(page.getByText("Salt og peber already in the pantry.")).toBeVisible();
+
+  await page.goto("/lists");
+  await page.getByRole("link", { name: /Groceries/ }).click();
+  await page.waitForURL(/\/lists\/[a-z0-9]+$/);
+
+  await expect(page.getByText("Kylling", { exact: true })).toBeVisible();
+  await expect(page.getByText("Salt og peber", { exact: true })).toHaveCount(0);
+});
