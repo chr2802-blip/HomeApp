@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { recordListCleared } from "@/lib/streak";
+import { MIN_AMOUNT } from "@/lib/amount";
 
 /**
  * What it *means* to change a list, with no opinion about who asked.
@@ -44,10 +45,14 @@ export async function restoreItem(itemId: string, listId: string, amount: number
  * Told what the row should end up as rather than asked to flip it: two presses that both
  * mean "this is in the basket" must not leave it back on the list.
  *
- * Ticking it off also drops whatever recipe put it there. The note under an item answers
- * "why is this on my list", which is a question about the shop still to do — once the
- * thing is in the basket the recipe has been dealt with, and a ticked row is only next
- * week's vocabulary. Putting it back therefore brings back the item and not the note.
+ * Ticking it off also drops whatever recipe put it there, and resets the amount to one:
+ * what is ticked off is what is in the basket, and the next time this item is wanted it
+ * is wanted the ordinary amount unless somebody says otherwise — the same reason a line
+ * brought back by `restoreItem` or `addItem` comes back at one rather than whatever it
+ * last carried. The note under an item answers "why is this on my list", which is a
+ * question about the shop still to do — once the thing is in the basket the recipe has
+ * been dealt with, and a ticked row is only next week's vocabulary. Putting it back
+ * therefore brings back the item and not the note.
  */
 export async function setItemDone(
   item: { id: string; listId: string; done: boolean },
@@ -67,7 +72,7 @@ export async function setItemDone(
       // a ticked row answers "who picked this up", which is a question about the shop
       // still to do — it is not a record of who did what, and it goes the same way the
       // recipe note does.
-      data: { done, completedById: done ? byUserId : null },
+      data: { done, completedById: done ? byUserId : null, ...(done ? { amount: MIN_AMOUNT } : {}) },
     }),
     ...(done ? [prisma.listItemSource.deleteMany({ where: { itemId: item.id } })] : []),
   ]);

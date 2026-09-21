@@ -171,3 +171,11 @@ export function weekStartInstant(week: string): Date {
   const [year, month, day] = week.split("-").map(Number) as [number, number, number];
   return new Date(new TZDate(year, month - 1, day, 0, 0, 0, 0, TIME_ZONE).getTime());
 }
+
+/** The instant the calendar month `now` falls in began, in the home's zone. */
+export function monthStartInstant(now: Date = new Date()): Date {
+  const zoned = inZone(now);
+  return new Date(
+    new TZDate(zoned.getFullYear(), zoned.getMonth(), 1, 0, 0, 0, 0, TIME_ZONE).getTime(),
+  );
+}

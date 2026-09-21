@@ -217,6 +217,19 @@ describe("list items", () => {
     ).toBeNull();
   });
 
+  it("resets the amount to one when the item is ticked off, and leaves it there when it comes back", async () => {
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+    await addListItem(undefined, formData({ listId: list.id, text: "Milk", amount: "3" }));
+    const item = await prisma.listItem.findFirstOrThrow();
+
+    await toggleListItem(formData({ itemId: item.id }));
+    expect((await prisma.listItem.findUniqueOrThrow({ where: { id: item.id } })).amount).toBe(1);
+
+    // Putting it back is not a second opinion about how many are wanted this time.
+    await toggleListItem(formData({ itemId: item.id }));
+    expect((await prisma.listItem.findUniqueOrThrow({ where: { id: item.id } })).amount).toBe(1);
+  });
+
   it("names whoever actually pressed it, not the person who wrote the list", async () => {
     const list = await seedList({ homeId: home.id, createdById: member.id });
     await addListItem(undefined, formData({ listId: list.id, text: "Milk" }));

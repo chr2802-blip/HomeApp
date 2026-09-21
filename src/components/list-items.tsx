@@ -45,6 +45,7 @@ import { useOfflineList } from "@/components/use-offline-list";
 import { applyPending, type ListRow, type Person } from "@/lib/offline-ops";
 import { newId } from "@/lib/offline-queue";
 import { cheer, tick } from "@/lib/haptics";
+import { MIN_AMOUNT } from "@/lib/amount";
 
 /**
  * One row, defined beside the overlay that has to be able to make one — an item added
@@ -61,15 +62,17 @@ type Change =
 
 function applyTo(items: Item[], change: Change): Item[] {
   if (change.type === "toggle") {
-    // Ticking something off drops the recipes that put it there, which is what the
-    // server is about to do — see toggleListItem. Putting it back brings back the item
-    // and not the note. The name goes on and comes off with the tick for the same
-    // reason: it says who is getting this, not who once did.
+    // Ticking something off drops the recipes that put it there and resets the amount to
+    // one, which is what the server is about to do — see `setItemDone`. Putting it back
+    // brings back the item and not the note, and leaves the amount as it was. The name
+    // goes on and comes off with the tick for the same reason: it says who is getting
+    // this, not who once did.
     return items.map((item) =>
       item.id === change.id
         ? {
             ...item,
             done: !item.done,
+            amount: item.done ? item.amount : MIN_AMOUNT,
             sources: item.done ? item.sources : [],
             completedBy: item.done ? null : change.by,
           }
@@ -279,8 +282,9 @@ function Row({
         />
       )}
 
-      {/* A ticked item shows what was wanted but offers no picker: it is settled, and a
-          stepper on every row of the completed section is only something to scroll past. */}
+      {/* Ticking off resets the amount to one — see `setItemDone` — so this always reads
+          ×1, shown with no picker: it is settled, and a stepper on every row of the
+          completed section is only something to scroll past. */}
       {showAmount &&
         (item.done ? (
           <span className="shrink-0 text-sm tabular-nums text-slate-400">×{item.amount}</span>

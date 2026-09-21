@@ -110,7 +110,7 @@ test("the amount cannot be stepped below one", async ({ page }) => {
   await expect(stepper(page, "Decrease", "Milk")).toBeDisabled();
 });
 
-test("a ticked item shows what was wanted, without a picker", async ({ page }) => {
+test("ticking an item resets its amount to one, and shows no picker", async ({ page }) => {
   await newList(page, "Groceries", true);
 
   await amountBox(page).fill("4");
@@ -119,8 +119,9 @@ test("a ticked item shows what was wanted, without a picker", async ({ page }) =
   await page.getByRole("button", { name: "Mark as done" }).click();
   await page.getByRole("button", { name: "Completed (1)" }).click();
 
-  await expect(page.getByText("×4")).toBeVisible();
+  await expect(page.getByText("×1")).toBeVisible();
   await expect(amountBox(page, "Milk")).toHaveCount(0);
+  await expect.poll(() => storedAmount("Milk")).toBe(1);
 });
 
 test("amounts can be turned on for a list that was made without them", async ({ page }) => {
