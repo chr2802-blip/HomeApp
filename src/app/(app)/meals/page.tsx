@@ -20,7 +20,7 @@ import {
   weekLabel,
   weekdayName,
 } from "@/lib/meals";
-import { stockedKeys } from "@/lib/pantry";
+import { stockedKeys } from "@/lib/pantry-stock";
 import {
   ingredientKeys,
   rankByOverlap,
