@@ -3,6 +3,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import type { RawExtract } from "./recipe-extract";
 import { UNIT_WORDS } from "./recipes";
+import { recordAiUsage } from "./ai-usage";
 
 /**
  * Stage two of an import: reading raw text as a recipe. One pass, one opinion, for a web
@@ -275,8 +276,13 @@ function userMessage(raw: RawExtract): string {
  * The client is built here rather than at module scope on purpose: constructing one with no
  * credential in the environment throws, and this module is imported by the unit tests for
  * `renderNormalized`, which has nothing to do with the network.
+ *
+ * `homeId` is charged for the call the moment a response comes back — whatever the
+ * model went on to say — because that is when Anthropic billed it. A parse that came
+ * back unparseable or a page that turned out not to be a recipe still spent the same
+ * tokens as one that worked.
  */
-export async function normalizeRecipe(raw: RawExtract): Promise<NormalizeOutcome> {
+export async function normalizeRecipe(raw: RawExtract, homeId: string): Promise<NormalizeOutcome> {
   if (!raw.rawContent.trim()) return { ok: false, reason: "not-a-recipe" };
   if (!process.env.ANTHROPIC_API_KEY) {
     logUnavailable("no_api_key", "ANTHROPIC_API_KEY is not set");
@@ -298,6 +304,13 @@ export async function normalizeRecipe(raw: RawExtract): Promise<NormalizeOutcome
       { timeout: NORMALIZE_TIMEOUT_MS },
     );
     parsed = response.parsed_output;
+    await recordAiUsage(
+      homeId,
+      "recipe_import",
+      MODEL,
+      response.usage.input_tokens,
+      response.usage.output_tokens,
+    );
   } catch (error) {
     logUnavailable("api_error", error instanceof Error ? error.message : String(error));
     return { ok: false, reason: "unavailable" };

@@ -75,6 +75,8 @@ model Home {
   mealPlans        MealPlan[]
   /// The basic goods this household keeps in — see PantryItem.
   pantry           PantryItem[]
+  /// What this home's AI calls have cost — see AiUsage.
+  aiUsage          AiUsage[]
   /// Every picture filed under this home, whatever it is attached to.
   photos           Photo[]          @relation("PhotoHome")
   photo            Photo?           @relation("HomePhoto", fields: [photoId], references: [id], onDelete: SetNull)
@@ -517,6 +519,37 @@ model PantryItem {
   // One entry per row of shopping per home, and — being keyed on the home first — the
   // lookup that asks what one household keeps in, so there is no second index for it.
   @@unique([homeId, key])
+}
+
+/**
+ * What one call to an AI reader cost, so a household's Settings page and the super
+ * admin's System page can both answer "how close is this home to its monthly limit"
+ * from the same rows.
+ * One row per call rather than a running total kept on Home: a total can only grow,
+ * so it can never be corrected once a row turns out to have used the wrong price, and
+ * it cannot say which month the spend fell in without a second column doing the same
+ * job `createdAt` already does. `costMicros` is that call's price in millionths of a
+ * dollar — an integer, so many cheap calls summed together never drift the way floats
+ * would adding up fractions of a cent. See `src/lib/ai-usage.ts`.
+ */
+model AiUsage {
+  id           String   @id @default(cuid())
+  homeId       String
+  /// What asked for the call. Only "recipe_import" today, named so a second use of the reader is not a second table.
+  feature      String
+  /// The model billed, so a price change is read off the row rather than guessed from its date.
+  model        String
+  inputTokens  Int
+  outputTokens Int
+  /// USD, in millionths of a dollar.
+  costMicros   Int
+  createdAt    DateTime @default(now())
+
+  home Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
+
+  // Every reading of this table is "this home, this month, add it up" — the order the
+  // rows are kept in.
+  @@index([homeId, createdAt])
 }
 
 /**

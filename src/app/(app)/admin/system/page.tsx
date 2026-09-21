@@ -4,6 +4,7 @@ import { getSystemStats } from "@/lib/system-stats";
 import { formatInZone } from "@/lib/time";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 import { StorageAcrossHomes } from "@/components/storage-usage";
+import { AiSpendAcrossHomes } from "@/components/ai-spend";
 
 export const dynamic = "force-dynamic";
 
@@ -166,6 +167,15 @@ export default async function SystemPage() {
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Storage</h2>
         <StorageAcrossHomes />
+      </section>
+
+      {/* What reading an imported recipe is costing, home by home, against the 5 USD a
+          month each is allowed. Beside Storage rather than Content, because both are
+          "what is this household using" and this one is measured in money rather than
+          bytes or rows. */}
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">AI spending</h2>
+        <AiSpendAcrossHomes />
       </section>
 
       <section className="mb-8">
