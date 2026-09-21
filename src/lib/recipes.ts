@@ -62,6 +62,22 @@ export function ingredientLines(ingredients: string) {
     .filter(Boolean);
 }
 
+/**
+ * A recipe's steps as separate lines, the same way its ingredients are.
+ *
+ * Instructions are stored one step to a line and numbered only when they are drawn, so
+ * this is the single answer to "how many steps has this recipe, and which is the third".
+ * Action mode's stored breakdown carries one entry per line of this, so a second opinion
+ * about where the steps divide would be a breakdown quietly describing other steps than
+ * the ones on screen.
+ */
+export function instructionLines(instructions: string) {
+  return instructions
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 /** Leading digits, a decimal, a range, or a single unicode fraction — "2", "1.5",
  *  "200-250", "½" — the shapes an ingredient line starts a measurement with. */
 const FRACTION = "½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅐⅛⅜⅝⅞";

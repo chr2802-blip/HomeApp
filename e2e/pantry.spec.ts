@@ -39,11 +39,24 @@ async function keepIn(page: Page, name: string) {
   await expect(entry(page, name)).toBeVisible();
 }
 
-/** Switches something off, which is the household saying it has run out of it. */
+/**
+ * Switches something off, which is the household saying it has run out of it.
+ *
+ * The switch is optimistic, so it goes off the instant it is pressed and says nothing
+ * about whether the write landed — which is exactly what the test above reloads to find
+ * out. Returning on the drawn state alone leaves a reload racing the action that is
+ * still in flight, and the row comes back on. So this waits for the action's own round
+ * trip as well: a server action posts to the page it was called from.
+ */
 async function runOut(page: Page, name: string) {
   await retry(async () => {
+    const written = page.waitForResponse(
+      (response) => response.request().method() === "POST" && response.url().includes("/pantry"),
+      { timeout: 5_000 },
+    );
     await entry(page, name).click();
     await expect(entry(page, name)).not.toBeChecked({ timeout: 1000 });
+    await written;
   });
 }
 

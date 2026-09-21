@@ -41,6 +41,18 @@ actually asks for, for both `chromium-<rev>` and `chromium_headless_shell-<rev>`
 
 ## Conventions that are not optional
 
+**Most of the rules below are one rule.** A flag beside `intervalDays`, a counter beside a
+snooze, a second reader beside the importer, a cooking copy of the steps beside the
+reading copy — each is refused for the same reason, and the section refusing it states the
+conclusion rather than the test. The test, when you are about to add something that
+overlaps what is already stored, is: **what question does this answer, and is anything else
+already answering it?** Two things answering one question will disagree eventually, and the
+one that disagrees quietly is the one every reader is then wrong about. Two things
+answering *different* questions are fine however similar they look — `prepareCookSteps`
+sits beside `normalizeRecipe` for exactly that reason, and the difference is spelled out
+where it does.
+
+
 ### A person belongs to homes, and reads one of them
 
 `HomeMember` is the belonging: one row per person per home, carrying what they may do
@@ -167,6 +179,12 @@ classifying it fails `tests/unit/home-scoping.test.ts` — no database, seconds,
 the model and the decision — rather than silently returning another household's rows at
 the first query. That test walks the schema rather than a list of its own, which is what
 stops the list and the schema parting company again.
+
+**An ingredient line is a contract, not free text.** `shoppingText`, `pantryKey`,
+`writeRecipesToList` and `staplesOf` all take one apart, so anything writing one honours
+the format `renderNormalized` writes — see *An import is two stages* below and
+[`docs/design/recipes.md`](docs/design/recipes.md). Action mode's breakdown sidesteps it
+by storing positions and never a line of its own.
 
 Permission checks live separately in `src/lib/access.ts`; `homeScoped` in
 `src/lib/scoped.ts` fetches a single record and asserts access. `homeDb` does not replace
@@ -552,6 +570,43 @@ dashboard and `/meals` agree because they are reading the same one.
   recipe filed under an excluded heading and an ordinary one is still excluded.
 
 **[`docs/design/meals.md`](docs/design/meals.md) has the reasoning.**
+
+### A recipe is also read at the hob, and that reading needs one more thing
+
+Action mode (`/recipes/[id]/cook`) is the same recipe one step to a screen, with the
+ingredients that step uses beside it, turned like a cookbook's pages. **Leftwards turns
+forward**, as lifting a right-hand page over does.
+
+- **`Recipe.cookSteps` holds no text.** One entry per line of `instructions`, in order,
+  each naming *indices* into `ingredientLines(ingredients)` plus the step's own minutes.
+  The steps are the instructions and an ingredient is its stored line, so the breakdown
+  cannot come to disagree with the recipe it describes. Derived and never typed, the way
+  `PantryItem.key` is.
+- **A write that changes `ingredients` or `instructions` also writes `cookSteps`** — to a
+  fresh mapping, or to `DbNull` when the reader could not answer. Both writers are
+  `createRecipe` and `updateRecipe`; `tests/integration/recipes.test.ts` holds it. A
+  reader that is down never fails a save: the recipe stores, the column clears.
+- **The count is the guard, not the mechanism.** `cookSteps` in `src/lib/cook.ts` ignores
+  a stored breakdown *whole* unless its length matches the instruction lines — there is no
+  telling which of its entries still line up, and a plausible wrong ingredient at the hob
+  is worse than none. An index past the end of the ingredients is dropped on its own.
+- **An unprepared recipe still cooks**: plain steps, no ingredients, no timers, and the
+  offer to prepare it on the first page. Matching ingredient words against a step to guess
+  the mapping would be the pattern-matching `docs/design/recipes.md` records as the wrong
+  tool for this question.
+- **`prepareCookSteps` is a second question, not a second reader.** `recipe-normalize.ts`
+  asks "is there a recipe in this text" about text nobody here wrote; this asks "how is
+  this household's own recipe cooked" about lines already stored and numbered. It may
+  rewrite the steps — into `Recipe.instructions`, the one copy both the recipe page and
+  action mode read — and it **never rewrites an ingredient line**, which is the contract
+  `shoppingText` and `pantryKey` read. Its schema carries the same two traps as the
+  importer's: nothing narrows, and every `.describe()` comes before its `.nullish()`.
+- **The surface is portalled to `document.body`**, because `PageTransition` puts a
+  `transform` on an ancestor and a transformed ancestor contains a fixed child. It pads
+  its own `env(safe-area-inset-*)`, holds a wake lock through `useWakeLock` (shared with
+  `ScreenAwakeToggle`), and its timers live above the pages so a turn does not end them.
+- The page turn is `page-turn-next` / `page-turn-back` in `globals.css` — keyframes, and
+  no `translate-*`/`rotate-*`/`scale-*` utility on the element playing one.
 
 ### A new recipe starts by asking how, not with a field buried in the form
 
