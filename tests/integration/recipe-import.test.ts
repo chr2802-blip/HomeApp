@@ -1,15 +1,40 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { fetchRecipeFromUrl, importPastedCaption } from "@/lib/recipe-import";
 import { pngBytes } from "../helpers/images";
 import { createHome } from "../helpers/factories";
 
 /*
- * The parsing itself — reading JSON-LD and Microdata out of a page's HTML — is pure
- * and covered in tests/unit/recipe-import.test.ts, with no database in reach. Fetching
- * and storing the recipe's own picture is not: it ends in `storePhoto`, a real write,
- * so that half lives here instead, against a real (if fake-network) database.
+ * Extracting a page's text is pure and covered in tests/unit/recipe-extract.test.ts;
+ * reading that text is a model call and is stubbed here as it is there, since a test that
+ * let it run would be a test of somebody else's uptime. What is left is the half that
+ * cannot be faked: fetching the recipe's own picture, downscaling it and writing it through
+ * `storePhoto`, which is a real write and so wants a real database.
+ *
+ * The stubbed reader returns the same recipe every time. Nothing here is about what it
+ * says — every assertion below is about a photograph, and where it ended up filed.
  */
+
+const READ = {
+  title: "Pandekager",
+  ingredients: "200 g mel",
+  instructions: "Steg dem.",
+  totalTimeMinutes: null,
+  note: null,
+};
+
+const { normalizeRecipe } = vi.hoisted(() => ({ normalizeRecipe: vi.fn() }));
+
+vi.mock("@/lib/recipe-normalize", () => ({ normalizeRecipe }));
+
+beforeEach(() => {
+  normalizeRecipe.mockReset();
+  normalizeRecipe.mockResolvedValue({ ok: true, recipe: READ });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function htmlResponse(html: string, url: string) {
   return {
@@ -45,6 +70,17 @@ function pageWithLdJson(recipe: unknown) {
   </head></html>`;
 }
 
+/** A recipe page naming `image` as its picture, which is what these tests are all about. */
+function pageWithImage(image: string) {
+  return pageWithLdJson({
+    "@type": "Recipe",
+    name: "Pandekager",
+    recipeIngredient: ["200 g mel"],
+    recipeInstructions: "Steg dem.",
+    image,
+  });
+}
+
 /** Answers each fetch by matching the URL asked for against a map of canned responses. */
 function stubFetch(responses: Record<string, Response>) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
@@ -58,21 +94,13 @@ function stubFetch(responses: Record<string, Response>) {
 }
 
 describe("fetchRecipeFromUrl — the recipe's own picture", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   it("fetches, downscales and stores it under the caller's home", async () => {
     const home = await createHome();
-    const html = pageWithLdJson({
-      "@type": "Recipe",
-      name: "Pancakes",
-      recipeIngredient: ["Flour"],
-      recipeInstructions: "Fry.",
-      image: "https://example.com/pancakes.png",
-    });
     stubFetch({
-      "https://example.com/recipe": htmlResponse(html, "https://example.com/recipe"),
+      "https://example.com/recipe": htmlResponse(
+        pageWithImage("https://example.com/pancakes.png"),
+        "https://example.com/recipe",
+      ),
       "https://example.com/pancakes.png": imageResponse(
         pngBytes(2000, 1500, { noisy: true }),
         "https://example.com/pancakes.png",
@@ -100,17 +128,13 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
 
   it("resolves a relative image URL against the page it was found on, not the link pasted", async () => {
     const home = await createHome();
-    const html = pageWithLdJson({
-      "@type": "Recipe",
-      name: "Pancakes",
-      recipeIngredient: ["Flour"],
-      recipeInstructions: "Fry.",
-      image: "/images/pancakes.png",
-    });
     stubFetch({
       // The page redirected, as real sites do — the relative image path has to resolve
       // against where the app actually landed, not the address that was typed.
-      "https://example.com/recipe": htmlResponse(html, "https://example.com/en/recipe"),
+      "https://example.com/recipe": htmlResponse(
+        pageWithImage("/images/pancakes.png"),
+        "https://example.com/en/recipe",
+      ),
       "https://example.com/images/pancakes.png": imageResponse(
         pngBytes(800, 600),
         "https://example.com/images/pancakes.png",
@@ -126,15 +150,11 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
 
   it("leaves the recipe intact when the image is not a real picture", async () => {
     const home = await createHome();
-    const html = pageWithLdJson({
-      "@type": "Recipe",
-      name: "Pancakes",
-      recipeIngredient: ["Flour"],
-      recipeInstructions: "Fry.",
-      image: "https://example.com/not-a-picture.png",
-    });
     stubFetch({
-      "https://example.com/recipe": htmlResponse(html, "https://example.com/recipe"),
+      "https://example.com/recipe": htmlResponse(
+        pageWithImage("https://example.com/not-a-picture.png"),
+        "https://example.com/recipe",
+      ),
       "https://example.com/not-a-picture.png": imageResponse(
         new TextEncoder().encode("not actually a picture"),
         "https://example.com/not-a-picture.png",
@@ -145,29 +165,13 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
 
     // A picture that cannot be read is decoration this recipe goes without, never a
     // reason to refuse a recipe that was otherwise perfectly readable.
-    expect(result).toEqual({
-      ok: true,
-      recipe: {
-        title: "Pancakes",
-        ingredients: "Flour",
-        instructions: "Fry.",
-        photoId: null,
-        totalTimeMinutes: null,
-        videoUrl: null,
-      },
-    });
+    expect(result).toEqual({ ok: true, recipe: { ...READ, photoId: null, videoUrl: null } });
     expect(await prisma.photo.count()).toBe(0);
   });
 
   it("leaves the recipe intact when the image cannot be fetched at all", async () => {
     const home = await createHome();
-    const html = pageWithLdJson({
-      "@type": "Recipe",
-      name: "Pancakes",
-      recipeIngredient: ["Flour"],
-      recipeInstructions: "Fry.",
-      image: "https://example.com/gone.png",
-    });
+    const html = pageWithImage("https://example.com/gone.png");
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url === "https://example.com/recipe") return htmlResponse(html, url);
@@ -177,46 +181,22 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
 
     const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id);
 
-    expect(result).toEqual({
-      ok: true,
-      recipe: {
-        title: "Pancakes",
-        ingredients: "Flour",
-        instructions: "Fry.",
-        photoId: null,
-        totalTimeMinutes: null,
-        videoUrl: null,
-      },
-    });
+    expect(result).toEqual({ ok: true, recipe: { ...READ, photoId: null, videoUrl: null } });
     expect(await prisma.photo.count()).toBe(0);
   });
 
   it("never fetches an image pointing back at the server's own network", async () => {
     const home = await createHome();
-    const html = pageWithLdJson({
-      "@type": "Recipe",
-      name: "Pancakes",
-      recipeIngredient: ["Flour"],
-      recipeInstructions: "Fry.",
-      image: "http://169.254.169.254/latest/meta-data/pancakes.png",
-    });
     const fetchMock = stubFetch({
-      "https://example.com/recipe": htmlResponse(html, "https://example.com/recipe"),
+      "https://example.com/recipe": htmlResponse(
+        pageWithImage("http://169.254.169.254/latest/meta-data/pancakes.png"),
+        "https://example.com/recipe",
+      ),
     });
 
     const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id);
 
-    expect(result).toEqual({
-      ok: true,
-      recipe: {
-        title: "Pancakes",
-        ingredients: "Flour",
-        instructions: "Fry.",
-        photoId: null,
-        totalTimeMinutes: null,
-        videoUrl: null,
-      },
-    });
+    expect(result).toEqual({ ok: true, recipe: { ...READ, photoId: null, videoUrl: null } });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(await prisma.photo.count()).toBe(0);
   });
@@ -224,15 +204,11 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
   it("files the picture under the importing home, not any other", async () => {
     const home = await createHome();
     const otherHome = await createHome();
-    const html = pageWithLdJson({
-      "@type": "Recipe",
-      name: "Pancakes",
-      recipeIngredient: ["Flour"],
-      recipeInstructions: "Fry.",
-      image: "https://example.com/pancakes.png",
-    });
     stubFetch({
-      "https://example.com/recipe": htmlResponse(html, "https://example.com/recipe"),
+      "https://example.com/recipe": htmlResponse(
+        pageWithImage("https://example.com/pancakes.png"),
+        "https://example.com/recipe",
+      ),
       "https://example.com/pancakes.png": imageResponse(
         pngBytes(800, 600),
         "https://example.com/pancakes.png",
@@ -249,19 +225,57 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
     expect(stored.homeId).toBe(home.id);
     expect(stored.homeId).not.toBe(otherHome.id);
   });
+
+  /*
+   * The picture is fetched only once the reading has come back good, which is worth having
+   * a real database to assert: an import that refuses still leaves nothing behind for the
+   * upload sweep to find later.
+   */
+  it("stores nothing at all for a page the reader would not read", async () => {
+    const home = await createHome();
+    normalizeRecipe.mockResolvedValue({ ok: false, reason: "not-a-recipe" });
+    const fetchMock = stubFetch({
+      "https://example.com/recipe": htmlResponse(
+        pageWithImage("https://example.com/pancakes.png"),
+        "https://example.com/recipe",
+      ),
+    });
+
+    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id);
+
+    expect(result.ok).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(await prisma.photo.count()).toBe(0);
+  });
+
+  it("stores nothing when the reader itself cannot be reached", async () => {
+    const home = await createHome();
+    normalizeRecipe.mockResolvedValue({ ok: false, reason: "unavailable" });
+    stubFetch({
+      "https://example.com/recipe": htmlResponse(
+        pageWithImage("https://example.com/pancakes.png"),
+        "https://example.com/recipe",
+      ),
+    });
+
+    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id);
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.stringContaining("Couldn't read that recipe just now"),
+      notARecipe: true,
+    });
+    expect(await prisma.photo.count()).toBe(0);
+  });
 });
 
 /*
- * A reel's poster frame is the nearest thing it has to a photograph of the finished
- * dish, and it is stored exactly as any upload is — which is a real write, so it is
- * here rather than in the unit suite. Reading the caption itself is pure and lives in
- * tests/unit/caption-recipe.test.ts.
+ * A reel's poster frame is the nearest thing it has to a photograph of the finished dish,
+ * and it is stored exactly as any upload is — which is a real write, so it is here rather
+ * than in the unit suite. Which addresses are asked, and in what order, is pinned in
+ * tests/unit/recipe-import.test.ts.
  */
 describe("a reel's poster frame", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   const REEL = "https://www.instagram.com/reel/ABC123/";
   const EMBED = "https://www.instagram.com/reel/ABC123/embed/captioned/";
   const POSTER = "https://scontent.example/poster.png";
@@ -285,13 +299,33 @@ describe("a reel's poster frame", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.recipe.title).toBe("Boller");
     expect(result.recipe.videoUrl).toBe(REEL);
 
     const stored = await prisma.photo.findUniqueOrThrow({
       where: { id: result.recipe.photoId! },
     });
     expect(stored.homeId).toBe(home.id);
+  });
+
+  // The poster frame's address is relative to whichever source answered, not to the reel
+  // link the cook pasted — which stays `sourceUrl` so the recipe's video points at the post.
+  it("resolves a relative poster frame against the source that answered", async () => {
+    const home = await createHome();
+    const relative = `<html><body>
+      <img class="EmbeddedMediaImage" src="/poster.png" />
+      <div class="Caption">Boller<br>500 g mel</div>
+    </body></html>`;
+    stubFetch({
+      [EMBED]: htmlResponse(relative, EMBED),
+      "https://www.instagram.com/poster.png": imageResponse(
+        pngBytes(720, 1280),
+        "https://www.instagram.com/poster.png",
+      ),
+    });
+
+    const result = await fetchRecipeFromUrl(REEL, home.id);
+
+    expect(result.ok && result.recipe.photoId).toEqual(expect.any(String));
   });
 
   it("is still worth a try for a caption the cook pasted in by hand", async () => {
@@ -322,17 +356,7 @@ describe("a reel's poster frame", () => {
       home.id,
     );
 
-    expect(result).toEqual({
-      ok: true,
-      recipe: {
-        title: "Boller",
-        ingredients: "500 g mel\n25 g gær",
-        instructions: "Ælt det sammen.",
-        photoId: null,
-        totalTimeMinutes: null,
-        videoUrl: REEL,
-      },
-    });
+    expect(result).toEqual({ ok: true, recipe: { ...READ, photoId: null, videoUrl: REEL } });
     expect(await prisma.photo.count()).toBe(0);
   });
 });

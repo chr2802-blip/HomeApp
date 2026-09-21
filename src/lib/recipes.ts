@@ -74,8 +74,14 @@ const LEADING_AMOUNT = new RegExp(
  * The handful of amount words a Danish kitchen writes ingredients with, plus their usual
  * English equivalents — not a parser for every unit in existence, only the ones a recipe
  * imported off the web or typed in by hand actually uses here.
+ *
+ * Exported because it is not only `shoppingText`'s business any more: the importer has to
+ * know which units it may write, since a unit this set has never heard of survives
+ * `shoppingText` and becomes part of the thing being bought. This is the one answer to
+ * "can an amount be told apart from an ingredient here", and `recipe-normalize.ts` asks it
+ * rather than keeping a list of its own to disagree with.
  */
-const UNIT_WORDS = new Set([
+export const UNIT_WORDS = new Set([
   "g", "gram", "gr", "kg", "kilo", "mg",
   "dl", "cl", "ml", "l", "liter",
   "tsk", "spsk", "ss", "ts",

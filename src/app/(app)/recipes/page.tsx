@@ -6,6 +6,18 @@ import { parseSocialEmbed } from "@/lib/embed";
 import { NewRecipeDialog } from "@/components/new-recipe-dialog";
 import { RecipeDirectory, type RecipeSummary } from "@/components/recipe-directory";
 
+/**
+ * An import runs as a server action from this page, and it is the one thing in this app
+ * that does two slow things in a row: a fetch of somebody else's site, and then the read
+ * that turns what came back into a recipe. The platform's default ceiling is shorter than
+ * the two of them together, and a function killed mid-read looks to the cook exactly like
+ * an app that hung. The limits either half is allowed (`FETCH_TIMEOUT_MS` and
+ * `NORMALIZE_TIMEOUT_MS`) add up to well under this, so this is a backstop rather than a
+ * budget. It belongs on the segment rather than in `vercel.json`, which is schema-validated
+ * and rejects keys it does not know.
+ */
+export const maxDuration = 60;
+
 export default async function RecipesPage() {
   const user = await requireHomeUser();
   const db = homeDb(user.homeId);

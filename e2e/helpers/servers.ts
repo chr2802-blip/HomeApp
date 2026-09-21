@@ -39,3 +39,20 @@ export function serverUrl(worker: number) {
 export function serverDatabaseUrl(worker: number) {
   return workerDatabaseUrl(deriveE2eDatabaseUrl(), worker);
 }
+
+/**
+ * The port that worker's stand-in for the Messages API listens on.
+ *
+ * A hundred clear of the app servers so the two ranges cannot meet however many workers a
+ * machine decides on, and one per worker for the same reason the app servers are: a shared
+ * one would be a shared thing to restart, and the suite's whole arrangement is that a
+ * worker owns its world.
+ */
+export function anthropicStubPort(worker: number) {
+  return BASE_PORT + 100 + worker;
+}
+
+/** Where that worker's app server is told to send its reading. */
+export function anthropicStubUrl(worker: number) {
+  return `http://127.0.0.1:${anthropicStubPort(worker)}`;
+}
