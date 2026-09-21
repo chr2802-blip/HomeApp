@@ -602,10 +602,18 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
   the cupboard's salt; in brackets it finds nothing), **a unit is only ever written behind an
   amount**, and **a component is never a heading line of its own** — `writeRecipesToList`
   walks every line, and "Til dressingen:" would become an errand.
-- **The unit is checked on the way back, not on the wire.** The SDK converts the schema for
-  the API and drops what its format cannot carry, so a `z.enum` arrives as a plain string
-  with the values in its description — **a structured output's schema constrains less than
-  the zod schema says it does**. So `UNITS` is what the model is *offered*, and
+- **The schema asserts only what is worth losing the whole import over.** The SDK converts
+  it for the API and drops what that format cannot carry — an enum becomes a plain string,
+  `.positive()` becomes a line of description — but it still validates the answer against
+  the *original* zod schema on the way back. **So a constraint that never reached the model
+  is one the model can innocently break, and breaking it throws the recipe away.**
+  `totalTimeMinutes: 0`, meaning "the text did not say", did exactly that in production. So
+  nothing here narrows a value: `renderNormalized` coerces instead, where a wrong answer
+  costs one field. **And every `.describe()` goes before its `.nullish()`** — the other way
+  round the converter hoists the type into `$defs` and the description never reaches the
+  model at all, which is silent and total. `tests/unit/recipe-normalize.test.ts` holds both.
+- **The unit is checked on the way back, not on the wire.** So `UNITS` is what the model is
+  *offered*, and
   `canonicalUnit` is what it is *held to*: a unit is kept only if it is in `UNIT_WORDS`
   (`src/lib/recipes.ts`), and dropped otherwise rather than failing the import.
   `shoppingText` strips only a unit word it knows; one it does not stays attached to the

@@ -158,6 +158,28 @@ values written into its `description`. A structured output constrains less than 
 schema reads as though it does — worth knowing generally, and not something a type error
 would ever have revealed.
 
+**The same trap had a second door, and that one reached production.** The unit was fixed;
+`totalTimeMinutes: z.number().int().positive()` was not. `positive` is a constraint the wire
+format cannot carry either, so it arrived at the model as a line of description — and a
+model with a number-shaped field in front of it answers `0` for "the text did not say" often
+enough that it happened within hours. The API considered that answer entirely valid. The SDK
+then validated it against the original zod schema on the way back, threw, and every cook saw
+"Couldn't read that recipe just now" on a recipe that was perfectly fine.
+
+So the rule is now general rather than about units: **the schema asserts only what is worth
+losing the entire import over**, and `renderNormalized` coerces everything else, where a
+wrong value costs one field instead of the recipe. A zero or a negative becomes null; a
+fraction is rounded. What is left that can still fail is a recipe with no title and nothing
+to cook, which is a recipe there is nothing to show anyway.
+
+Loosening the fields turned up a third edge in the same corner, caught by a test rather than
+by production this time: **`.describe()` has to come before `.nullish()`.** The other way
+round, the converter hoists the inner type into `$defs` and drops every description — so the
+unit list, "the ingredient alone, not '1 stort hakket løg'", "a decimal, never 1 1/2", all of
+it, silently gone from what the model receives. With the constraints no longer travelling
+either, those descriptions are most of what shapes the answer, and losing them would have
+degraded every import with nothing to show for it.
+
 So the field is a plain string now, honestly, and `canonicalUnit` is the check: on the way
 back, lower-cased, kept only if it is in `UNIT_WORDS`. It asks `UNIT_WORDS` rather than
 `UNITS` because the real question is not "is this one of the ones we suggested" but "can

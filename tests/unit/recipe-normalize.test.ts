@@ -102,6 +102,27 @@ describe("the schema the reader must answer in", () => {
   });
 
   /*
+   * Fragile in a way nothing else would catch. `.describe()` has to come *before* its
+   * `.nullish()`: written the other way round the converter hoists the inner type into
+   * `$defs` and every description is dropped on the floor — no error, no type complaint,
+   * just an answer shaped by nothing but the system prompt. It is the guidance per field
+   * that carries the rules now, since the constraints themselves do not travel.
+   */
+  it("carries the guidance for each field, which is all that travels", () => {
+    const wire = JSON.stringify(zodOutputFormat(NormalizedRecipeSchema).schema);
+
+    for (const guidance of [
+      "The ingredient alone",
+      "never '1 1/2'",
+      "never a guess, and never zero",
+      "no step number in front of it",
+      "sends the cook to a link for the amounts",
+    ]) {
+      expect(wire).toContain(guidance);
+    }
+  });
+
+  /*
    * A canary, not a wish. The SDK converts the schema for the wire and drops what the API's
    * format does not carry, so a `z.enum` arrives as a plain string with its values written
    * into the description — which is why `canonicalUnit` checks the answer on the way back
@@ -112,6 +133,66 @@ describe("the schema the reader must answer in", () => {
     const wire = JSON.stringify(zodOutputFormat(NormalizedRecipeSchema).schema);
 
     expect(wire).not.toContain('"enum"');
+  });
+});
+
+/*
+ * The failure this whole block exists to stop, and it reached production once.
+ *
+ * The schema the model receives is a converted one, and the conversion drops what the API's
+ * format cannot carry: `.positive()` on a number survives as a line of description and
+ * nothing more. So a model answering `totalTimeMinutes: 0` for "the text did not say" sends
+ * something the API considered entirely valid — and the SDK, validating the answer against
+ * the *original* zod schema on the way back, threw the whole recipe away. What the cook saw
+ * was "Couldn't read that recipe just now", on a recipe that was fine, every single time.
+ *
+ * So every answer below is one the wire schema permits, and every one of them has to
+ * survive. A field the reader got wrong may cost that field; it may never cost the recipe.
+ */
+describe("an answer the wire schema permits", () => {
+  function read(answer: Record<string, unknown>) {
+    const parsed = zodOutputFormat(NormalizedRecipeSchema).parse(JSON.stringify(answer));
+    return renderNormalized(parsed, RAW);
+  }
+
+  const complete = {
+    isRecipe: true,
+    title: "Boller",
+    totalTimeMinutes: null,
+    ingredients: [{ name: "mel", amount: 500, unit: "g", preparation: null, note: null, group: null }],
+    instructions: [{ step: "Ælt det sammen.", component: null }],
+    needsReview: false,
+    reviewReason: null,
+  };
+
+  it.each([
+    ["no time, written as zero", { ...complete, totalTimeMinutes: 0 }],
+    ["no time, written as null", { ...complete, totalTimeMinutes: null }],
+    ["a time with a fraction in it", { ...complete, totalTimeMinutes: 22.5 }],
+    ["a negative time", { ...complete, totalTimeMinutes: -1 }],
+    ["an unrecognised unit", { ...complete, ingredients: [{ ...complete.ingredients[0], unit: "sticks" }] }],
+    ["no ingredients at all", { ...complete, ingredients: [] }],
+    ["the nullable fields simply left out", { isRecipe: true, title: "Boller", ingredients: [{ name: "mel" }], instructions: [{ step: "Ælt." }] }],
+    ["the arrays and the flags left out", { isRecipe: true, title: "Boller" }],
+    ["isRecipe left out", { title: "Boller", ingredients: [{ name: "mel" }], instructions: [{ step: "Ælt." }] }],
+  ])("survives %s", (_name, answer) => {
+    expect(() => read(answer)).not.toThrow();
+  });
+
+  it("reads zero, a fraction and a negative as what they mean about the time", () => {
+    expect(read({ ...complete, totalTimeMinutes: 0 }).totalTimeMinutes).toBeNull();
+    expect(read({ ...complete, totalTimeMinutes: -1 }).totalTimeMinutes).toBeNull();
+    expect(read({ ...complete, totalTimeMinutes: 22.5 }).totalTimeMinutes).toBe(23);
+    expect(read({ ...complete, totalTimeMinutes: 25 }).totalTimeMinutes).toBe(25);
+  });
+
+  it("keeps the ingredient when it is only the unit that is wrong", () => {
+    const { ingredients } = read({
+      ...complete,
+      ingredients: [{ ...complete.ingredients[0], unit: "sticks" }],
+    });
+
+    expect(ingredients).toBe("500 mel");
   });
 });
 

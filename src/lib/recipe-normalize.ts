@@ -122,36 +122,43 @@ const Ingredient = z.object({
     .string()
     .describe(
       "The ingredient alone, in the recipe's own language: 'løg', not '1 stort hakket løg'. No amount, no unit, no preparation, no packaging.",
-    ),
+    )
+    .nullish(),
   amount: z
     .number()
-    .nullable()
-    .describe("How much, as a decimal — 1.5, never '1 1/2'. Null for 'efter smag' and anything unmeasured."),
+    .describe("How much, as a decimal — 1.5, never '1 1/2'. Null for 'efter smag' and anything unmeasured.")
+    .nullish(),
   unit: z
     .string()
-    .nullable()
     .describe(
       `Exactly one of: ${UNITS.join(", ")}. Never converted to another, and never anything outside that list. Null for counted things ('2 æg') and for anything to taste.`,
-    ),
+    )
+    .nullish(),
   preparation: z
     .string()
-    .nullable()
-    .describe("How it is cut or readied at the stove: 'finthakket', 'smeltet', 'stuetemperatur'."),
+    .describe("How it is cut or readied at the stove: 'finthakket', 'smeltet', 'stuetemperatur'.")
+    .nullish(),
   note: z
     .string()
-    .nullable()
-    .describe("Anything discretionary: 'efter smag', 'plus mere til stegning', the full range where one was given."),
+    .describe("Anything discretionary: 'efter smag', 'plus mere til stegning', the full range where one was given.")
+    .nullish(),
   group: z
     .string()
-    .nullable()
     .describe(
       "The component this belongs to where the recipe separates them: 'Dej', 'Dressing', 'Marinade'. Null for a recipe with one component.",
-    ),
+    )
+    .nullish(),
 });
 
 const Step = z.object({
-  step: z.string().describe("One thing to do, in the recipe's own language, with no step number in front of it."),
-  component: z.string().nullable().describe("The component this step belongs to, matching an ingredient's group."),
+  step: z
+    .string()
+    .describe("One thing to do, in the recipe's own language, with no step number in front of it.")
+    .nullish(),
+  component: z
+    .string()
+    .describe("The component this step belongs to, matching an ingredient's group.")
+    .nullish(),
 });
 
 /**
@@ -163,27 +170,48 @@ const Step = z.object({
  * and checks what comes back out. The SDK's helper takes a `zod/v4` schema and this project
  * is on zod 4 — that lines up today, and a test is what keeps it lining up across an upgrade
  * of either, since the other way to find out is an import failing in production.
+ *
+ * **Two things about the shape here are not stylistic, and both were learned the hard way.**
+ *
+ * *Nothing narrows a value.* The schema the model receives is a converted one, and the
+ * conversion drops the constraints the API's format cannot carry: an enum becomes a plain
+ * string, and `.positive()` on a number becomes a line of description. But the SDK still
+ * validates the answer against the *original* schema on the way back — so a constraint that
+ * did not reach the model is a constraint the model can innocently break, and breaking it
+ * throws the whole recipe away. `totalTimeMinutes: 0`, meaning "the text did not say", did
+ * exactly that in production. So this asserts only what is worth losing an entire import
+ * over, and `renderNormalized` coerces the rest, where a wrong value costs one field.
+ *
+ * *Every `.describe()` comes before its `.nullish()`.* Written the other way round the
+ * converter hoists the inner type into `$defs` and the description never reaches the model
+ * at all — which, now that the constraints do not travel either, would leave the answer
+ * shaped by nothing but the system prompt. The unit list is the one that matters most.
  */
 export const NormalizedRecipeSchema = z.object({
   isRecipe: z
     .boolean()
-    .describe("False when the text is not a recipe at all — a shop page, a caption about somebody's lunch."),
-  title: z.string().describe("What the dish is called. Concise, and in the recipe's own language."),
+    .describe("False when the text is not a recipe at all — a shop page, a caption about somebody's lunch.")
+    .default(true),
+  title: z
+    .string()
+    .describe("What the dish is called. Concise, and in the recipe's own language.")
+    .nullish(),
   totalTimeMinutes: z
     .number()
-    .int()
-    .positive()
-    .nullable()
-    .describe("Start to finish, only where the text says so about the whole dish. Null otherwise — never a guess."),
-  ingredients: z.array(Ingredient),
-  instructions: z.array(Step),
+    .describe(
+      "Start to finish in whole minutes, only where the text says so about the whole dish. Null otherwise — never a guess, and never zero.",
+    )
+    .nullish(),
+  ingredients: z.array(Ingredient).default([]),
+  instructions: z.array(Step).default([]),
   needsReview: z
     .boolean()
-    .describe("True when the text is cut off, sends the cook to a link for the amounts, or leaves out key quantities."),
+    .describe("True when the text is cut off, sends the cook to a link for the amounts, or leaves out key quantities.")
+    .default(false),
   reviewReason: z
     .string()
-    .nullable()
-    .describe("One short sentence for the cook saying what to check. Null when nothing needs checking."),
+    .describe("One short sentence for the cook saying what to check. Null when nothing needs checking.")
+    .nullish(),
 });
 
 export type NormalizedRecipe = z.infer<typeof NormalizedRecipeSchema>;
@@ -312,7 +340,19 @@ export async function normalizeRecipe(raw: RawExtract, homeId: string): Promise<
       response.usage.output_tokens,
     );
   } catch (error) {
-    logUnavailable("api_error", error instanceof Error ? error.message : String(error));
+    // Worth telling apart in the log, because they want different things doing about them.
+    // An `APIError` is the far end — no key, no credit, a timeout, a refusal — and passes.
+    // A bare `AnthropicError` is the SDK rejecting the answer against the schema on the way
+    // back in, which is this app asserting something it should have coerced instead, and
+    // will happen again on every retry. The cook is told the same thing either way; there
+    // is nothing better to offer them, and the difference is ours to act on.
+    const reason =
+      error instanceof Anthropic.APIError
+        ? "api_error"
+        : error instanceof Anthropic.AnthropicError
+          ? "schema_rejected"
+          : "unknown_error";
+    logUnavailable(reason, error instanceof Error ? error.message : String(error));
     return { ok: false, reason: "unavailable" };
   }
 
@@ -382,7 +422,7 @@ export function renderNormalized(parsed: NormalizedRecipe, raw: RawExtract): Nor
 
   const instructions = parsed.instructions
     .map(({ step, component }) => {
-      const text = step.trim();
+      const text = step?.trim() ?? "";
       if (!text) return "";
       return component?.trim() ? `${component.trim()}: ${text}` : text;
     })
@@ -390,18 +430,31 @@ export function renderNormalized(parsed: NormalizedRecipe, raw: RawExtract): Nor
     .join("\n");
 
   return {
-    title: (parsed.title.trim() || raw.rawTitle?.trim() || "").slice(0, 200),
+    title: (parsed.title?.trim() || raw.rawTitle?.trim() || "").slice(0, 200),
     ingredients,
     instructions,
     // The page's own machine-readable duration wins. A site publishing `PT1H30M` is stating
     // the answer; anything read back out of prose is an inference, however good.
-    totalTimeMinutes: raw.timeHintMinutes ?? parsed.totalTimeMinutes,
+    totalTimeMinutes: raw.timeHintMinutes ?? cookingMinutes(parsed.totalTimeMinutes),
     note: parsed.needsReview ? (parsed.reviewReason?.trim() || null) : null,
   };
 }
 
+/**
+ * A number of minutes a recipe could actually take, or null.
+ *
+ * `null` is how the schema asks for "the text did not say", but a model with a number-shaped
+ * field in front of it reaches for `0` often enough to matter — and zero is not a shorter
+ * recipe, it is the same absence written differently. A fraction gets rounded, because the
+ * form and the `/recipes` filter both deal in whole minutes.
+ */
+function cookingMinutes(minutes: number | null | undefined): number | null {
+  if (typeof minutes !== "number" || !Number.isFinite(minutes) || minutes <= 0) return null;
+  return Math.round(minutes);
+}
+
 function ingredientLine(item: z.infer<typeof Ingredient>): string {
-  const name = item.name.trim();
+  const name = item.name?.trim();
   if (!name) return "";
 
   const unit = canonicalUnit(item.unit);
@@ -410,7 +463,7 @@ function ingredientLine(item: z.infer<typeof Ingredient>): string {
   // "knivspids salt" is a thing to buy called knivspids salt — `shoppingText` strips a unit
   // word only where an amount preceded it, so a bare one stays attached to the ingredient
   // and the cupboard's salt is never found again.
-  const amount = item.amount === null ? "" : formatAmount(item.amount);
+  const amount = typeof item.amount === "number" ? formatAmount(item.amount) : "";
   const measure = amount ? [amount, unit ?? ""].filter(Boolean).join(" ") : "";
 
   const head = measure ? `${measure} ${name}` : name;
@@ -430,7 +483,7 @@ function ingredientLine(item: z.infer<typeof Ingredient>): string {
  * over that — which is what a stricter schema would do, since the SDK throws on a value its
  * zod schema rejects — would be the app being pedantic at the cook's expense.
  */
-function canonicalUnit(raw: string | null): string | null {
+function canonicalUnit(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const unit = raw.trim().toLowerCase().replace(/\.$/, "");
   return UNIT_WORDS.has(unit) ? unit : null;

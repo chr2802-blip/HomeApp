@@ -233,7 +233,9 @@ export async function fetchRecipeFromUrl(rawUrl: string, homeId: string): Promis
  * in by hand.
  */
 async function fetchRecipeFromReel(url: URL, homeId: string): Promise<ImportOutcome> {
-  for (const source of captionSources(url.toString())) {
+  const sources = captionSources(url.toString());
+
+  for (const source of sources) {
     const read = await readCaptionSource(source);
     if (!read) continue;
 
@@ -241,6 +243,19 @@ async function fetchRecipeFromReel(url: URL, homeId: string): Promise<ImportOutc
       notARecipe: CAPTION_NOT_A_RECIPE,
     });
   }
+
+  // Running out of sources is the line worth finding in a log: the cook has just been told
+  // to paste the description in by hand, and the `reel_caption_source` lines immediately
+  // above this one say why each address refused.
+  console.error(
+    JSON.stringify({
+      level: "error",
+      event: "reel_caption_unreachable",
+      url: url.toString(),
+      sourcesTried: sources.length,
+      at: new Date().toISOString(),
+    }),
+  );
 
   return { ok: false, error: CAPTION_UNREACHABLE, notARecipe: true };
 }
@@ -376,10 +391,41 @@ async function fetchReelThumbnail(url: URL, homeId: string): Promise<string | nu
   return read ? importRecipeImage(read.imageUrl, first.url, homeId) : null;
 }
 
-/** One caption source fetched and read, under the same limits as any other link. */
+/**
+ * One caption source fetched and read, under the same limits as any other link — and every
+ * way it can fail written down.
+ *
+ * A reel that will not import is the one failure in this app with nothing to look at. Meta
+ * refusing a signed-out request, a login wall served instead of the post, the eight-second
+ * limit running out, the embed page quietly changing shape: all four ended here as the same
+ * `null`, and the cook got the same sentence about Instagram often refusing. Which of them
+ * it actually was decides whether there is anything to be done — a timeout is a number in
+ * this file, a 403 from a datacenter is not something code can fix — so each one now says so
+ * on its way past.
+ *
+ * `warn` rather than `error`: one source refusing is ordinary and expected, and only running
+ * out of them is worth anybody's attention. The body is never logged, only shapes read off
+ * it — a login wall is worth knowing about and a stranger's recipe is not ours to keep.
+ */
 async function readCaptionSource(source: CaptionSource): Promise<ReelCaption | null> {
+  const note = (outcome: string, detail: Record<string, unknown> = {}) =>
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        event: "reel_caption_source",
+        url: source.url,
+        kind: source.kind,
+        outcome,
+        ...detail,
+        at: new Date().toISOString(),
+      }),
+    );
+
   const url = safeImportUrl(source.url);
-  if (!url) return null;
+  if (!url) {
+    note("blocked_address");
+    return null;
+  }
 
   let response: Response;
   try {
@@ -388,22 +434,52 @@ async function readCaptionSource(source: CaptionSource): Promise<ReelCaption | n
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: REQUEST_HEADERS,
     });
-  } catch {
+  } catch (error) {
+    // A timeout arrives here as a `TimeoutError`, which is the one failure on this list that
+    // a number in this file could fix, so it is worth telling apart from a refused connection.
+    const name = error instanceof Error ? error.name : "unknown";
+    note(name === "TimeoutError" ? "timed_out" : "fetch_failed", {
+      afterMs: FETCH_TIMEOUT_MS,
+      name,
+    });
     return null;
   }
-  if (!response.ok || !response.body) return null;
-  if (isBlockedHost(new URL(response.url).hostname)) return null;
+  if (!response.ok || !response.body) {
+    note("http_error", { status: response.status });
+    return null;
+  }
+  if (isBlockedHost(new URL(response.url).hostname)) {
+    note("redirected_to_blocked_address");
+    return null;
+  }
 
   const contentType = response.headers.get("content-type") ?? "";
   let bytes: Uint8Array;
   try {
     bytes = await readLimited(response.body, MAX_RESPONSE_BYTES);
   } catch {
+    note("too_large", { limit: MAX_RESPONSE_BYTES });
     return null;
   }
 
   const body = decodeHtml(bytes, contentType);
-  return source.kind === "json" ? captionFromOEmbed(body) : captionFromHtml(body);
+  const read = source.kind === "json" ? captionFromOEmbed(body) : captionFromHtml(body);
+  if (!read) {
+    // Answered 200 and still no caption, which is the interesting case: a login wall dressed
+    // as a page, or an embed page whose markup has moved. Told apart by what is in it, since
+    // both are a perfectly ordinary-looking success as far as the request is concerned.
+    note("no_caption", {
+      status: response.status,
+      bytes: bytes.byteLength,
+      contentType,
+      looksLikeLoginWall: /accounts\/login|loginForm|"LoginAndSignupPage"/i.test(body),
+      hasCaptionElement: body.includes("class=\"Caption"),
+      hasOgDescription: body.includes('property="og:description"'),
+    });
+    return null;
+  }
+
+  return read;
 }
 
 /**

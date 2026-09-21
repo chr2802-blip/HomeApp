@@ -67,6 +67,9 @@ function htmlResponse(html: string | Buffer, overrides: Partial<Response> = {}) 
   });
   return {
     ok: true,
+    // Set because the diagnostics log it: a fake response with no status logs no status,
+    // which reads as the code forgetting rather than the fixture being thin.
+    status: 200,
     url: "https://example.com/recipe",
     body,
     headers: new Headers({ "content-type": "text/html; charset=utf-8" }),
@@ -462,6 +465,90 @@ describe("fetchRecipeFromUrl — a reel", () => {
       notARecipe: true,
     });
     expect(normalizeRecipe).not.toHaveBeenCalled();
+  });
+
+  /*
+   * A reel that will not import is the one failure in this app with nothing to look at.
+   * Meta refusing, a login wall served as a page, the timeout running out and the embed
+   * markup moving all used to end as the same silent `null`, and the cook got the same
+   * sentence for all four — so nobody could tell which of them had anything to be done
+   * about it. These pin that each one now says so, because a log line nobody wrote is a
+   * log line nobody can read.
+   */
+  describe("says why each source refused", () => {
+    function captureLogs() {
+      const lines: Record<string, unknown>[] = [];
+      const record = (text: unknown) => {
+        try {
+          lines.push(JSON.parse(String(text)));
+        } catch {
+          // Not one of ours.
+        }
+      };
+      vi.spyOn(console, "warn").mockImplementation(record);
+      vi.spyOn(console, "error").mockImplementation(record);
+      return lines;
+    }
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("names the status when a source answers with one", async () => {
+      const lines = captureLogs();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({ ok: false, status: 403, url: REEL, body: null, headers: new Headers() } as Response),
+      );
+
+      await fetchRecipeFromUrl(REEL, HOME_ID);
+
+      expect(lines).toContainEqual(
+        expect.objectContaining({ event: "reel_caption_source", outcome: "http_error", status: 403 }),
+      );
+    });
+
+    it("tells a timeout apart from a refused connection, since only one is ours to change", async () => {
+      const lines = captureLogs();
+      const timeout = Object.assign(new Error("timed out"), { name: "TimeoutError" });
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(timeout));
+
+      await fetchRecipeFromUrl(REEL, HOME_ID);
+
+      expect(lines).toContainEqual(
+        expect.objectContaining({ event: "reel_caption_source", outcome: "timed_out" }),
+      );
+    });
+
+    // The interesting one: a perfectly ordinary 200 that is a login wall rather than a post.
+    it("says a page answered and still had no caption, and what it looked like", async () => {
+      const lines = captureLogs();
+      const loginWall = `<html><body><div id="loginForm">Log in to see this</div></body></html>`;
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(loginWall, { url: REEL })));
+
+      await fetchRecipeFromUrl(REEL, HOME_ID);
+
+      expect(lines).toContainEqual(
+        expect.objectContaining({
+          event: "reel_caption_source",
+          outcome: "no_caption",
+          status: 200,
+          looksLikeLoginWall: true,
+          hasCaptionElement: false,
+        }),
+      );
+    });
+
+    it("records running out of sources, which is the line the cook's error came from", async () => {
+      const lines = captureLogs();
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("refused")));
+
+      await fetchRecipeFromUrl(REEL, HOME_ID);
+
+      expect(lines).toContainEqual(
+        expect.objectContaining({ event: "reel_caption_unreachable", url: REEL, sourcesTried: 2 }),
+      );
+    });
   });
 });
 
