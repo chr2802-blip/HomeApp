@@ -26,6 +26,14 @@ one-off that has been done is out of all of that for good.
 **Recipes** — Title, description, ingredients and instructions (one per line). Paste an
 Instagram, YouTube, TikTok, Vimeo or Facebook link and the video is embedded on the recipe page.
 Links from any other host are shown as a plain "open in new tab" link rather than embedded.
+**Import from a link** takes a recipe page or a reel: the text is pulled off the page — its
+`schema.org` markup, or a reel's own description, or failing both the page's visible words —
+and then read into a recipe by Claude, which deduplicates the lines, separates each amount
+from its unit and its ingredient, and throws away the hashtags and the "follow for more".
+The result opens in the ordinary create form to check over before saving. This needs
+`ANTHROPIC_API_KEY`; without it the importer says so and offers the form instead. A reel
+whose description Instagram will not hand over can be pasted in by hand, and is read the
+same way.
 **Add to list** puts every ingredient onto whichever of the home's lists you pick: anything
 already on it is wanted one more time rather than written twice, anything ticked off comes
 back, and each line then says which recipe asked for it — two recipes wanting onions name

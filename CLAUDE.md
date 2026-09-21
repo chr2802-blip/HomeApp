@@ -550,50 +550,73 @@ from a link**. Three steps, all inside the one `Modal`.
   seen choosing; the read is raced against `CLIPBOARD_GRACE_MS`, because `readText()` can sit
   unresolved behind a permission decision nobody will make. Choosing "Import from a link" by
   hand always starts blank.
-- **Importing reads the page's own structured data rather than scraping it**: `schema.org/
-  Recipe` as JSON-LD first, then Microdata, each filling in what the other left blank. A page
-  with nothing to cook from is **refused rather than guessed at from prose**, and marked
-  `notARecipe` — **the client checks the flag, never the error string**, because
-  `recipe-import.ts` pulls in `sharp` and nothing runtime from it may reach a client component.
+- The title, ingredients, instructions, picture and total time come back filled in; the
+  categories are the form's own fields either way — **except for a reel**, where the pasted
+  link *is* the video and fills `videoUrl`.
+
+### An import is two stages, and only the second one decides what a recipe is
+
+Extraction and reading are separate, and the split is the whole architecture.
+
+**Stage one gathers text and judges nothing.** `recipe-extract.ts` reads a page's
+`schema.org/Recipe` markup — JSON-LD first, Microdata filling in what it left blank — and
+where a page publishes neither, takes its visible text with the furniture stripped out.
+`reel-import.ts` does the same job for a reel, whose recipe is the paragraph under the video
+and never markup: `isReelUrl` routes those links there before anything is fetched, and
+`captionSources` is the one opinion about which links those are (`parseSocialEmbed` in
+`embed.ts` knows the same hosts for a different job, building an iframe `src`, and the two
+stay apart). All three routes — page, reel, pasted description — produce one `RawExtract`.
+
+**Stage two is `recipe-normalize.ts`, and it is the only thing in this app that reads text as
+a recipe.** One model call (`claude-sonnet-5`), one zod-constrained answer, deduplicating
+lines, splitting each amount from its unit and its ingredient, and throwing away the hashtags
+and the "follow for more". It is also allowed to refuse: `isRecipe: false` is the answer for
+a shop page or somebody's lunch, and that refusal is what makes stage one's fall back to
+visible text safe at all.
+
+There used to be two readers — one picking fields out of markup, one taking a caption apart
+by line length and heading words — and the recipe a cook got depended on which door they came
+in by. Both were pattern-matchers being asked a question patterns cannot answer.
+
+- **There is no fallback to a second reader.** The heuristics were deleted, not kept as a
+  floor: a floor made of the thing that was getting it wrong is the same two answers to one
+  question. **No `ANTHROPIC_API_KEY`, or an API that will not answer, is an honest refusal**
+  with the paste box and the plain form beside it — never a quietly worse recipe.
+- **`renderNormalized` writes the lines, and its format is load-bearing.** An ingredient line
+  is read back by `shoppingText`, `pantryKey`, `writeRecipesToList` and `staplesOf`, so:
+  everything discretionary goes **after a comma** (`Salt, efter smag` becomes `Salt` and finds
+  the cupboard's salt; in brackets it finds nothing), **a unit is only ever written behind an
+  amount**, and **a component is never a heading line of its own** — `writeRecipesToList`
+  walks every line, and "Til dressingen:" would become an errand.
+- **The unit is checked on the way back, not on the wire.** The SDK converts the schema for
+  the API and drops what its format cannot carry, so a `z.enum` arrives as a plain string
+  with the values in its description — **a structured output's schema constrains less than
+  the zod schema says it does**. So `UNITS` is what the model is *offered*, and
+  `canonicalUnit` is what it is *held to*: a unit is kept only if it is in `UNIT_WORDS`
+  (`src/lib/recipes.ts`), and dropped otherwise rather than failing the import.
+  `shoppingText` strips only a unit word it knows; one it does not stays attached to the
+  ingredient, so a model writing "2 tablespoons salt" breaks the pantry silently. Danish
+  first, because that is what this household's recipes are in — and the recipe **keeps its
+  own language**, never translated.
+- **A page's own machine-readable `totalTime` beats the reader's.** `PT1H30M` is the site
+  stating the answer; a number read out of prose is an inference.
 - **The link is fetched from this app's own server, so it is checked the way that has to be:**
   `isBlockedHost` before anything is requested, and the response's own `url` again after
-  redirects. Size and time are both bounded. The recipe's picture is resolved against the
-  address actually landed on, checked the same way, downscaled server-side and stored through
-  `storePhoto`; one that cannot be fetched is left out quietly.
-- The title, ingredients, instructions, picture and total time come from the fetch; the video
-  link and categories are the form's own fields either way — **except for a reel**, where the
-  pasted link *is* the video and fills `videoUrl`.
-
-### A reel keeps its recipe in the caption, so that is what is read
-
-Instagram, Facebook and TikTok publish no `schema.org/Recipe` markup, so the rule above can
-only ever refuse a reel correctly. What a recipe reel has instead is the paragraph under the
-video. **`isReelUrl` routes those links elsewhere before anything is fetched**, and
-`captionSources` in `src/lib/reel-import.ts` is the one opinion about which links those are —
-`parseSocialEmbed` in `embed.ts` knows the same hosts for a different job (building an iframe
-`src`) and the two stay apart.
-
-- **Three modules, split by what can be wrong about them.** `caption-recipe.ts` is text in,
-  text out — no network, no database — because the half that can be wrong while everything
-  else works is the *reading*. `reel-import.ts` is the addresses and the markup.
-  `recipe-import.ts` keeps the fetching, so a reel's requests still go through the one
-  `isBlockedHost`, timeout and size limit.
-- **None of the addresses is a supported API, and all of them failing is an ordinary
-  outcome**, not a bug: Meta refuses a signed-out request from a datacenter often enough that
-  a feature resting on it alone would work on a laptop and not on Vercel. So the sources are
-  tried in order, best first.
-- **Which is why the paste box is the load-bearing half.** `importPastedCaption` runs the
-  very same parser, so a caption means one thing here however it arrived — and nothing on
-  Meta's side can block it. Offered on any `notARecipe` failure **and** from a button under
-  the link field, so a cook who knows how this reel ends need not sit out two timeouts.
-- **The parser is shy on purpose**: a caption it cannot recognise is refused rather than
-  turned into a recipe whose ingredients are somebody's tagged friends. Headings
-  ("Ingredienser"/"Fremgangsmåde", and the English pair) are simply obeyed; a caption naming
-  none needs three ingredient-shaped lines before it is a recipe at all.
-- **The total time is read only beside a phrase meaning the whole dish** — a bare "20 min" is
-  nearly always one step's own timing — and **the line that said it is then dropped**, or
-  every such caption ends with a step telling the cook how long the thing they just made
-  takes.
+  redirects. Size and time are both bounded. The picture is resolved against the address
+  actually landed on, checked the same way, downscaled server-side and stored through
+  `storePhoto` — **only once the reading came back good**, and one that cannot be fetched is
+  left out quietly.
+- **The content is data, never instructions.** It comes from a page whoever pasted the link
+  did not write; the system prompt says so, and a page addressing the reader is a page with no
+  recipe on it.
+- **The importer is rate limited** (`checkRateLimit("import", …)`), because each import spends
+  an outbound fetch and a model call on somebody else's say-so.
+- **The paste box is the load-bearing half**, offered on any `notARecipe` failure and from a
+  button under the link field. It goes to the very same reader, and nothing on Meta's side can
+  block it.
+- The browser suite drives the whole import against **`e2e/helpers/anthropic-stub.mjs`**, one
+  per worker, pointed at by `ANTHROPIC_BASE_URL`. A test that called the real API would be
+  billed, would differ between runs, and would fail whenever somebody else's service did.
 
 **[`docs/design/recipes.md`](docs/design/recipes.md) has the reasoning.**
 
