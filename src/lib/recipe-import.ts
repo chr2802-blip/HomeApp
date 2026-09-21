@@ -112,6 +112,26 @@ const REQUEST_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
 };
+/**
+ * What the caption sources are asked with instead, and why it is different.
+ *
+ * The browser string above is right for an ordinary recipe site, which serves the same page
+ * to everybody and merely wants to see a browser. A social network is the opposite: it
+ * answers a browser with the shell of a single-page app — several hundred kilobytes of
+ * JavaScript that would render the caption *in a browser*, and carries nothing readable for
+ * anything that is not one. That is what came back the first time this was instrumented: 200
+ * OK, 632 KB, no login wall, and neither a caption element nor an `og:description` in it.
+ *
+ * What those sites do serve markup to is a crawler, because a link with no preview is a link
+ * nobody shares. So the caption sources ask as one — honestly, as this app, with somewhere
+ * to look it up. Whether Instagram extends that courtesy to a crawler it has never heard of
+ * is exactly the open question; `reel_caption_source` will say.
+ */
+const CRAWLER_HEADERS = {
+  Accept: "text/html,application/xhtml+xml",
+  "User-Agent": "Mozilla/5.0 (compatible; HomeHubBot/1.0; +https://home-app-three-virid.vercel.app)",
+};
+
 // Deliberately no Accept-Language: the link already says which page a cook wants, and
 // a site that negotiates by language rather than URL — some do, across country and
 // language domains — took an English preference here as a reason to swap in its
@@ -432,7 +452,7 @@ async function readCaptionSource(source: CaptionSource): Promise<ReelCaption | n
     response = await fetch(url, {
       redirect: "follow",
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      headers: REQUEST_HEADERS,
+      headers: CRAWLER_HEADERS,
     });
   } catch (error) {
     // A timeout arrives here as a `TimeoutError`, which is the one failure on this list that
@@ -470,6 +490,11 @@ async function readCaptionSource(source: CaptionSource): Promise<ReelCaption | n
     // both are a perfectly ordinary-looking success as far as the request is concerned.
     note("no_caption", {
       status: response.status,
+      // Where the request actually ended up, which the first round of this had no way to
+      // say: an embed page quietly redirected to the app's front door and an embed page
+      // that answered in person look identical from here without it.
+      landedOn: response.url,
+      title: /<title[^>]*>([^<]{0,120})/i.exec(body)?.[1]?.trim() ?? "",
       bytes: bytes.byteLength,
       contentType,
       looksLikeLoginWall: /accounts\/login|loginForm|"LoginAndSignupPage"/i.test(body),
@@ -588,8 +613,13 @@ async function readLimited(body: ReadableStream<Uint8Array>, maxBytes: number): 
  * is exactly invisible on an English test page and wrong on every other kind.
  */
 function decodeHtml(bytes: Uint8Array, contentType: string): string {
+  // The quotes are the trap: `charset="utf-8"` is a perfectly legal header, and capturing
+  // them along with the label hands `TextDecoder` a name it has never heard of, which throws
+  // and falls quietly back to UTF-8. Right by luck whenever the page really is UTF-8, and
+  // mojibake on the Danish page declaring `charset="iso-8859-1"` — which is the exact case
+  // this function exists for. Found by a diagnostic log that printed the header verbatim.
   const declared =
-    /charset=([^;]+)/i.exec(contentType)?.[1] ??
+    /charset=\s*"?([^";]+)"?/i.exec(contentType)?.[1] ??
     // The HTML spec allows the charset to be declared in a <meta> tag instead of the
     // response header, always within the first kilobyte — no need to read further.
     /<meta[^>]+charset=["']?([a-z0-9_-]+)/i.exec(

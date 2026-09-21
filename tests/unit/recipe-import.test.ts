@@ -228,6 +228,37 @@ describe("fetchRecipeFromUrl", () => {
     expect(wasRead().rawTitle).toBe("Kødsauce");
   });
 
+  /*
+   * `charset="iso-8859-1"` — with the quotes, which is legal and which Instagram sends —
+   * used to be captured quotes and all, handed to `TextDecoder` as a name it has never
+   * heard of, and thrown away in favour of UTF-8. Invisible on a page that really is UTF-8
+   * and mojibake on the Danish one, which is the exact case this decoding exists for.
+   */
+  it("decodes a charset the header wrapped in quotes", async () => {
+    const html = Buffer.from(
+      pageWithLdJson({
+        "@type": "Recipe",
+        name: "K\xf8dsauce",
+        recipeIngredient: ["Hakket oksek\xf8d"],
+        recipeInstructions: "Brun k\xf8det.",
+      }),
+      "latin1",
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        htmlResponse(html, {
+          url: "https://example.dk/opskrift",
+          headers: new Headers({ "content-type": 'text/html; charset="iso-8859-1"' }),
+        }),
+      ),
+    );
+
+    await fetchRecipeFromUrl("https://example.dk/opskrift", HOME_ID);
+
+    expect(wasRead().rawContent).toContain("Hakket oksekød");
+  });
+
   it("refuses a response that is not HTML", async () => {
     vi.stubGlobal(
       "fetch",
@@ -416,6 +447,26 @@ describe("fetchRecipeFromUrl — a reel", () => {
     );
   });
 
+  /*
+   * A browser string gets the single-page app: 632 KB of JavaScript with the caption in
+   * none of it. Markup is what these sites serve a crawler, because a link with no preview
+   * is a link nobody shares — so this is the one place in the app that does not ask as a
+   * browser, and an ordinary recipe page still does.
+   */
+  it("asks a social network as a crawler, and an ordinary recipe page as a browser", async () => {
+    const reelFetch = vi.fn().mockResolvedValue(htmlResponse(embedPage, { url: REEL }));
+    vi.stubGlobal("fetch", reelFetch);
+    await fetchRecipeFromUrl(REEL, HOME_ID);
+    expect(reelFetch.mock.calls[0][1].headers["User-Agent"]).toMatch(/HomeHubBot/);
+
+    vi.unstubAllGlobals();
+
+    const pageFetch = vi.fn().mockResolvedValue(htmlResponse(goodHtml));
+    vi.stubGlobal("fetch", pageFetch);
+    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID);
+    expect(pageFetch.mock.calls[0][1].headers["User-Agent"]).toMatch(/Mozilla\/5\.0 \(Windows/);
+  });
+
   it("tries the next source when the first refuses, rather than giving up on the reel", async () => {
     const withOgDescription = `<html><head>
       <meta property="og:description" content="12 likes - somekitchen: &quot;Boller&#10;Ingredienser&#10;500 g mel&quot;" />
@@ -535,6 +586,34 @@ describe("fetchRecipeFromUrl — a reel", () => {
           status: 200,
           looksLikeLoginWall: true,
           hasCaptionElement: false,
+        }),
+      );
+    });
+
+    /*
+     * The field the first round of diagnostics did not have, and the one that would have
+     * settled it: an embed page that redirected to the app's front door and an embed page
+     * that answered in person are indistinguishable from here without it.
+     */
+    it("says where the request actually landed, not where it was aimed", async () => {
+      const lines = captureLogs();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          htmlResponse("<html><head><title>Instagram</title></head><body>app shell</body></html>", {
+            url: "https://www.instagram.com/accounts/login/",
+          }),
+        ),
+      );
+
+      await fetchRecipeFromUrl(REEL, HOME_ID);
+
+      expect(lines).toContainEqual(
+        expect.objectContaining({
+          event: "reel_caption_source",
+          outcome: "no_caption",
+          landedOn: "https://www.instagram.com/accounts/login/",
+          title: "Instagram",
         }),
       );
     });
