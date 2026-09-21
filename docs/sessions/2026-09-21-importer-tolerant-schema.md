@@ -86,6 +86,49 @@ This is deliberately diagnosis and not a fix: the plausible causes range from a 
 timeout change to "Meta blocks datacenter IPs and always will", and guessing between them
 would mean building the wrong one.
 
+## What the diagnostics then said
+
+Both Instagram sources answered **200 with 632 KB**, no login wall, and neither a caption
+element nor an `og:description` in any of it. That is not a refusal: it is the single-page
+app, served to something that asked as a browser. The caption is in that page's JavaScript,
+not its markup, and nothing that is not a browser will ever find it there.
+
+So the fix is to stop asking as a browser. These sites do serve markup — to crawlers,
+because a link with no preview is a link nobody shares. `CRAWLER_HEADERS` asks honestly, as
+this app, with a URL to look it up at. Whether Instagram extends that to a crawler it has
+never heard of is the open question, and the same log line will answer it.
+
+Two things came out of that round that had nothing to do with reels:
+
+- **The first diagnostics could not have settled it.** They said what came back but not
+  *where it came from* — an embed page that redirected to the front door and one that
+  answered in person looked identical. `landedOn` and `title` are in the line now. A
+  diagnostic that cannot distinguish the hypotheses is half a diagnostic.
+- **A real decoding bug, found by printing a header verbatim.** `contentType` came back as
+  `text/html; charset="utf-8"` — with quotes, which is legal — and the regex captured them,
+  handed `TextDecoder` a name it has never heard of, and fell back to UTF-8. Harmless when
+  the page really is UTF-8, mojibake on a Danish page declaring `charset="iso-8859-1"`,
+  which is the exact case that decoding was written for.
+
+## Still open: a browser test that fails about one run in three
+
+`pantry.spec.ts:81` — "the pantry is reached from the home's own name, and kept there" —
+failed in two of roughly six full-suite runs today, and passed 24 out of 24 when run on its
+own with `--repeat-each=4`. So it only goes wrong under the load of the whole suite, which
+is why it has not been caught: nothing reproduces it on demand.
+
+Not diagnosed, and deliberately not "fixed". I never managed to capture the assertion — the
+failing run's `test-results` were cleaned by the next, passing one before I read them — and
+inventing a repair for a failure I have not seen is how a timeout gets added to a race.
+Playwright keeps a trace on failure, so the next occurrence is diagnosable if the artifacts
+are read before anything else runs.
+
+Worth noting against this branch specifically: it adds a stub server per browser worker, so
+a two-worker run now starts four processes where it started two. That is a plausible
+contribution to a timing-sensitive test on a container with no headroom, and it is not
+proven — the test also wraps its own edit click in `retry`, which suggests it was marginal
+before any of this.
+
 ## Decided rather than known
 
 - **`isRecipe` defaults to `true` when the model omits it.** An answer that forgets the flag
@@ -96,10 +139,14 @@ would mean building the wrong one.
 - **The log now separates `api_error` from `schema_rejected`**, by SDK error class rather
   than message text. The cook sees the same words either way — there is nothing better to
   offer them — but one of those passes on its own and the other is ours and will recur.
-- **Whether reels can be made to work at all is still unknown**, and the diagnostics exist
-  to answer it. If the lines say `http_error 403` or `no_caption looksLikeLoginWall: true`,
-  there is nothing in this repo to change and the paste box is the feature. If they say
-  `timed_out`, `FETCH_TIMEOUT_MS` is the fix.
+- **Whether reels can be made to work at all is still unknown.** The first round ruled out a
+  block and a timeout: it is the app shell, so the question is now narrower — will Instagram
+  serve markup to a crawler that is not one of the handful it knows? If not, the remaining
+  levers are Meta's official oEmbed (an App Review process), a residential proxy, or a
+  third-party mirror, and the honest answer becomes that the paste box is the feature.
+- **The crawler identifies itself truthfully as HomeHubBot.** Sending `facebookexternalhit`
+  is what demonstrably works and is impersonating somebody else's crawler; that is a call
+  for the household to make, not for this file to make quietly.
 - **Whether the schema bug was actually the user's failure: no, it was not.** It is a real bug
   that produces exactly this message on exactly this kind of recipe, and it is fixed either
   way; but if their log line says `no_api_key`, the cause was the key and this was a
