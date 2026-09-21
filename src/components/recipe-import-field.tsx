@@ -57,6 +57,10 @@ export function RecipeImportField({
   const [caption, setCaption] = useState("");
   const [showCaption, setShowCaption] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Which of the two round trips is in flight, so the one status block below can say
+  // something more specific than "pending" — reading a page and reading a pasted
+  // caption take the same shape of time but are not the same wait to describe.
+  const [stage, setStage] = useState<"idle" | "fetching" | "reading">("idle");
   const [pending, startTransition] = useTransition();
 
   function setFetchError(message: string | null, notARecipe = false) {
@@ -75,10 +79,12 @@ export function RecipeImportField({
     }
 
     setFetchError(null);
+    setStage("fetching");
     startTransition(async () => {
       const formData = new FormData();
       formData.set("importUrl", trimmed);
       const result = await importRecipeFromUrl(undefined, formData);
+      setStage("idle");
       if (result.ok) {
         onImported(result.recipe);
         setUrl("");
@@ -98,11 +104,13 @@ export function RecipeImportField({
     }
 
     setError(null);
+    setStage("reading");
     startTransition(async () => {
       const formData = new FormData();
       formData.set("importCaption", caption);
       formData.set("importUrl", url.trim());
       const result = await importRecipeFromCaption(undefined, formData);
+      setStage("idle");
       if (result.ok) onImported(result.recipe);
       else setError(result.error);
     });
@@ -128,6 +136,7 @@ export function RecipeImportField({
             placeholder="https://www.example.com/recipe/..."
             value={url}
             onChange={(event) => setUrl(event.target.value)}
+            disabled={pending}
             className="min-w-48 flex-1"
           />
           <Button
@@ -137,7 +146,8 @@ export function RecipeImportField({
             disabled={pending}
             aria-busy={pending}
           >
-            {pending ? "Fetching…" : "Fetch"}
+            {pending && <Spinner />}
+            {stage === "fetching" ? "Fetching…" : "Fetch"}
           </Button>
         </div>
         <p className="text-xs text-slate-500">
@@ -145,6 +155,29 @@ export function RecipeImportField({
           ingredients, instructions, picture and time open in the usual form, tidied up and
           ready to check over before saving.
         </p>
+        {/*
+          A page fetch plus the AI writing the recipe up can run well past what a button's
+          own label reads as "still working" — so this is not that label said twice, it is
+          the thing to look at instead of it: bigger, worded per stage, and the one part of
+          the step that keeps moving for as long as the wait does.
+        */}
+        {pending && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5"
+          >
+            <Spinner className="h-5 w-5 text-slate-500" />
+            <div>
+              <p className="text-sm font-medium text-slate-900">
+                {stage === "reading" ? "Reading the description…" : "Reading the recipe…"}
+              </p>
+              <p className="text-xs text-slate-500">
+                The AI is writing it up — this can take up to 20 seconds.
+              </p>
+            </div>
+          </div>
+        )}
         {error && (
           <p role="alert" className="text-sm text-red-600">
             {error}
@@ -156,6 +189,7 @@ export function RecipeImportField({
             variant="ghost"
             className="px-0 text-sm"
             onClick={() => setShowCaption(true)}
+            disabled={pending}
           >
             Paste the description instead
           </Button>
@@ -171,6 +205,7 @@ export function RecipeImportField({
             placeholder={"Ingredienser\n200 g mel\n2 æg\n\nFremgangsmåde\nRør det hele sammen."}
             value={caption}
             onChange={(event) => setCaption(event.target.value)}
+            disabled={pending}
           />
           <p className="text-xs text-slate-500">
             The text under the video, with its ingredients and steps. It is read by the same
@@ -184,10 +219,26 @@ export function RecipeImportField({
             disabled={pending}
             aria-busy={pending}
           >
-            {pending ? "Reading…" : "Read the description"}
+            {pending && <Spinner />}
+            {stage === "reading" ? "Reading…" : "Read the description"}
           </Button>
         </div>
       )}
     </div>
+  );
+}
+
+function Spinner({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={`animate-spin ${className}`}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      aria-hidden="true"
+    >
+      <path d="M12 3a9 9 0 1 0 9 9" strokeLinecap="round" />
+    </svg>
   );
 }
