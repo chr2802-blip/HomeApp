@@ -249,6 +249,7 @@ Keep the recipe in the language it was written in. A Danish recipe stays Danish 
 
 ### Ingredients
 - Split every line into name, amount, unit and preparation. \`name\` is the ingredient alone: "løg", not "1 stort finthakket løg". The cut or state goes in \`preparation\`.
+- **Leave \`preparation\` out when a later step already says it.** "2 kartofler, i tern" beside a step reading "Skær kartoflerne i tern" needs the cut only once — put it in the step and leave \`preparation\` null. Keep it only for something the steps never mention, or something true before any step touches the ingredient ("stuetemperatur", "smeltet" where nothing melts it on the page).
 - Amounts are decimals: "1 1/2" and "1½" are both 1.5. A range ("2-3 fed hvidløg") takes the lower number, with the range itself in \`note\`.
 - Units come only from the allowed list, and are **never converted**. Danish recipes use tsk, spsk, dl, g, stk, fed — leave them as they are. Do not turn dl into ml or spsk into tbsp.
 - Where there is no measurement ("salt efter smag", "friskkværnet peber"), \`amount\` and \`unit\` are null and the phrase goes in \`note\`.
