@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { alreadyOnListNote, namesInWords, pantryKey, pantryNote, stripStocked } from "@/lib/pantry";
+import {
+  alreadyOnListNote,
+  ambiguousLines,
+  namesInWords,
+  pantryKey,
+  pantryNote,
+  stripStocked,
+} from "@/lib/pantry";
 import { shoppingText } from "@/lib/recipes";
 
 /**
@@ -62,6 +69,61 @@ describe("stripStocked", () => {
 
     expect(keep.size).toBe(0);
     expect(covered).toHaveLength(3);
+  });
+
+  // A line naming more than one thing is not a second opinion about what the pantry
+  // matches — it is still checked key by key, just against each half of the line rather
+  // than the line whole.
+  it("answers for a combined line where every part is stocked", () => {
+    const combined = new Map([["salt og peber", "Salt og peber"]]);
+    const { keep, covered } = stripStocked(combined, new Set(["salt", "peber"]));
+
+    expect(keep.size).toBe(0);
+    expect(covered).toEqual(["Salt og peber"]);
+  });
+
+  it("leaves a combined line alone where only some of it is stocked and nothing was resolved", () => {
+    const combined = new Map([["salt og peber", "Salt og peber"]]);
+    const { keep, covered } = stripStocked(combined, new Set(["salt"]));
+
+    // Unresolved, `ambiguousLines` is what is meant to stop this from being asked at
+    // all — but on its own the default is to leave it off the list, the same as a
+    // covered line, rather than silently re-buy the salt.
+    expect(keep.size).toBe(0);
+    expect(covered).toEqual(["Salt og peber"]);
+  });
+
+  it("keeps a combined line once the household has said to still add it", () => {
+    const combined = new Map([["salt og peber", "Salt og peber"]]);
+    const { keep, covered } = stripStocked(combined, new Set(["salt"]), new Set(["salt og peber"]));
+
+    expect([...keep.values()]).toEqual(["Salt og peber"]);
+    expect(covered).toEqual([]);
+  });
+});
+
+describe("ambiguousLines", () => {
+  it("finds nothing where a combined line is fully stocked or not stocked at all", () => {
+    const wanted = new Map([
+      ["salt og peber", "Salt og peber"],
+      ["mel og sukker", "Mel og sukker"],
+    ]);
+
+    expect(ambiguousLines(wanted, new Set(["salt", "peber"]))).toEqual([]);
+    expect(ambiguousLines(wanted, new Set())).toEqual([]);
+  });
+
+  it("finds a combined line the pantry only partly answers for, and names the part it has", () => {
+    const wanted = new Map([["salt og peber", "Salt og peber"]]);
+
+    expect(ambiguousLines(wanted, new Set(["salt"]))).toEqual([
+      { key: "salt og peber", text: "Salt og peber", matched: ["Salt"] },
+    ]);
+  });
+
+  it("leaves a single-item line alone, however normal a word it is", () => {
+    expect(ambiguousLines(new Map([["salt", "Salt"]]), new Set(["salt"]))).toEqual([]);
+    expect(ambiguousLines(new Map([["salt", "Salt"]]), new Set())).toEqual([]);
   });
 });
 

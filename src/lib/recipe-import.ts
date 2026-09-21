@@ -1,26 +1,37 @@
-import * as cheerio from "cheerio";
 import sharp from "sharp";
-import { parseRecipeFromCaption } from "./caption-recipe";
 import { MAX_EDGE, THUMB_EDGE } from "./downscale";
 import { storePhoto } from "./photos";
+import { extractFromHtml, type RawExtract } from "./recipe-extract";
+import { normalizeRecipe } from "./recipe-normalize";
 import {
   captionFromHtml,
   captionFromOEmbed,
   captionSources,
   isReelUrl,
-  recipeFromReelCaption,
   type CaptionSource,
   type ReelCaption,
 } from "./reel-import";
 
-/** What a page's own markup says its recipe is, before an image has been fetched. */
-type ParsedRecipe = {
-  title: string;
-  ingredients: string;
-  instructions: string;
-  imageUrl: string | null;
-  totalTimeMinutes: number | null;
-};
+/**
+ * Importing a recipe, in two stages and one direction.
+ *
+ * **Stage one is extraction and nothing else.** A web page goes to `recipe-extract.ts`,
+ * which gathers whatever its markup — or, failing that, its visible text — has to say. A
+ * reel goes to `reel-import.ts`, which knows the addresses that will hand over a caption
+ * without an account. A caption somebody pasted is already text. All three produce the same
+ * `RawExtract` and none of them decides whether what they found is a recipe.
+ *
+ * **Stage two is `recipe-normalize.ts`**, which is the only thing in this app that reads
+ * text as a recipe. There used to be two readers, one per route, and the recipe a cook got
+ * depended on which door they came in by. Now the route decides only where the text comes
+ * from; what it means is answered once.
+ *
+ * This module is what is left when both halves are taken out: the outbound request, which
+ * has to be checked and bounded because the address is whoever pasted it's choice and not
+ * this app's, and the recipe's picture, which is fetched and stored the way any upload is.
+ * `sharp` lives here, which is why nothing runtime from this file may be imported by a
+ * client component — only its types.
+ */
 
 export type ImportedRecipe = {
   title: string;
@@ -36,16 +47,27 @@ export type ImportedRecipe = {
    * cook may still paste something else into it before saving.
    */
   videoUrl: string | null;
+  /**
+   * What the reader thought the cook should look over — a caption that stopped mid-sentence,
+   * amounts it sent the reader to a link for. Null where the recipe read cleanly.
+   *
+   * The same vocabulary `ActionResult.note` uses for what the pantry left off a shopping
+   * list, and for the same reason: something quietly missing reads as something the app
+   * lost. The form is already a review step; this says where in it to look.
+   */
+  note: string | null;
 };
+
 /**
- * `notARecipe` marks a failure where the page was reached fine and simply had nothing
- * to cook from — a reel, a shop page, a site whose markup this cannot read — so that
- * `RecipeImportField` can offer falling back to the plain create form for exactly this
- * failure and not for a mistyped address or a page that would not load at all, which
- * are worth retrying as typed. It is a flag rather than matching the error string on
- * the client: this module pulls in `sharp` for the image work below, which cannot be
- * bundled into the client component that shows the error, so nothing runtime from here
- * may be imported there — only the types already were.
+ * `notARecipe` marks a failure where there is nothing more to try with this link as typed —
+ * a page that loaded fine and had nothing to cook from, a reel whose description could not
+ * be got at, a reader that would not answer. `RecipeImportField` turns exactly that flag
+ * into the paste box and a "Start from scratch" button; a mistyped address or a page that
+ * would not load is worth retrying as typed and does not get them.
+ *
+ * It is a flag rather than a matched error string because this module pulls in `sharp` and
+ * the module next door pulls in the Anthropic SDK, neither of which may be bundled into the
+ * client component that shows the error. Only the types cross.
  */
 export type ImportOutcome =
   | { ok: true; recipe: ImportedRecipe }
@@ -55,15 +77,20 @@ const GENERIC_ERROR =
   "Couldn't read a recipe from that page. Check the link, or fill the form in by hand.";
 
 /**
- * The two ways a reel fails, kept apart because they ask the cook for different things.
- * Meta refusing a signed-out request is the common one and says nothing about the post;
- * a caption that was read and is not a recipe is usually `og:description`'s truncated
- * copy of one, which pasting the whole thing fixes. Both point at the same box.
+ * The ways an import ends badly, kept apart because they ask the cook for different things.
+ *
+ * Meta refusing a signed-out request says nothing about the post and is the common one; a
+ * caption that was read and is not a recipe is usually `og:description`'s truncated copy of
+ * one, which pasting the whole thing fixes; and the reader being down is neither — it is
+ * this app's own fault and will pass. All three point at the same box, because that box is
+ * the one route into the importer that nothing on anybody else's side can block.
  */
 const CAPTION_UNREACHABLE =
   "Couldn't read that reel's description — Instagram and Facebook often refuse. Paste it in below instead.";
 const CAPTION_NOT_A_RECIPE =
   "Couldn't find a recipe in that description. Paste the whole thing in below, or fill the form in by hand.";
+const READER_UNAVAILABLE =
+  "Couldn't read that recipe just now. Try again in a moment, paste the description below, or fill the form in by hand.";
 
 /** How much of a page is ever read — a bound on the request, not a claim about recipes. */
 const MAX_RESPONSE_BYTES = 3 * 1024 * 1024;
@@ -140,304 +167,20 @@ function safeImportUrl(rawUrl: string): URL | null {
   return url;
 }
 
-/** Every `<script type="application/ld+json">…</script>` block on the page, parsed. */
-function jsonLdBlocks(html: string): unknown[] {
-  const blocks: unknown[] = [];
-  const pattern = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
-  for (const match of html.matchAll(pattern)) {
-    try {
-      blocks.push(JSON.parse(match[1].trim()));
-    } catch {
-      // Malformed JSON-LD is common enough (a stray trailing comma, HTML-escaped
-      // quotes) that skipping the block is more useful than refusing the whole page.
-    }
-  }
-  return blocks;
-}
-
-/** `@type` is either a bare string or an array of them, per the schema.org spec. */
-function hasType(node: unknown, type: string): node is Record<string, unknown> {
-  if (typeof node !== "object" || node === null) return false;
-  const value = (node as Record<string, unknown>)["@type"];
-  return value === type || (Array.isArray(value) && value.includes(type));
-}
-
-/** Every node in a JSON-LD document, including the ones nested under `@graph`. */
-function flatten(node: unknown): unknown[] {
-  if (Array.isArray(node)) return node.flatMap(flatten);
-  if (typeof node === "object" && node !== null) {
-    const graph = (node as Record<string, unknown>)["@graph"];
-    return graph ? [node, ...flatten(graph)] : [node];
-  }
-  return [];
-}
-
-function findRecipeNode(blocks: unknown[]): Record<string, unknown> | null {
-  for (const node of blocks.flatMap(flatten)) {
-    if (hasType(node, "Recipe")) return node;
-  }
-  return null;
-}
-
-/** A field that arrives as one string or a list of them, joined the way this app stores it. */
-function asLines(value: unknown): string {
-  if (typeof value === "string") return value.trim();
-  if (Array.isArray(value)) return value.map(asLines).filter(Boolean).join("\n");
-  return "";
-}
-
 /**
- * `recipeInstructions` is the messiest field in the spec: a single block of text, a
- * flat list of strings, or a list of `HowToStep`/`HowToSection` objects nested inside
- * one another. This walks whatever shape arrives and pulls out only the text.
- */
-function instructionLines(value: unknown): string {
-  if (typeof value === "string") return value.trim();
-  if (Array.isArray(value)) return value.map(instructionLines).filter(Boolean).join("\n");
-  if (typeof value === "object" && value !== null) {
-    const node = value as Record<string, unknown>;
-    if (hasType(node, "HowToSection") && node.itemListElement) {
-      return instructionLines(node.itemListElement);
-    }
-    if (typeof node.text === "string") return node.text.trim();
-    if (typeof node.name === "string") return node.name.trim();
-  }
-  return "";
-}
-
-/**
- * `Recipe` markup as schema.org actually reaches the wild in a second, older shape:
- * Microdata (`itemscope`/`itemtype`/`itemprop` attributes on the page's own elements)
- * rather than a separate JSON-LD block. Both say the same thing; a site publishes
- * whichever its CMS happened to generate, sometimes both, rarely neither. Microdata is
- * scattered across the DOM rather than sitting in one parseable block, which is what a
- * proper parser is for here rather than another regular expression.
- */
-function microdataRecipeRoot($: cheerio.CheerioAPI) {
-  return $("[itemscope]")
-    .filter((_, el) => /schema\.org\/recipe\s*$/i.test($(el).attr("itemtype")?.trim() ?? ""))
-    .first();
-}
-
-function microdataText($: cheerio.CheerioAPI, root: ReturnType<typeof microdataRecipeRoot>, prop: string) {
-  return root
-    .find(`[itemprop="${prop}"]`)
-    .map((_, el) => $(el).text().trim())
-    .get()
-    .filter(Boolean)
-    .join("\n");
-}
-
-/**
- * A duration in Microdata is conventionally a `<time>` element's `datetime` attribute
- * (`<time itemprop="totalTime" datetime="PT30M">30 mins</time>`), because the visible
- * text is for a reader and the attribute is for exactly this kind of scraping — schema.org
- * only ever promises the machine-readable value lives *somewhere* on the tagged element, so
- * `content` and the element's own text are read too, for the templates that skip `<time>`.
- */
-function microdataDurationMinutes(
-  $: cheerio.CheerioAPI,
-  root: ReturnType<typeof microdataRecipeRoot>,
-  prop: string,
-): number | null {
-  const el = root.find(`[itemprop="${prop}"]`).first();
-  if (el.length === 0) return null;
-  return isoDurationMinutes(el.attr("datetime") ?? el.attr("content") ?? el.text());
-}
-
-/**
- * `recipeInstructions` in Microdata arrives in whichever of two shapes a site chose:
- * the property repeated once per step, or once on a container whose own steps (or
- * paragraphs, where the steps are not marked up at all) sit inside it.
- */
-function microdataInstructions($: cheerio.CheerioAPI, root: ReturnType<typeof microdataRecipeRoot>) {
-  const nodes = root.find('[itemprop="recipeInstructions"]');
-  if (nodes.length > 1) {
-    return nodes
-      .map((_, el) => $(el).text().trim())
-      .get()
-      .filter(Boolean)
-      .join("\n");
-  }
-
-  const container = nodes.first();
-  const steps = container.find('[itemprop="text"], li, p');
-  const text = steps.length > 0 ? steps : container;
-  return text
-    .map((_, el) => $(el).text().trim())
-    .get()
-    .filter(Boolean)
-    .join("\n");
-}
-
-/**
- * schema.org times (`prepTime`, `cookTime`, `totalTime`) are ISO 8601 durations —
- * `PT1H30M`, not "1 hour 30 minutes" — because the spec wants a machine-readable value
- * and a recipe site's template obliges. Only the units a recipe could plausibly use are
- * read; a duration naming years or months is not a cooking time this app is prepared to
- * believe.
- */
-function isoDurationMinutes(value: unknown): number | null {
-  if (typeof value !== "string") return null;
-  const match = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/.exec(value.trim());
-  if (!match) return null;
-  const [, days, hours, minutes, seconds] = match;
-  if (!days && !hours && !minutes && !seconds) return null;
-
-  const totalMinutes =
-    Number(days ?? 0) * 24 * 60 + Number(hours ?? 0) * 60 + Number(minutes ?? 0) + Number(seconds ?? 0) / 60;
-  return Math.round(totalMinutes);
-}
-
-/**
- * A recipe's total time, the way the filter on `/recipes` wants it: one number, start
- * to finish. `totalTime` says that directly where a site publishes it; failing that,
- * `prepTime` and `cookTime` are added together, because a site publishing only those
- * two is still telling you how long the recipe takes — just in two pieces rather than
- * one. Neither present is not the same as zero, so it stays null rather than becoming a
- * recipe that claims to take no time at all.
- */
-function combinedTimeMinutes(
-  total: number | null,
-  prep: number | null,
-  cook: number | null,
-): number | null {
-  if (total !== null) return total;
-  if (prep === null && cook === null) return null;
-  return (prep ?? 0) + (cook ?? 0);
-}
-
-/** The `<title>` or `og:title` of a page, for when there is no JSON-LD title to use. */
-function fallbackTitle(html: string): string {
-  const og = /<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']*)["']/i.exec(html);
-  if (og?.[1]) return decodeEntities(og[1]).trim();
-
-  const title = /<title[^>]*>([^<]*)<\/title>/i.exec(html);
-  return title?.[1] ? decodeEntities(title[1]).trim() : "";
-}
-
-/**
- * `image` in JSON-LD is a URL, a list of them, an `ImageObject`, or a list of those —
- * schema.org allows all four for the same property, and a site picks whichever its
- * template happened to produce.
- */
-function jsonLdImageUrl(value: unknown): string | null {
-  if (typeof value === "string") return value;
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const url = jsonLdImageUrl(item);
-      if (url) return url;
-    }
-    return null;
-  }
-  if (typeof value === "object" && value !== null) {
-    const url = (value as Record<string, unknown>).url;
-    if (typeof url === "string") return url;
-  }
-  return null;
-}
-
-/**
- * `image` in Microdata is usually the `src` of an `<img>` or the `href` of a `<link>`
- * carrying the property directly, occasionally a `<meta content>`, and rarely a nested
- * `ImageObject` with its own `url` inside.
- */
-function microdataImageUrl($: cheerio.CheerioAPI, root: ReturnType<typeof microdataRecipeRoot>) {
-  const el = root.find('[itemprop="image"]').first();
-  if (el.length === 0) return null;
-
-  return (
-    el.attr("src") ??
-    el.attr("href") ??
-    el.attr("content") ??
-    el.find('[itemprop="url"]').first().attr("content") ??
-    null
-  );
-}
-
-/** `og:image`, for a page with neither JSON-LD nor Microdata to say what its picture is. */
-function ogImage(html: string): string | null {
-  const match = /<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']*)["']/i.exec(html);
-  return match?.[1] ? decodeEntities(match[1]).trim() : null;
-}
-
-function decodeEntities(text: string): string {
-  return text
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#0*39;|&apos;/g, "'");
-}
-
-/**
- * Turns a recipe page's HTML into a title, ingredients and instructions — or null when
- * nothing usable was found.
+ * Fetches a recipe page and reads it, refusing anything that is not a plain web page on the
+ * open internet.
  *
- * Reads the `Recipe` structured data almost every recipe site already publishes for
- * search engines — schema.org, as JSON-LD or as Microdata, whichever that site's own
- * software happened to generate — rather than guessing at the page's visible markup,
- * which differs everywhere the structured data does not. JSON-LD is read first, since
- * it is one self-contained block rather than attributes to gather across the page, and
- * Microdata fills in whatever field it left blank: a page mixing the two, or complete
- * in neither alone, is not a page this should give up on. One missing every field this
- * needs, in both, is refused rather than guessed at from prose.
- */
-export function parseRecipeFromHtml(html: string): ParsedRecipe | null {
-  const jsonLd = findRecipeNode(jsonLdBlocks(html));
-  const $ = cheerio.load(html);
-  const microdata = microdataRecipeRoot($);
-  const hasMicrodata = microdata.length > 0;
-
-  const title =
-    asLines(jsonLd?.name) ||
-    (hasMicrodata ? microdataText($, microdata, "name") : "") ||
-    fallbackTitle(html);
-  const ingredients =
-    asLines(jsonLd?.recipeIngredient) ||
-    (hasMicrodata ? microdataText($, microdata, "recipeIngredient") : "");
-  const instructions =
-    instructionLines(jsonLd?.recipeInstructions) ||
-    (hasMicrodata ? microdataInstructions($, microdata) : "");
-  const imageUrl =
-    jsonLdImageUrl(jsonLd?.image) || (hasMicrodata ? microdataImageUrl($, microdata) : null) || ogImage(html);
-  const totalTimeMinutes =
-    combinedTimeMinutes(
-      isoDurationMinutes(jsonLd?.totalTime),
-      isoDurationMinutes(jsonLd?.prepTime),
-      isoDurationMinutes(jsonLd?.cookTime),
-    ) ??
-    (hasMicrodata
-      ? combinedTimeMinutes(
-          microdataDurationMinutes($, microdata, "totalTime"),
-          microdataDurationMinutes($, microdata, "prepTime"),
-          microdataDurationMinutes($, microdata, "cookTime"),
-        )
-      : null);
-
-  if (!title || (!ingredients && !instructions)) return null;
-  return { title, ingredients, instructions, imageUrl, totalTimeMinutes };
-}
-
-/**
- * Fetches a recipe page and parses it, refusing anything that is not a plain web page
- * on the open internet. Its picture, if it has one, is fetched and stored under the
- * caller's home the same way any other upload is — but only once the recipe itself is
- * good, and never in a way that can fail the import: a picture that cannot be fetched
- * or does not survive `storePhoto`'s own checks is left out rather than refusing a
- * recipe that was otherwise perfectly readable.
- *
- * The size and time limits exist because the page is chosen by whoever pastes the
- * link, not by this app: a slow or enormous response must not be able to hold a
- * request open or exhaust memory just because somebody pasted the wrong thing.
+ * The size and time limits exist because the page is chosen by whoever pastes the link, not
+ * by this app: a slow or enormous response must not be able to hold a request open or
+ * exhaust memory just because somebody pasted the wrong thing.
  */
 export async function fetchRecipeFromUrl(rawUrl: string, homeId: string): Promise<ImportOutcome> {
   const url = safeImportUrl(rawUrl);
   if (!url) return { ok: false, error: "That doesn't look like a web address." };
 
-  // A reel publishes no `schema.org/Recipe` markup and never will, so it takes the
-  // other route entirely rather than being fetched here and correctly reported as a
-  // page with nothing to cook from.
+  // A reel publishes no markup worth reading and its recipe is in the paragraph under the
+  // video, so it takes the other route to the same reader.
   if (isReelUrl(url.toString())) return fetchRecipeFromReel(url, homeId);
 
   let response: Response;
@@ -466,74 +209,53 @@ export async function fetchRecipeFromUrl(rawUrl: string, homeId: string): Promis
     return { ok: false, error: GENERIC_ERROR, notARecipe: true };
   }
 
-  const parsed = parseRecipeFromHtml(decodeHtml(bytes, contentType));
-  if (!parsed) return { ok: false, error: GENERIC_ERROR, notARecipe: true };
+  const raw = extractFromHtml(decodeHtml(bytes, contentType), response.url);
+  if (!raw) return { ok: false, error: GENERIC_ERROR, notARecipe: true };
 
-  const photoId = await importRecipeImage(parsed.imageUrl, response.url, homeId);
-  return {
-    ok: true,
-    recipe: {
-      title: parsed.title,
-      ingredients: parsed.ingredients,
-      instructions: parsed.instructions,
-      photoId,
-      totalTimeMinutes: parsed.totalTimeMinutes,
-      videoUrl: null,
-    },
-  };
+  return finish(raw, homeId, { notARecipe: GENERIC_ERROR });
 }
 
 /**
- * The second route in: a reel, read from its own caption.
+ * The second route in: a reel, read from the paragraph under the video.
  *
- * Each of the addresses `captionSources` names is tried in turn and the first that
- * hands back something readable wins — they are ordered best-first, and a source that
- * refuses, times out or answers with a login wall is simply the next one's turn. None
- * of them is a supported API, so all of them failing is an ordinary outcome rather than
- * a bug, and the answer to it is the paste box rather than an apology: `notARecipe`
- * puts that in front of the cook, and the wording says which of the two things went
- * wrong, because "we couldn't read the description" and "the description isn't a
- * recipe" want different things from them next.
+ * Each of the addresses `captionSources` names is tried in turn and the first that hands
+ * back something readable wins — they are ordered best-first, and a source that refuses,
+ * times out or answers with a login wall is simply the next one's turn. None of them is a
+ * supported API, so all of them failing is an ordinary outcome rather than a bug, and the
+ * answer to it is the paste box rather than an apology.
  *
- * The link itself becomes the recipe's video, so a reel saved this way still plays on
- * the recipe page even where every one of these sources refused and the cook pasted the
- * caption in by hand.
+ * A caption that was read is handed to the reader immediately rather than tried against the
+ * next source: once there is text, there is nothing another address could add, and the
+ * reader is the one thing entitled to say the text is not a recipe.
+ *
+ * The link itself becomes the recipe's video, so a reel saved this way still plays on the
+ * recipe page even where every one of these sources refused and the cook pasted the caption
+ * in by hand.
  */
 async function fetchRecipeFromReel(url: URL, homeId: string): Promise<ImportOutcome> {
-  let sawCaption = false;
-
   for (const source of captionSources(url.toString())) {
     const read = await readCaptionSource(source);
     if (!read) continue;
-    sawCaption = true;
 
-    const recipe = recipeFromReelCaption(read);
-    if (!recipe) continue;
-
-    const photoId = await importRecipeImage(read.imageUrl, source.url, homeId);
-    return {
-      ok: true,
-      recipe: { ...recipe, photoId, videoUrl: url.toString() },
-    };
+    return finish(reelExtract(read, url.toString(), source.url), homeId, {
+      notARecipe: CAPTION_NOT_A_RECIPE,
+    });
   }
 
-  return {
-    ok: false,
-    error: sawCaption ? CAPTION_NOT_A_RECIPE : CAPTION_UNREACHABLE,
-    notARecipe: true,
-  };
+  return { ok: false, error: CAPTION_UNREACHABLE, notARecipe: true };
 }
 
 /**
- * Reads a recipe out of a caption the cook pasted in themselves, which is the one route
- * into this that nothing on Meta's side can refuse.
+ * Reads a recipe out of a description the cook pasted in themselves, which is the one route
+ * into this that nothing on anybody else's side can refuse — not Meta, and not an API key
+ * that has stopped working.
  *
- * `rawUrl` is whatever was in the link field when they gave up on it — optional,
- * because a caption pasted on its own is still a recipe. Where there is one and it is a
- * reel, two things are still worth having from it: the link becomes the recipe's video,
- * and the poster frame is fetched for its picture. That fetch is best-effort and
- * usually the same request that just failed, so it is allowed to fail again quietly —
- * a recipe whose text is all there is never refused for want of decoration.
+ * `rawUrl` is whatever was in the link field when they gave up on it — optional, because a
+ * description pasted on its own is still a recipe. Where there is one and it is a reel, two
+ * things are still worth having from it: the link becomes the recipe's video, and the poster
+ * frame is fetched for its picture. That fetch is best-effort and usually the same request
+ * that just failed, so it is allowed to fail again quietly — a recipe whose text is all
+ * there is never refused for want of decoration.
  */
 export async function importPastedCaption(
   caption: string,
@@ -543,19 +265,100 @@ export async function importPastedCaption(
   const text = caption.trim();
   if (!text) return { ok: false, error: "Paste the reel's description first." };
 
-  const recipe = parseRecipeFromCaption(text);
-  if (!recipe) return { ok: false, error: CAPTION_NOT_A_RECIPE };
-
   const url = safeImportUrl(rawUrl);
   const isReel = url !== null && isReelUrl(url.toString());
+
+  const raw: RawExtract = {
+    kind: "pasted",
+    sourceUrl: url?.toString() ?? null,
+    rawTitle: null,
+    rawContent: text,
+    // The picture is the one thing a pasted description cannot say, so where the link is a
+    // reel it is worth one request for the poster frame.
+    imageUrl: null,
+    timeHintMinutes: null,
+  };
+
+  return finish(raw, homeId, {
+    notARecipe: CAPTION_NOT_A_RECIPE,
+    videoUrl: isReel ? url.toString() : null,
+    photoId: isReel ? await fetchReelThumbnail(url, homeId) : null,
+  });
+}
+
+/**
+ * The one path from raw text to a saved-shaped recipe, whichever door it came in by.
+ *
+ * Everything that happens after the text exists happens here and only here: the reader, the
+ * picture, and the two ways of failing that the cook is told apart. Both routes funnel
+ * through it so neither can come to mean something slightly different by "imported".
+ *
+ * The picture is fetched only once the recipe is good — there is no point storing bytes for
+ * a page that turned out not to be a recipe — and never in a way that can fail the import: a
+ * picture that cannot be fetched or does not survive `storePhoto`'s own checks is left out
+ * rather than refusing a recipe that was otherwise perfectly readable.
+ */
+async function finish(
+  raw: RawExtract,
+  homeId: string,
+  options: { notARecipe: string; videoUrl?: string | null; photoId?: string | null },
+): Promise<ImportOutcome> {
+  const read = await normalizeRecipe(raw, homeId);
+  if (!read.ok) {
+    return {
+      ok: false,
+      error: read.reason === "unavailable" ? READER_UNAVAILABLE : options.notARecipe,
+      notARecipe: true,
+    };
+  }
+
+  const photoId =
+    options.photoId !== undefined
+      ? options.photoId
+      : await importRecipeImage(raw.imageUrl, raw.sourceUrl ?? "", homeId);
 
   return {
     ok: true,
     recipe: {
-      ...recipe,
-      photoId: isReel ? await fetchReelThumbnail(url, homeId) : null,
-      videoUrl: isReel ? url.toString() : null,
+      title: read.recipe.title,
+      ingredients: read.recipe.ingredients,
+      instructions: read.recipe.instructions,
+      totalTimeMinutes: read.recipe.totalTimeMinutes,
+      note: read.recipe.note,
+      photoId,
+      videoUrl: options.videoUrl ?? (raw.kind === "reel" ? raw.sourceUrl : null),
     },
+  };
+}
+
+/**
+ * What a reel's page said, as the same raw payload a web page produces.
+ *
+ * The poster frame's address is resolved here rather than downstream, because it is
+ * relative to whichever of `captionSources`' addresses actually answered — the embed page,
+ * say — and not to the reel link the cook pasted, which is what `sourceUrl` has to stay for
+ * the recipe's video to point at the right post.
+ */
+function reelExtract(read: ReelCaption, reelUrl: string, fetchedFrom: string): RawExtract {
+  let imageUrl: string | null = null;
+  if (read.imageUrl) {
+    try {
+      imageUrl = new URL(read.imageUrl, fetchedFrom).toString();
+    } catch {
+      // A poster frame nobody can address is decoration this recipe does without.
+    }
+  }
+
+  return {
+    kind: "reel",
+    sourceUrl: reelUrl,
+    // Instagram's own title is the account's name and the first few words ("kitchen on
+    // Instagram: …"), which is a poor name for a dish but better than nothing where the
+    // caption never says what it is making.
+    rawTitle: read.pageTitle || null,
+    rawContent: read.caption,
+    imageUrl,
+    timeHintMinutes: null,
   };
 }
 
@@ -620,7 +423,7 @@ async function importRecipeImage(
 
   let resolved: URL;
   try {
-    resolved = new URL(imageUrl, pageUrl);
+    resolved = new URL(imageUrl, pageUrl || undefined);
   } catch {
     return null;
   }

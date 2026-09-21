@@ -1,4 +1,3 @@
-import { homeDb } from "./home-db";
 import { shoppingText } from "./recipes";
 
 /**
@@ -34,17 +33,50 @@ export function pantryKey(name: string): string {
 }
 
 /**
- * Everything the home says it has in, as keys.
- *
- * Only the ticked entries: an entry that has been unticked is something the household
- * has run out of, and the whole point of saying so is that it goes back on the list.
+ * The handful of ways a line names more than one thing — "salt og peber", "salt and
+ * pepper", "salt & peber" — split apart only far enough to check each half against the
+ * pantry separately. Nothing else reads a line this way: `ingredientLines` and the
+ * recipe page still show it exactly as written, and the shopping list still carries it
+ * as the one line it was typed as.
  */
-export async function stockedKeys(homeId: string): Promise<Set<string>> {
-  const stocked = await homeDb(homeId).pantryItem.findMany({
-    where: { inStock: true },
-    select: { key: true },
-  });
-  return new Set(stocked.map((item) => item.key));
+const CONJUNCTION = /\s+(?:og|and)\s+|\s*&\s*/i;
+
+/** A line split on its conjunction, and which of its parts the pantry already has. */
+function matchParts(
+  text: string,
+  stocked: Set<string>,
+): { parts: string[]; matched: string[] } | null {
+  const parts = text
+    .split(CONJUNCTION)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length < 2) return null;
+  return { parts, matched: parts.filter((part) => stocked.has(pantryKey(part))) };
+}
+
+/**
+ * A recipe line naming more than one thing, where the pantry has some of it but not all —
+ * "salt og peber" against a cupboard that has salt but has run out of pepper. Neither
+ * answered for (the household still wants pepper) nor plainly new (it would silently
+ * re-buy the salt), so `writeRecipesToList` asks rather than guessing either way.
+ *
+ * A line the pantry has *none* of is plainly new, and one it has *all* of — every part
+ * stocked — is answered for exactly as a single-item line would be: see `stripStocked`.
+ * Only the line stuck in between is ambiguous, which is deliberately the narrow case:
+ * most presses never see the question at all.
+ */
+export type AmbiguousLine = { key: string; text: string; matched: string[] };
+
+export function ambiguousLines(wanted: Map<string, string>, stocked: Set<string>): AmbiguousLine[] {
+  const found: AmbiguousLine[] = [];
+  for (const [key, text] of wanted) {
+    if (stocked.has(key)) continue;
+    const split = matchParts(text, stocked);
+    if (split && split.matched.length > 0 && split.matched.length < split.parts.length) {
+      found.push({ key, text, matched: split.matched });
+    }
+  }
+  return found;
 }
 
 /**
@@ -55,20 +87,42 @@ export async function stockedKeys(homeId: string): Promise<Set<string>> {
  * household that cannot tell those apart stops trusting the button — so the menu that
  * pressed it reports what the pantry covered, by name.
  *
- * Pure, and given both sides, so `tests/unit/pantry.test.ts` can hold the rule without a
+ * `resolvedKeep` is which ambiguous lines a person has explicitly said to still add,
+ * named by key — empty until `writeRecipesToList` has asked and been answered. An
+ * ambiguous line not in it is covered, the same as if the whole thing were in stock:
+ * that is the answer "leave it out" actually means.
+ *
+ * Pure, and given every side, so `tests/unit/pantry.test.ts` can hold the rule without a
  * database: the keys come from the pantry, the map is the recipe's own deduplicated
  * lines, keyed the same way.
  */
 export function stripStocked(
   wanted: Map<string, string>,
   stocked: Set<string>,
+  resolvedKeep: Set<string> = new Set(),
 ): { keep: Map<string, string>; covered: string[] } {
   const keep = new Map<string, string>();
   const covered: string[] = [];
 
   for (const [key, text] of wanted) {
-    if (stocked.has(key)) covered.push(text);
-    else keep.set(key, text);
+    if (stocked.has(key)) {
+      covered.push(text);
+      continue;
+    }
+
+    const split = matchParts(text, stocked);
+    if (split && split.matched.length > 0) {
+      // Every part in stock answers for the line as fully as one entry keyed "salt og
+      // peber" would; some but not all is covered only once resolved — unresolved,
+      // `ambiguousLines` is what keeps this from being reached at all.
+      const fullyBySplit = split.matched.length === split.parts.length;
+      if (fullyBySplit || !resolvedKeep.has(key)) {
+        covered.push(text);
+        continue;
+      }
+    }
+
+    keep.set(key, text);
   }
 
   return { keep, covered };
@@ -111,4 +165,27 @@ export function pantryNote(covered: string[]): string | undefined {
  */
 export function alreadyOnListNote(names: string[]): string | undefined {
   return names.length === 0 ? undefined : `${namesInWords(names)} already on the list.`;
+}
+
+/**
+ * What `writeRecipesToList` sends back instead of writing, the one time it has an
+ * ambiguous line and hasn't yet been told what to do with it. Distinct from
+ * `ActionResult` on purpose: this is not success or failure, it is the press stopping
+ * short of either — nothing has been added yet, and `AddToListMenu` is what asks and
+ * resubmits.
+ */
+export type PantryDecision = { needsDecision: true; lines: AmbiguousLine[] };
+
+/**
+ * Present once a person has been asked and answered: which ambiguous lines, by key, they
+ * said to still add. Sent back on the form's second, confirmed submission — its mere
+ * presence is what tells `writeRecipesToList` this is that submission, even where the
+ * answer to every line was "no, leave it out" and the set is empty.
+ */
+export const PANTRY_CONFIRM_FIELD = "pantryConfirmed";
+export const PANTRY_KEEP_FIELD = "pantryKeep";
+
+export function readPantryKeep(formData: FormData): Set<string> | undefined {
+  if (formData.get(PANTRY_CONFIRM_FIELD) !== "1") return undefined;
+  return new Set(formData.getAll(PANTRY_KEEP_FIELD).map(String));
 }

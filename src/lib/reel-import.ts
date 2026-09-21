@@ -1,21 +1,23 @@
 import * as cheerio from "cheerio";
-import { parseRecipeFromCaption, type CaptionRecipe } from "./caption-recipe";
 
 /**
  * Where a reel keeps its recipe, and how to get at it without an account.
  *
- * `recipe-import.ts` reads `schema.org/Recipe` markup, which every recipe site
- * publishes and no social network does — so a reel arrives there as a page that loaded
- * perfectly and had nothing to cook from, which is exactly what it is. What a reel has
- * instead is its caption, and for a recipe reel the caption *is* the recipe: whoever
- * posted it wrote the ingredients and the steps under the video because there is
- * nowhere else on that page to put them.
+ * `recipe-extract.ts` gathers a page's `schema.org/Recipe` markup, which every recipe
+ * site publishes and no social network does — so a reel taken down that route arrives as
+ * a page that loaded perfectly and had almost nothing on it. What a reel has instead is
+ * its caption, and for a recipe reel the caption *is* the recipe: whoever posted it wrote
+ * the ingredients and the steps under the video because there is nowhere else on that
+ * page to put them.
  *
- * This module is the addresses to ask and the reading of what comes back. Splitting the
- * caption into a recipe is `caption-recipe.ts`, and the fetching itself stays in
- * `recipe-import.ts` with the host checks and the limits that every outbound request
- * from a pasted link has to go through. Everything here is pure, so
- * `tests/unit/reel-import.test.ts` can hold it against real markup with no network.
+ * This module is the extraction half for that case, and only that: the addresses worth
+ * asking, and the reading of what comes back as text. Whether the text is a recipe, and
+ * where its ingredients stop and its method begins, is `recipe-normalize.ts`'s to answer —
+ * the same reader a web page's text goes to, so a caption means one thing in this app
+ * however it arrived. The fetching stays in `recipe-import.ts` with the host checks and
+ * the limits every outbound request from a pasted link has to go through. Everything here
+ * is pure, so `tests/unit/reel-import.test.ts` holds it against real markup with no
+ * network.
  *
  * **None of these addresses is a supported API, and that is the honest position.**
  * Instagram's `/embed/captioned/` is the page its own embed widget loads and is the
@@ -199,17 +201,4 @@ export function captionFromOEmbed(body: string): ReelCaption | null {
     imageUrl: typeof doc.thumbnail_url === "string" ? doc.thumbnail_url : null,
     pageTitle: typeof doc.author_name === "string" ? doc.author_name : "",
   };
-}
-
-/**
- * What a reel's page said, read as a recipe — or null where the caption was somebody's
- * lunch rather than how to make it.
- *
- * The page's own title is offered only as a fallback for a caption that never names the
- * dish, and on Instagram it is a poor one ("kitchen on Instagram: …"), which is why
- * `parseRecipeFromCaption` reaches for it last and cuts it to a first sentence when it
- * does.
- */
-export function recipeFromReelCaption(read: ReelCaption): CaptionRecipe | null {
-  return parseRecipeFromCaption(read.caption, read.pageTitle);
 }

@@ -1,7 +1,54 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchRecipeFromUrl, importPastedCaption, parseRecipeFromHtml } from "@/lib/recipe-import";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fetchRecipeFromUrl, importPastedCaption } from "@/lib/recipe-import";
+import type { RawExtract } from "@/lib/recipe-extract";
+
+/**
+ * The wiring: which addresses this app will fetch and which it refuses outright, what it
+ * sends when it does, how it reads the bytes that come back, and which of the raw payloads
+ * reaches the reader.
+ *
+ * The reader itself is stubbed. It is a model call, so a test that let it run would be a
+ * test of somebody else's uptime and would cost money to run; and what is worth pinning
+ * here is not what it answers but what it is *given* — the extraction half is where a
+ * page's charset, its redirects and its structured data are decided, and every one of those
+ * shows up as the text handed over. Where the reader's answers matter, the stub says so and
+ * the assertion is about what this module does with them.
+ */
 
 const HOME_ID = "home-1";
+
+const { normalizeRecipe } = vi.hoisted(() => ({ normalizeRecipe: vi.fn() }));
+
+vi.mock("@/lib/recipe-normalize", () => ({ normalizeRecipe }));
+
+/** What the reader saw — the thing most of these tests are actually asserting about. */
+function wasRead(): RawExtract {
+  expect(normalizeRecipe).toHaveBeenCalled();
+  return normalizeRecipe.mock.calls.at(-1)![0] as RawExtract;
+}
+
+function reads(fields: Partial<{ title: string; ingredients: string; instructions: string; totalTimeMinutes: number | null; note: string | null }> = {}) {
+  normalizeRecipe.mockResolvedValue({
+    ok: true,
+    recipe: {
+      title: "Pancakes",
+      ingredients: "200 g mel",
+      instructions: "Steg dem.",
+      totalTimeMinutes: null,
+      note: null,
+      ...fields,
+    },
+  });
+}
+
+beforeEach(() => {
+  normalizeRecipe.mockReset();
+  reads();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function pageWithLdJson(recipe: unknown, extra = "") {
   return `<!doctype html><html><head>
@@ -11,366 +58,10 @@ function pageWithLdJson(recipe: unknown, extra = "") {
   </head><body></body></html>`;
 }
 
-describe("parseRecipeFromHtml — JSON-LD", () => {
-  it("reads a plain schema.org Recipe block", () => {
-    const html = pageWithLdJson({
-      "@context": "https://schema.org",
-      "@type": "Recipe",
-      name: "Pancakes",
-      recipeIngredient: ["200 g flour", "2 eggs"],
-      recipeInstructions: "Mix and fry.",
-    });
-
-    expect(parseRecipeFromHtml(html)).toEqual({
-      title: "Pancakes",
-      ingredients: "200 g flour\n2 eggs",
-      instructions: "Mix and fry.",
-      imageUrl: null,
-      totalTimeMinutes: null,
-    });
-  });
-
-  it("finds the Recipe node nested inside @graph", () => {
-    const html = pageWithLdJson({
-      "@context": "https://schema.org",
-      "@graph": [
-        { "@type": "WebPage", name: "A blog post" },
-        {
-          "@type": "Recipe",
-          name: "Lasagne",
-          recipeIngredient: ["Pasta", "Sauce"],
-          recipeInstructions: ["Layer.", "Bake."],
-        },
-      ],
-    });
-
-    expect(parseRecipeFromHtml(html)).toEqual({
-      title: "Lasagne",
-      ingredients: "Pasta\nSauce",
-      instructions: "Layer.\nBake.",
-      imageUrl: null,
-      totalTimeMinutes: null,
-    });
-  });
-
-  it("flattens HowToStep and HowToSection instructions", () => {
-    const html = pageWithLdJson({
-      "@type": "Recipe",
-      name: "Sunday roast",
-      recipeIngredient: ["Chicken"],
-      recipeInstructions: [
-        {
-          "@type": "HowToSection",
-          name: "Prep",
-          itemListElement: [
-            { "@type": "HowToStep", text: "Preheat the oven." },
-            { "@type": "HowToStep", text: "Season the chicken." },
-          ],
-        },
-        { "@type": "HowToStep", text: "Roast for an hour." },
-      ],
-    });
-
-    expect(parseRecipeFromHtml(html)?.instructions).toBe(
-      "Preheat the oven.\nSeason the chicken.\nRoast for an hour.",
-    );
-  });
-
-  it("accepts @type as an array, as some sites publish it", () => {
-    const html = pageWithLdJson({
-      "@type": ["Recipe", "NewsArticle"],
-      name: "Soup",
-      recipeIngredient: ["Stock"],
-      recipeInstructions: "Simmer.",
-    });
-
-    expect(parseRecipeFromHtml(html)?.title).toBe("Soup");
-  });
-
-  it("falls back to the og:title meta tag when the Recipe node has no name", () => {
-    const html = pageWithLdJson(
-      { "@type": "Recipe", recipeIngredient: ["Stock"], recipeInstructions: "Simmer." },
-      '<meta property="og:title" content="Grandma&#39;s Soup" />',
-    );
-
-    expect(parseRecipeFromHtml(html)?.title).toBe("Grandma's Soup");
-  });
-
-  it("skips a malformed JSON-LD block instead of throwing", () => {
-    const html = `<!doctype html><html><head>
-      <script type="application/ld+json">{ not valid json </script>
-      <script type="application/ld+json">${JSON.stringify({
-        "@type": "Recipe",
-        name: "Toast",
-        recipeIngredient: ["Bread"],
-        recipeInstructions: "Toast it.",
-      })}</script>
-    </head></html>`;
-
-    expect(parseRecipeFromHtml(html)?.title).toBe("Toast");
-  });
-
-  it("returns null when the page has no Recipe data at all", () => {
-    expect(parseRecipeFromHtml("<html><head><title>Just a blog</title></head></html>")).toBeNull();
-  });
-
-  it("returns null for a Recipe node with a name but nothing to cook", () => {
-    const html = pageWithLdJson({ "@type": "Recipe", name: "Empty" });
-    expect(parseRecipeFromHtml(html)).toBeNull();
-  });
-
-  it("reads a plain string image", () => {
-    const html = pageWithLdJson({
-      "@type": "Recipe",
-      name: "Pancakes",
-      recipeIngredient: ["Flour"],
-      recipeInstructions: "Fry.",
-      image: "https://example.com/pancakes.jpg",
-    });
-    expect(parseRecipeFromHtml(html)?.imageUrl).toBe("https://example.com/pancakes.jpg");
-  });
-
-  it("reads the first of a list of image URLs", () => {
-    const html = pageWithLdJson({
-      "@type": "Recipe",
-      name: "Pancakes",
-      recipeIngredient: ["Flour"],
-      recipeInstructions: "Fry.",
-      image: ["https://example.com/a.jpg", "https://example.com/b.jpg"],
-    });
-    expect(parseRecipeFromHtml(html)?.imageUrl).toBe("https://example.com/a.jpg");
-  });
-
-  it("reads an ImageObject's url", () => {
-    const html = pageWithLdJson({
-      "@type": "Recipe",
-      name: "Pancakes",
-      recipeIngredient: ["Flour"],
-      recipeInstructions: "Fry.",
-      image: { "@type": "ImageObject", url: "https://example.com/pancakes.jpg" },
-    });
-    expect(parseRecipeFromHtml(html)?.imageUrl).toBe("https://example.com/pancakes.jpg");
-  });
-
-  it("reads totalTime as minutes", () => {
-    const html = pageWithLdJson({
-      "@type": "Recipe",
-      name: "Pancakes",
-      recipeIngredient: ["Flour"],
-      recipeInstructions: "Fry.",
-      totalTime: "PT1H30M",
-    });
-    expect(parseRecipeFromHtml(html)?.totalTimeMinutes).toBe(90);
-  });
-
-  it("adds prepTime and cookTime when there is no totalTime", () => {
-    const html = pageWithLdJson({
-      "@type": "Recipe",
-      name: "Pancakes",
-      recipeIngredient: ["Flour"],
-      recipeInstructions: "Fry.",
-      prepTime: "PT10M",
-      cookTime: "PT20M",
-    });
-    expect(parseRecipeFromHtml(html)?.totalTimeMinutes).toBe(30);
-  });
-
-  it("prefers totalTime over prepTime and cookTime when both are given", () => {
-    const html = pageWithLdJson({
-      "@type": "Recipe",
-      name: "Pancakes",
-      recipeIngredient: ["Flour"],
-      recipeInstructions: "Fry.",
-      totalTime: "PT45M",
-      prepTime: "PT10M",
-      cookTime: "PT20M",
-    });
-    expect(parseRecipeFromHtml(html)?.totalTimeMinutes).toBe(45);
-  });
-
-  it("reads a bare number of minutes with no hours", () => {
-    const html = pageWithLdJson({
-      "@type": "Recipe",
-      name: "Pancakes",
-      recipeIngredient: ["Flour"],
-      recipeInstructions: "Fry.",
-      totalTime: "PT25M",
-    });
-    expect(parseRecipeFromHtml(html)?.totalTimeMinutes).toBe(25);
-  });
-
-  it("is null when neither totalTime nor prepTime/cookTime is present", () => {
-    const html = pageWithLdJson({
-      "@type": "Recipe",
-      name: "Pancakes",
-      recipeIngredient: ["Flour"],
-      recipeInstructions: "Fry.",
-    });
-    expect(parseRecipeFromHtml(html)?.totalTimeMinutes).toBeNull();
-  });
-
-  it("ignores a duration it cannot parse", () => {
-    const html = pageWithLdJson({
-      "@type": "Recipe",
-      name: "Pancakes",
-      recipeIngredient: ["Flour"],
-      recipeInstructions: "Fry.",
-      totalTime: "about half an hour",
-    });
-    expect(parseRecipeFromHtml(html)?.totalTimeMinutes).toBeNull();
-  });
-});
-
-describe("parseRecipeFromHtml — Microdata", () => {
-  // The shape a Gemini-suggested cheerio scraper targeted: itemscope/itemtype/itemprop
-  // rather than a JSON-LD script block. Both are valid schema.org, and a site that
-  // publishes only this one still "follows the standard" — it just follows the older
-  // half of it.
-  function microdataPage(body: string) {
-    return `<!doctype html><html><body>
-      <div itemscope itemtype="https://schema.org/Recipe">
-        ${body}
-      </div>
-    </body></html>`;
-  }
-
-  it("reads a recipe with no JSON-LD at all", () => {
-    const html = microdataPage(`
-      <h1 itemprop="name">Pasta med kødsauce</h1>
-      <img itemprop="image" src="/images/pasta.jpg" />
-      <ul>
-        <li itemprop="recipeIngredient">Hakket oksekød</li>
-        <li itemprop="recipeIngredient">Pasta</li>
-      </ul>
-      <div itemprop="recipeInstructions">
-        <p>Brun kødet.</p>
-        <p>Kog pastaen.</p>
-      </div>
-    `);
-
-    expect(parseRecipeFromHtml(html)).toEqual({
-      title: "Pasta med kødsauce",
-      ingredients: "Hakket oksekød\nPasta",
-      instructions: "Brun kødet.\nKog pastaen.",
-      imageUrl: "/images/pasta.jpg",
-      totalTimeMinutes: null,
-    });
-  });
-
-  it("reads recipeInstructions repeated once per step", () => {
-    const html = microdataPage(`
-      <span itemprop="name">Soup</span>
-      <span itemprop="recipeIngredient">Stock</span>
-      <ol>
-        <li itemprop="recipeInstructions">Heat the stock.</li>
-        <li itemprop="recipeInstructions">Simmer for ten minutes.</li>
-      </ol>
-    `);
-
-    expect(parseRecipeFromHtml(html)?.instructions).toBe(
-      "Heat the stock.\nSimmer for ten minutes.",
-    );
-  });
-
-  it("reads HowToStep-style nested text inside recipeInstructions", () => {
-    const html = microdataPage(`
-      <span itemprop="name">Soup</span>
-      <span itemprop="recipeIngredient">Stock</span>
-      <div itemprop="recipeInstructions">
-        <div itemprop="text">Heat the stock.</div>
-        <div itemprop="text">Simmer for ten minutes.</div>
-      </div>
-    `);
-
-    expect(parseRecipeFromHtml(html)?.instructions).toBe(
-      "Heat the stock.\nSimmer for ten minutes.",
-    );
-  });
-
-  it("reads an image from a link's href", () => {
-    const html = microdataPage(`
-      <span itemprop="name">Soup</span>
-      <span itemprop="recipeIngredient">Stock</span>
-      <span itemprop="recipeInstructions">Heat it.</span>
-      <link itemprop="image" href="https://example.com/soup.jpg" />
-    `);
-
-    expect(parseRecipeFromHtml(html)?.imageUrl).toBe("https://example.com/soup.jpg");
-  });
-
-  it("prefers JSON-LD where a page has both, falling back to Microdata field by field", () => {
-    const html = `<!doctype html><html><body>
-      <script type="application/ld+json">${JSON.stringify({
-        "@type": "Recipe",
-        name: "From JSON-LD",
-      })}</script>
-      <div itemscope itemtype="https://schema.org/Recipe">
-        <span itemprop="name">From Microdata</span>
-        <span itemprop="recipeIngredient">Stock</span>
-        <span itemprop="recipeInstructions">Heat it.</span>
-      </div>
-    </body></html>`;
-
-    // The JSON-LD title wins, but it had no ingredients or instructions at all, so
-    // those come from the Microdata block instead of the page being refused.
-    expect(parseRecipeFromHtml(html)).toEqual({
-      title: "From JSON-LD",
-      ingredients: "Stock",
-      instructions: "Heat it.",
-      imageUrl: null,
-      totalTimeMinutes: null,
-    });
-  });
-
-  it("falls back to og:image when neither format names a picture", () => {
-    const html = `<!doctype html><html><head>
-      <meta property="og:image" content="https://example.com/og.jpg" />
-    </head><body>
-      <div itemscope itemtype="https://schema.org/Recipe">
-        <span itemprop="name">Soup</span>
-        <span itemprop="recipeIngredient">Stock</span>
-        <span itemprop="recipeInstructions">Heat it.</span>
-      </div>
-    </body></html>`;
-
-    expect(parseRecipeFromHtml(html)?.imageUrl).toBe("https://example.com/og.jpg");
-  });
-
-  it("returns null when the itemtype is some other schema.org type", () => {
-    const html = `<div itemscope itemtype="https://schema.org/Article">
-      <span itemprop="name">Not a recipe</span>
-    </div>`;
-    expect(parseRecipeFromHtml(html)).toBeNull();
-  });
-
-  it("reads a time's datetime attribute, not its visible text", () => {
-    const html = microdataPage(`
-      <span itemprop="name">Soup</span>
-      <span itemprop="recipeIngredient">Stock</span>
-      <span itemprop="recipeInstructions">Heat it.</span>
-      <time itemprop="totalTime" datetime="PT40M">40 minutes</time>
-    `);
-
-    expect(parseRecipeFromHtml(html)?.totalTimeMinutes).toBe(40);
-  });
-
-  it("adds prepTime and cookTime when Microdata has no totalTime", () => {
-    const html = microdataPage(`
-      <span itemprop="name">Soup</span>
-      <span itemprop="recipeIngredient">Stock</span>
-      <span itemprop="recipeInstructions">Heat it.</span>
-      <time itemprop="prepTime" datetime="PT5M"></time>
-      <time itemprop="cookTime" datetime="PT15M"></time>
-    `);
-
-    expect(parseRecipeFromHtml(html)?.totalTimeMinutes).toBe(20);
-  });
-});
-
-function htmlResponse(html: string, overrides: Partial<Response> = {}) {
+function htmlResponse(html: string | Buffer, overrides: Partial<Response> = {}) {
   const body = new ReadableStream<Uint8Array>({
     start(controller) {
-      controller.enqueue(new TextEncoder().encode(html));
+      controller.enqueue(typeof html === "string" ? new TextEncoder().encode(html) : html);
       controller.close();
     },
   });
@@ -383,32 +74,50 @@ function htmlResponse(html: string, overrides: Partial<Response> = {}) {
   } as Response;
 }
 
+const goodHtml = pageWithLdJson({
+  "@type": "Recipe",
+  name: "Pancakes",
+  recipeIngredient: ["200 g mel"],
+  recipeInstructions: "Steg dem.",
+});
+
 describe("fetchRecipeFromUrl", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  const goodHtml = pageWithLdJson({
-    "@type": "Recipe",
-    name: "Pancakes",
-    recipeIngredient: ["Flour"],
-    recipeInstructions: "Fry.",
-  });
-
-  it("fetches and parses a real-looking page", async () => {
+  it("fetches a page, reads it, and hands back the recipe", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(goodHtml)));
 
     expect(await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID)).toEqual({
       ok: true,
       recipe: {
         title: "Pancakes",
-        ingredients: "Flour",
-        instructions: "Fry.",
+        ingredients: "200 g mel",
+        instructions: "Steg dem.",
         photoId: null,
         totalTimeMinutes: null,
+        note: null,
         videoUrl: null,
       },
     });
+  });
+
+  it("hands the reader the page's own text, labelled", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(goodHtml)));
+
+    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID);
+
+    expect(wasRead()).toMatchObject({
+      kind: "page",
+      sourceUrl: "https://example.com/recipe",
+      rawContent: expect.stringContaining("INGREDIENTS:\n200 g mel"),
+    });
+  });
+
+  it("carries what the reader wants checked back to the form", async () => {
+    reads({ note: "Opskriften mangler mængder til fyldet." });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(goodHtml)));
+
+    const result = await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID);
+
+    expect(result.ok && result.recipe.note).toBe("Opskriften mangler mængder til fyldet.");
   });
 
   it("never fetches a link that is not http or https", async () => {
@@ -445,6 +154,7 @@ describe("fetchRecipeFromUrl", () => {
     );
 
     expect((await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID)).ok).toBe(false);
+    expect(normalizeRecipe).not.toHaveBeenCalled();
   });
 
   // fc00::/7 is a real IPv6 range worth refusing, but plenty of ordinary domains also
@@ -494,39 +204,25 @@ describe("fetchRecipeFromUrl", () => {
       pageWithLdJson({
         "@type": "Recipe",
         name: "K\xf8dsauce",
-        recipeIngredient: ["Hakket oksekød"],
-        recipeInstructions: "Brun kødet.",
+        recipeIngredient: ["Hakket oksek\xf8d"],
+        recipeInstructions: "Brun k\xf8det.",
       }),
       "latin1",
     );
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        url: "https://example.dk/opskrift",
-        body: new ReadableStream({
-          start(controller) {
-            controller.enqueue(html);
-            controller.close();
-          },
+      vi.fn().mockResolvedValue(
+        htmlResponse(html, {
+          url: "https://example.dk/opskrift",
+          headers: new Headers({ "content-type": "text/html; charset=iso-8859-1" }),
         }),
-        headers: new Headers({ "content-type": "text/html; charset=iso-8859-1" }),
-      }),
+      ),
     );
 
-    const result = await fetchRecipeFromUrl("https://example.dk/opskrift", HOME_ID);
+    await fetchRecipeFromUrl("https://example.dk/opskrift", HOME_ID);
 
-    expect(result).toEqual({
-      ok: true,
-      recipe: {
-        title: "Kødsauce",
-        ingredients: "Hakket oksekød",
-        instructions: "Brun kødet.",
-        photoId: null,
-        totalTimeMinutes: null,
-        videoUrl: null,
-      },
-    });
+    expect(wasRead().rawContent).toContain("Hakket oksekød");
+    expect(wasRead().rawTitle).toBe("Kødsauce");
   });
 
   it("refuses a response that is not HTML", async () => {
@@ -538,6 +234,7 @@ describe("fetchRecipeFromUrl", () => {
     );
 
     expect((await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID)).ok).toBe(false);
+    expect(normalizeRecipe).not.toHaveBeenCalled();
   });
 
   it("reports a network failure rather than throwing", async () => {
@@ -549,16 +246,36 @@ describe("fetchRecipeFromUrl", () => {
     });
   });
 
-  // A page that reaches fine but has nothing to cook from — a reel, a shop page —
-  // is what `NewRecipeDialog` offers "Start from scratch" for, and it tells the two
-  // apart by this flag rather than by matching the message: a mistyped address or a
-  // page that would not load is worth trying again as typed, and neither sets it.
-  it("marks a reachable page with nothing to cook from as not a recipe", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse("<html><body>a reel</body></html>")));
+  // A page that reaches fine but turns out to hold no recipe — a shop page, an article
+  // about food — is what `NewRecipeDialog` offers "Start from scratch" for, and it tells
+  // the two apart by this flag rather than by matching the message: a mistyped address or
+  // a page that would not load is worth trying again as typed, and neither sets it.
+  it("marks a page the reader says is not a recipe as not a recipe", async () => {
+    normalizeRecipe.mockResolvedValue({ ok: false, reason: "not-a-recipe" });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(goodHtml)));
 
-    expect(await fetchRecipeFromUrl("https://example.com/reel", HOME_ID)).toEqual({
+    expect(await fetchRecipeFromUrl("https://example.com/shop", HOME_ID)).toEqual({
       ok: false,
       error: "Couldn't read a recipe from that page. Check the link, or fill the form in by hand.",
+      notARecipe: true,
+    });
+  });
+
+  /*
+   * The reader being down is this app's own fault and says nothing about the link, so it
+   * gets its own wording — but it still sets `notARecipe`, because the thing it puts in
+   * front of the cook is the same: the paste box, and a way to the plain form. There is no
+   * falling back to a second, worse reader; that was the arrangement this replaced.
+   */
+  it("says so plainly when the reader cannot be reached, and still offers the paste box", async () => {
+    normalizeRecipe.mockResolvedValue({ ok: false, reason: "unavailable" });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(goodHtml)));
+
+    const result = await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID);
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.stringContaining("Couldn't read that recipe just now"),
       notARecipe: true,
     });
   });
@@ -607,8 +324,8 @@ describe("fetchRecipeFromUrl", () => {
     const withImage = pageWithLdJson({
       "@type": "Recipe",
       name: "Pancakes",
-      recipeIngredient: ["Flour"],
-      recipeInstructions: "Fry.",
+      recipeIngredient: ["200 g mel"],
+      recipeInstructions: "Steg dem.",
       image: "http://169.254.169.254/pancakes.jpg",
     });
     const fetchMock = vi.fn().mockResolvedValue(htmlResponse(withImage));
@@ -618,63 +335,74 @@ describe("fetchRecipeFromUrl", () => {
 
     // The recipe itself is still good — a blocked or unreachable picture is left out,
     // never a reason to refuse an otherwise readable recipe.
-    expect(result).toEqual({
-      ok: true,
-      recipe: {
-        title: "Pancakes",
-        ingredients: "Flour",
-        instructions: "Fry.",
-        photoId: null,
-        totalTimeMinutes: null,
-        videoUrl: null,
-      },
+    expect(result.ok && result.recipe.photoId).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  // Nothing is stored for a page that turned out not to be a recipe: the picture is
+  // fetched only once the reading has come back good.
+  it("never fetches an image for a page the reader refused", async () => {
+    normalizeRecipe.mockResolvedValue({ ok: false, reason: "not-a-recipe" });
+    const withImage = pageWithLdJson({
+      "@type": "Recipe",
+      name: "Pancakes",
+      recipeIngredient: ["200 g mel"],
+      recipeInstructions: "Steg dem.",
+      image: "https://example.com/pancakes.jpg",
     });
+    const fetchMock = vi.fn().mockResolvedValue(htmlResponse(withImage));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID);
+
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 
 /**
- * A reel takes the other route through this module entirely: no `schema.org/Recipe`
- * markup is ever coming, so the caption is the recipe and the link is the video. What
- * is pinned here is the wiring — which addresses are asked, in which order, and what
- * happens when every one of them refuses, which on Meta's side is an ordinary Tuesday.
- * The reading itself belongs to `reel-import.test.ts` and `caption-recipe.test.ts`.
+ * A reel takes the other route through stage one entirely: no `schema.org/Recipe` markup is
+ * ever coming, so the caption is the text and the link is the video. What is pinned here is
+ * which addresses are asked, in which order, and what happens when every one of them
+ * refuses, which on Meta's side is an ordinary Tuesday. Reading the markup itself belongs
+ * to `reel-import.test.ts`.
  */
 describe("fetchRecipeFromUrl — a reel", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   const REEL = "https://www.instagram.com/reel/ABC123/";
 
   const embedPage = `<html><body>
     <img class="EmbeddedMediaImage" src="https://scontent.example/poster.jpg" />
     <div class="Caption">
       <a class="CaptionUsername">somekitchen</a>
-      Pasta al limone<br>Ingredienser<br>400 g spaghetti<br>2 citroner<br>1 dl fløde<br>Fremgangsmåde<br>Kog pastaen.<br>Riv citronskallen i.
+      Pasta al limone<br>Ingredienser<br>400 g spaghetti<br>2 citroner<br>Fremgangsmåde<br>Kog pastaen.
       <div class="CaptionComments">57 comments</div>
     </div>
   </body></html>`;
 
-  it("reads the recipe out of the caption, and keeps the link as the video", async () => {
+  it("hands the reader the caption, and keeps the link as the video", async () => {
     // The picture is fetched and stored like any other upload, which wants a database
     // this suite does not have — so it fails quietly, exactly as a blocked one would.
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(embedPage, { url: REEL })));
+    reads({ title: "Pasta al limone", ingredients: "400 g spaghetti", instructions: "Kog pastaen." });
 
-    expect(await fetchRecipeFromUrl(REEL, HOME_ID)).toEqual({
+    const result = await fetchRecipeFromUrl(REEL, HOME_ID);
+
+    expect(wasRead()).toMatchObject({ kind: "reel", sourceUrl: REEL });
+    expect(wasRead().rawContent).toContain("400 g spaghetti");
+    expect(result).toEqual({
       ok: true,
       recipe: {
         title: "Pasta al limone",
-        ingredients: "400 g spaghetti\n2 citroner\n1 dl fløde",
-        instructions: "Kog pastaen.\nRiv citronskallen i.",
+        ingredients: "400 g spaghetti",
+        instructions: "Kog pastaen.",
         photoId: null,
         totalTimeMinutes: null,
+        note: null,
         videoUrl: REEL,
       },
     });
   });
 
-  it("asks the embed page first, and never the recipe route's own parser", async () => {
+  it("asks the embed page first, since it is the one written for a caller with no account", async () => {
     const fetchMock = vi.fn().mockResolvedValue(htmlResponse(embedPage, { url: REEL }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -687,7 +415,7 @@ describe("fetchRecipeFromUrl — a reel", () => {
 
   it("tries the next source when the first refuses, rather than giving up on the reel", async () => {
     const withOgDescription = `<html><head>
-      <meta property="og:description" content="12 likes - somekitchen: &quot;Boller&#10;Ingredienser&#10;500 g mel&#10;25 g gær&#10;Fremgangsmåde&#10;Ælt det sammen.&quot;" />
+      <meta property="og:description" content="12 likes - somekitchen: &quot;Boller&#10;Ingredienser&#10;500 g mel&quot;" />
     </head></html>`;
     const fetchMock = vi
       .fn()
@@ -698,7 +426,29 @@ describe("fetchRecipeFromUrl — a reel", () => {
     const result = await fetchRecipeFromUrl(REEL, HOME_ID);
 
     expect(result.ok).toBe(true);
-    expect(result.ok && result.recipe.title).toBe("Boller");
+    expect(wasRead().rawContent).toContain("500 g mel");
+  });
+
+  /*
+   * Once a caption has been read there is nothing another address could add, so the reader
+   * gets it immediately rather than the chain carrying on. The reader is the only thing
+   * entitled to say the text is not a recipe, and asking Instagram twice will not change
+   * its mind about that.
+   */
+  it("stops asking once a caption has been read, even when the reader refuses it", async () => {
+    normalizeRecipe.mockResolvedValue({ ok: false, reason: "not-a-recipe" });
+    const chat = `<html><body><div class="Caption">Sikke en dejlig aften i haven</div></body></html>`;
+    const fetchMock = vi.fn().mockResolvedValue(htmlResponse(chat, { url: REEL }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchRecipeFromUrl(REEL, HOME_ID);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      ok: false,
+      error: expect.stringContaining("Couldn't find a recipe in that description"),
+      notARecipe: true,
+    });
   });
 
   it("offers the paste box when every source refuses, and says why", async () => {
@@ -711,35 +461,21 @@ describe("fetchRecipeFromUrl — a reel", () => {
       error: expect.stringContaining("Paste it in below"),
       notARecipe: true,
     });
-  });
-
-  it("says the other thing when a caption was read and is not a recipe", async () => {
-    const chat = `<html><body><div class="Caption">Sikke en dejlig aften i haven</div></body></html>`;
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(chat, { url: REEL })));
-
-    const result = await fetchRecipeFromUrl(REEL, HOME_ID);
-
-    expect(result).toEqual({
-      ok: false,
-      error: expect.stringContaining("Couldn't find a recipe in that description"),
-      notARecipe: true,
-    });
+    expect(normalizeRecipe).not.toHaveBeenCalled();
   });
 });
 
 describe("importPastedCaption", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   const CAPTION = "Boller\nIngredienser\n500 g mel\n25 g gær\nFremgangsmåde\nÆlt det sammen.";
 
-  it("reads a pasted caption, and keeps the reel beside it as the video", async () => {
+  it("hands the reader exactly what was pasted, and keeps the reel beside it as the video", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("still refused")));
+    reads({ title: "Boller", ingredients: "500 g mel\n25 g gær", instructions: "Ælt det sammen." });
 
-    expect(
-      await importPastedCaption(CAPTION, "https://www.instagram.com/reel/ABC123/", HOME_ID),
-    ).toEqual({
+    const result = await importPastedCaption(CAPTION, "https://www.instagram.com/reel/ABC123/", HOME_ID);
+
+    expect(wasRead()).toMatchObject({ kind: "pasted", rawContent: CAPTION });
+    expect(result).toEqual({
       ok: true,
       recipe: {
         title: "Boller",
@@ -747,6 +483,7 @@ describe("importPastedCaption", () => {
         instructions: "Ælt det sammen.",
         photoId: null,
         totalTimeMinutes: null,
+        note: null,
         videoUrl: "https://www.instagram.com/reel/ABC123/",
       },
     });
@@ -764,8 +501,20 @@ describe("importPastedCaption", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("refuses an empty paste, and text that is not a recipe", async () => {
+  it("refuses an empty paste without troubling the reader", async () => {
     expect((await importPastedCaption("   ", "", HOME_ID)).ok).toBe(false);
-    expect((await importPastedCaption("Sikke en dejlig aften i haven", "", HOME_ID)).ok).toBe(false);
+    expect(normalizeRecipe).not.toHaveBeenCalled();
+  });
+
+  it("passes the reader's refusal on, with the wording that points at the box", async () => {
+    normalizeRecipe.mockResolvedValue({ ok: false, reason: "not-a-recipe" });
+
+    const result = await importPastedCaption("Sikke en dejlig aften i haven", "", HOME_ID);
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.stringContaining("Couldn't find a recipe in that description"),
+      notARecipe: true,
+    });
   });
 });

@@ -81,12 +81,14 @@ export function NewRecipeDialog({
   const [initial, setInitial] = useState<RecipeValues | undefined>(undefined);
   const [autoUrl, setAutoUrl] = useState<string | undefined>(undefined);
   const [noRecipeFound, setNoRecipeFound] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
 
   // The clipboard check runs before the sheet opens rather than after, so it never
   // shows "choose" for a moment only to jump straight past it once the check resolves.
   async function openFresh() {
     setInitial(undefined);
     setNoRecipeFound(false);
+    setNote(null);
     const pasted = await clipboardRecipeUrl();
     setAutoUrl(pasted ?? undefined);
     setStep(pasted ? "url" : "choose");
@@ -99,6 +101,7 @@ export function NewRecipeDialog({
 
   function handleImported(recipe: ImportedRecipe) {
     setInitial(recipe);
+    setNote(recipe.note);
     setStep("form");
   }
 
@@ -107,6 +110,7 @@ export function NewRecipeDialog({
   // "choose" screen that would otherwise offer this.
   function startFromScratch() {
     setInitial(undefined);
+    setNote(null);
     setStep("form");
   }
 
@@ -190,6 +194,18 @@ export function NewRecipeDialog({
 
         {step === "form" && (
           <DialogForm action={action} submitLabel="Save recipe" onDone={close} onCancel={close}>
+            {/*
+              What the import thought was worth a second look — a description that stopped
+              mid-sentence, amounts it sent the reader to a link for. It sits above the
+              fields rather than beside one because it is about the recipe as a whole, and
+              it is amber rather than red: nothing is wrong yet, and the form below is
+              already the step where it gets checked.
+            */}
+            {note && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Worth checking: {note}
+              </p>
+            )}
             <RecipeFields recipe={initial} categories={categories} />
           </DialogForm>
         )}

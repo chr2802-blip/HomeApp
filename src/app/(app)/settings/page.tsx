@@ -19,6 +19,7 @@ import { InviteForm } from "@/components/invite-form";
 import { ActionForm } from "@/components/action-form";
 import { ReminderStatus } from "@/components/reminder-status";
 import { StorageUsage } from "@/components/storage-usage";
+import { AiSpendUsage } from "@/components/ai-spend";
 import { RecipeCategoriesAdmin } from "@/components/recipe-categories-admin";
 import { formatInZone } from "@/lib/time";
 import { ItemMenu } from "@/components/item-menu";
@@ -117,6 +118,13 @@ export default async function SettingsPage() {
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Storage</h2>
         <StorageUsage homeId={home.id} />
+      </section>
+
+      {/* Also a reading rather than a setting, beside Storage for the same reason: how
+          much of this month's 5 USD the household's imports have spent so far. */}
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">AI spending</h2>
+        <AiSpendUsage homeId={home.id} />
       </section>
 
       <section className="mb-8">
