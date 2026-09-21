@@ -1,6 +1,30 @@
 import { ACCOUNTS, expect, openDialog, openMenu, test } from "./helpers/fixtures";
 
 /*
+ * A sheet is a layer over the page, and back — the browser's button, or a phone's
+ * swipe-from-the-edge — is "leave where I am" everywhere else in the app. Over a sheet
+ * it has to mean "close the sheet", not "leave the page behind it": that second
+ * reading would drop somebody who opened New recipe on the dashboard back on the
+ * dashboard with no sheet and no idea why.
+ */
+test.describe("a sheet is closed by the browser's back button", () => {
+  test.beforeEach(async ({ loginAs }) => {
+    await loginAs(ACCOUNTS.member);
+  });
+
+  test("back closes the sheet instead of leaving the page", async ({ page }) => {
+    await page.goto("/dashboard");
+    await page.goto("/recipes");
+    await openDialog(page, "New recipe");
+
+    await page.goBack();
+
+    await expect(page.getByRole("dialog")).toBeHidden();
+    await expect(page).toHaveURL(/\/recipes$/);
+  });
+});
+
+/*
  * A sheet's buttons are what it is for. On a phone, where the sheet fills the screen
  * and the longest forms in the app run well past it, the danger is that Save sits below
  * the fold: the form looks finished, nothing obvious happens, and people close it.

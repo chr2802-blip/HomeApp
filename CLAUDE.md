@@ -712,6 +712,13 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
 - `Modal` lays its contents out as a column: `ModalBody` scrolls, `ModalFooter` does not.
   **Never put a form's buttons — or the reason a submission was refused — inside
   `ModalBody`.** On a phone a Save button below the fold is a form people abandon.
+- **A sheet closes on the browser's back button and a phone's back gesture**, by pushing
+  one history entry when it opens and closing on the `popstate` that leaves it. **It never
+  calls `history.back()` itself to tidy that entry away on a Cancel or a save** — the App
+  Router's client cache freezes the entry *below* the one a sheet pushed at the moment the
+  sheet opened, and a save made inside the sheet happens after that: popping back to it
+  restores the frozen snapshot and silently undoes the save. Costs one extra back press to
+  leave a page after a sheet was opened and cancelled; the alternative cost correctness.
 - `Collapsible` **always says how much is in there** and **starts shut on every visit**.
   Pass `headingClassName` where what folds is a section rather than part of a card. For the
   same reason **a list card counts open items, not all of them**.

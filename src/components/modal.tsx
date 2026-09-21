@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 /**
@@ -71,6 +71,37 @@ export function Modal({
       document.body.style.overflow = previousOverflow;
     };
   }, [mounted, onClose]);
+
+  // A phone's back gesture and a browser's back button are both "go back", and a sheet
+  // open over a page is a place people expect that to close the sheet rather than leave
+  // the page behind it. So opening pushes one history entry that stands for the sheet,
+  // and back — a `popstate` — closes it instead of being left to the router. `onClose`
+  // is read from a ref rather than a dependency: it is a fresh `() => setOpen(false)` on
+  // every render of whatever opened this, and depending on it directly would tear the
+  // listener down and re-push a history entry on every one of those renders.
+  //
+  // Closing any other way — Cancel, the × button, Escape, a successful save — leaves
+  // the pushed entry where it is rather than popping it to tidy up. Popping it would
+  // mean calling `history.back()` ourselves, and the App Router keeps its own client
+  // cache keyed to history entries: the entry a self-triggered `back()` lands *on* is a
+  // snapshot frozen from the moment this sheet's entry was pushed, and the router
+  // restores that snapshot outright. A save made from inside the sheet — exactly the
+  // case that closes it — happened *after* that snapshot was taken, so restoring it
+  // would silently undo the very change the sheet just made. Leaving the entry alone
+  // costs an extra back press to fully leave the page after a sheet was opened and
+  // cancelled; popping it costs correctness, on every save. `docs/design/ui-patterns.md`
+  // has the trace that found this the hard way.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+  useEffect(() => {
+    if (!open) return;
+    window.history.pushState({ homehubModal: true }, "");
+    const onPopState = () => onCloseRef.current();
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [open]);
 
   if (!mounted || typeof document === "undefined") return null;
 
