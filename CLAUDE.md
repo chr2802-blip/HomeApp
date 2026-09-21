@@ -592,6 +592,16 @@ There used to be two readers — one picking fields out of markup, one taking a 
 by line length and heading words — and the recipe a cook got depended on which door they came
 in by. Both were pattern-matchers being asked a question patterns cannot answer.
 
+- **A reel's caption is looked for in three places, in the order they stopped working.**
+  The embed page's `.Caption` element, then `og:description`, then the post as JSON inlined
+  in the page (`captionFromEmbeddedJson`) — which is where it lives now that both Instagram
+  addresses answer with an application shell carrying neither of the first two. That object
+  is lifted out by **matching braces and `JSON.parse`, never by pattern**: a caption holds
+  quotes, braces and escaped newlines, and a regex that reads one truncates the next. When a
+  source still comes back empty, `reel_caption_source` logs `mentionsCode` and
+  `hasInlineMediaJson`, which are the pair that says whether reading the page harder could
+  ever have worked — a body that never mentions the post's code was never told which post it
+  is for.
 - **There is no fallback to a second reader.** The heuristics were deleted, not kept as a
   floor: a floor made of the thing that was getting it wrong is the same two answers to one
   question. **No `ANTHROPIC_API_KEY`, or an API that will not answer, is an honest refusal**

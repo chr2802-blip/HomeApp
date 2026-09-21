@@ -436,6 +436,49 @@ describe("fetchRecipeFromUrl — a reel", () => {
     });
   });
 
+  /*
+   * The failure that sent this back for a second look: both addresses answered 200 with
+   * six hundred kilobytes of application shell — no login wall, no `.Caption`, no
+   * `og:description` — and the cook got the paste box. The shell still carries the post
+   * as the JSON its own client would have read, so the caption is in the page after all.
+   */
+  it("reads the caption out of the page's own JSON where the markup has gone", async () => {
+    const shell = `<!doctype html><html><head><title>Instagram</title></head><body>
+      <script type="application/json" data-sjs>${JSON.stringify({
+        xdt_shortcode_media: {
+          shortcode: "ABC123",
+          owner: { username: "somekitchen" },
+          edge_media_to_caption: {
+            edges: [{ node: { text: "Pasta al limone\nIngredienser\n400 g spaghetti" } }],
+          },
+        },
+      })}</script>
+    </body></html>`;
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(shell, { url: REEL })));
+
+    const result = await fetchRecipeFromUrl(REEL, HOME_ID);
+
+    expect(wasRead().rawContent).toContain("400 g spaghetti");
+    expect(result.ok).toBe(true);
+  });
+
+  it("says whether a shell was even told which post it is for, which decides what to do next", async () => {
+    const lines: Record<string, unknown>[] = [];
+    vi.spyOn(console, "warn").mockImplementation((line: string) => void lines.push(JSON.parse(line)));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(htmlResponse("<html><body>app shell</body></html>", { url: REEL })),
+    );
+
+    await fetchRecipeFromUrl(REEL, HOME_ID);
+
+    // Both false is the one failure no parser can be written out of: there is no caption
+    // in the body to find, because the body was never about this post.
+    expect(lines[0]).toMatchObject({ mentionsCode: false, hasInlineMediaJson: false });
+    vi.restoreAllMocks();
+  });
+
   it("asks the embed page first, since it is the one written for a caller with no account", async () => {
     const fetchMock = vi.fn().mockResolvedValue(htmlResponse(embedPage, { url: REEL }));
     vi.stubGlobal("fetch", fetchMock);
@@ -625,7 +668,7 @@ describe("fetchRecipeFromUrl — a reel", () => {
       await fetchRecipeFromUrl(REEL, HOME_ID);
 
       expect(lines).toContainEqual(
-        expect.objectContaining({ event: "reel_caption_unreachable", url: REEL, sourcesTried: 2 }),
+        expect.objectContaining({ event: "reel_caption_unreachable", url: REEL, sourcesTried: 3 }),
       );
     });
   });

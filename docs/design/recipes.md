@@ -288,15 +288,51 @@ arrived. What is left here is extraction: which addresses to ask, and how to get
 out of what each one answers.
 
 **None of the addresses is a supported API, and the design says so out loud.** Instagram's
-`/embed/captioned/` is the page its own embed widget loads and is the only one that carries
-a caption to a caller with no account; Meta's real oEmbed needs an app token this household
-does not have; TikTok's oEmbed is the one genuinely open endpoint of the three. The sources
+`/embed/captioned/` is the page its own embed widget loads; Meta's real oEmbed needs an app
+token this household does not have; TikTok's oEmbed is the one genuinely open endpoint of the three. The sources
 are therefore a list tried in order, best first, and **all of them failing is an ordinary
 outcome rather than a bug** — Meta refuses a signed-out request from a datacenter often
 enough that a feature resting on it alone would be a feature that works on a laptop and not
 on Vercel. Once a caption *has* been read the chain stops: there is nothing another address
 could add, and asking Instagram twice will not change the reader's mind about whether the
 text is a recipe.
+
+### Then the markup went, and the caption was still in the page
+
+The first version of this read two places: a `.Caption` element on the embed page, and
+`og:description` on everything else. Within a fortnight of shipping it, both Instagram
+addresses started answering the same way — 200 OK, no login wall, six hundred kilobytes,
+`hasCaptionElement` false and `hasOgDescription` false. The `reel_caption_source`
+diagnostics written for exactly this moment said one more thing the raw failure never
+could: the two bodies were **within thirty-five bytes of each other**, which is the
+difference between the two addresses appearing in them and nothing else. The same
+application shell, for the post page and the embed page alike. Asking as a crawler rather
+than as a browser had made no difference either.
+
+An application shell still has to *get* the post from somewhere, and a page that made a
+second request for it would be a page that rendered a frame late — so Instagram inlines it,
+as JSON, in a `<script>` tag. That is what `captionFromEmbeddedJson` reads, and it is
+deliberately the **third** place looked rather than the first: the caption element and
+`og:description` are Instagram stating what the post says, and this is reading over its
+shoulder. It is also the one most likely to survive the next redesign, because those names
+are an API's field names rather than a page's class names — three generations of them are
+in circulation at once (`edge_media_to_caption`, `caption.text`, `caption_text`), which is
+itself the evidence that the names outlive the markup.
+
+**The object is lifted out by matching braces and handed to `JSON.parse`, never picked
+apart by pattern.** A caption is free text: it contains quotes, braces and escaped
+newlines, and a regex that reads one caption correctly is a regex that truncates the next
+one at its first `"`. Matching braces is more code and cannot be wrong about where the
+object ends.
+
+Two smaller things came out of the same log. The `/p/` embed address is now asked as well
+as the reel-shaped one, since a reel is also a post and the two are not obviously served by
+the same thing. And the diagnostics gained `mentionsCode` and `hasInlineMediaJson`, which
+are the pair that says whether reading the page harder could ever have worked: a body that
+never mentions the post's own code was never told which post it is for, and no parser can
+find a caption that was not sent. That is the difference between "a shape we have not
+learned yet", which is an afternoon, and "there is nothing there", which is not a parsing
+problem at all.
 
 **Which is why the paste box is the load-bearing half.** `importPastedCaption` takes a
 description the cook pasted themselves straight to stage two — no fetch, no markup, nothing
