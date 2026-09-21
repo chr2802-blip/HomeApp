@@ -64,6 +64,28 @@ wants its own test, not a lucky one.
    403 on the project's scope. Worth fixing before the next production question, because the
    answer today came from re-deriving the bug rather than from reading what the app said.
 
+## Added after the first fix: why a reel refused
+
+The key turned out to be misspelled in Vercel (`ANTROPIC_API_KEY`), so the production
+failure was never the schema bug at all — the bug is real and shipped in this branch, but it
+had not been reached yet. With the key corrected, ordinary recipes import and reels still
+fail, at stage one, with "Instagram and Facebook often refuse".
+
+That sentence was all there was to go on, and it covers four different things:
+Meta refusing outright, a login wall served as an ordinary 200, the eight-second limit
+running out, and the embed page's markup moving. `readCaptionSource` returned a bare `null`
+for every one of them and logged nothing. Only one of the four is something this repo can
+change, so the difference decides whether there is any work here at all.
+
+So each one now writes a `reel_caption_source` line — outcome, status, and for the
+interesting case (answered 200, no caption) whether the body looks like a login wall and
+whether the embed markup is still there. Running out of sources writes
+`reel_caption_unreachable` with a count. No body is ever logged, only shapes read off it.
+
+This is deliberately diagnosis and not a fix: the plausible causes range from a one-line
+timeout change to "Meta blocks datacenter IPs and always will", and guessing between them
+would mean building the wrong one.
+
 ## Decided rather than known
 
 - **`isRecipe` defaults to `true` when the model omits it.** An answer that forgets the flag
@@ -74,7 +96,11 @@ wants its own test, not a lucky one.
 - **The log now separates `api_error` from `schema_rejected`**, by SDK error class rather
   than message text. The cook sees the same words either way — there is nothing better to
   offer them — but one of those passes on its own and the other is ours and will recur.
-- **Whether this was actually the user's failure is still unconfirmed.** It is a real bug
+- **Whether reels can be made to work at all is still unknown**, and the diagnostics exist
+  to answer it. If the lines say `http_error 403` or `no_caption looksLikeLoginWall: true`,
+  there is nothing in this repo to change and the paste box is the feature. If they say
+  `timed_out`, `FETCH_TIMEOUT_MS` is the fix.
+- **Whether the schema bug was actually the user's failure: no, it was not.** It is a real bug
   that produces exactly this message on exactly this kind of recipe, and it is fixed either
   way; but if their log line says `no_api_key`, the cause was the key and this was a
   different bug found on the way.
