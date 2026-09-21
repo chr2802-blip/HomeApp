@@ -160,13 +160,28 @@ test.describe("a recipe link already on the clipboard", () => {
 });
 
 /*
- * A reel keeps its recipe in the paragraph under the video, and Meta refuses a
- * signed-out request for that paragraph often enough that the automatic read cannot be
- * the only way in. The box is therefore reachable on purpose and not only after a
- * failure — which is also what lets this test drive the whole route with no network at
- * all: nothing here fetches anything, exactly like every other test in this file.
+ * A reel keeps its recipe in the paragraph under the video, and Meta refuses a signed-out
+ * request for that paragraph often enough that the automatic read cannot be the only way
+ * in. The box is therefore reachable on purpose and not only after a failure — which is
+ * also what lets these tests drive the whole route without fetching anything: the only
+ * thing beyond this app they touch is the reading, and that is answered by the worker's
+ * own stub (`e2e/helpers/anthropic-stub.mjs`), which hands back one fixed recipe.
+ *
+ * So what is pinned here is everything on this side of the reading: that the text gets
+ * there, that what comes back is rendered into lines, and that the create form opens with
+ * them in it, editable, before anything is saved. What the reading itself makes of a
+ * caption is a question for the unit suite and for the model.
  */
-test.describe("pasting a reel's description", () => {
+test.describe("pasting a description", () => {
+  async function paste(page: import("@playwright/test").Page, text: string) {
+    await openDialog(page, "New recipe");
+    await page.getByRole("button", { name: "Import from a link" }).click();
+    await page.getByRole("button", { name: "Paste the description instead" }).click();
+
+    await page.getByLabel("Paste the description instead").fill(text);
+    await page.getByRole("button", { name: "Read the description" }).click();
+  }
+
   const CAPTION = [
     "🍝 Cremet pasta med kylling",
     "",
@@ -184,17 +199,12 @@ test.describe("pasting a reel's description", () => {
   ].join("\n");
 
   test("reads a pasted description into the create form", async ({ page }) => {
-    await openDialog(page, "New recipe");
-    await page.getByRole("button", { name: "Import from a link" }).click();
-    await page.getByRole("button", { name: "Paste the description instead" }).click();
-
-    await page.getByLabel("Paste the description instead").fill(CAPTION);
-    await page.getByRole("button", { name: "Read the description" }).click();
+    await paste(page, CAPTION);
 
     // Straight into the ordinary create form, filled in and still entirely editable.
     await expect(page.getByLabel("Title")).toHaveValue("Cremet pasta med kylling");
     await expect(page.getByLabel("Ingredients")).toHaveValue(
-      "400 g pasta\n500 g kyllingebryst\n2 dl fløde",
+      "400 g pasta\n500 g kyllingebryst, i strimler\n2 dl fløde\nsalt, efter smag",
     );
     await expect(page.getByLabel("Instructions")).toHaveValue("Kog pastaen.\nSteg kyllingen.");
     await expect(page.getByLabel("Total time (minutes)")).toHaveValue("25");
@@ -203,14 +213,23 @@ test.describe("pasting a reel's description", () => {
   test("says so when the description is not a recipe, without leaving the step", async ({
     page,
   }) => {
-    await openDialog(page, "New recipe");
-    await page.getByRole("button", { name: "Import from a link" }).click();
-    await page.getByRole("button", { name: "Paste the description instead" }).click();
-
-    await page.getByLabel("Paste the description instead").fill("Sikke en dejlig aften i haven");
-    await page.getByRole("button", { name: "Read the description" }).click();
+    await paste(page, "Sikke en dejlig aften i haven");
 
     await expect(page.getByText("Couldn't find a recipe in that description")).toBeVisible();
     await expect(page.getByLabel("Title")).toHaveCount(0);
+  });
+
+  /*
+   * A caption that sends the cook elsewhere for half of it still imports — a recipe that
+   * needs checking is more use than no recipe — but it says so above the form, where the
+   * checking is about to happen anyway.
+   */
+  test("says what is worth checking over, above the form it filled in", async ({ page }) => {
+    await paste(page, "Cremet pasta\n400 g pasta\nResten i bio, resten i bio");
+
+    await expect(page.getByLabel("Title")).toHaveValue("Cremet pasta med kylling");
+    await expect(
+      page.getByText("Worth checking: Resten af opskriften står i profilen."),
+    ).toBeVisible();
   });
 });

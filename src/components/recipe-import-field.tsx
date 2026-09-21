@@ -6,43 +6,43 @@ import { importRecipeFromCaption, importRecipeFromUrl } from "@/app/actions/reci
 import type { ImportedRecipe } from "@/lib/recipe-import";
 
 /**
- * Fetches a recipe page and hands back what it found, so the cook is shown the usual
- * create form pre-filled rather than typing out what the site already wrote. It is its
- * own step rather than a field on the create form itself: fetching is a side trip that
- * may fail, and folding it into the same submit as saving would make one Save button
- * mean two different things.
+ * Fetches a recipe and hands back what it found, so the cook is shown the usual create
+ * form pre-filled rather than typing out what the page already wrote. It is its own step
+ * rather than a field on the create form itself: fetching is a side trip that may fail, and
+ * folding it into the same submit as saving would make one Save button mean two different
+ * things.
  *
  * The title, ingredients, instructions, picture and total time come back filled in; the
- * categories are left for the create form either way, since those are this household's
- * own choices and schema.org has no standard place for them. A reel fills the video
- * link too, because there the link that was pasted *is* the video. The picture is only
- * ever a starting point, not a fixture — `PhotoField` shows it exactly as it would a
- * photo the cook chose themselves, replaceable or removable before saving.
+ * categories are left for the create form either way, since those are this household's own
+ * choices and no page publishes them. A reel fills the video link too, because there the
+ * link that was pasted *is* the video. The picture is only ever a starting point, not a
+ * fixture — `PhotoField` shows it exactly as it would a photo the cook chose themselves,
+ * replaceable or removable before saving.
  *
- * `autoFetchUrl` is a link `NewRecipeDialog` already found on the clipboard: it seeds
- * the field and starts the same fetch a press of the button would, once, on arrival —
- * a cook who copied a recipe's address specifically to paste it here should not have
- * to paste it by hand and press anything to prove it.
+ * `autoFetchUrl` is a link `NewRecipeDialog` already found on the clipboard: it seeds the
+ * field and starts the same fetch a press of the button would, once, on arrival — a cook
+ * who copied a recipe's address specifically to paste it here should not have to paste it
+ * by hand and press anything to prove it.
  *
- * `onNoRecipeFound` tells `NewRecipeDialog` when the page was reached but had nothing
- * to cook from — a shop page, a site with none of the markup this reads, a reel whose
- * description could not be got at — which is what puts a "Start from scratch" button
- * beside the error. A mistyped address or a page that would not load is worth trying
- * again as typed, so those do not trigger it; this one specifically means the link
- * itself was never going to work, which matters most when the clipboard skipped the
- * dialog straight to this step and there was no "choose" screen behind it.
+ * `onNoRecipeFound` tells `NewRecipeDialog` when there is nothing more to try with the link
+ * as typed — a shop page, a reel whose description could not be got at, a reading that
+ * could not be done — which is what puts a "Start from scratch" button beside the error. A
+ * mistyped address or a page that would not load is worth trying again as typed, so those
+ * do not trigger it; this one specifically means pressing Fetch again will do the same
+ * thing, which matters most when the clipboard skipped the dialog straight to this step and
+ * there was no "choose" screen behind it.
  *
- * **The same failure opens the paste box below**, and that is the half of this feature
- * that cannot be blocked. A reel keeps its recipe in its caption and Instagram and
- * Facebook both refuse a signed-out request for one often enough that the automatic
- * read cannot be the only route — so the cook is offered the box rather than the news
- * that this app could not read what they are looking straight at. What they paste goes
- * through the very same parser, so a caption means one thing here however it arrived.
+ * **The same failure opens the paste box below**, and that is the half of this feature that
+ * cannot be blocked. Instagram and Facebook both refuse a signed-out request often enough
+ * that the automatic read cannot be the only route, and the reading itself can be down —
+ * so the cook is offered the box rather than the news that this app could not read what
+ * they are looking straight at. What they paste goes to the very same reader, so a
+ * description means one thing here however it arrived.
  *
- * The box is also there to be opened on purpose, under the link field, and not only
- * once something has gone wrong: a cook who has already had this reel refused once
- * knows how it ends, and making them watch two eight-second timeouts again to be handed
- * a box they were always going to use is the app being slow on principle.
+ * The box is also there to be opened on purpose, under the link field, and not only once
+ * something has gone wrong: a cook who has already had this reel refused once knows how it
+ * ends, and making them watch two eight-second timeouts again to be handed a box they were
+ * always going to use is the app being slow on principle.
  */
 export function RecipeImportField({
   onImported,
@@ -142,8 +142,8 @@ export function RecipeImportField({
         </div>
         <p className="text-xs text-slate-500">
           A recipe page, or a reel from Instagram, Facebook or TikTok. Its title,
-          ingredients, instructions, picture and time open in the usual form, to check over
-          before saving.
+          ingredients, instructions, picture and time open in the usual form, tidied up and
+          ready to check over before saving.
         </p>
         {error && (
           <p role="alert" className="text-sm text-red-600">
@@ -173,8 +173,9 @@ export function RecipeImportField({
             onChange={(event) => setCaption(event.target.value)}
           />
           <p className="text-xs text-slate-500">
-            The text under the video, with its ingredients and steps. It is read the same
-            way a recipe page is, and the link above still becomes the recipe&rsquo;s video.
+            The text under the video, with its ingredients and steps. It is read by the same
+            thing that reads a recipe page, and the link above still becomes the
+            recipe&rsquo;s video.
           </p>
           <Button
             type="button"
