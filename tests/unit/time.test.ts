@@ -7,6 +7,7 @@ import {
   endOfDayInZone,
   formatDayInZone,
   formatInZone,
+  monthStartInstant,
   nextWeekStart,
   previousWeekStart,
   todayInZone,
@@ -205,6 +206,25 @@ describe("weekStartInstant", () => {
     // And an hour later off it.
     expect(weekStartInstant("2026-12-07").toISOString()).toBe(
       "2026-12-06T23:00:00.000Z",
+    );
+  });
+});
+
+describe("monthStartInstant", () => {
+  it("is midnight on the first in the home's zone", () => {
+    // Summer time: midnight in Copenhagen is 22:00 the day before in UTC.
+    expect(monthStartInstant(new Date("2026-06-15T12:00:00Z")).toISOString()).toBe(
+      "2026-05-31T22:00:00.000Z",
+    );
+    // And an hour later off it.
+    expect(monthStartInstant(new Date("2026-12-20T12:00:00Z")).toISOString()).toBe(
+      "2026-11-30T23:00:00.000Z",
+    );
+  });
+
+  it("does not move for the first of the month itself", () => {
+    expect(monthStartInstant(new Date("2026-06-01T10:00:00Z")).toISOString()).toBe(
+      "2026-05-31T22:00:00.000Z",
     );
   });
 });

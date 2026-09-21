@@ -303,7 +303,7 @@ async function finish(
   homeId: string,
   options: { notARecipe: string; videoUrl?: string | null; photoId?: string | null },
 ): Promise<ImportOutcome> {
-  const read = await normalizeRecipe(raw);
+  const read = await normalizeRecipe(raw, homeId);
   if (!read.ok) {
     return {
       ok: false,
