@@ -80,24 +80,25 @@ export function Modal({
   // every render of whatever opened this, and depending on it directly would tear the
   // listener down and re-push a history entry on every one of those renders.
   //
-  // Closing any other way — Cancel, the × button, Escape, a successful save — leaves
-  // the pushed entry where it is rather than popping it to tidy up. Popping it would
-  // mean calling `history.back()` ourselves, and the App Router keeps its own client
-  // cache keyed to history entries: the entry a self-triggered `back()` lands *on* is a
-  // snapshot frozen from the moment this sheet's entry was pushed, and the router
-  // restores that snapshot outright. A save made from inside the sheet — exactly the
-  // case that closes it — happened *after* that snapshot was taken, so restoring it
-  // would silently undo the very change the sheet just made. Leaving the entry alone
-  // costs an extra back press to fully leave the page after a sheet was opened and
-  // cancelled; popping it costs correctness, on every save. `docs/design/ui-patterns.md`
-  // has the trace that found this the hard way.
+  // It never pops that entry itself on a non-back close (Cancel, the × button, Escape, a
+  // successful save) — see `docs/design/ui-patterns.md` for the two things this was
+  // tried as first and what each one broke. What it does instead is not push a *second*
+  // entry when one sheet closes and another opens right after on the same page: the
+  // marker only stands for "back should close whatever sheet is open here", and one
+  // already on top of the stack answers that exactly as well as a fresh one would.
+  // Checked through `window.history.state` rather than a variable this component keeps
+  // itself, because the App Router rewrites that state object on every save made inside
+  // a sheet — the mark does not reliably survive a mutation, so a sheet opened right
+  // after one pushes a new entry after all. Reusing is a saving where it costs nothing;
+  // it is never the thing standing between a save and being lost.
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
   });
   useEffect(() => {
     if (!open) return;
-    window.history.pushState({ homehubModal: true }, "");
+    const state = window.history.state as { homehubModal?: boolean } | null;
+    if (!state?.homehubModal) window.history.pushState({ homehubModal: true }, "");
     const onPopState = () => onCloseRef.current();
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);

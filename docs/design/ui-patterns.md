@@ -23,28 +23,55 @@ A phone's swipe-from-the-edge and a browser's back button are both "go back", an
 a sheet that has to mean "close the sheet" — not "leave the page behind it", which is
 what the router would otherwise do with either gesture. `Modal` pushes one history entry
 when it opens (`{ homehubModal: true }`, no url — the address never changes) and closes
-itself on a `popstate` instead.
+itself on the `popstate` a real back press fires.
 
-**It never pops that entry itself.** The first version did, in the cleanup that runs when
-the sheet closes some other way — Cancel, the × button, Escape, a successful save — on
-the theory that leaving it there costs a later back press "an entry that closes nothing
-and shows no new page". That theory is true only when nothing changed while the sheet was
-open. The App Router keeps a client-side cache of each route's rendered tree, keyed to the
-history entry current when it was fetched; a background save — exactly what closes a
-sheet on success — updates the *entry the sheet pushed*, because that is the current one
-while the sheet is open, and leaves the entry **below** it exactly as it was the moment the
-sheet opened. Popping back to that entry with `history.back()` restores that frozen
-snapshot outright, which silently undid the very save that had just been made: deleting a
-list's last item left the item on screen, renaming a list left the old name — both fixed by
-a `revalidatePath` the traverse never saw, because it never asked the server again. Found
+**It never pops that entry itself on a non-back close** — Cancel, the × button, Escape,
+a successful save. Two other things were tried first, and both are worth knowing were
+tried, because the obvious next idea after either failure is the other one.
+
+**The second version popped on every non-back close**, on the theory that leaving the
+entry in place cost a later back press "an entry that closes nothing and shows no new
+page" — true, but only when nothing changed while the sheet was open. The App Router
+keeps a client-side cache of each route's rendered tree, keyed to the history entry
+current when it was fetched. A background save — exactly what closes a sheet on success —
+updates the *entry the sheet pushed*, because that is the current one while the sheet is
+open, and leaves the entry **below** it exactly as it was the moment the sheet opened.
+Popping back to that entry with `history.back()` restores that frozen snapshot outright,
+which silently undid the very save that had just been made: deleting a list's last item
+left the item on screen, renaming a list left the old name — both fixed by a
+`revalidatePath` the traverse never saw, because it never asked the server again. Found
 by the full browser suite, not by the two tests written for the feature, because both used
 the one dialog in the app that never mutates anything (choosing "start from scratch")
 — **`e2e/lists.spec.ts`'s "an item can be removed outright" and "a list can be renamed"
 are the regression cover**, not a test living beside this file.
 
-So the entry stays. The cost is a page that opened and cancelled a sheet needing one
-extra back press to be left entirely — never a second call to `history.back()` from this
-component, which is the only way to reintroduce the bug above.
+**The third version kept the pop but chased it with `router.refresh()`** the moment it
+landed, on the theory that asking the server again would replace whatever frozen tree
+the restore had just painted. It does, most of the time — `--repeat-each=8` on "an item
+can be removed outright" failed once. `history.back()` and `router.refresh()` both go
+through the App Router's own action queue, and nothing here controls which of "restore
+the frozen tree" and "fetch the current one" the queue finishes last; usually the fetch
+loses the race because a network round trip is slower than reading a snapshot already in
+memory, and *usually* is exactly the shape of bug this codebase refuses to ship — see
+*Tests gate everything*, "a flaky test is worse than no test: fix the race, do not add a
+timeout." There was no race left to fix: the ordering is the App Router's, not this
+component's, to control.
+
+**So it never pops.** The cost is a page that opened and cancelled a sheet needing one
+extra back press to be left entirely. What *is* cheap, and worth doing, is not paying
+that cost twice on the same page: opening a second sheet — a confirm inside a menu, a
+rename tried again after cancelling the first attempt — checks `window.history.state`
+first, and only pushes when the entry on top isn't already a `homehubModal` marker. One
+sheet closed and another opened right after reuses it, because the marker only stands
+for "back should close whatever sheet is open here" and one already on top answers that
+exactly as well as a fresh one would. This is read from `history.state` rather than kept
+in a variable of the component's own, because a save made inside a sheet rewrites that
+object — `server-action-reducer.js` in the App Router sets `preserveCustomHistoryState`
+to `false` on every one, which is the same "current entry" the marker occupies while the
+sheet is open — so the mark does not reliably survive a mutation and the next sheet opened
+right after one pushes a new entry after all. That's fine: reusing is a saving taken
+where it costs nothing, never the thing standing between a save and being lost, so
+losing it after a save is exactly the case where losing it is safe to lose.
 
 ## A sheet's actions stay on screen
 
