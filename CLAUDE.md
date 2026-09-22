@@ -714,11 +714,18 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
   `ModalBody`.** On a phone a Save button below the fold is a form people abandon.
 - **A sheet closes on the browser's back button and a phone's back gesture**, by pushing
   one history entry when it opens and closing on the `popstate` that leaves it. **It never
-  calls `history.back()` itself to tidy that entry away on a Cancel or a save** — the App
-  Router's client cache freezes the entry *below* the one a sheet pushed at the moment the
-  sheet opened, and a save made inside the sheet happens after that: popping back to it
-  restores the frozen snapshot and silently undoes the save. Costs one extra back press to
-  leave a page after a sheet was opened and cancelled; the alternative cost correctness.
+  pops that entry itself on a non-back close** (Cancel, the × button, Escape, a save) —
+  two things were tried first and both cost more than the one thing that shipped. Popping
+  with `history.back()` restores the App Router's own cached snapshot of the entry
+  *below*, frozen from the moment the sheet opened, which silently undid a save made
+  inside the sheet. Chasing that pop with `router.refresh()` fixed it *most* of the time —
+  both go through the App Router's own action queue, and nothing here controls which of
+  "restore the frozen tree" and "fetch the current one" finishes last, so it was flaky
+  rather than wrong, which this codebase treats as the same problem. **It only ever
+  avoids pushing a second entry**, checking `window.history.state` before opening and
+  reusing whatever `homehubModal` marker is already on top — free, but not reliable
+  across a save, so it costs one extra back press after a sheet that mutated something
+  and was then reopened. `docs/design/ui-patterns.md` has the trace on both wrong turns.
 - `Collapsible` **always says how much is in there** and **starts shut on every visit**.
   Pass `headingClassName` where what folds is a section rather than part of a card. For the
   same reason **a list card counts open items, not all of them**.

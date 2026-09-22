@@ -22,6 +22,51 @@ test.describe("a sheet is closed by the browser's back button", () => {
     await expect(page.getByRole("dialog")).toBeHidden();
     await expect(page).toHaveURL(/\/recipes$/);
   });
+
+  // Closing a sheet any other way — here, its own × button — never brings it back on a
+  // later back press: `Modal` does not tie its open state to history at all, so there is
+  // nothing for a stale history entry to reopen. What back does next is leave the page,
+  // exactly as it would have without the sheet ever having been opened — a cancelled
+  // sheet costs one extra press to get past its own entry (`docs/design/ui-patterns.md`
+  // has why popping that entry itself was tried twice and cost more than it saved), so
+  // this is `page.goBack()` twice, not once.
+  test("closing a sheet by its own button never reopens it on a later back press", async ({ page }) => {
+    await page.goto("/dashboard");
+    await page.goto("/recipes");
+    await openDialog(page, "New recipe");
+    await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
+    await expect(page.getByRole("dialog")).toBeHidden();
+
+    await page.goBack();
+    await expect(page.getByRole("dialog")).toBeHidden();
+    await page.goBack();
+
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByRole("dialog")).toBeHidden();
+  });
+
+  // Cancelling one sheet and opening another on the same page must not spend a second
+  // history entry on it: the marker already on top still answers "back closes whatever
+  // is open here" for the second sheet just as well as a fresh one would, so leaving
+  // both sheets still costs exactly the one extra press the first one did, not two.
+  test("a second sheet opened after cancelling the first reuses its history entry", async ({ page }) => {
+    await page.goto("/dashboard");
+    await page.goto("/recipes");
+
+    await openDialog(page, "New recipe");
+    await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
+    await expect(page.getByRole("dialog")).toBeHidden();
+
+    await openDialog(page, "New recipe");
+    await expect(page.getByRole("dialog")).toBeVisible();
+
+    await page.goBack();
+    await expect(page.getByRole("dialog")).toBeHidden();
+    await expect(page).toHaveURL(/\/recipes$/);
+    await page.goBack();
+
+    await expect(page).toHaveURL(/\/dashboard$/);
+  });
 });
 
 /*
