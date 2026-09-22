@@ -131,7 +131,9 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <Card>
           <div className="mb-3 flex items-start justify-between gap-3">
-            <h2 className="mt-2 text-sm font-semibold text-slate-500 uppercase">Ingredients</h2>
+            <h2 className="mt-2 shrink-0 text-sm font-semibold text-slate-500 uppercase">
+              Ingredients
+            </h2>
             {/* Only where there is something to add. A recipe still being written would
                 otherwise offer to put nothing on a list. */}
             {ingredients.length > 0 && (
