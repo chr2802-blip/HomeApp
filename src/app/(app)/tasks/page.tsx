@@ -20,6 +20,8 @@ import {
 } from "@/lib/tasks";
 import { formatInZone, readInZone, todayInZone } from "@/lib/time";
 import { DATE } from "@/lib/copy/dates";
+import { sayIn } from "@/lib/copy/say";
+import { TASKS } from "@/lib/copy/tasks";
 import type { HomeLanguage } from "@prisma/client";
 import { FormDialog } from "@/components/form-dialog";
 import { AssigneeField, type MemberOption } from "@/components/assignee-field";
@@ -50,14 +52,17 @@ type TaskRow = {
  * you do once it would read as a reproach.
  */
 function historyLine(task: TaskRow, language: HomeLanguage) {
-  const rhythm = repeatLabel(task);
+  const say = sayIn(language);
+  const rhythm = repeatLabel(task, language);
 
   if (task.lastCompletedAt) {
     const when = readInZone(task.lastCompletedAt, DATE.dayMonthYear, language);
-    return `${rhythm} · ${isFinished(task) ? "done" : "last done"} ${when}`;
+    return isFinished(task)
+      ? say(TASKS.doneOn, { rhythm, when })
+      : say(TASKS.lastDoneOn, { rhythm, when });
   }
 
-  return isOneOff(task) ? rhythm : `${rhythm} · never completed`;
+  return isOneOff(task) ? rhythm : say(TASKS.neverCompleted, { rhythm });
 }
 
 /**
@@ -76,6 +81,7 @@ function TaskItem({
   language: HomeLanguage;
 }) {
   const finished = isFinished(task);
+  const say = sayIn(language);
 
   return (
     <TaskCard
@@ -88,7 +94,10 @@ function TaskItem({
       snoozeAction={snoozeTask}
       reopenAction={reopenTask}
       deleteAction={deleteTask}
-      photo={<PhotoThumb photoId={task.photoId} alt="" className="h-14 w-14" placeholder="task" />}
+      photo={
+        // eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a PhotoKind glyph, not copy.
+        <PhotoThumb photoId={task.photoId} alt="" className="h-14 w-14" placeholder="task" />
+      }
       summary={
         <>
           <div className="flex flex-wrap items-center gap-2">
@@ -97,13 +106,13 @@ function TaskItem({
                 saying how overdue it was would be telling somebody off for a job they
                 have already done. */}
             {finished ? (
-              <Badge tone="green">Done</Badge>
+              <Badge tone="green">{say(TASKS.doneBadge)}</Badge>
             ) : (
               <Badge tone={dueTone(task.nextDueAt, now)}>{dueLabel(task.nextDueAt, language, now)}</Badge>
             )}
             {/* Only when somebody is named: "everyone" is the resting state
                 and labelling it on every card would say nothing. */}
-            {task.assignee && <Badge>For {task.assignee.name}</Badge>}
+            {task.assignee && <Badge>{say(TASKS.forName, { name: task.assignee.name })}</Badge>}
           </div>
           {task.notes && <p className="mt-1 text-sm text-slate-600">{task.notes}</p>}
           <p className="mt-1 text-xs text-slate-500">{historyLine(task, language)}</p>
@@ -111,12 +120,14 @@ function TaskItem({
       }
     >
       <div className="space-y-1">
-        <Label htmlFor={`title-${task.id}`}>Task</Label>
+        <Label htmlFor={`title-${task.id}`}>{say(TASKS.taskField)}</Label>
         <Input id={`title-${task.id}`} name="title" defaultValue={task.title} required />
       </div>
       <RepeatField intervalDays={task.intervalDays} />
       <div className="space-y-1">
-        <Label htmlFor={`due-${task.id}`}>{task.intervalDays === null ? "Due" : "Next due"}</Label>
+        <Label htmlFor={`due-${task.id}`}>
+          {task.intervalDays === null ? say(TASKS.due) : say(TASKS.nextDue)}
+        </Label>
         <Input
           id={`due-${task.id}`}
           name="nextDueAt"
@@ -124,9 +135,14 @@ function TaskItem({
           defaultValue={formatInZone(task.nextDueAt, "yyyy-MM-dd")}
         />
       </div>
-      <AssigneeField members={members} selected={task.assigneeId} id={`assignee-${task.id}`} />
+      <AssigneeField
+        members={members}
+        selected={task.assigneeId}
+        id={`assignee-${task.id}`}
+        language={language}
+      />
       <div className="space-y-1">
-        <Label htmlFor={`notes-${task.id}`}>Notes</Label>
+        <Label htmlFor={`notes-${task.id}`}>{say(TASKS.notes)}</Label>
         <Textarea id={`notes-${task.id}`} name="notes" rows={2} defaultValue={task.notes ?? ""} />
       </div>
       <PhotoField defaultPhotoId={task.photoId} />
@@ -190,47 +206,48 @@ export default async function TasksPage() {
   ]);
 
   const members = memberships.map((membership) => membership.user);
+  const say = sayIn(user.homeLanguage);
 
   return (
     <>
       <PageHeader
-        title="Tasks"
-        description="A one-off is done when it is done. Complete a repeating task and it schedules itself again after the interval you set."
+        title={say(TASKS.title)}
+        description={say(TASKS.description)}
         action={
           <FormDialog
-            triggerLabel="New task"
+            triggerLabel={say(TASKS.newTask)}
             triggerVariant="create"
             triggerShape="icon"
-            title="New task"
-            submitLabel="Add task"
+            title={say(TASKS.newTask)}
+            submitLabel={say(TASKS.addTask)}
             action={createTask}
           >
             <div className="space-y-1">
-              <Label htmlFor="title">Task</Label>
-              <Input id="title" name="title" placeholder="Water the plants" required autoFocus />
+              <Label htmlFor="title">{say(TASKS.task)}</Label>
+              <Input id="title" name="title" placeholder={say(TASKS.namePlaceholder)} required autoFocus />
             </div>
             {/* Recurring by default: the household's standing jobs are the ones worth
                 writing down in advance, and a one-off is usually added because it is
                 already on somebody's mind. */}
             <RepeatField intervalDays={7} />
             <div className="space-y-1">
-              <Label htmlFor="firstDueAt">Due date</Label>
+              <Label htmlFor="firstDueAt">{say(TASKS.dueDate)}</Label>
               <Input id="firstDueAt" name="firstDueAt" type="date" defaultValue={today} />
             </div>
-            <AssigneeField members={members} />
+            <AssigneeField members={members} language={user.homeLanguage} />
             <div className="space-y-1">
-              <Label htmlFor="notes">Notes (optional)</Label>
+              <Label htmlFor="notes">{say(TASKS.notesOptional)}</Label>
               <Textarea id="notes" name="notes" rows={2} />
             </div>
-            <PhotoField hint="Optional — a picture of the filter, the plant, the meter." />
+            <PhotoField hint={say(TASKS.photoHint)} />
           </FormDialog>
         }
       />
 
       {todo.length === 0 && done.length === 0 ? (
-        <EmptyState icon="🧺">No tasks yet — add the first one above.</EmptyState>
+        <EmptyState icon="🧺">{say(TASKS.empty)}</EmptyState>
       ) : todo.length === 0 ? (
-        <EmptyState icon="✨">Nothing left to do — nice work.</EmptyState>
+        <EmptyState icon="✨">{say(TASKS.allDone)}</EmptyState>
       ) : (
         <TaskList tasks={todo} members={members} now={now} language={user.homeLanguage} />
       )}
@@ -242,7 +259,7 @@ export default async function TasksPage() {
       {done.length > 0 && (
         <section className="mt-8">
           <Collapsible
-            summary={`Done (${done.length})`}
+            summary={say(TASKS.done, { count: done.length })}
             headingClassName="mb-3 text-sm font-semibold text-slate-500 uppercase"
             triggerClassName="hover:text-slate-700"
             panelClassName="pb-1"

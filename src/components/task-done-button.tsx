@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { SubmitButton } from "@/components/submit-button";
 import { tick } from "@/lib/haptics";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { APP } from "@/lib/copy/app";
 
 /**
  * Marking a task done, and being seen to.
@@ -40,13 +43,14 @@ export function TaskDoneButton({
   variant?: "primary" | "secondary";
 }) {
   const [stamped, setStamped] = useState(false);
+  const say = sayIn(useLanguage());
 
   return (
     <form action={action} className="relative inline-flex">
       <input type="hidden" name="taskId" value={taskId} />
       <SubmitButton
         variant={variant}
-        pendingLabel="Saving…"
+        pendingLabel={say(APP.saving)}
         onClick={() => {
           tick();
           setStamped(true);

@@ -123,6 +123,12 @@ const eslintConfig = [
       "src/components/favorite-button.tsx",
       "src/components/amount-picker.tsx",
       "src/components/queue-status.tsx",
+      "src/app/(app)/tasks/page.tsx",
+      "src/components/task-card.tsx",
+      "src/components/task-done-button.tsx",
+      "src/components/task-snooze.tsx",
+      "src/components/repeat-field.tsx",
+      "src/components/assignee-field.tsx",
     ],
     rules: {
       "no-restricted-syntax": [

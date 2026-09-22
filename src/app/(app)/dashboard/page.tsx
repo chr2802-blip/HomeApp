@@ -98,7 +98,7 @@ function DueTask({
         <div className="min-w-0 flex-1">
           <p className="font-medium">{task.title}</p>
           <p className="text-xs text-slate-500">
-            {repeatLabel(task)}
+            {repeatLabel(task, language)}
             {task.assignee && ` · ${task.assignee.name}`}
           </p>
         </div>
