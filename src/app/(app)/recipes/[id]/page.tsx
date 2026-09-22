@@ -6,7 +6,7 @@ import { addRecipeIngredients } from "@/app/actions/lists";
 import { Badge, ButtonLink, Card } from "@/components/ui";
 import { ItemMenu } from "@/components/item-menu";
 import { AddToMealPlanMenuItem } from "@/components/add-to-meal-plan-menu-item";
-import { RecipeFields } from "@/components/recipe-fields";
+import { RECIPE_SAVE_OVERLAY, RecipeFields } from "@/components/recipe-fields";
 import { PhotoBanner } from "@/components/photo";
 import { SocialVideoEmbed } from "@/components/video-embed";
 import { AddToListMenu } from "@/components/add-to-list-menu";
@@ -83,6 +83,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
             label={recipe.title}
             editTitle="Edit recipe"
             editAction={updateRecipe}
+            editOverlay={RECIPE_SAVE_OVERLAY}
             deleteAction={deleteRecipe}
             deleteMessage={`Delete the recipe "${recipe.title}"?`}
             extraItems={<AddToMealPlanMenuItem recipeId={recipe.id} />}

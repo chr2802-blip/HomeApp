@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AiOverlay } from "@/components/ai-overlay";
 import { Modal, ModalBody, ModalFooter } from "@/components/modal";
 import { Button, IconButton } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
@@ -43,12 +44,19 @@ export function DialogForm({
   submitLabel,
   onDone,
   onCancel,
+  overlay,
   children,
 }: {
   action: FormAction;
   submitLabel: string;
   onDone: () => void;
   onCancel: () => void;
+  /**
+   * Shown over the whole sheet while the action is pending — for the one action behind
+   * this dialog that spends a model call, so waiting past what the button's own label
+   * says reads as the AI working rather than the app hanging. Left out everywhere else.
+   */
+  overlay?: { title: string; detail: string };
   children: React.ReactNode;
 }) {
   // Close only once the action reports success. A rejected submission leaves the
@@ -56,7 +64,7 @@ export function DialogForm({
   const { state, pending, handleSubmit } = useFormAction(action, { onSuccess: onDone });
 
   return (
-    <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+    <form onSubmit={handleSubmit} className="relative flex min-h-0 flex-1 flex-col">
       <ModalBody className="space-y-4">{children}</ModalBody>
       {/* The reason a submission was refused belongs beside the button that will be
           pressed again, not at the bottom of a form that may be scrolled away from. */}
@@ -73,6 +81,7 @@ export function DialogForm({
           </Button>
         </div>
       </ModalFooter>
+      {overlay && <AiOverlay active={pending} title={overlay.title} detail={overlay.detail} />}
     </form>
   );
 }

@@ -48,6 +48,15 @@ function day(page: Parameters<typeof plan>[0], date: string) {
 }
 
 /**
+ * A day's whole row, button and "Go to recipe" link both — the immediate parent the two
+ * sit in as siblings, since a button cannot hold a link. Scoping to it is what tells one
+ * day's "Go to recipe" apart from another's.
+ */
+function dayRow(page: Parameters<typeof plan>[0], date: string) {
+  return day(page, date).locator("xpath=..");
+}
+
+/**
  * Opens a day's sheet, and waits for the trigger to say it can actually open it.
  *
  * Hydration leaves no mark of its own — the markup is identical before and after React
@@ -130,6 +139,25 @@ test("a recipe can be planned for a day, and shows on that day", async ({ page }
   await expect(page.getByText("Nothing planned")).toHaveCount(6);
 });
 
+test("a day cooking a recipe offers a way to its own page, on the row itself", async ({
+  page,
+}) => {
+  const recipe = await seedRecipe("Pancakes");
+  await page.reload();
+
+  const today = todayInZone();
+  const link = dayRow(page, today).getByRole("link", { name: "Go to recipe" });
+
+  // Nothing planned yet, so there is no recipe to go to.
+  await expect(link).toHaveCount(0);
+
+  await plan(page, today, "Pancakes");
+
+  await expect(link).toHaveAttribute("href", `/recipes/${recipe.id}`);
+  await link.click();
+  await expect(page).toHaveURL(`/recipes/${recipe.id}`);
+});
+
 test("a day can be marked as eating out, and taken back to nothing", async ({ page }) => {
   const today = todayInZone();
 
@@ -202,7 +230,17 @@ test("a day can live off an earlier one's cooking, and says whose", async ({ pag
   await page.goto(`/meals?week=${FUTURE_WEEK}`);
 
   await plan(page, monday!, "Pancakes");
+  // Cooking a recipe is what earns the row its own "Go to recipe".
+  await expect(
+    dayRow(page, monday!).getByRole("link", { name: "Go to recipe" }),
+  ).toBeVisible();
+
   await plan(page, tuesday!, "Leftovers — Monday's Pancakes");
+  // Leftovers is a choice, but not a recipe with a page of its own — the meal it names
+  // already has that row, on the day it was actually cooked.
+  await expect(
+    dayRow(page, tuesday!).getByRole("link", { name: "Go to recipe" }),
+  ).toHaveCount(0);
 
   // The row names the meal and the day it was cooked: "Leftovers" alone says no dinner.
   await expect(day(page, tuesday!)).toContainText("Leftovers — Monday's Pancakes");

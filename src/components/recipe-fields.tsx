@@ -19,6 +19,21 @@ export type RecipeValues = {
 export type CategoryOption = { id: string; name: string };
 
 /**
+ * What every place that saves a recipe tells `AiOverlay` — one wording, because a
+ * create, an edit page and the two edit-from-a-sheet call sites disagreeing about why
+ * Save is slow would read as four different features rather than the same one. Saving
+ * a recipe with instructions writes its cooking steps in the same request
+ * (`withCookSteps` in `app/actions/recipes.ts`), which is the one model call this can
+ * mean — so the wording says "if", rather than claiming a recipe with no instructions
+ * yet is waiting on the AI too.
+ */
+export const RECIPE_SAVE_OVERLAY = {
+  title: "Saving your recipe…",
+  detail:
+    "If there are instructions, the AI is turning them into steps for cooking mode — this can take up to 20 seconds.",
+};
+
+/**
  * The category picker: a box to tick per heading, because a recipe belongs under as
  * many as the cook says it does. A lasagne is both a weeknight dinner and Italian, and
  * a picker that made them choose would file it under whichever came to mind first and

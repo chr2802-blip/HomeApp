@@ -24,6 +24,7 @@ export function ItemMenu({
   editTitle,
   editSubmitLabel = "Save changes",
   editAction,
+  editOverlay,
   editLabel = "Edit",
   deleteTitle = "Are you sure?",
   deleteLabel = "Delete",
@@ -44,6 +45,8 @@ export function ItemMenu({
   editSubmitLabel?: string;
   /** Omitted where there is nothing to edit — a home is only ever deleted. */
   editAction?: FormAction;
+  /** Shown over the edit sheet while `editAction` is pending — see `DialogForm`. */
+  editOverlay?: { title: string; detail: string };
   editLabel?: string;
   deleteTitle?: string;
   deleteLabel?: string;
@@ -89,6 +92,7 @@ export function ItemMenu({
             submitLabel={editSubmitLabel}
             onDone={() => setEditing(false)}
             onCancel={() => setEditing(false)}
+            overlay={editOverlay}
           >
             <input type="hidden" name={name} value={id} />
             {extraFields}

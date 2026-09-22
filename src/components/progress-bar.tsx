@@ -2,10 +2,10 @@
  * How much of something is ticked off, drawn as a bar.
  *
  * Decorative on purpose, in every place it is used: a list card says "1 open · 2 total"
- * directly above it and the list's own page says "1 of 2 ticked off" beside it, so a
- * screen reader announcing the same proportion a second time as a progressbar would be
- * reading the line twice. The bar is what makes that line legible at a glance, not a
- * second way of saying it.
+ * directly above it and the list's own page says "1 missing" beside it, so a screen
+ * reader announcing the same proportion a second time as a progressbar would be reading
+ * the line twice. The bar is what makes that line legible at a glance, not a second way
+ * of saying it.
  *
  * **The fill is the home's own `--accent`.** It was `--chart-lists`, on the reasoning
  * that a bar is read rather than pressed and would otherwise read as one more long flat
@@ -43,8 +43,9 @@ export function ProgressBar({
    * A card is one thing, and a floating rounded bar inside its padding reads as a
    * second thing sitting on it. At the card's own edge the progress becomes part of
    * how the card is drawn, the way the hairline under the header is part of the
-   * header. It is thinner than the free-standing bar for the same reason: on the edge
-   * it is a rule, not a readout, and the words above it are what carry the number.
+   * header. It is the same height as the free-standing bar: on the edge it is a rule,
+   * not a readout, and the words above it are what carry the number, but a rule too
+   * thin to see is not a rule.
    */
   edge?: boolean;
   className?: string;
@@ -62,7 +63,7 @@ export function ProgressBar({
       // in a screenshot and identical to a working one in the DOM.
       data-progress={percent}
       className={`w-full overflow-hidden bg-slate-100 ${
-        edge ? "absolute inset-x-0 bottom-0 h-1" : "h-1.5 rounded-full"
+        edge ? "absolute inset-x-0 bottom-0 h-1.5" : "h-1.5 rounded-full"
       } ${className}`}
     >
       <div

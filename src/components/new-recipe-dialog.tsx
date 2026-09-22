@@ -4,7 +4,12 @@ import { useState } from "react";
 import { Modal, ModalBody, ModalFooter } from "@/components/modal";
 import { DialogForm } from "@/components/form-dialog";
 import { Button, IconButton } from "@/components/ui";
-import { RecipeFields, type CategoryOption, type RecipeValues } from "@/components/recipe-fields";
+import {
+  RECIPE_SAVE_OVERLAY,
+  RecipeFields,
+  type CategoryOption,
+  type RecipeValues,
+} from "@/components/recipe-fields";
 import { RecipeImportField } from "@/components/recipe-import-field";
 import type { FormAction } from "@/lib/action-result";
 import type { ImportedRecipe } from "@/lib/recipe-import";
@@ -189,7 +194,13 @@ export function NewRecipeDialog({
         )}
 
         {step === "form" && (
-          <DialogForm action={action} submitLabel="Save recipe" onDone={close} onCancel={close}>
+          <DialogForm
+            action={action}
+            submitLabel="Save recipe"
+            onDone={close}
+            onCancel={close}
+            overlay={RECIPE_SAVE_OVERLAY}
+          >
             {/*
               What the import thought was worth a second look — a description that stopped
               mid-sentence, amounts it sent the reader to a link for. It sits above the
