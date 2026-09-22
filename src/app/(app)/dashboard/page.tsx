@@ -285,7 +285,11 @@ export default async function DashboardPage() {
               const stillOpen = open.get(list.id) ?? 0;
 
               return (
-                <Link key={list.id} href={`/lists/${list.id}`}>
+                <Link
+                  key={list.id}
+                  href={`/lists/${list.id}`}
+                  className="pressable block rounded-xl active:scale-[0.98]"
+                >
                   <Card className="relative flex items-center gap-3 overflow-hidden transition hover:border-slate-400">
                     {/* Decorative: the list's own name is right beside it. */}
                     <PhotoThumb photoId={list.photoId} alt="" className="h-11 w-11" placeholder="list" />

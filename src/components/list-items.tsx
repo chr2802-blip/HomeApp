@@ -602,7 +602,7 @@ export function ListItems({
       <div className="space-y-2 px-4 py-3">
         <div className="flex items-baseline justify-between gap-3 text-xs">
           <span className="font-medium text-slate-600">
-            {ticked === total ? "All done 🎉" : `${ticked} of ${total} ticked off`}
+            {ticked === total ? "All done 🎉" : `${total - ticked} missing`}
           </span>
           <span className="tabular-nums text-slate-400">
             {Math.round((ticked / total) * 100)}%
