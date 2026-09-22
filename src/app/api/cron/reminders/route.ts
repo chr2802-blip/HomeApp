@@ -10,6 +10,9 @@ import {
   pruneMetrics,
   startCronRun,
 } from "@/lib/observability";
+import { DEFAULT_LANGUAGE } from "@/lib/language";
+import { sayIn } from "@/lib/copy/say";
+import { APP } from "@/lib/copy/app";
 
 export const dynamic = "force-dynamic";
 
@@ -63,10 +66,16 @@ async function sendDueReminders() {
   // a home with several tasks due on the same morning asked for the same rows again
   // and again.
   const homeIds = [...new Set(dueTasks.map((task) => task.homeId))];
-  const members = await prisma.homeMember.findMany({
-    where: { homeId: { in: homeIds } },
-    select: { userId: true, homeId: true },
-  });
+  const [members, homes] = await Promise.all([
+    prisma.homeMember.findMany({
+      where: { homeId: { in: homeIds } },
+      select: { userId: true, homeId: true },
+    }),
+    // The notification's title is read with no session, so it takes each home's own
+    // language from the row rather than from whoever happens to be looking at a
+    // screen — a person in two homes hears about each in that home's own voice.
+    prisma.home.findMany({ where: { id: { in: homeIds } }, select: { id: true, language: true } }),
+  ]);
 
   const membersByHome = new Map<string, string[]>();
   for (const member of members) {
@@ -75,10 +84,13 @@ async function sendDueReminders() {
     else membersByHome.set(member.homeId, [member.userId]);
   }
 
+  const languageByHome = new Map(homes.map((home) => [home.id, home.language]));
+
   let delivered = 0;
   for (const task of dueTasks) {
+    const say = sayIn(languageByHome.get(task.homeId) ?? DEFAULT_LANGUAGE);
     delivered += await sendPushToUsers(recipientsFor(task, membersByHome.get(task.homeId) ?? []), {
-      title: "Task due",
+      title: say(APP.push.taskDue),
       body: task.title,
       url: "/tasks",
     });

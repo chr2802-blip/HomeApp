@@ -17,6 +17,7 @@ for.
 | | what it covers |
 | --- | --- |
 | [`theme-and-frame.md`](theme-and-frame.md) | A home's colour, and the band the phone paints at the top and bottom of the screen |
+| [`language.md`](language.md) | A home's language, the phrase catalogue's shape, and why switching rewrites nothing |
 | [`lists.md`](lists.md) | Ticking something off, the progress bar, the celebration, and the note saying which recipe put an item there |
 | [`week-and-dashboard.md`](week-and-dashboard.md) | `ClearedWeek`, the streak, `weekWorkload`, and why the dashboard's blocks are in that order |
 | [`meals.md`](meals.md) | `MealPlan`, leftovers, the picker, the suggestion ranking, and tonight's dinner |

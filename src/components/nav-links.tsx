@@ -4,14 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { navItemsFor } from "./nav-items";
 import { LinkPending } from "./link-pending";
+import { useLanguage } from "./language-provider";
 
 /** Desktop navigation. On mobile the same destinations live in `BottomNav`. */
 export function NavLinks({ showAdmin }: { showAdmin: boolean }) {
   const pathname = usePathname();
+  const language = useLanguage();
 
   return (
     <nav className="hidden items-center gap-1 text-sm md:flex">
-      {navItemsFor(showAdmin).map((item) => {
+      {navItemsFor(showAdmin, language).map((item) => {
         const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
         return (
           <Link

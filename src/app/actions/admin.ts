@@ -19,6 +19,9 @@ import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { optionalText, readForm, requiredText } from "@/lib/form";
 import { discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { THEMES, THEME_FIELD } from "@/lib/theme";
+import { LANGUAGES, LANGUAGE_FIELD } from "@/lib/language";
+import { sayIn, type Say } from "@/lib/copy/say";
+import { SETTINGS } from "@/lib/copy/settings";
 
 const homeSchema = z.object({
   name: requiredText("Give the home a name."),
@@ -26,23 +29,34 @@ const homeSchema = z.object({
 });
 
 /**
- * What a home already has, plus the colour it is dressed in.
+ * What a home already has, plus the colour it is dressed in and the language it is
+ * read in.
  *
- * The colour is a choice from a fixed set and never one typed in, so it is checked
- * against that set: a value from outside it would be stored happily and then draw
- * nothing, leaving the home in whichever colours the page already had.
+ * Both are a choice from a fixed set and never typed in, so both are checked against
+ * their set: a value from outside it would be stored happily and then draw or say
+ * nothing, leaving the home as it already was.
  *
- * Optional, because a colour that was not mentioned is a colour left alone — unlike a
- * task's interval, where saying nothing would silently change what the record means.
- * The picker lives in the home's own settings, and the other ways here (a picture being
- * replaced, a home being renamed from the list of them) are not about the colour.
+ * Both are optional, for the same reason: a colour or a language that was not
+ * mentioned is one left alone — unlike a task's interval, where saying nothing would
+ * silently change what the record means. The pickers live in the home's own settings,
+ * and the other ways here (a picture being replaced, a home being renamed from the
+ * list of them) are not about either.
  *
- * A new home is not asked at all: it starts in the app's own colours and is dressed
- * from inside it, which is why this extends the create schema rather than replacing it.
+ * A new home is asked about neither: it starts in the app's own colours and its own
+ * voice, and is dressed and spoken to from inside it — which is why this extends the
+ * create schema rather than replacing it.
+ *
+ * A function of `say` rather than a module-level constant like `homeSchema`, because
+ * the language field's own message has to be read in the language the form was
+ * already in. Everything else here keeps the message `readForm`'s other callers
+ * already had; those convert in PR 2, with the screens that read them.
  */
-const editHomeSchema = homeSchema.extend({
-  [THEME_FIELD]: z.enum(THEMES, { error: "Pick one of the colours offered." }).optional(),
-});
+function editHomeSchema(say: Say) {
+  return homeSchema.extend({
+    [THEME_FIELD]: z.enum(THEMES, { error: "Pick one of the colours offered." }).optional(),
+    [LANGUAGE_FIELD]: z.enum(LANGUAGES, { error: say(SETTINGS.language.invalid) }).optional(),
+  });
+}
 
 const profileSchema = z.object({
   name: requiredText("Your name cannot be blank."),
@@ -133,7 +147,7 @@ export async function updateHome(_prev: ActionResult, formData: FormData): Promi
   const homeId = String(formData.get("homeId") ?? "");
   assertHomeAdmin(user, homeId);
 
-  const form = readForm(editHomeSchema, formData);
+  const form = readForm(editHomeSchema(sayIn(user.homeLanguage)), formData, user.homeLanguage);
   if (!form.ok) return fail(form.error);
 
   const photo = await readPhotoChoice(formData, homeId);

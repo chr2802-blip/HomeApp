@@ -4,6 +4,9 @@ import { useOptimistic, useState, useTransition } from "react";
 import { deletePantryItem, renamePantryItem, setPantryStock } from "@/app/actions/pantry";
 import { ItemMenu } from "@/components/item-menu";
 import { tick } from "@/lib/haptics";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { PANTRY } from "@/lib/copy/pantry";
 
 /**
  * One basic good: whether the household has it, what it is called, and the way to drop
@@ -48,6 +51,7 @@ export function PantryRow({
   const [draft, setDraft] = useState(name);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  const say = sayIn(useLanguage());
 
   function toggle() {
     const data = new FormData();
@@ -95,7 +99,7 @@ export function PantryRow({
           // Named for the state rather than the press: a screen reader says "Rice, on"
           // rather than renaming the control under the person using it.
           aria-label={shown}
-          title={stocked ? `${shown} is in` : `${shown} has run out`}
+          title={say(stocked ? PANTRY.isIn : PANTRY.hasRunOut, { name: shown })}
           onClick={toggle}
           className={`pressable relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition active:scale-95 ${
             // The home's own colour: this is a control, and a control is exactly what
@@ -131,14 +135,14 @@ export function PantryRow({
                 setEditing(false);
               }
             }}
-            aria-label={`Edit ${shown}`}
+            aria-label={say(PANTRY.editAria, { name: shown })}
             className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-sm outline-none focus-visible:border-slate-500"
           />
         ) : (
           <button
             type="button"
             onClick={open}
-            aria-label={`Edit ${shown}`}
+            aria-label={say(PANTRY.editAria, { name: shown })}
             className="min-w-0 flex-1 truncate rounded px-2 py-1 text-left text-sm transition-colors hover:bg-slate-50"
           >
             {shown}
@@ -149,16 +153,16 @@ export function PantryRow({
             ordinary state of a cupboard and the switch says it; having run out is what
             somebody scans the column for, and it names exactly what "Add to list" at
             the top of the page will take. */}
-        {!stocked && <span className="shrink-0 text-xs text-slate-500">Run out</span>}
+        {!stocked && <span className="shrink-0 text-xs text-slate-500">{say(PANTRY.runOut)}</span>}
 
         <ItemMenu
           name="pantryItemId"
           id={id}
           label={shown}
           deleteAction={deletePantryItem}
-          deleteTitle="Remove from pantry"
-          deleteMessage={`Stop treating “${shown}” as something you always have in? Recipes asking for it will put it on the shopping list again.`}
-          deleteConfirmLabel="Remove"
+          deleteTitle={say(PANTRY.removeTitle)}
+          deleteMessage={say(PANTRY.removeMessage, { name: shown })}
+          deleteConfirmLabel={say(PANTRY.removeConfirm)}
           className="-mr-2"
         />
       </div>

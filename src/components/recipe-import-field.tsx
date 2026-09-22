@@ -4,6 +4,9 @@ import { useEffect, useState, useTransition } from "react";
 import { Button, Input, Label } from "@/components/ui";
 import { importRecipeFromUrl } from "@/app/actions/recipe-import";
 import type { ImportedRecipe } from "@/lib/recipe-import";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { RECIPES } from "@/lib/copy/recipes";
 
 /**
  * Fetches a recipe and hands back what it found, so the cook is shown the usual create
@@ -43,6 +46,7 @@ export function RecipeImportField({
   const [url, setUrl] = useState(autoFetchUrl ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const say = sayIn(useLanguage());
 
   function setFetchError(message: string | null, notARecipe = false) {
     setError(message);
@@ -52,7 +56,7 @@ export function RecipeImportField({
   function handleFetch(overrideUrl?: string) {
     const trimmed = (overrideUrl ?? url).trim();
     if (!trimmed) {
-      setFetchError("Paste a link to a recipe first.");
+      setFetchError(say(RECIPES.pasteLinkFirst));
       return;
     }
 
@@ -82,7 +86,7 @@ export function RecipeImportField({
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <Label htmlFor="importUrl">Recipe link</Label>
+        <Label htmlFor="importUrl">{say(RECIPES.recipeLink)}</Label>
         <div className="flex flex-wrap gap-2">
           <Input
             id="importUrl"
@@ -99,14 +103,10 @@ export function RecipeImportField({
             onClick={() => handleFetch()}
             disabled={pending}
           >
-            {pending ? "Fetching…" : "Fetch"}
+            {pending ? say(RECIPES.fetching) : say(RECIPES.fetch)}
           </Button>
         </div>
-        <p className="text-xs text-slate-500">
-          A recipe page, or a reel from Instagram, Facebook or TikTok. Its title,
-          ingredients, instructions, picture and time open in the usual form, tidied up and
-          ready to check over before saving.
-        </p>
+        <p className="text-xs text-slate-500">{say(RECIPES.linkHint)}</p>
         {/*
           A page fetch plus the AI writing the recipe up can run well past what a button's
           own label reads as "still working" — so this is the one place a spinner shows: it
@@ -121,10 +121,8 @@ export function RecipeImportField({
           >
             <Spinner className="h-5 w-5 text-slate-500" />
             <div>
-              <p className="text-sm font-medium text-slate-900">Reading the recipe…</p>
-              <p className="text-xs text-slate-500">
-                The AI is writing it up — this can take up to 20 seconds.
-              </p>
+              <p className="text-sm font-medium text-slate-900">{say(RECIPES.reading)}</p>
+              <p className="text-xs text-slate-500">{say(RECIPES.readingHint)}</p>
             </div>
           </div>
         )}

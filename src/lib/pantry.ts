@@ -1,4 +1,7 @@
+import type { HomeLanguage } from "@prisma/client";
 import { shoppingText } from "./recipes";
+import { sayIn } from "./copy/say";
+import { PANTRY } from "./copy/pantry";
 
 /**
  * What a household keeps in, and what that means for a shopping list.
@@ -140,22 +143,26 @@ const NAMED = 3;
  * sentence anybody reads to the end, so the rest becomes the number it may as well have
  * been.
  */
-export function namesInWords(names: string[]): string {
+export function namesInWords(names: string[], language: HomeLanguage): string {
+  const say = sayIn(language);
   const named = names.slice(0, NAMED);
   const rest = names.length - named.length;
-  const parts = rest > 0 ? [...named, `${rest} more`] : named;
+  const parts = rest > 0 ? [...named, say(PANTRY.andMore, { count: rest })] : named;
 
-  return parts.length === 1
-    ? parts[0]
-    : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+  if (parts.length === 1) return parts[0];
+  return say(PANTRY.lastTwo, {
+    most: parts.slice(0, -1).join(", "),
+    last: parts[parts.length - 1],
+  });
 }
 
 /**
  * What the pantry took care of, in words, or nothing at all where it took care of
  * nothing — which is what a successful press usually has to say for itself.
  */
-export function pantryNote(covered: string[]): string | undefined {
-  return covered.length === 0 ? undefined : `${namesInWords(covered)} already in the pantry.`;
+export function pantryNote(covered: string[], language: HomeLanguage): string | undefined {
+  if (covered.length === 0) return undefined;
+  return sayIn(language)(PANTRY.covered, { names: namesInWords(covered, language) });
 }
 
 /**
@@ -163,8 +170,9 @@ export function pantryNote(covered: string[]): string | undefined {
  * saying, so a household that presses "Add to list" and sees two rows appear out of
  * five knows the other three were not lost.
  */
-export function alreadyOnListNote(names: string[]): string | undefined {
-  return names.length === 0 ? undefined : `${namesInWords(names)} already on the list.`;
+export function alreadyOnListNote(names: string[], language: HomeLanguage): string | undefined {
+  if (names.length === 0) return undefined;
+  return sayIn(language)(PANTRY.onList, { names: namesInWords(names, language) });
 }
 
 /**

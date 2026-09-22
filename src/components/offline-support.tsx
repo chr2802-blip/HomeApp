@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import type { HomeLanguage } from "@prisma/client";
 import { useQueueFlush } from "@/components/use-offline-list";
 import { clearQueue } from "@/lib/offline-queue";
 
@@ -21,8 +22,15 @@ import { clearQueue } from "@/lib/offline-queue";
  * A shop's ticks must not have to wait for somebody to open a list again: coming back to
  * the dashboard is coming back, and the queue belongs to the browser rather than to the
  * page that filled it.
+ *
+ * `language` is posted to the worker on every load too, for the same reason the
+ * registration happens here rather than on a switch: the worker has to know before the
+ * signal goes, and a household reads the app in whatever language it is in right now,
+ * not the language it happened to be in the last time somebody pressed Save on
+ * `/settings`. The worker drops its kept pages when the posted language differs from
+ * the one it last saw — see `setLanguage` in `public/sw.js`.
  */
-export function OfflineSupport() {
+export function OfflineSupport({ language }: { language: HomeLanguage }) {
   useQueueFlush();
 
   useEffect(() => {
@@ -32,6 +40,10 @@ export function OfflineSupport() {
       // no reason to trouble the person reading it.
     });
   }, []);
+
+  useEffect(() => {
+    navigator.serviceWorker?.controller?.postMessage({ type: "homehub:language", language });
+  }, [language]);
 
   return null;
 }

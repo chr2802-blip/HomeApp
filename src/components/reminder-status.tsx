@@ -1,5 +1,7 @@
+import type { HomeLanguage } from "@prisma/client";
 import { getHomeReminderStatus } from "@/lib/system-stats";
-import { formatInZone } from "@/lib/time";
+import { readInZone } from "@/lib/time";
+import { DATE } from "@/lib/copy/dates";
 import { Badge, Card } from "@/components/ui";
 
 /**
@@ -7,7 +9,7 @@ import { Badge, Card } from "@/components/ui";
  * their own home's rows. Nothing here reveals anything about another home or about the
  * installation as a whole.
  */
-export async function ReminderStatus({ homeId }: { homeId: string }) {
+export async function ReminderStatus({ homeId, language }: { homeId: string; language: HomeLanguage }) {
   const now = new Date();
   const status = await getHomeReminderStatus(homeId, now);
 
@@ -37,14 +39,14 @@ export async function ReminderStatus({ homeId }: { homeId: string }) {
           Last reminder sent:{" "}
           <span className="font-medium text-slate-900">
             {status.lastNotifiedAt
-              ? formatInZone(status.lastNotifiedAt, "d MMM 'at' HH:mm")
+              ? readInZone(status.lastNotifiedAt, DATE.dayAndTime, language)
               : "never"}
           </span>
         </p>
         <p>
           Next task due:{" "}
           <span className="font-medium text-slate-900">
-            {status.nextDue ? formatInZone(status.nextDue.nextDueAt, "d MMM") : "nothing scheduled"}
+            {status.nextDue ? readInZone(status.nextDue.nextDueAt, DATE.dayMonth, language) : "nothing scheduled"}
           </span>
         </p>
       </div>

@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import type { HomeLanguage } from "@prisma/client";
 import { MAX_EDGE, THUMB_EDGE } from "./downscale";
 import { storePhoto } from "./photos";
 import { extractFromHtml, type RawExtract } from "./recipe-extract";
@@ -11,6 +12,8 @@ import {
   type CaptionSource,
   type ReelCaption,
 } from "./reel-import";
+import { sayIn } from "./copy/say";
+import { RECIPES } from "./copy/recipes";
 
 /**
  * Importing a recipe, in two stages and one direction.
@@ -73,8 +76,7 @@ export type ImportOutcome =
   | { ok: true; recipe: ImportedRecipe }
   | { ok: false; error: string; notARecipe?: boolean };
 
-const GENERIC_ERROR =
-  "Couldn't read a recipe from that page. Check the link, or fill the form in by hand.";
+const genericError = (language: HomeLanguage) => sayIn(language)(RECIPES.genericError);
 
 /**
  * The ways an import ends badly, kept apart because they ask the cook for different things.
@@ -85,12 +87,9 @@ const GENERIC_ERROR =
  * this app's own fault and will pass. All three point at the same box, because that box is
  * the one route into the importer that nothing on anybody else's side can block.
  */
-const CAPTION_UNREACHABLE =
-  "Couldn't read that reel's description — Instagram and Facebook often refuse. Paste it in below instead.";
-const CAPTION_NOT_A_RECIPE =
-  "Couldn't find a recipe in that description. Paste the whole thing in below, or fill the form in by hand.";
-const READER_UNAVAILABLE =
-  "Couldn't read that recipe just now. Try again in a moment, paste the description below, or fill the form in by hand.";
+const captionUnreachable = (language: HomeLanguage) => sayIn(language)(RECIPES.captionUnreachable);
+const captionNotARecipe = (language: HomeLanguage) => sayIn(language)(RECIPES.captionNotARecipe);
+const readerUnavailable = (language: HomeLanguage) => sayIn(language)(RECIPES.readerUnavailable);
 
 /** How much of a page is ever read — a bound on the request, not a claim about recipes. */
 const MAX_RESPONSE_BYTES = 3 * 1024 * 1024;
@@ -201,13 +200,18 @@ function safeImportUrl(rawUrl: string): URL | null {
  * by this app: a slow or enormous response must not be able to hold a request open or
  * exhaust memory just because somebody pasted the wrong thing.
  */
-export async function fetchRecipeFromUrl(rawUrl: string, homeId: string): Promise<ImportOutcome> {
+export async function fetchRecipeFromUrl(
+  rawUrl: string,
+  homeId: string,
+  language: HomeLanguage,
+): Promise<ImportOutcome> {
+  const say = sayIn(language);
   const url = safeImportUrl(rawUrl);
-  if (!url) return { ok: false, error: "That doesn't look like a web address." };
+  if (!url) return { ok: false, error: say(RECIPES.notAWebAddress) };
 
   // A reel publishes no markup worth reading and its recipe is in the paragraph under the
   // video, so it takes the other route to the same reader.
-  if (isReelUrl(url.toString())) return fetchRecipeFromReel(url, homeId);
+  if (isReelUrl(url.toString())) return fetchRecipeFromReel(url, homeId, language);
 
   let response: Response;
   try {
@@ -217,28 +221,29 @@ export async function fetchRecipeFromUrl(rawUrl: string, homeId: string): Promis
       headers: REQUEST_HEADERS,
     });
   } catch {
-    return { ok: false, error: "Couldn't reach that page. Check the link and try again." };
+    return { ok: false, error: say(RECIPES.couldNotReach) };
   }
-  if (!response.ok || !response.body) return { ok: false, error: GENERIC_ERROR, notARecipe: true };
+  const generic = genericError(language);
+  if (!response.ok || !response.body) return { ok: false, error: generic, notARecipe: true };
 
   // The redirect this app actually followed is what has to be checked, not the link
   // that was typed — a page can redirect an outside address to an internal one.
-  if (isBlockedHost(new URL(response.url).hostname)) return { ok: false, error: GENERIC_ERROR, notARecipe: true };
+  if (isBlockedHost(new URL(response.url).hostname)) return { ok: false, error: generic, notARecipe: true };
 
   const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.includes("html")) return { ok: false, error: GENERIC_ERROR, notARecipe: true };
+  if (!contentType.includes("html")) return { ok: false, error: generic, notARecipe: true };
 
   let bytes: Uint8Array;
   try {
     bytes = await readLimited(response.body, MAX_RESPONSE_BYTES);
   } catch {
-    return { ok: false, error: GENERIC_ERROR, notARecipe: true };
+    return { ok: false, error: generic, notARecipe: true };
   }
 
   const raw = extractFromHtml(decodeHtml(bytes, contentType), response.url);
-  if (!raw) return { ok: false, error: GENERIC_ERROR, notARecipe: true };
+  if (!raw) return { ok: false, error: generic, notARecipe: true };
 
-  return finish(raw, homeId, { notARecipe: GENERIC_ERROR });
+  return finish(raw, homeId, language, { notARecipe: generic });
 }
 
 /**
@@ -258,15 +263,15 @@ export async function fetchRecipeFromUrl(rawUrl: string, homeId: string): Promis
  * recipe page even where every one of these sources refused and the cook pasted the caption
  * in by hand.
  */
-async function fetchRecipeFromReel(url: URL, homeId: string): Promise<ImportOutcome> {
+async function fetchRecipeFromReel(url: URL, homeId: string, language: HomeLanguage): Promise<ImportOutcome> {
   const sources = captionSources(url.toString());
 
   for (const source of sources) {
     const read = await readCaptionSource(source);
     if (!read) continue;
 
-    return finish(reelExtract(read, url.toString(), source.url), homeId, {
-      notARecipe: CAPTION_NOT_A_RECIPE,
+    return finish(reelExtract(read, url.toString(), source.url), homeId, language, {
+      notARecipe: captionNotARecipe(language),
     });
   }
 
@@ -283,7 +288,7 @@ async function fetchRecipeFromReel(url: URL, homeId: string): Promise<ImportOutc
     }),
   );
 
-  return { ok: false, error: CAPTION_UNREACHABLE, notARecipe: true };
+  return { ok: false, error: captionUnreachable(language), notARecipe: true };
 }
 
 /**
@@ -302,9 +307,10 @@ export async function importPastedCaption(
   caption: string,
   rawUrl: string,
   homeId: string,
+  language: HomeLanguage,
 ): Promise<ImportOutcome> {
   const text = caption.trim();
-  if (!text) return { ok: false, error: "Paste the reel's description first." };
+  if (!text) return { ok: false, error: sayIn(language)(RECIPES.pasteCaptionFirst) };
 
   const url = safeImportUrl(rawUrl);
   const isReel = url !== null && isReelUrl(url.toString());
@@ -320,8 +326,8 @@ export async function importPastedCaption(
     timeHintMinutes: null,
   };
 
-  return finish(raw, homeId, {
-    notARecipe: CAPTION_NOT_A_RECIPE,
+  return finish(raw, homeId, language, {
+    notARecipe: captionNotARecipe(language),
     videoUrl: isReel ? url.toString() : null,
     photoId: isReel ? await fetchReelThumbnail(url, homeId) : null,
   });
@@ -342,13 +348,14 @@ export async function importPastedCaption(
 async function finish(
   raw: RawExtract,
   homeId: string,
+  language: HomeLanguage,
   options: { notARecipe: string; videoUrl?: string | null; photoId?: string | null },
 ): Promise<ImportOutcome> {
-  const read = await normalizeRecipe(raw, homeId);
+  const read = await normalizeRecipe(raw, homeId, language);
   if (!read.ok) {
     return {
       ok: false,
-      error: read.reason === "unavailable" ? READER_UNAVAILABLE : options.notARecipe,
+      error: read.reason === "unavailable" ? readerUnavailable(language) : options.notARecipe,
       notARecipe: true,
     };
   }

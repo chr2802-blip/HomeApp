@@ -5,6 +5,9 @@ import { Card, EmptyState, Input, Label, PageHeader } from "@/components/ui";
 import { ActionForm } from "@/components/action-form";
 import { AddToListMenu } from "@/components/add-to-list-menu";
 import { PantryRow } from "@/components/pantry-row";
+import { sayIn } from "@/lib/copy/say";
+import { APP } from "@/lib/copy/app";
+import { PANTRY } from "@/lib/copy/pantry";
 
 /**
  * What the household keeps in, so that adding a recipe to a shopping list stops asking
@@ -23,6 +26,7 @@ import { PantryRow } from "@/components/pantry-row";
  */
 export default async function PantryPage() {
   const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
   const db = homeDb(user.homeId);
 
   const [items, shoppingLists] = await Promise.all([
@@ -40,8 +44,8 @@ export default async function PantryPage() {
   return (
     <>
       <PageHeader
-        title="Pantry"
-        description="The basics you always have in. A recipe added to a shopping list leaves these off — switch off anything you have run out of and it goes back on."
+        title={say(PANTRY.title)}
+        description={say(PANTRY.description)}
         action={
           // Drawn whenever the pantry has anything in it at all, rather than only when
           // something has run out: the switches are optimistic, so a button that came
@@ -64,26 +68,23 @@ export default async function PantryPage() {
       <Card>
         <ActionForm
           action={createPantryItem}
-          submitLabel="Add to pantry"
-          successLabel="Added."
+          submitLabel={say(PANTRY.add)}
+          successLabel={say(APP.added)}
           className="flex flex-wrap items-end gap-3"
         >
           <div className="min-w-48 flex-1 space-y-1">
-            <Label htmlFor="pantry-name">Something you keep in</Label>
+            <Label htmlFor="pantry-name">{say(PANTRY.nameLabel)}</Label>
             {/* One thing per entry, written the way it would go on a shopping list:
                 that is what it is matched against. "Salt and pepper" is two entries. */}
-            <Input id="pantry-name" name="name" placeholder="Salt" required />
+            <Input id="pantry-name" name="name" placeholder={say(PANTRY.namePlaceholder)} required />
           </div>
         </ActionForm>
       </Card>
 
       {items.length === 0 ? (
         <EmptyState icon="🧂">
-          <p>Nothing in the pantry yet.</p>
-          <p className="mt-2">
-            Add the lines your recipes open with — salt, pepper, oil, butter, flour — and
-            they will stop turning up on the shopping.
-          </p>
+          <p>{say(PANTRY.empty)}</p>
+          <p className="mt-2">{say(PANTRY.emptyHint)}</p>
         </EmptyState>
       ) : (
         <Card className="mt-3 divide-y divide-slate-100 p-0">

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
+import { Prisma, type HomeLanguage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
@@ -12,6 +12,8 @@ import { addItem } from "@/lib/list-writes";
 import { MIN_AMOUNT } from "@/lib/amount";
 import { alreadyOnListNote, pantryKey } from "@/lib/pantry";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
+import { sayIn, type Say } from "@/lib/copy/say";
+import { PANTRY } from "@/lib/copy/pantry";
 
 /**
  * The household's basic goods: adding one, renaming it, saying it has run out, and
@@ -26,7 +28,10 @@ import { fail, ok, type ActionResult } from "@/lib/action-result";
  * nothing else.
  */
 
-const pantrySchema = z.object({ name: requiredText("Write what you keep in.") });
+/** A function of `say` for the same reason `editHomeSchema` in `admin.ts` is. */
+function pantrySchema(say: Say) {
+  return z.object({ name: requiredText(say(PANTRY.nameRequired)) });
+}
 
 /** The entry being acted on, found through the caller's own home or not at all. */
 async function itemInScope(id: string) {
@@ -51,10 +56,10 @@ function refreshPantryViews() {
 }
 
 /** Postgres refusing the (homeId, key) unique index, said in words a person can act on. */
-function duplicate(error: unknown, name: string) {
+function duplicate(error: unknown, name: string, say: Say) {
   const clash = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
   if (!clash) throw error;
-  return fail(`“${name}” is already in the pantry.`);
+  return fail(say(PANTRY.duplicate, { name }));
 }
 
 /**
@@ -65,12 +70,13 @@ function duplicate(error: unknown, name: string) {
  * empty key would sit on the page looking like a basic good while matching no ingredient
  * line ever written. Worse, it would match the *next* such entry as a duplicate.
  */
-function readPantryName(formData: FormData) {
-  const form = readForm(pantrySchema, formData);
+function readPantryName(formData: FormData, language: HomeLanguage) {
+  const say = sayIn(language);
+  const form = readForm(pantrySchema(say), formData, language);
   if (!form.ok) return form;
 
   const key = pantryKey(form.fields.name);
-  if (!key) return { ok: false, error: "Write what it is called, not how much of it." } as const;
+  if (!key) return { ok: false, error: say(PANTRY.noKeyLeft) } as const;
 
   return { ok: true, fields: { name: form.fields.name, key } } as const;
 }
@@ -81,7 +87,7 @@ export async function createPantryItem(
 ): Promise<ActionResult> {
   const user = await requireHomeUser();
 
-  const form = readPantryName(formData);
+  const form = readPantryName(formData, user.homeLanguage);
   if (!form.ok) return fail(form.error);
 
   try {
@@ -91,7 +97,7 @@ export async function createPantryItem(
       data: { homeId: user.homeId, name: form.fields.name, key: form.fields.key },
     });
   } catch (error) {
-    return duplicate(error, form.fields.name);
+    return duplicate(error, form.fields.name, sayIn(user.homeLanguage));
   }
 
   refreshPantryViews();
@@ -113,10 +119,13 @@ export async function createPantryItem(
  * what it said.
  */
 export async function renamePantryItem(formData: FormData): Promise<ActionResult> {
-  const item = await itemInScope(String(formData.get("pantryItemId")));
-  if (!item) return fail("That is no longer in the pantry.");
+  const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
 
-  const form = readPantryName(formData);
+  const item = await itemInScope(String(formData.get("pantryItemId")));
+  if (!item) return fail(say(PANTRY.noItemAnyMore));
+
+  const form = readPantryName(formData, user.homeLanguage);
   if (!form.ok) return fail(form.error);
 
   try {
@@ -125,7 +134,7 @@ export async function renamePantryItem(formData: FormData): Promise<ActionResult
       data: { name: form.fields.name, key: form.fields.key },
     });
   } catch (error) {
-    return duplicate(error, form.fields.name);
+    return duplicate(error, form.fields.name, say);
   }
 
   refreshPantryViews();
@@ -190,11 +199,13 @@ export async function addPantryToList(formData: FormData): Promise<ActionResult>
   const user = await requireHomeUser();
   const list = await listInScope(String(formData.get("listId")));
 
+  const say = sayIn(user.homeLanguage);
+
   const missing = await homeDb(user.homeId).pantryItem.findMany({
     where: { inStock: false },
     orderBy: { name: "asc" },
   });
-  if (missing.length === 0) return fail("Nothing in the pantry has run out.");
+  if (missing.length === 0) return fail(say(PANTRY.nothingRunOut));
 
   const already: string[] = [];
   let added = 0;
@@ -205,7 +216,7 @@ export async function addPantryToList(formData: FormData): Promise<ActionResult>
     else already.push(outcome.clash);
   }
 
-  if (added === 0) return fail("Everything that has run out is already on the list.");
+  if (added === 0) return fail(say(PANTRY.allAlreadyOnList));
 
   // The three views a list is read in, refreshed together — the same three
   // `refreshListViews` covers in the list actions, which cannot be shared from a module
@@ -214,5 +225,5 @@ export async function addPantryToList(formData: FormData): Promise<ActionResult>
   revalidatePath("/lists");
   revalidatePath("/dashboard");
 
-  return ok(alreadyOnListNote(already));
+  return ok(alreadyOnListNote(already, user.homeLanguage));
 }

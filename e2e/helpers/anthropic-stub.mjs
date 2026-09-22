@@ -87,6 +87,35 @@ function preparedSteps(sent) {
   };
 }
 
+/**
+ * The other language's recipe, answered when the system prompt's own `### Language`
+ * section asked for English rather than Danish.
+ *
+ * This proves only that the right instruction reached the API — the literal sentence
+ * `systemPrompt(language)` writes when `language` is `"EN"` — never that a model
+ * translates anything. Nothing here reads the raw text being imported, so it cannot
+ * prove a Danish source became this English recipe; that half is deterministic and
+ * proved properly by `tests/unit/recipe-normalize.test.ts`'s `SAME_MEASURE` and
+ * `formatAmount` cases, which need no server at all.
+ */
+const RECIPE_EN = {
+  isRecipe: true,
+  title: "Creamy chicken pasta",
+  totalTimeMinutes: 25,
+  ingredients: [
+    { name: "pasta", amount: 400, unit: "g", preparation: null, note: null, group: null },
+    { name: "chicken breast", amount: 500, unit: "g", preparation: "sliced", note: null, group: null },
+    { name: "cream", amount: 2, unit: "dl", preparation: null, note: null, group: null },
+    { name: "salt", amount: null, unit: null, preparation: null, note: "to taste", group: null },
+  ],
+  instructions: [
+    { step: "Cook the pasta.", component: null },
+    { step: "Fry the chicken.", component: null },
+  ],
+  needsReview: false,
+  reviewReason: null,
+};
+
 /** The marker a test puts in its text when it wants the other answer. */
 const NOT_A_RECIPE = "aften i haven";
 
@@ -98,13 +127,25 @@ function answer(sent) {
   // says which of the two questions this is.
   if (!sent.includes("isRecipe")) return preparedSteps(sent);
 
+  // The exact sentence `languageSection` in src/lib/recipe-normalize.ts writes for
+  // English — see the doc comment on RECIPE_EN for what finding it does and does not
+  // prove.
+  const recipe = sent.includes("Write the recipe in English") ? RECIPE_EN : RECIPE;
+
   if (sent.includes(NOT_A_RECIPE)) {
-    return { ...RECIPE, isRecipe: false, ingredients: [], instructions: [] };
+    return { ...recipe, isRecipe: false, ingredients: [], instructions: [] };
   }
   if (sent.includes(NEEDS_REVIEW)) {
-    return { ...RECIPE, needsReview: true, reviewReason: "Resten af opskriften står i profilen." };
+    return {
+      ...recipe,
+      needsReview: true,
+      reviewReason:
+        recipe === RECIPE_EN
+          ? "The rest of the recipe is in the profile."
+          : "Resten af opskriften står i profilen.",
+    };
   }
-  return RECIPE;
+  return recipe;
 }
 
 createServer((request, response) => {

@@ -1,4 +1,4 @@
-import type { MemberRole } from "@prisma/client";
+import type { HomeLanguage, MemberRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createSession, hashPassword } from "@/lib/auth";
 import { generateInviteCode, hashInviteCode } from "@/lib/invite-code";
@@ -26,11 +26,16 @@ function passwordHash(password: string) {
   return hash;
 }
 
-export function createHome(overrides: { name?: string; address?: string | null } = {}) {
+export function createHome(
+  overrides: { name?: string; address?: string | null; language?: HomeLanguage } = {},
+) {
   return prisma.home.create({
     data: {
       name: overrides.name ?? `Home ${unique()}`,
       address: overrides.address ?? null,
+      // Left to the schema's own default (EN) unless a test is specifically about the
+      // other language — most of the suite is about English homes and stays that way.
+      ...(overrides.language ? { language: overrides.language } : {}),
     },
   });
 }
