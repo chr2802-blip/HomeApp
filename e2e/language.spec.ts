@@ -67,14 +67,13 @@ test("speaks the pantry, the importer's own copy, and the hardest sentence in th
   await keepIn(page, "Salt");
   await keepIn(page, "Peber");
 
-  // A shopping list to add the recipe to — the list dialog itself is not one of PR 1's
-  // screens and stays in English, which is exactly what "some screens still English"
-  // looks like mid-migration.
+  // A shopping list to add the recipe to — the lists area is converted, so its own
+  // dialog is Danish too.
   await page.goto("/lists");
-  await openDialog(page, "New list");
-  await page.getByLabel("List name").fill("Indkøb");
-  await page.getByLabel("Track amounts").check();
-  await page.getByRole("button", { name: "Create list" }).click();
+  await openDialog(page, "Ny liste");
+  await page.getByLabel("Listens navn").fill("Indkøb");
+  await page.getByLabel("Hold styr på mængder").check();
+  await page.getByRole("button", { name: "Opret liste" }).click();
   await page.waitForURL(/\/lists\/[a-z0-9]+$/);
 
   // The recipe page is also outside PR 1's screens; "Save recipe" here is the
@@ -106,4 +105,10 @@ test("speaks the pantry, the importer's own copy, and the hardest sentence in th
   // What the pantry answered for never reached the list; what it did not, did.
   await expect(page.getByText("Kartofler", { exact: true })).toBeVisible();
   await expect(page.getByText("Salt", { exact: true })).toHaveCount(0);
+
+  // The tasks area is converted too — its own empty state, in Danish, with nothing
+  // planned yet for this household.
+  await page.goto("/tasks");
+  await expect(page.getByRole("heading", { name: "Opgaver", level: 1 })).toBeVisible();
+  await expect(page.getByText("Ingen opgaver endnu — tilføj den første ovenfor.")).toBeVisible();
 });
