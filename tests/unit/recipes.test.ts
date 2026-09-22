@@ -45,18 +45,24 @@ describe("shoppingText", () => {
 
 describe("timeLabel", () => {
   it("is null for a recipe with no time", () => {
-    expect(timeLabel(null)).toBeNull();
+    expect(timeLabel(null, "EN")).toBeNull();
   });
 
   it("reads under an hour as plain minutes", () => {
-    expect(timeLabel(25)).toBe("25 min");
+    expect(timeLabel(25, "EN")).toBe("25 min");
   });
 
   it("reads exactly an hour with no minutes left over", () => {
-    expect(timeLabel(60)).toBe("1 hr");
+    expect(timeLabel(60, "EN")).toBe("1 hr");
   });
 
   it("reads a mix of hours and minutes", () => {
-    expect(timeLabel(90)).toBe("1 hr 30 min");
+    expect(timeLabel(90, "EN")).toBe("1 hr 30 min");
+  });
+
+  it("reads in the household's own language", () => {
+    expect(timeLabel(25, "DA")).toBe("25 min");
+    expect(timeLabel(60, "DA")).toBe("1 t");
+    expect(timeLabel(90, "DA")).toBe("1 t 30 min");
   });
 });

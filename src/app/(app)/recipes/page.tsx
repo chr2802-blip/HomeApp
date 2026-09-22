@@ -5,6 +5,8 @@ import { PageHeader } from "@/components/ui";
 import { parseSocialEmbed } from "@/lib/embed";
 import { NewRecipeDialog } from "@/components/new-recipe-dialog";
 import { RecipeDirectory, type RecipeSummary } from "@/components/recipe-directory";
+import { sayIn } from "@/lib/copy/say";
+import { RECIPES } from "@/lib/copy/recipes";
 
 /**
  * An import runs as a server action from this page, and it is the one thing in this app
@@ -20,6 +22,7 @@ export const maxDuration = 60;
 
 export default async function RecipesPage() {
   const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
   const db = homeDb(user.homeId);
 
   const [recipes, categories] = await Promise.all([
@@ -52,8 +55,8 @@ export default async function RecipesPage() {
   return (
     <>
       <PageHeader
-        title="Recipes"
-        description="Write them out, or just save the reel you want to cook from."
+        title={say(RECIPES.title)}
+        description={say(RECIPES.description)}
         action={<NewRecipeDialog categories={categories} action={createRecipe} />}
       />
 

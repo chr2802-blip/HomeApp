@@ -3,6 +3,8 @@ import { homeDb } from "@/lib/home-db";
 import { createRecipe } from "@/app/actions/recipes";
 import { PageHeader } from "@/components/ui";
 import { RecipeForm } from "@/components/recipe-form";
+import { sayIn } from "@/lib/copy/say";
+import { RECIPES } from "@/lib/copy/recipes";
 
 /**
  * Saving a recipe now reads it as well: the steps are prepared for action mode in the
@@ -16,6 +18,7 @@ export const maxDuration = 60;
 
 export default async function NewRecipePage() {
   const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
 
   const categories = await homeDb(user.homeId).recipeCategory.findMany({
     orderBy: { name: "asc" },
@@ -24,8 +27,13 @@ export default async function NewRecipePage() {
 
   return (
     <>
-      <PageHeader title="New recipe" />
-      <RecipeForm action={createRecipe} categories={categories} submitLabel="Save recipe" />
+      <PageHeader title={say(RECIPES.newRecipe)} />
+      <RecipeForm
+        action={createRecipe}
+        categories={categories}
+        submitLabel={say(RECIPES.saveRecipe)}
+        language={user.homeLanguage}
+      />
     </>
   );
 }

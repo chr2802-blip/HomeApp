@@ -76,15 +76,16 @@ test("speaks the pantry, the importer's own copy, and the hardest sentence in th
   await page.getByRole("button", { name: "Opret liste" }).click();
   await page.waitForURL(/\/lists\/[a-z0-9]+$/);
 
-  // The recipe page is also outside PR 1's screens; "Save recipe" here is the
-  // standalone page's own untranslated label, not the one this PR gave the new-recipe
-  // dialog.
+  // The recipes area is converted too, so the standalone create page speaks Danish.
   await page.goto("/recipes/new");
-  await page.getByLabel("Title").fill("Suppe");
+  await page.getByLabel("Titel").fill("Suppe");
   await page.getByRole("checkbox", { name: CATEGORIES[0], exact: true }).check({ force: true });
-  await page.getByLabel("Ingredients").fill("Salt\nPeber\n500 g kartofler");
-  await page.getByRole("button", { name: "Save recipe" }).click();
+  await page.getByLabel("Ingredienser").fill("Salt\nPeber\n500 g kartofler");
+  await page.getByRole("button", { name: "Gem opskrift" }).click();
   await page.waitForURL(SAVED_RECIPE);
+
+  // The recipe's own page speaks Danish too, down to the ingredients heading.
+  await expect(page.getByRole("heading", { name: "Ingredienser", level: 2 })).toBeVisible();
 
   // `AddToListMenu` is shared by the recipe page and the pantry, and this PR converted
   // it whole — so its label, and the note it comes back with, are both Danish here.

@@ -124,6 +124,17 @@ describe("the phrase catalogue", () => {
     },
   );
 
+  /** A phrase's own words, with its `{slots}` removed first — a slot holds a number or
+   *  a name, never a word this household wrote, so it is not what "single word" means
+   *  below. */
+  function contentWords(text: string): string[] {
+    return text
+      .replace(/\{\w+\}/g, "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+  }
+
   /**
    * The signature of English pasted into the Danish slot to make the whole thing
    * compile — indistinguishable from finished work by the type system, which only
@@ -135,7 +146,7 @@ describe("the phrase catalogue", () => {
   it.each(
     PHRASES.filter(({ phrase }) => {
       const en = isPlural(phrase.EN) ? phrase.EN.other : (phrase.EN as string);
-      return en.trim().includes(" ");
+      return contentWords(en).length > 1;
     }).map(({ path, phrase }) => [path, phrase] as const),
   )("%s is not identical between English and Danish", (_path, phrase) => {
     const en = isPlural(phrase.EN) ? phrase.EN.other : (phrase.EN as string);

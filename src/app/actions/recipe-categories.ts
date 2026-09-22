@@ -10,6 +10,8 @@ import { canAdministerCurrentHome } from "@/lib/access";
 import { homeDb } from "@/lib/home-db";
 import { readForm, requiredText } from "@/lib/form";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
+import { sayIn, type Say } from "@/lib/copy/say";
+import { RECIPES } from "@/lib/copy/recipes";
 
 /** An unticked checkbox is absent from the form rather than present and false. */
 const checkbox = z
@@ -17,10 +19,12 @@ const checkbox = z
   .optional()
   .transform((value) => value !== undefined);
 
-const categorySchema = z.object({
-  name: requiredText("Give the category a name."),
-  excludeFromSuggestion: checkbox,
-});
+function categorySchema(say: Say) {
+  return z.object({
+    name: requiredText(say(RECIPES.categoryNameRequired)),
+    excludeFromSuggestion: checkbox,
+  });
+}
 
 /**
  * The home whose categories the caller may maintain.
@@ -36,10 +40,10 @@ const categorySchema = z.object({
  * next, so the home being administered is the one that has to be theirs to run — the
  * same check `/settings` makes before drawing the page these forms live on.
  */
-async function adminHomeId() {
+async function adminUser() {
   const user = await requireHomeUser();
   if (!canAdministerCurrentHome(user)) redirect("/dashboard");
-  return user.homeId;
+  return user;
 }
 
 /**
@@ -49,24 +53,25 @@ async function adminHomeId() {
  * the same answer as a category that never existed, which is the point.
  */
 async function categoryInScope(id: string) {
-  const homeId = await adminHomeId();
+  const { homeId } = await adminUser();
   return homeDb(homeId).recipeCategory.findUnique({ where: { id } });
 }
 
 /** Postgres refusing the (homeId, name) unique index, said in words a person can act on. */
-function duplicate(error: unknown, name: string) {
+function duplicate(error: unknown, name: string, say: Say) {
   const clash = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
   if (!clash) throw error;
-  return fail(`There is already a category called “${name}”.`);
+  return fail(say(RECIPES.categoryAlreadyExists, { name }));
 }
 
 export async function createRecipeCategory(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const homeId = await adminHomeId();
+  const user = await adminUser();
+  const say = sayIn(user.homeLanguage);
 
-  const form = readForm(categorySchema, formData);
+  const form = readForm(categorySchema(say), formData, user.homeLanguage);
   if (!form.ok) return fail(form.error);
 
   try {
@@ -75,13 +80,13 @@ export async function createRecipeCategory(
     // the column, and an explicit id beside an explicit check reads plainly.
     await prisma.recipeCategory.create({
       data: {
-        homeId,
+        homeId: user.homeId,
         name: form.fields.name,
         excludeFromSuggestion: form.fields.excludeFromSuggestion,
       },
     });
   } catch (error) {
-    return duplicate(error, form.fields.name);
+    return duplicate(error, form.fields.name, say);
   }
 
   revalidatePath("/settings");
@@ -93,10 +98,12 @@ export async function renameRecipeCategory(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
+  const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
   const category = await categoryInScope(String(formData.get("categoryId")));
-  if (!category) return fail("That category no longer exists.");
+  if (!category) return fail(say(RECIPES.categoryNoLongerExists));
 
-  const form = readForm(categorySchema, formData);
+  const form = readForm(categorySchema(say), formData, user.homeLanguage);
   if (!form.ok) return fail(form.error);
 
   try {
@@ -105,7 +112,7 @@ export async function renameRecipeCategory(
       data: { name: form.fields.name, excludeFromSuggestion: form.fields.excludeFromSuggestion },
     });
   } catch (error) {
-    return duplicate(error, form.fields.name);
+    return duplicate(error, form.fields.name, say);
   }
 
   revalidatePath("/settings");

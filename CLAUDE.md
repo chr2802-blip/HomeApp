@@ -248,7 +248,13 @@ answer in the language the household just left.
 own — and holds four things no compiler checks: every phrase says something in every
 language, the two languages ask for the same slots, a plural's two forms agree with each
 other, and a phrase of more than one word is not identical between the languages, which is
-the signature of English pasted into the Danish slot to make it compile.
+the signature of English pasted into the Danish slot to make it compile. **The word count
+strips `{slots}` first** — a slot holds a number or a name, never a word the household
+wrote, so `"{min} min"` is one word ("min") and not two, the same reasoning that exempts a
+single word like "OK". A phrase that still coincides with more than one real word in it
+(`"Under {min} min"`, since "under" and "min" both happen to spell the same in Danish) is
+not a bug in the test: reword the Danish until it says something a Dane would not mistake
+for the English, the way `underMin` became "Op til {min} min" rather than "Under {min} min".
 **[`docs/design/language.md`](docs/design/language.md) has the reasoning.**
 
 ### Home-scoped data goes through `homeDb`
