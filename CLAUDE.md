@@ -16,12 +16,23 @@ out in full over there.
 ## Commands
 
 ```bash
+npm run setup        # make a cold checkout able to run the suites — the first thing to run
 npm run dev          # local dev server
 npm run verify       # lint + types + schema check + all tests — what the pre-push hook runs
 npm test             # vitest (unit + integration)
 npm run e2e          # Playwright (builds the app first)
 npm run db:studio    # browse the database
 ```
+
+**`npm run setup` first, in any checkout you did not set up yourself.** It probes and then
+fixes, in order: `node_modules`, the generated Prisma client, Postgres, and Playwright's
+browser — and it ends by launching a browser and closing it again, so "ready" means the
+suites can actually start rather than that four files are in place. It is safe to run
+twice, it never touches an existing `.env`, and `node scripts/dev-setup.mjs check` is the
+same probes with nothing fixed, which is what the SessionStart hook runs. Every session
+note from 2026-09-20 on named standing this up by hand as its largest cost; the paragraph
+below is what the script now does, kept because the day it is wrong you have to know what
+it was aiming at.
 
 Integration and browser tests need the local Postgres: `docker start homehub-pg`.
 
@@ -30,14 +41,18 @@ there is usually a stopped `pg_lsclusters`-managed cluster already on disk inste
 `service postgresql start`, then point `DATABASE_URL`/`DIRECT_URL` at it (`ALTER USER
 postgres WITH PASSWORD ...` first, since a bare cluster has none). It can stop again
 mid-session with no warning; if every integration test starts failing to connect, check
-`pg_lsclusters` before anything else. Such a container's `/opt/pw-browsers` also ships
+`pg_lsclusters` before anything else — or just run `npm run setup` again, which starts a
+cluster it finds stopped and says so. Such a container's `/opt/pw-browsers` also ships
 whatever Chromium revision was baked into its image, which drifts behind the revision
 `@playwright/test` wants as the lockfile moves — Playwright then refuses to launch at all.
 Symlinking only the top-level `chromium-<old>` directory to `chromium-<wanted>` is not
 enough: the internal layout can change between revisions (`chrome-linux/headless_shell`
 became `chrome-headless-shell-linux64/chrome-headless-shell` between 1194 and 1243).
 Mirror the whole tree with per-file symlinks under the revision directory name Playwright
-actually asks for, for both `chromium-<rev>` and `chromium_headless_shell-<rev>`.
+actually asks for, for both `chromium-<rev>` and `chromium_headless_shell-<rev>`. **Which
+revision Playwright wants is asked of Playwright** (`playwright install --dry-run` names
+the directory it will look in and the archive it would have unpacked there) rather than
+written down, because it moves with every lockfile bump.
 
 ## Conventions that are not optional
 
@@ -762,6 +777,9 @@ failing suite must not reach the remote.**
   cookie straight into the browser; `auth.spec.ts` still drives the real form.
 - **A flaky test is worse than no test: fix the race, do not add a timeout.** CI refuses an
   `it.only` in either suite.
+- **Never pipe a suite whose exit code is the thing being asked about.** `npm run e2e |
+  tail -30` reports `tail`'s status, so a run in which all 249 tests failed came back `0`.
+  Redirect to a file and read `$?`, or read `${PIPESTATUS[0]}`.
 
 **[`docs/design/testing.md`](docs/design/testing.md) has the reasoning, and the two races
 that only showed once the files started running at the same time.**

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "setup": "node scripts/dev-setup.mjs",
     "dev": "next dev",
     "build": "prisma generate && vitest run --project unit && prisma migrate deploy && next build",
     "start": "next start",
