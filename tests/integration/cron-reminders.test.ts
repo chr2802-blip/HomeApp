@@ -78,6 +78,30 @@ describe("choosing which tasks to notify about", () => {
     });
   });
 
+  /**
+   * The one path with no session at all — a cron job — so it cannot read a language
+   * off the reader the way every other push and every page does. It reads the home's
+   * own row instead, which is the only place left to ask.
+   */
+  it("says it in the home's own language, not the reader's", async () => {
+    const home = await createHome({ language: "DA" });
+    const member = await createUser({ homeId: home.id, role: "USER" });
+    await createTask({
+      homeId: home.id,
+      createdById: member.id,
+      title: "Overdue task",
+      nextDueAt: daysAgo(2),
+    });
+
+    await GET(request(CRON_SECRET));
+
+    expect(sendPushToUsers).toHaveBeenCalledWith(expect.any(Array), {
+      title: "Opgave forfalder",
+      body: "Overdue task",
+      url: "/tasks",
+    });
+  });
+
   it("leaves a task that is not due yet alone", async () => {
     const { home, member } = await createHomeWithMembers();
     await createTask({ homeId: home.id, createdById: member.id, nextDueAt: daysAhead(3) });

@@ -12,6 +12,9 @@ import {
   type AmbiguousLine,
   type PantryDecision,
 } from "@/lib/pantry";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { APP } from "@/lib/copy/app";
 
 /** One list as the menu offers it: its name, and how much is still outstanding on it. */
 export type ListChoice = { id: string; title: string; open: number };
@@ -54,6 +57,8 @@ export function AddToListMenu({
   const [pending, startAdding] = useTransition();
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [decision, setDecision] = useState<Decision | null>(null);
+  const language = useLanguage();
+  const say = sayIn(language);
 
   function submit(list: ListChoice, resolved?: Set<string>) {
     const data = new FormData();
@@ -84,7 +89,9 @@ export function AddToListMenu({
               // The note is what the pantry took care of. Said here rather than left
               // out, because a household that cannot tell "we already have salt" from
               // "the salt went missing" stops trusting the button either way.
-              message: [`Added to ${list.title}.`, outcome?.note].filter(Boolean).join(" "),
+              message: [say(APP.addToList.addedTo, { list: list.title }), outcome?.note]
+                .filter(Boolean)
+                .join(" "),
             },
       );
     });
@@ -115,7 +122,7 @@ export function AddToListMenu({
   return (
     <div className="flex flex-col items-end gap-1">
       <ContextMenu
-        label="Add to list"
+        label={say(APP.addToList.label)}
         className={buttonClass("secondary")}
         trigger={
           <>
@@ -129,20 +136,18 @@ export function AddToListMenu({
             >
               <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            Add to list
+            {say(APP.addToList.label)}
           </>
         }
       >
         {lists.length === 0 ? (
-          <p className="px-3.5 py-2.5 text-sm text-slate-500">
-            No lists track amounts yet — turn that on for one, then come back.
-          </p>
+          <p className="px-3.5 py-2.5 text-sm text-slate-500">{say(APP.addToList.noLists)}</p>
         ) : (
           lists.map((list) => (
             <MenuItem key={list.id} icon="list" onSelect={() => add(list)}>
               <span className="min-w-0 flex-1 truncate">{list.title}</span>
               <span className="shrink-0 text-xs font-normal text-slate-400 tabular-nums">
-                {list.open} open
+                {say(APP.addToList.open, { count: list.open })}
               </span>
             </MenuItem>
           ))
@@ -155,13 +160,17 @@ export function AddToListMenu({
         role="status"
         className={`text-xs ${result?.ok === false ? "text-red-600" : "text-slate-500"}`}
       >
-        {pending ? "Adding…" : (result?.message ?? "")}
+        {pending ? say(APP.addToList.adding) : (result?.message ?? "")}
       </p>
 
       {/* Only for the lines the pantry can't answer for on its own — a line it has
           none of or all of never reaches here at all. Checked by default: leaving
           every box alone adds the same lines a press always used to. */}
-      <Modal open={decision !== null} onClose={() => setDecision(null)} title="Already have some of this?">
+      <Modal
+        open={decision !== null}
+        onClose={() => setDecision(null)}
+        title={say(APP.addToList.decisionTitle)}
+      >
         {decision && (
           <>
             <ModalBody className="space-y-3">
@@ -175,7 +184,7 @@ export function AddToListMenu({
                   />
                   <span>
                     <span className="block text-slate-900">{line.text}</span>
-                    <span className="block text-slate-500">{pantryNote(line.matched)}</span>
+                    <span className="block text-slate-500">{pantryNote(line.matched, language)}</span>
                   </span>
                 </label>
               ))}
@@ -183,10 +192,10 @@ export function AddToListMenu({
             <ModalFooter>
               <div className="flex gap-2">
                 <Button type="button" onClick={confirmDecision} className="flex-1 sm:flex-none">
-                  Add checked
+                  {say(APP.addToList.addChecked)}
                 </Button>
                 <Button type="button" variant="secondary" onClick={() => setDecision(null)}>
-                  Cancel
+                  {say(APP.cancel)}
                 </Button>
               </div>
             </ModalFooter>

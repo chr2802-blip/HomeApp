@@ -129,28 +129,41 @@ describe("ambiguousLines", () => {
 
 describe("namesInWords", () => {
   it("joins what there is", () => {
-    expect(namesInWords(["Salt"])).toBe("Salt");
-    expect(namesInWords(["Salt", "Peber"])).toBe("Salt and Peber");
-    expect(namesInWords(["Salt", "Peber", "Olie"])).toBe("Salt, Peber and Olie");
+    expect(namesInWords(["Salt"], "EN")).toBe("Salt");
+    expect(namesInWords(["Salt", "Peber"], "EN")).toBe("Salt and Peber");
+    expect(namesInWords(["Salt", "Peber", "Olie"], "EN")).toBe("Salt, Peber and Olie");
   });
 
   // Past three it stops being a sentence anybody reads to the end, and the point of
   // naming them — so a cook can say "actually we're out of oil" — is already made.
   it("counts the rest once there are more names than anyone reads", () => {
-    expect(namesInWords(["Salt", "Peber", "Olie", "Smør", "Mel"])).toBe(
+    expect(namesInWords(["Salt", "Peber", "Olie", "Smør", "Mel"], "EN")).toBe(
       "Salt, Peber, Olie and 2 more",
+    );
+  });
+
+  it("joins with 'og' rather than 'and' for a Danish home", () => {
+    expect(namesInWords(["Salt", "Peber"], "DA")).toBe("Salt og Peber");
+    expect(namesInWords(["Salt", "Peber", "Olie"], "DA")).toBe("Salt, Peber og Olie");
+    expect(namesInWords(["Salt", "Peber", "Olie", "Smør", "Mel"], "DA")).toBe(
+      "Salt, Peber, Olie og 2 mere",
     );
   });
 });
 
 describe("the two notes", () => {
   it("say nothing where there is nothing to say", () => {
-    expect(pantryNote([])).toBeUndefined();
-    expect(alreadyOnListNote([])).toBeUndefined();
+    expect(pantryNote([], "EN")).toBeUndefined();
+    expect(alreadyOnListNote([], "EN")).toBeUndefined();
   });
 
   it("name what the press left alone, from either end", () => {
-    expect(pantryNote(["Salt", "Olie"])).toBe("Salt and Olie already in the pantry.");
-    expect(alreadyOnListNote(["Ris"])).toBe("Ris already on the list.");
+    expect(pantryNote(["Salt", "Olie"], "EN")).toBe("Salt and Olie already in the pantry.");
+    expect(alreadyOnListNote(["Ris"], "EN")).toBe("Ris already on the list.");
+  });
+
+  it("reads in the household's own language", () => {
+    expect(pantryNote(["Salt", "Olie"], "DA")).toBe("Salt og Olie står allerede i spisekammeret.");
+    expect(alreadyOnListNote(["Ris"], "DA")).toBe("Ris står allerede på listen.");
   });
 });

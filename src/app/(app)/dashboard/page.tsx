@@ -8,6 +8,7 @@ import { TaskDoneButton } from "@/components/task-done-button";
 import { TaskSnoozeMenu } from "@/components/task-snooze";
 import { NotificationSetup } from "@/components/notification-setup";
 import { dueLabel, dueTone } from "@/lib/due";
+import type { HomeLanguage } from "@prisma/client";
 import { UNFINISHED, isSnoozable, repeatLabel } from "@/lib/tasks";
 import { PhotoBanner, PhotoThumb } from "@/components/photo";
 import { SuggestedRecipe } from "@/components/suggested-recipe";
@@ -80,7 +81,15 @@ type DueTaskRow = {
  * question: the date is read from the left, the press is made from the right, and the
  * menu sits out of the thumb's way in the corner above.
  */
-function DueTask({ task, now }: { task: DueTaskRow; now: Date }) {
+function DueTask({
+  task,
+  now,
+  language,
+}: {
+  task: DueTaskRow;
+  now: Date;
+  language: HomeLanguage;
+}) {
   return (
     <Card className="py-3">
       <div className="flex items-start gap-3">
@@ -105,7 +114,7 @@ function DueTask({ task, now }: { task: DueTaskRow; now: Date }) {
         )}
       </div>
       <div className="mt-2 flex items-center justify-between gap-3">
-        <Badge tone={dueTone(task.nextDueAt, now)}>{dueLabel(task.nextDueAt, now)}</Badge>
+        <Badge tone={dueTone(task.nextDueAt, now)}>{dueLabel(task.nextDueAt, language, now)}</Badge>
         {/* The same press as the one on the tasks page, drawn by the same component so
             the tick rises out of it in both places. */}
         <TaskDoneButton taskId={task.id} action={completeTask} label="Done" />
@@ -222,7 +231,7 @@ export default async function DashboardPage() {
           <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Due for you</h2>
           <div className="space-y-2">
             {mine.map((task) => (
-              <DueTask key={task.id} task={task} now={now} />
+              <DueTask key={task.id} task={task} now={now} language={user.homeLanguage} />
             ))}
           </div>
         </section>
@@ -245,7 +254,7 @@ export default async function DashboardPage() {
             panelClassName="space-y-2"
           >
             {theirs.map((task) => (
-              <DueTask key={task.id} task={task} now={now} />
+              <DueTask key={task.id} task={task} now={now} language={user.homeLanguage} />
             ))}
           </Collapsible>
         </section>

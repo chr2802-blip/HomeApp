@@ -25,6 +25,62 @@
 const VERSION = "v1";
 const PAGES = `homehub-pages-${VERSION}`;
 const ASSETS = `homehub-assets-${VERSION}`;
+const PREFS = `homehub-prefs-${VERSION}`;
+
+/**
+ * The four strings this file says on its own — the offline page and the push
+ * fallback — hand-written rather than imported from `src/lib/copy/`. This is a plain
+ * script served as-is from `public/`, outside the bundle and its build step, so there
+ * is nothing here to import that from; a real catalogue for four strings would be the
+ * kind of machinery this repo's conventions exist to avoid.
+ */
+const SW_STRINGS = {
+  EN: {
+    offlineTitle: "You are offline",
+    offlineBody: "This page has not been opened on this phone yet, so there is nothing to show.",
+    offlineLists: "The lists you have opened before are still here",
+    offlineListsLink: "your lists",
+    pushTitle: "HomeHub",
+    pushBody: "You have a task due.",
+  },
+  DA: {
+    offlineTitle: "I er offline",
+    offlineBody: "Denne side er ikke åbnet på telefonen endnu, så der er intet at vise.",
+    offlineLists: "Listerne I har åbnet før er her stadig",
+    offlineListsLink: "jeres lister",
+    pushTitle: "HomeHub",
+    pushBody: "En opgave forfalder.",
+  },
+};
+
+/** The `Request` a language preference is stashed under — a pseudo-URL, never fetched. */
+const LANGUAGE_KEY = new Request("https://homehub.internal/__language");
+
+/** The language the last page rendered was in, or English where nothing has been said. */
+async function storedLanguage() {
+  const cache = await caches.open(PREFS);
+  const response = await cache.match(LANGUAGE_KEY);
+  const value = response ? await response.text() : "EN";
+  return value === "DA" ? "DA" : "EN";
+}
+
+/**
+ * Records which language the household's pages are in now, and drops the kept pages
+ * when that just changed.
+ *
+ * The pages this worker kept were rendered in whatever language was current when they
+ * were fetched — `pageFromNetworkThenCache` below does not know or care which. Serving
+ * one back after a switch would answer offline in the language the household just
+ * left, which is exactly the staleness this cache exists to avoid noticing. Dropping
+ * `PAGES` is the same "start over" `forgetThisHousehold` already does when a session
+ * ends; this is that same reset for one household's language ending instead.
+ */
+async function setLanguage(language) {
+  const previous = await storedLanguage();
+  const cache = await caches.open(PREFS);
+  await cache.put(LANGUAGE_KEY, new Response(language));
+  if (previous !== language) await caches.delete(PAGES);
+}
 
 /**
  * The pages worth keeping: the lists, and the dashboard.
@@ -71,7 +127,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
       for (const name of await caches.keys()) {
-        if (name.startsWith("homehub-") && name !== PAGES && name !== ASSETS) {
+        if (name.startsWith("homehub-") && name !== PAGES && name !== ASSETS && name !== PREFS) {
           await caches.delete(name);
         }
       }
@@ -114,6 +170,11 @@ self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "homehub:forget") {
     event.waitUntil(forgetThisHousehold());
   }
+  // Posted by `OfflineSupport` on every load, so this stays current without anybody
+  // having pressed anything — a household reads the app in the language it is in.
+  if (event.data && event.data.type === "homehub:language" && typeof event.data.language === "string") {
+    event.waitUntil(setLanguage(event.data.language));
+  }
 });
 
 self.addEventListener("fetch", (event) => {
@@ -153,7 +214,7 @@ async function pageFromNetworkThenCache(request, url) {
     return response;
   } catch {
     const kept = await cache.match(pageKey(url));
-    return kept ?? offlinePage();
+    return kept ?? (await offlinePage());
   }
 }
 
@@ -176,34 +237,40 @@ async function assetFromCacheThenNetwork(request) {
  * either. It says which pages do work, because the one thing worse than being offline is
  * not knowing what still works.
  */
-function offlinePage() {
+async function offlinePage() {
+  const language = await storedLanguage();
+  const t = SW_STRINGS[language];
+
   return new Response(
-    `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
+    `<!doctype html><html lang="${language.toLowerCase()}"><head><meta charset="utf-8">` +
       `<meta name="viewport" content="width=device-width,initial-scale=1">` +
-      `<title>Offline</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;` +
+      `<title>${t.offlineTitle}</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;` +
       `display:grid;place-items:center;min-height:100vh;background:#e5e7eb;color:#0f172a}` +
       `div{max-width:22rem;padding:2rem;text-align:center}a{color:inherit}</style></head>` +
-      `<body><div><h1>You are offline</h1>` +
-      `<p>This page has not been opened on this phone yet, so there is nothing to show.</p>` +
-      `<p>The lists you have opened before are still here: <a href="/lists">your lists</a>.</p>` +
+      `<body><div><h1>${t.offlineTitle}</h1>` +
+      `<p>${t.offlineBody}</p>` +
+      `<p>${t.offlineLists}: <a href="/lists">${t.offlineListsLink}</a>.</p>` +
       `</div></body></html>`,
     { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } },
   );
 }
 
 self.addEventListener("push", (event) => {
-  let payload = { title: "HomeHub", body: "You have a task due.", url: "/dashboard" };
-  try {
-    if (event.data) payload = { ...payload, ...event.data.json() };
-  } catch {}
-
   event.waitUntil(
-    self.registration.showNotification(payload.title, {
-      body: payload.body,
-      icon: "/icon.svg",
-      badge: "/icon.svg",
-      data: { url: payload.url },
-    }),
+    (async () => {
+      const t = SW_STRINGS[await storedLanguage()];
+      let payload = { title: t.pushTitle, body: t.pushBody, url: "/dashboard" };
+      try {
+        if (event.data) payload = { ...payload, ...event.data.json() };
+      } catch {}
+
+      await self.registration.showNotification(payload.title, {
+        body: payload.body,
+        icon: "/icon.svg",
+        badge: "/icon.svg",
+        data: { url: payload.url },
+      });
+    })(),
   );
 });
 

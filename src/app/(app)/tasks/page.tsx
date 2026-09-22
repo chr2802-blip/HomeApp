@@ -18,7 +18,9 @@ import {
   isSnoozable,
   repeatLabel,
 } from "@/lib/tasks";
-import { formatInZone, todayInZone } from "@/lib/time";
+import { formatInZone, readInZone, todayInZone } from "@/lib/time";
+import { DATE } from "@/lib/copy/dates";
+import type { HomeLanguage } from "@prisma/client";
 import { FormDialog } from "@/components/form-dialog";
 import { AssigneeField, type MemberOption } from "@/components/assignee-field";
 import { RepeatField } from "@/components/repeat-field";
@@ -47,11 +49,11 @@ type TaskRow = {
  * to a task that keeps coming back, where it means nobody has got to it yet. On a thing
  * you do once it would read as a reproach.
  */
-function historyLine(task: TaskRow) {
+function historyLine(task: TaskRow, language: HomeLanguage) {
   const rhythm = repeatLabel(task);
 
   if (task.lastCompletedAt) {
-    const when = formatInZone(task.lastCompletedAt, "d MMM yyyy");
+    const when = readInZone(task.lastCompletedAt, DATE.dayMonthYear, language);
     return `${rhythm} · ${isFinished(task) ? "done" : "last done"} ${when}`;
   }
 
@@ -62,7 +64,17 @@ function historyLine(task: TaskRow) {
  * One task and its edit sheet. Both sections draw the same card: what is done and what
  * is still to do differ in where they sit on the page, not in what they are.
  */
-function TaskItem({ task, members, now }: { task: TaskRow; members: MemberOption[]; now: Date }) {
+function TaskItem({
+  task,
+  members,
+  now,
+  language,
+}: {
+  task: TaskRow;
+  members: MemberOption[];
+  now: Date;
+  language: HomeLanguage;
+}) {
   const finished = isFinished(task);
 
   return (
@@ -87,14 +99,14 @@ function TaskItem({ task, members, now }: { task: TaskRow; members: MemberOption
             {finished ? (
               <Badge tone="green">Done</Badge>
             ) : (
-              <Badge tone={dueTone(task.nextDueAt, now)}>{dueLabel(task.nextDueAt, now)}</Badge>
+              <Badge tone={dueTone(task.nextDueAt, now)}>{dueLabel(task.nextDueAt, language, now)}</Badge>
             )}
             {/* Only when somebody is named: "everyone" is the resting state
                 and labelling it on every card would say nothing. */}
             {task.assignee && <Badge>For {task.assignee.name}</Badge>}
           </div>
           {task.notes && <p className="mt-1 text-sm text-slate-600">{task.notes}</p>}
-          <p className="mt-1 text-xs text-slate-500">{historyLine(task)}</p>
+          <p className="mt-1 text-xs text-slate-500">{historyLine(task, language)}</p>
         </>
       }
     >
@@ -126,10 +138,12 @@ function TaskList({
   tasks,
   members,
   now,
+  language,
 }: {
   tasks: TaskRow[];
   members: MemberOption[];
   now: Date;
+  language: HomeLanguage;
 }) {
   return (
     <div className="space-y-3">
@@ -139,7 +153,7 @@ function TaskList({
           className="animate-row-in"
           style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
         >
-          <TaskItem task={task} members={members} now={now} />
+          <TaskItem task={task} members={members} now={now} language={language} />
         </div>
       ))}
     </div>
@@ -218,7 +232,7 @@ export default async function TasksPage() {
       ) : todo.length === 0 ? (
         <EmptyState icon="✨">Nothing left to do — nice work.</EmptyState>
       ) : (
-        <TaskList tasks={todo} members={members} now={now} />
+        <TaskList tasks={todo} members={members} now={now} language={user.homeLanguage} />
       )}
 
       {/* Only once something has been finished. A household that keeps no one-offs
@@ -233,7 +247,7 @@ export default async function TasksPage() {
             triggerClassName="hover:text-slate-700"
             panelClassName="pb-1"
           >
-            <TaskList tasks={done} members={members} now={now} />
+            <TaskList tasks={done} members={members} now={now} language={user.homeLanguage} />
           </Collapsible>
         </section>
       )}

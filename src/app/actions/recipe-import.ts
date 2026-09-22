@@ -3,6 +3,9 @@
 import { requireHomeUser } from "@/lib/auth";
 import { checkRateLimit, recordFailedAttempt } from "@/lib/rate-limit";
 import { fetchRecipeFromUrl, importPastedCaption, type ImportOutcome } from "@/lib/recipe-import";
+import { sayIn } from "@/lib/copy/say";
+import { RECIPES } from "@/lib/copy/recipes";
+import type { HomeLanguage } from "@prisma/client";
 
 /**
  * An import costs this app an outbound fetch and a model call, and both of those are spent
@@ -15,7 +18,7 @@ import { fetchRecipeFromUrl, importPastedCaption, type ImportOutcome } from "@/l
  * login form's and is left alone rather than churning `auth.ts` for it. Every import counts,
  * successful or not, because it is the spending that is being limited and not the mistakes.
  */
-async function overLimit(userId: string) {
+async function overLimit(userId: string, language: HomeLanguage) {
   const limit = await checkRateLimit("import", userId);
   if (limit.allowed) {
     await recordFailedAttempt("import", userId);
@@ -23,7 +26,7 @@ async function overLimit(userId: string) {
   }
   return {
     ok: false as const,
-    error: `That's a lot of imports at once. Try again in ${limit.retryAfterMinutes} min, or fill the form in by hand.`,
+    error: sayIn(language)(RECIPES.rateLimited, { minutes: limit.retryAfterMinutes }),
   };
 }
 
@@ -40,12 +43,12 @@ export async function importRecipeFromUrl(
   const user = await requireHomeUser();
 
   const url = String(formData.get("importUrl") ?? "").trim();
-  if (!url) return { ok: false, error: "Paste a link to a recipe first." };
+  if (!url) return { ok: false, error: sayIn(user.homeLanguage)(RECIPES.pasteLinkFirst) };
 
-  const limited = await overLimit(user.id);
+  const limited = await overLimit(user.id, user.homeLanguage);
   if (limited) return limited;
 
-  return fetchRecipeFromUrl(url, user.homeId);
+  return fetchRecipeFromUrl(url, user.homeId, user.homeLanguage);
 }
 
 /**
@@ -70,10 +73,10 @@ export async function importRecipeFromCaption(
   const caption = String(formData.get("importCaption") ?? "");
   const url = String(formData.get("importUrl") ?? "").trim();
 
-  if (!caption.trim()) return { ok: false, error: "Paste the reel's description first." };
+  if (!caption.trim()) return { ok: false, error: sayIn(user.homeLanguage)(RECIPES.pasteCaptionFirst) };
 
-  const limited = await overLimit(user.id);
+  const limited = await overLimit(user.id, user.homeLanguage);
   if (limited) return limited;
 
-  return importPastedCaption(caption, url, user.homeId);
+  return importPastedCaption(caption, url, user.homeId, user.homeLanguage);
 }

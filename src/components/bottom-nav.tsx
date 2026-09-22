@@ -4,10 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { navItemsFor } from "./nav-items";
 import { LinkPending } from "./link-pending";
+import { useLanguage } from "./language-provider";
 
 export function BottomNav({ showAdmin }: { showAdmin: boolean }) {
   const pathname = usePathname();
-  const items = navItemsFor(showAdmin);
+  const language = useLanguage();
+  const items = navItemsFor(showAdmin, language);
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--accent-line)] bg-[var(--band)] md:hidden">

@@ -107,7 +107,7 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
       ),
     });
 
-    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id);
+    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id, home.language);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -141,7 +141,7 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
       ),
     });
 
-    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id);
+    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id, home.language);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -161,7 +161,7 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
       ),
     });
 
-    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id);
+    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id, home.language);
 
     // A picture that cannot be read is decoration this recipe goes without, never a
     // reason to refuse a recipe that was otherwise perfectly readable.
@@ -179,7 +179,7 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id);
+    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id, home.language);
 
     expect(result).toEqual({ ok: true, recipe: { ...READ, photoId: null, videoUrl: null } });
     expect(await prisma.photo.count()).toBe(0);
@@ -194,7 +194,7 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
       ),
     });
 
-    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id);
+    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id, home.language);
 
     expect(result).toEqual({ ok: true, recipe: { ...READ, photoId: null, videoUrl: null } });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -215,7 +215,7 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
       ),
     });
 
-    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id);
+    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id, home.language);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -241,7 +241,7 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
       ),
     });
 
-    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id);
+    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id, home.language);
 
     expect(result.ok).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -258,7 +258,7 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
       ),
     });
 
-    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id);
+    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id, home.language);
 
     expect(result).toEqual({
       ok: false,
@@ -295,7 +295,7 @@ describe("a reel's poster frame", () => {
       [POSTER]: imageResponse(pngBytes(720, 1280), POSTER),
     });
 
-    const result = await fetchRecipeFromUrl(REEL, home.id);
+    const result = await fetchRecipeFromUrl(REEL, home.id, home.language);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -323,7 +323,7 @@ describe("a reel's poster frame", () => {
       ),
     });
 
-    const result = await fetchRecipeFromUrl(REEL, home.id);
+    const result = await fetchRecipeFromUrl(REEL, home.id, home.language);
 
     expect(result.ok && result.recipe.photoId).toEqual(expect.any(String));
   });
@@ -339,6 +339,7 @@ describe("a reel's poster frame", () => {
       "Boller\nIngredienser\n500 g mel\n25 g gær\nFremgangsmåde\nÆlt det sammen.",
       REEL,
       home.id,
+      home.language,
     );
 
     expect(result.ok).toBe(true);
@@ -354,6 +355,7 @@ describe("a reel's poster frame", () => {
       "Boller\nIngredienser\n500 g mel\n25 g gær\nFremgangsmåde\nÆlt det sammen.",
       REEL,
       home.id,
+      home.language,
     );
 
     expect(result).toEqual({ ok: true, recipe: { ...READ, photoId: null, videoUrl: REEL } });

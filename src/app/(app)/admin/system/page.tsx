@@ -1,7 +1,8 @@
 import { requireSuperAdmin } from "@/lib/auth";
 import { getHealth, REMINDER_STALE_AFTER_HOURS, METRIC_RETENTION_DAYS } from "@/lib/observability";
 import { getSystemStats } from "@/lib/system-stats";
-import { formatInZone } from "@/lib/time";
+import { readInZone } from "@/lib/time";
+import { DATE } from "@/lib/copy/dates";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 import { StorageAcrossHomes } from "@/components/storage-usage";
 import { AiSpendAcrossHomes } from "@/components/ai-spend";
@@ -26,7 +27,9 @@ function Stat({ label, value, hint }: { label: string; value: string | number; h
 }
 
 export default async function SystemPage() {
-  await requireSuperAdmin();
+  // The installation's own page reads in the super admin's own home's language, the
+  // same reading `homeTheme` already gets from the session for the frame around it.
+  const user = await requireSuperAdmin();
 
   const now = new Date();
   const [health, stats] = await Promise.all([getHealth(now), getSystemStats(now)]);
@@ -107,7 +110,7 @@ export default async function SystemPage() {
                 {health.reminders.stale ? "overdue" : health.reminders.ok ? "on schedule" : "failed"}
               </Badge>
               <p className="font-medium">
-                Last run {formatInZone(health.reminders.lastRunAt, "d MMM 'at' HH:mm")}
+                Last run {readInZone(health.reminders.lastRunAt, DATE.dayAndTime, user.homeLanguage)}
               </p>
             </div>
             <p className="mt-1 text-sm text-slate-600">
@@ -129,7 +132,7 @@ export default async function SystemPage() {
             {recentRuns.map((run) => (
               <div key={run.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm">
                 <span className="w-40 shrink-0 text-slate-500">
-                  {formatInZone(run.startedAt, "d MMM HH:mm")}
+                  {readInZone(run.startedAt, DATE.dayTime, user.homeLanguage)}
                 </span>
                 <Badge tone={run.finishedAt === null ? "amber" : run.ok ? "green" : "red"}>
                   {run.finishedAt === null ? "did not finish" : run.ok ? "ok" : "failed"}

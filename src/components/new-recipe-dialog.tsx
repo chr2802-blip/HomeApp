@@ -13,14 +13,15 @@ import {
 import { RecipeImportField } from "@/components/recipe-import-field";
 import type { FormAction } from "@/lib/action-result";
 import type { ImportedRecipe } from "@/lib/recipe-import";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn, type Say } from "@/lib/copy/say";
+import { RECIPES } from "@/lib/copy/recipes";
 
 type Step = "choose" | "url" | "form";
 
-const TITLES: Record<Step, string> = {
-  choose: "New recipe",
-  url: "Import from a link",
-  form: "New recipe",
-};
+function titleFor(step: Step, say: Say): string {
+  return step === "url" ? say(RECIPES.importFromLink) : say(RECIPES.newRecipe);
+}
 
 /**
  * How long the clipboard is given to answer before the button stops waiting for it.
@@ -86,6 +87,7 @@ export function NewRecipeDialog({
   const [autoUrl, setAutoUrl] = useState<string | undefined>(undefined);
   const [noRecipeFound, setNoRecipeFound] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const say = sayIn(useLanguage());
 
   function openFresh() {
     setInitial(undefined);
@@ -126,7 +128,7 @@ export function NewRecipeDialog({
 
   return (
     <>
-      <IconButton variant="create" label="New recipe" onClick={openFresh}>
+      <IconButton variant="create" label={say(RECIPES.newRecipe)} onClick={openFresh}>
         <svg
           viewBox="0 0 24 24"
           className="h-5 w-5"
@@ -139,25 +141,22 @@ export function NewRecipeDialog({
         </svg>
       </IconButton>
 
-      <Modal open={open} onClose={close} title={TITLES[step]}>
+      <Modal open={open} onClose={close} title={titleFor(step, say)}>
         {step === "choose" && (
           <>
             <ModalBody>
-              <p className="text-sm text-slate-600">
-                Type it in yourself, or pull the title, ingredients and instructions from a
-                link.
-              </p>
+              <p className="text-sm text-slate-600">{say(RECIPES.chooseHint)}</p>
             </ModalBody>
             <ModalFooter>
               <div className="flex flex-col gap-2">
                 <Button type="button" onClick={() => setStep("form")}>
-                  Start from scratch
+                  {say(RECIPES.startFromScratch)}
                 </Button>
                 <Button type="button" variant="secondary" onClick={openImportFromLink}>
-                  Import from a link
+                  {say(RECIPES.importFromLink)}
                 </Button>
                 <Button type="button" variant="ghost" onClick={close}>
-                  Cancel
+                  {say(RECIPES.cancel)}
                 </Button>
               </div>
             </ModalFooter>
@@ -177,15 +176,15 @@ export function NewRecipeDialog({
               <div className="flex flex-col gap-2">
                 {noRecipeFound && (
                   <Button type="button" onClick={startFromScratch}>
-                    Start from scratch instead
+                    {say(RECIPES.startFromScratchInstead)}
                   </Button>
                 )}
                 <div className="flex gap-2">
                   <Button type="button" variant="secondary" onClick={() => setStep("choose")}>
-                    Back
+                    {say(RECIPES.back)}
                   </Button>
                   <Button type="button" variant="ghost" onClick={close}>
-                    Cancel
+                    {say(RECIPES.cancel)}
                   </Button>
                 </div>
               </div>
@@ -196,7 +195,7 @@ export function NewRecipeDialog({
         {step === "form" && (
           <DialogForm
             action={action}
-            submitLabel="Save recipe"
+            submitLabel={say(RECIPES.saveRecipe)}
             onDone={close}
             onCancel={close}
             overlay={RECIPE_SAVE_OVERLAY}
@@ -210,7 +209,7 @@ export function NewRecipeDialog({
             */}
             {note && (
               <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                Worth checking: {note}
+                {say(RECIPES.worthChecking, { note })}
               </p>
             )}
             <RecipeFields recipe={initial} categories={categories} />

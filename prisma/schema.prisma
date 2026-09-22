@@ -47,15 +47,30 @@ enum HomeTheme {
   SAND
 }
 
+/**
+ * The language a household reads the app in, and the one its imported recipes are
+ * stored in. Two, not a free choice: every screen and every recipe-import prompt has to
+ * exist in each one, so a third is a real piece of work rather than a form field.
+ * `src/lib/language.ts` is only what they are called; `src/lib/copy/` is what they say.
+ */
+enum HomeLanguage {
+  EN
+  DA
+}
+
 model Home {
-  id        String    @id @default(cuid())
+  id        String       @id @default(cuid())
   name      String
   address   String?
   /// The household's own picture, shown in the header and on the dashboard.
   photoId   String?
   /// The colour this home is dressed in, chosen by the people who run it.
-  theme     HomeTheme @default(SLATE)
-  createdAt DateTime  @default(now())
+  theme     HomeTheme    @default(SLATE)
+  /// The language this household reads the app in, and the one its imported recipes
+  /// are stored in. Switching changes only what happens next — nothing already stored
+  /// is rewritten.
+  language  HomeLanguage @default(EN)
+  createdAt DateTime     @default(now())
 
   /// Everybody who belongs to this home, and what each of them may do in it.
   members          HomeMember[]

@@ -15,24 +15,24 @@ const marchDueAt = (day: string) => at(`2026-03-${day}T08:00:00Z`);
 
 describe("dueLabel", () => {
   it("calls out today and tomorrow", () => {
-    expect(dueLabel(marchDueAt("10"), NOW)).toBe("Due today");
-    expect(dueLabel(marchDueAt("11"), NOW)).toBe("Due tomorrow");
+    expect(dueLabel(marchDueAt("10"), "EN", NOW)).toBe("Due today");
+    expect(dueLabel(marchDueAt("11"), "EN", NOW)).toBe("Due tomorrow");
   });
 
   it("counts overdue days, with correct singular and plural", () => {
-    expect(dueLabel(marchDueAt("09"), NOW)).toBe("1 day overdue");
-    expect(dueLabel(marchDueAt("07"), NOW)).toBe("3 days overdue");
+    expect(dueLabel(marchDueAt("09"), "EN", NOW)).toBe("1 day overdue");
+    expect(dueLabel(marchDueAt("07"), "EN", NOW)).toBe("3 days overdue");
   });
 
   it("shows a date further ahead", () => {
-    expect(dueLabel(marchDueAt("14"), NOW)).toBe("Due 14 Mar");
+    expect(dueLabel(marchDueAt("14"), "EN", NOW)).toBe("Due 14 Mar");
   });
 
   it("compares calendar days, not elapsed hours", () => {
     // 23:30 local, same day as the 09:00 due time.
-    expect(dueLabel(marchDueAt("10"), at("2026-03-10T22:30:00Z"))).toBe("Due today");
+    expect(dueLabel(marchDueAt("10"), "EN", at("2026-03-10T22:30:00Z"))).toBe("Due today");
     // 23:00 local on the 10th, looking at the 11th — ten hours, but the next day.
-    expect(dueLabel(marchDueAt("11"), at("2026-03-10T22:00:00Z"))).toBe("Due tomorrow");
+    expect(dueLabel(marchDueAt("11"), "EN", at("2026-03-10T22:00:00Z"))).toBe("Due tomorrow");
   });
 
   it("uses the household's day, not the server's", () => {
@@ -41,12 +41,20 @@ describe("dueLabel", () => {
     const justAfterLocalMidnight = at("2026-06-01T22:30:00Z");
     const dueThatMorning = at("2026-06-02T07:00:00Z");
 
-    expect(dueLabel(dueThatMorning, justAfterLocalMidnight)).toBe("Due today");
+    expect(dueLabel(dueThatMorning, "EN", justAfterLocalMidnight)).toBe("Due today");
   });
 
   it("formats the date on the household's clock", () => {
     // 00:30 local on 2 June, so it reads as the 2nd rather than the 1st.
-    expect(dueLabel(at("2026-06-05T22:30:00Z"), NOW)).toBe("Due 6 Jun");
+    expect(dueLabel(at("2026-06-05T22:30:00Z"), "EN", NOW)).toBe("Due 6 Jun");
+  });
+
+  it("reads in the household's own language", () => {
+    expect(dueLabel(marchDueAt("10"), "DA", NOW)).toBe("Forfalder i dag");
+    expect(dueLabel(marchDueAt("11"), "DA", NOW)).toBe("Forfalder i morgen");
+    expect(dueLabel(marchDueAt("09"), "DA", NOW)).toBe("1 dag over tid");
+    expect(dueLabel(marchDueAt("07"), "DA", NOW)).toBe("3 dage over tid");
+    expect(dueLabel(marchDueAt("14"), "DA", NOW)).toBe("Forfalder 14. mar.");
   });
 });
 

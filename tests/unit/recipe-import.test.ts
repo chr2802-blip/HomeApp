@@ -88,7 +88,7 @@ describe("fetchRecipeFromUrl", () => {
   it("fetches a page, reads it, and hands back the recipe", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(goodHtml)));
 
-    expect(await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID)).toEqual({
+    expect(await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID, "EN")).toEqual({
       ok: true,
       recipe: {
         title: "Pancakes",
@@ -105,7 +105,7 @@ describe("fetchRecipeFromUrl", () => {
   it("hands the reader the page's own text, labelled", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(goodHtml)));
 
-    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID);
+    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID, "EN");
 
     expect(wasRead()).toMatchObject({
       kind: "page",
@@ -118,7 +118,7 @@ describe("fetchRecipeFromUrl", () => {
     reads({ note: "Opskriften mangler mængder til fyldet." });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(goodHtml)));
 
-    const result = await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID);
+    const result = await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID, "EN");
 
     expect(result.ok && result.recipe.note).toBe("Opskriften mangler mængder til fyldet.");
   });
@@ -127,7 +127,7 @@ describe("fetchRecipeFromUrl", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchRecipeFromUrl("javascript:alert(1)", HOME_ID);
+    const result = await fetchRecipeFromUrl("javascript:alert(1)", HOME_ID, "EN");
 
     expect(result.ok).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -144,7 +144,7 @@ describe("fetchRecipeFromUrl", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchRecipeFromUrl(url, HOME_ID);
+    const result = await fetchRecipeFromUrl(url, HOME_ID, "EN");
 
     expect(result.ok).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -156,7 +156,7 @@ describe("fetchRecipeFromUrl", () => {
       vi.fn().mockResolvedValue(htmlResponse(goodHtml, { url: "http://169.254.169.254/" })),
     );
 
-    expect((await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID)).ok).toBe(false);
+    expect((await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID, "EN")).ok).toBe(false);
     expect(normalizeRecipe).not.toHaveBeenCalled();
   });
 
@@ -169,7 +169,7 @@ describe("fetchRecipeFromUrl", () => {
       const fetchMock = vi.fn().mockResolvedValue(htmlResponse(goodHtml));
       vi.stubGlobal("fetch", fetchMock);
 
-      const result = await fetchRecipeFromUrl(url, HOME_ID);
+      const result = await fetchRecipeFromUrl(url, HOME_ID, "EN");
 
       expect(fetchMock).toHaveBeenCalled();
       expect(result.ok).toBe(true);
@@ -180,7 +180,7 @@ describe("fetchRecipeFromUrl", () => {
     const fetchMock = vi.fn().mockResolvedValue(htmlResponse(goodHtml));
     vi.stubGlobal("fetch", fetchMock);
 
-    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID);
+    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID, "EN");
 
     const [, options] = fetchMock.mock.calls[0];
     expect(options.headers["User-Agent"]).toMatch(/Mozilla/);
@@ -194,7 +194,7 @@ describe("fetchRecipeFromUrl", () => {
     const fetchMock = vi.fn().mockResolvedValue(htmlResponse(goodHtml));
     vi.stubGlobal("fetch", fetchMock);
 
-    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID);
+    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID, "EN");
 
     const [, options] = fetchMock.mock.calls[0];
     expect(options.headers).not.toHaveProperty("Accept-Language");
@@ -222,7 +222,7 @@ describe("fetchRecipeFromUrl", () => {
       ),
     );
 
-    await fetchRecipeFromUrl("https://example.dk/opskrift", HOME_ID);
+    await fetchRecipeFromUrl("https://example.dk/opskrift", HOME_ID, "EN");
 
     expect(wasRead().rawContent).toContain("Hakket oksekød");
     expect(wasRead().rawTitle).toBe("Kødsauce");
@@ -254,7 +254,7 @@ describe("fetchRecipeFromUrl", () => {
       ),
     );
 
-    await fetchRecipeFromUrl("https://example.dk/opskrift", HOME_ID);
+    await fetchRecipeFromUrl("https://example.dk/opskrift", HOME_ID, "EN");
 
     expect(wasRead().rawContent).toContain("Hakket oksekød");
   });
@@ -267,14 +267,14 @@ describe("fetchRecipeFromUrl", () => {
       ),
     );
 
-    expect((await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID)).ok).toBe(false);
+    expect((await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID, "EN")).ok).toBe(false);
     expect(normalizeRecipe).not.toHaveBeenCalled();
   });
 
   it("reports a network failure rather than throwing", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("boom")));
 
-    expect(await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID)).toEqual({
+    expect(await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID, "EN")).toEqual({
       ok: false,
       error: "Couldn't reach that page. Check the link and try again.",
     });
@@ -288,7 +288,7 @@ describe("fetchRecipeFromUrl", () => {
     normalizeRecipe.mockResolvedValue({ ok: false, reason: "not-a-recipe" });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(goodHtml)));
 
-    expect(await fetchRecipeFromUrl("https://example.com/shop", HOME_ID)).toEqual({
+    expect(await fetchRecipeFromUrl("https://example.com/shop", HOME_ID, "EN")).toEqual({
       ok: false,
       error: "Couldn't read a recipe from that page. Check the link, or fill the form in by hand.",
       notARecipe: true,
@@ -305,7 +305,7 @@ describe("fetchRecipeFromUrl", () => {
     normalizeRecipe.mockResolvedValue({ ok: false, reason: "unavailable" });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(goodHtml)));
 
-    const result = await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID);
+    const result = await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID, "EN");
 
     expect(result).toEqual({
       ok: false,
@@ -315,7 +315,7 @@ describe("fetchRecipeFromUrl", () => {
   });
 
   it("does not mark a mistyped address as not a recipe", async () => {
-    const result = await fetchRecipeFromUrl("not a link", HOME_ID);
+    const result = await fetchRecipeFromUrl("not a link", HOME_ID, "EN");
 
     expect(result).toEqual({ ok: false, error: "That doesn't look like a web address." });
   });
@@ -338,7 +338,7 @@ describe("fetchRecipeFromUrl", () => {
       }),
     );
 
-    expect((await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID)).ok).toBe(false);
+    expect((await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID, "EN")).ok).toBe(false);
   });
 
   // No `image` field anywhere in `goodHtml`, so none of the tests above ever ask this
@@ -349,7 +349,7 @@ describe("fetchRecipeFromUrl", () => {
     const fetchMock = vi.fn().mockResolvedValue(htmlResponse(goodHtml));
     vi.stubGlobal("fetch", fetchMock);
 
-    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID);
+    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID, "EN");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -365,7 +365,7 @@ describe("fetchRecipeFromUrl", () => {
     const fetchMock = vi.fn().mockResolvedValue(htmlResponse(withImage));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID);
+    const result = await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID, "EN");
 
     // The recipe itself is still good — a blocked or unreachable picture is left out,
     // never a reason to refuse an otherwise readable recipe.
@@ -387,7 +387,7 @@ describe("fetchRecipeFromUrl", () => {
     const fetchMock = vi.fn().mockResolvedValue(htmlResponse(withImage));
     vi.stubGlobal("fetch", fetchMock);
 
-    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID);
+    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID, "EN");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -418,7 +418,7 @@ describe("fetchRecipeFromUrl — a reel", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(embedPage, { url: REEL })));
     reads({ title: "Pasta al limone", ingredients: "400 g spaghetti", instructions: "Kog pastaen." });
 
-    const result = await fetchRecipeFromUrl(REEL, HOME_ID);
+    const result = await fetchRecipeFromUrl(REEL, HOME_ID, "EN");
 
     expect(wasRead()).toMatchObject({ kind: "reel", sourceUrl: REEL });
     expect(wasRead().rawContent).toContain("400 g spaghetti");
@@ -456,7 +456,7 @@ describe("fetchRecipeFromUrl — a reel", () => {
     </body></html>`;
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(shell, { url: REEL })));
 
-    const result = await fetchRecipeFromUrl(REEL, HOME_ID);
+    const result = await fetchRecipeFromUrl(REEL, HOME_ID, "EN");
 
     expect(wasRead().rawContent).toContain("400 g spaghetti");
     expect(result.ok).toBe(true);
@@ -471,7 +471,7 @@ describe("fetchRecipeFromUrl — a reel", () => {
       vi.fn().mockResolvedValue(htmlResponse("<html><body>app shell</body></html>", { url: REEL })),
     );
 
-    await fetchRecipeFromUrl(REEL, HOME_ID);
+    await fetchRecipeFromUrl(REEL, HOME_ID, "EN");
 
     // Both false is the one failure no parser can be written out of: there is no caption
     // in the body to find, because the body was never about this post.
@@ -483,7 +483,7 @@ describe("fetchRecipeFromUrl — a reel", () => {
     const fetchMock = vi.fn().mockResolvedValue(htmlResponse(embedPage, { url: REEL }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await fetchRecipeFromUrl(REEL, HOME_ID);
+    await fetchRecipeFromUrl(REEL, HOME_ID, "EN");
 
     expect(String(fetchMock.mock.calls[0][0])).toBe(
       "https://www.instagram.com/reel/ABC123/embed/captioned/",
@@ -499,14 +499,14 @@ describe("fetchRecipeFromUrl — a reel", () => {
   it("asks a social network as a crawler, and an ordinary recipe page as a browser", async () => {
     const reelFetch = vi.fn().mockResolvedValue(htmlResponse(embedPage, { url: REEL }));
     vi.stubGlobal("fetch", reelFetch);
-    await fetchRecipeFromUrl(REEL, HOME_ID);
+    await fetchRecipeFromUrl(REEL, HOME_ID, "EN");
     expect(reelFetch.mock.calls[0][1].headers["User-Agent"]).toMatch(/HomeHubBot/);
 
     vi.unstubAllGlobals();
 
     const pageFetch = vi.fn().mockResolvedValue(htmlResponse(goodHtml));
     vi.stubGlobal("fetch", pageFetch);
-    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID);
+    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID, "EN");
     expect(pageFetch.mock.calls[0][1].headers["User-Agent"]).toMatch(/Mozilla\/5\.0 \(Windows/);
   });
 
@@ -520,7 +520,7 @@ describe("fetchRecipeFromUrl — a reel", () => {
       .mockResolvedValue(htmlResponse(withOgDescription, { url: REEL }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchRecipeFromUrl(REEL, HOME_ID);
+    const result = await fetchRecipeFromUrl(REEL, HOME_ID, "EN");
 
     expect(result.ok).toBe(true);
     expect(wasRead().rawContent).toContain("500 g mel");
@@ -538,7 +538,7 @@ describe("fetchRecipeFromUrl — a reel", () => {
     const fetchMock = vi.fn().mockResolvedValue(htmlResponse(chat, { url: REEL }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchRecipeFromUrl(REEL, HOME_ID);
+    const result = await fetchRecipeFromUrl(REEL, HOME_ID, "EN");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result).toEqual({
@@ -551,7 +551,7 @@ describe("fetchRecipeFromUrl — a reel", () => {
   it("offers the paste box when every source refuses, and says why", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("refused")));
 
-    const result = await fetchRecipeFromUrl(REEL, HOME_ID);
+    const result = await fetchRecipeFromUrl(REEL, HOME_ID, "EN");
 
     expect(result).toEqual({
       ok: false,
@@ -595,7 +595,7 @@ describe("fetchRecipeFromUrl — a reel", () => {
         vi.fn().mockResolvedValue({ ok: false, status: 403, url: REEL, body: null, headers: new Headers() } as Response),
       );
 
-      await fetchRecipeFromUrl(REEL, HOME_ID);
+      await fetchRecipeFromUrl(REEL, HOME_ID, "EN");
 
       expect(lines).toContainEqual(
         expect.objectContaining({ event: "reel_caption_source", outcome: "http_error", status: 403 }),
@@ -607,7 +607,7 @@ describe("fetchRecipeFromUrl — a reel", () => {
       const timeout = Object.assign(new Error("timed out"), { name: "TimeoutError" });
       vi.stubGlobal("fetch", vi.fn().mockRejectedValue(timeout));
 
-      await fetchRecipeFromUrl(REEL, HOME_ID);
+      await fetchRecipeFromUrl(REEL, HOME_ID, "EN");
 
       expect(lines).toContainEqual(
         expect.objectContaining({ event: "reel_caption_source", outcome: "timed_out" }),
@@ -620,7 +620,7 @@ describe("fetchRecipeFromUrl — a reel", () => {
       const loginWall = `<html><body><div id="loginForm">Log in to see this</div></body></html>`;
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(loginWall, { url: REEL })));
 
-      await fetchRecipeFromUrl(REEL, HOME_ID);
+      await fetchRecipeFromUrl(REEL, HOME_ID, "EN");
 
       expect(lines).toContainEqual(
         expect.objectContaining({
@@ -649,7 +649,7 @@ describe("fetchRecipeFromUrl — a reel", () => {
         ),
       );
 
-      await fetchRecipeFromUrl(REEL, HOME_ID);
+      await fetchRecipeFromUrl(REEL, HOME_ID, "EN");
 
       expect(lines).toContainEqual(
         expect.objectContaining({
@@ -665,7 +665,7 @@ describe("fetchRecipeFromUrl — a reel", () => {
       const lines = captureLogs();
       vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("refused")));
 
-      await fetchRecipeFromUrl(REEL, HOME_ID);
+      await fetchRecipeFromUrl(REEL, HOME_ID, "EN");
 
       expect(lines).toContainEqual(
         expect.objectContaining({ event: "reel_caption_unreachable", url: REEL, sourcesTried: 3 }),
@@ -681,7 +681,7 @@ describe("importPastedCaption", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("still refused")));
     reads({ title: "Boller", ingredients: "500 g mel\n25 g gær", instructions: "Ælt det sammen." });
 
-    const result = await importPastedCaption(CAPTION, "https://www.instagram.com/reel/ABC123/", HOME_ID);
+    const result = await importPastedCaption(CAPTION, "https://www.instagram.com/reel/ABC123/", HOME_ID, "EN");
 
     expect(wasRead()).toMatchObject({ kind: "pasted", rawContent: CAPTION });
     expect(result).toEqual({
@@ -702,7 +702,7 @@ describe("importPastedCaption", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await importPastedCaption(CAPTION, "", HOME_ID);
+    const result = await importPastedCaption(CAPTION, "", HOME_ID, "EN");
 
     expect(result.ok).toBe(true);
     expect(result.ok && result.recipe.videoUrl).toBeNull();
@@ -711,14 +711,14 @@ describe("importPastedCaption", () => {
   });
 
   it("refuses an empty paste without troubling the reader", async () => {
-    expect((await importPastedCaption("   ", "", HOME_ID)).ok).toBe(false);
+    expect((await importPastedCaption("   ", "", HOME_ID, "EN")).ok).toBe(false);
     expect(normalizeRecipe).not.toHaveBeenCalled();
   });
 
   it("passes the reader's refusal on, with the wording that points at the box", async () => {
     normalizeRecipe.mockResolvedValue({ ok: false, reason: "not-a-recipe" });
 
-    const result = await importPastedCaption("Sikke en dejlig aften i haven", "", HOME_ID);
+    const result = await importPastedCaption("Sikke en dejlig aften i haven", "", HOME_ID, "EN");
 
     expect(result).toEqual({
       ok: false,

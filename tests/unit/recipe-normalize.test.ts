@@ -3,6 +3,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import {
   NormalizedRecipeSchema,
   renderNormalized,
+  SAME_MEASURE,
   UNITS,
   type NormalizedRecipe,
 } from "@/lib/recipe-normalize";
@@ -81,6 +82,42 @@ describe("the units a recipe may be written in", () => {
   });
 });
 
+/**
+ * The same measure under two names — `tsp`↔`tsk`, `tbsp`↔`spsk` — never a conversion.
+ * Every word on either side has to be one `shoppingText` already strips (in `UNIT_WORDS`),
+ * for the same reason the offered units do: a mapping to a word the cupboard cannot take
+ * apart would be this app's own bug reproducing the one `canonicalUnit` exists to catch.
+ */
+describe("SAME_MEASURE — the same unit, spelled the household's way", () => {
+  it("only ever maps to and from a word shoppingText already strips", () => {
+    for (const table of Object.values(SAME_MEASURE)) {
+      for (const [from, to] of Object.entries(table)) {
+        expect(UNIT_WORDS.has(from)).toBe(true);
+        expect(UNIT_WORDS.has(to)).toBe(true);
+      }
+    }
+  });
+
+  // Several English synonyms ("tsp", "teaspoon", "teaspoons") all spell the same
+  // measure, so this is not a strict one-to-one inverse — only the short forms round
+  // trip exactly, which is the direction `canonicalUnit` actually hands to `localUnit`.
+  it("round-trips the short forms both ways", () => {
+    for (const short of ["tsp", "tbsp", "clove", "can", "slice", "bunch", "pinch"]) {
+      const danish = SAME_MEASURE.DA[short];
+      expect(danish).toBeDefined();
+      expect(SAME_MEASURE.EN[danish]).toBe(short);
+    }
+  });
+
+  // cup, oz and lb are not a Danish kitchen's units at all — mapping them to dl or g
+  // would be this app doing conversion arithmetic on a model's say-so.
+  it("never converts a unit with no equivalent measure", () => {
+    for (const unit of ["cup", "oz", "lb"]) {
+      expect(SAME_MEASURE.DA[unit]).toBeUndefined();
+    }
+  });
+});
+
 /*
  * The schema is handed to the SDK, which converts it and sends it as the output format the
  * model must answer in. Nothing here calls out — this only asks whether the two libraries
@@ -152,7 +189,7 @@ describe("the schema the reader must answer in", () => {
 describe("an answer the wire schema permits", () => {
   function read(answer: Record<string, unknown>) {
     const parsed = zodOutputFormat(NormalizedRecipeSchema).parse(JSON.stringify(answer));
-    return renderNormalized(parsed, RAW);
+    return renderNormalized(parsed, RAW, "DA");
   }
 
   const complete = {
@@ -196,9 +233,39 @@ describe("an answer the wire schema permits", () => {
   });
 });
 
+/**
+ * A recipe read into a language of its own — the unit swap and the decimal separator,
+ * both deterministic and both applied after the model, never inside the prompt. See
+ * `src/lib/copy/recipes.md`'s "The prompt owns the prose; renderNormalized owns the
+ * unit token" — this is that division of labour, exercised end to end.
+ */
+describe("renderNormalized — reading into a language", () => {
+  function lineIn(
+    language: "EN" | "DA",
+    overrides: Partial<NormalizedRecipe["ingredients"][number]>,
+  ) {
+    return renderNormalized(normalized({ ingredients: [ingredient(overrides)] }), RAW, language)
+      .ingredients;
+  }
+
+  it("spells the unit the way the household's own language does", () => {
+    expect(lineIn("DA", { name: "sukker", amount: 2, unit: "tbsp" })).toBe("2 spsk sukker");
+    expect(lineIn("EN", { name: "sukker", amount: 2, unit: "spsk" })).toBe("2 tbsp sukker");
+  });
+
+  it("leaves a unit with no equivalent measure exactly as it was", () => {
+    expect(lineIn("DA", { name: "mel", amount: 1, unit: "cup" })).toBe("1 cup mel");
+  });
+
+  it("writes the decimal the household's own language does", () => {
+    expect(lineIn("DA", { name: "fløde", amount: 1.4, unit: "dl" })).toBe("1,4 dl fløde");
+    expect(lineIn("EN", { name: "cream", amount: 1.4, unit: "dl" })).toBe("1.4 dl cream");
+  });
+});
+
 describe("renderNormalized — an ingredient line", () => {
   function line(overrides: Partial<NormalizedRecipe["ingredients"][number]>) {
-    const rendered = renderNormalized(normalized({ ingredients: [ingredient(overrides)] }), RAW);
+    const rendered = renderNormalized(normalized({ ingredients: [ingredient(overrides)] }), RAW, "DA");
     return rendered.ingredients;
   }
 
@@ -291,7 +358,7 @@ describe("renderNormalized — what reaches the shopping list and the pantry", (
     ],
     [ingredient({ name: "olivenolie", amount: 1, unit: "spsk" }), "Olivenolie", "olivenolie"],
   ])("$name becomes one errand and one pantry key", (item, errand, key) => {
-    const { ingredients } = renderNormalized(normalized({ ingredients: [item] }), RAW);
+    const { ingredients } = renderNormalized(normalized({ ingredients: [item] }), RAW, "DA");
     const [only] = ingredientLines(ingredients);
 
     expect(shoppingText(only)).toBe(errand);
@@ -308,6 +375,7 @@ describe("renderNormalized — what reaches the shopping list and the pantry", (
         ],
       }),
       RAW,
+      "DA",
     );
 
     expect(ingredientLines(ingredients)).toEqual(["400 g spaghetti", "2 citroner", "1 dl fløde"]);
@@ -328,6 +396,7 @@ describe("renderNormalized — what reaches the shopping list and the pantry", (
         ],
       }),
       RAW,
+      "DA",
     );
 
     expect(ingredientLines(ingredients)).toEqual(["100 g smør", "50 g smør"]);
@@ -344,6 +413,7 @@ describe("renderNormalized — the rest of the recipe", () => {
         ],
       }),
       RAW,
+      "DA",
     );
 
     expect(instructions).toBe("Kog pastaen.\nRiv citronskallen i.");
@@ -353,24 +423,25 @@ describe("renderNormalized — the rest of the recipe", () => {
     const { instructions } = renderNormalized(
       normalized({ instructions: [{ step: "Rør det hele sammen.", component: "Dressing" }] }),
       RAW,
+      "DA",
     );
 
     expect(instructions).toBe("Dressing: Rør det hele sammen.");
   });
 
   it("falls back to whatever the page called itself when the reader found no title", () => {
-    expect(renderNormalized(normalized({ title: "  " }), RAW).title).toBe("somekitchen on Instagram");
+    expect(renderNormalized(normalized({ title: "  " }), RAW, "DA").title).toBe("somekitchen on Instagram");
   });
 
   // A site publishing `PT1H30M` is stating the answer outright; a number read back out of
   // prose is an inference, however good.
   it("prefers the page's own machine-readable time over the reader's", () => {
     const raw = { ...RAW, timeHintMinutes: 90 };
-    expect(renderNormalized(normalized({ totalTimeMinutes: 25 }), raw).totalTimeMinutes).toBe(90);
+    expect(renderNormalized(normalized({ totalTimeMinutes: 25 }), raw, "DA").totalTimeMinutes).toBe(90);
   });
 
   it("takes the reader's time where the page published none", () => {
-    expect(renderNormalized(normalized({ totalTimeMinutes: 25 }), RAW).totalTimeMinutes).toBe(25);
+    expect(renderNormalized(normalized({ totalTimeMinutes: 25 }), RAW, "DA").totalTimeMinutes).toBe(25);
   });
 
   it("carries a reason to check the recipe over, and nothing when there is none", () => {
@@ -378,9 +449,10 @@ describe("renderNormalized — the rest of the recipe", () => {
       renderNormalized(
         normalized({ needsReview: true, reviewReason: "Opskriften mangler mængder til fyldet." }),
         RAW,
+        "DA",
       ).note,
     ).toBe("Opskriften mangler mængder til fyldet.");
 
-    expect(renderNormalized(normalized({ needsReview: false, reviewReason: "ignored" }), RAW).note).toBeNull();
+    expect(renderNormalized(normalized({ needsReview: false, reviewReason: "ignored" }), RAW, "DA").note).toBeNull();
   });
 });

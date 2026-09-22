@@ -255,6 +255,76 @@ describe("updateHome", () => {
 
     expect((await prisma.home.findUniqueOrThrow({ where: { id: home.id } })).theme).toBe("SLATE");
   });
+
+  /**
+   * `language` follows exactly the same five cases as `theme` above: it is a choice
+   * from a fixed set, a new home is not asked, and saying nothing about it leaves it
+   * alone — the same "not mentioned is not changed" rule the colour already has.
+   */
+  it("reads the app in the language that was picked", async () => {
+    const { home, admin } = await createHomeWithMembers();
+    await signIn(admin);
+
+    const result = await updateHome(
+      undefined,
+      formData({ homeId: home.id, name: home.name, language: "DA" }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect((await prisma.home.findUniqueOrThrow({ where: { id: home.id } })).language).toBe("DA");
+  });
+
+  it("starts a new home in the app's own voice", async () => {
+    const home = await seedHome();
+
+    expect(home.language).toBe("EN");
+  });
+
+  it("refuses a language that is not one of the ones offered, keeping the one it had", async () => {
+    const { home, admin } = await createHomeWithMembers();
+    await signIn(admin);
+    await updateHome(undefined, formData({ homeId: home.id, name: home.name, language: "DA" }));
+
+    const result = await updateHome(
+      undefined,
+      formData({ homeId: home.id, name: "Renamed too", language: "FR" }),
+    );
+
+    expect(result).toMatchObject({ ok: false });
+    // The whole submission is refused, so the name it arrived with is not saved either.
+    expect(await prisma.home.findUniqueOrThrow({ where: { id: home.id } })).toMatchObject({
+      name: home.name,
+      language: "DA",
+    });
+  });
+
+  it("leaves the language alone when the form does not mention one", async () => {
+    const { home, admin } = await createHomeWithMembers();
+    await signIn(admin);
+    await updateHome(undefined, formData({ homeId: home.id, name: home.name, language: "DA" }));
+
+    const result = await updateHome(undefined, formData({ homeId: home.id, name: "Renamed" }));
+
+    expect(result).toMatchObject({ ok: true });
+    expect(await prisma.home.findUniqueOrThrow({ where: { id: home.id } })).toMatchObject({
+      name: "Renamed",
+      language: "DA",
+    });
+  });
+
+  it("is refused for a home somebody merely lives in, for the language too", async () => {
+    const { home } = await createHomeWithMembers();
+    const elsewhere = await seedHome();
+    const outsider = await createUser({ homeId: elsewhere.id, role: "ADMIN" });
+    await joinHome({ userId: outsider.id, homeId: home.id, role: "USER" });
+    await signIn(outsider);
+
+    await expect(
+      updateHome(undefined, formData({ homeId: home.id, name: "Mine now", language: "DA" })),
+    ).rejects.toThrow("Not allowed");
+
+    expect((await prisma.home.findUniqueOrThrow({ where: { id: home.id } })).language).toBe("EN");
+  });
 });
 
 /** What somebody may do in one named home, which is where a role lives now. */

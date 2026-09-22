@@ -155,6 +155,89 @@ the band's alpha as strictly as its hex, and holds all three insets together.
 **Why each of these is the rule, and what broke before it was — five paragraphs of it — is
 in [`docs/design/theme-and-frame.md`](docs/design/theme-and-frame.md).**
 
+### A home is read in a language, and it dresses the words
+
+`Home.language` is `HomeLanguage` — `EN` or `DA` — picked by that household's admins in the
+same Home card on `/settings`, beside the colour. It decides three things: the words the app
+speaks, the way a date is written, and **the language a recipe is read into on import** —
+whichever language the source was written in, so the rule is "a home has a language" and
+never "translate into Danish". `DEFAULT_LANGUAGE` is `EN`: every home that already exists
+keeps the voice the app has always had.
+
+**A phrase is its languages, written on one line.** `src/lib/copy/<area>.ts` — `app.ts`,
+`pantry.ts`, `dates.ts`, `forms.ts`, `recipes.ts`, `settings.ts` and more as screens convert
+— exports `Record<HomeLanguage, string>` constants (`Phrase`) or, for a sentence that counts
+something, `Record<HomeLanguage, { one: string; other: string }>` (`Plural`). **Never an
+English catalogue with a Danish file beside it**: written as one literal, the two halves
+cannot be added in separate commits and cannot be reviewed apart, and a Danish half nobody
+wrote is a compile error rather than a phrase that quietly stays English. Both languages
+divide their plurals at one and nowhere else, so a `Plural` is two written-out forms and
+nothing cleverer — Danish plurals are irregular per noun (dag/dage), which is why the
+`count === 1 ? "" : "s"` idiom had to go everywhere it appeared.
+
+**Phrases are values, not key strings** — `say(PANTRY.title)`, never `t("pantry.title")`. A
+typo is a missing export, not a lookup that returns its own key at runtime, and the import
+graph says which screens use which copy.
+
+**`sayIn(language)` is curried the way `homeDb(homeId)` is curried**, in `src/lib/copy/say.ts`.
+A page writes `const say = sayIn(user.homeLanguage)` beside its `const db = homeDb(user.homeId)`
+and stops thinking about it. **A `src/lib` module never reaches for the catalogue — it takes
+the language as an argument**, the same rule `homeDb(homeId)` and `weekWorkload(…, now)`
+already follow: `pantryNote(covered, language)`, `dueLabel(dueAt, language, now)`. This is
+what lets a lib module work identically whether it is called from a server page or, through
+`useLanguage()` in `src/components/language-provider.tsx`, from a client component — there is
+one API, `sayIn`, not a server `t()` and a client one.
+
+**Interpolation is `{name}` and a `String.replace`**, and the type makes a phrase with slots
+impossible to say without filling them — an unfilled `{n}` reading as literal characters on a
+phone is the one i18n bug that looks like bad data rather than a bug. **A conjunction is never
+a phrase of its own**: `AND = { EN: "and", DA: "og" }` glued on with `+` is a word with no
+sentence round it, so `PANTRY.lastTwo` ("{most} and {last}") is the shape and `namesInWords`
+in `src/lib/pantry.ts` fills it — that is the hardest sentence in the app and the one every
+other phrase's shape follows.
+
+**Dates go through the same machine/person split as `src/lib/time.ts`** (below): `readInZone`
+and `readDayInZone` take a `Phrase` pattern and a language, because a pattern can hold words —
+`"d MMM 'at' HH:mm"` is English sitting inside what looks like a format. `formatInZone` and
+`formatDayInZone` stay locale-free on purpose, because what they write is a database key
+(`ClearedWeek.week`, a date input's value) that a locale would stop matching.
+
+**The importer's system prompt owns the prose; `renderNormalized` owns the unit token.**
+`src/lib/recipe-normalize.ts`'s `systemPrompt(language)` tells the model to write the whole
+recipe — title, ingredients, steps, `reviewReason` — in the household's language, translating
+where the source is in the other one, and to **leave every unit word exactly as the source
+wrote it**. Which word a unit is spelled with is decided afterwards, deterministically, by
+`SAME_MEASURE` (`tsp`↔`tsk`, `tbsp`↔`spsk`, and so on) — never inside the prompt, because a
+model guessing at a conversion is the one thing "units are never converted" exists to forbid.
+`cup`, `oz` and `lb` have no Danish word and are **left alone**: mapping them to `dl` or `g`
+would be measurement arithmetic on a model's say-so. `formatAmount` writes the decimal the
+household's own language does — a comma in Danish, a point in English. **`src/lib/cook-steps.ts`
+is never given a language and must never translate**: it runs on text already in the
+household's language, and a recipe somebody typed by hand in another language is that
+household's own words — the pantry's rule again, that an import answers what the source
+assumed, never what a person asked for.
+
+**Switching changes only what happens next.** Stored recipes, pantry entries, list items and
+tasks are left exactly as they are; nothing is migrated, and nothing is re-read through the
+model. The picker says so underneath itself.
+
+**The push notification reads a home's language with no session at all**: the reminder job
+(`src/app/api/cron/reminders/route.ts`) fetches each due task's home alongside its members and
+says the title in that home's language, because a person in two homes hears about each in
+that home's own voice. `public/sw.js`'s offline page and push fallback do the same from a
+small hand-written dictionary — plain JS outside the bundle, with no build step to import a
+catalogue through — kept current by `OfflineSupport` posting the language to the worker on
+every load, which also drops the worker's kept pages when it has changed: a page kept offline
+was rendered in whatever language was current then, and serving it back after a switch would
+answer in the language the household just left.
+
+`tests/unit/language.test.ts` walks every file under `src/lib/copy/` — never a list of its
+own — and holds four things no compiler checks: every phrase says something in every
+language, the two languages ask for the same slots, a plural's two forms agree with each
+other, and a phrase of more than one word is not identical between the languages, which is
+the signature of English pasted into the Danish slot to make it compile.
+**[`docs/design/language.md`](docs/design/language.md) has the reasoning.**
+
 ### Home-scoped data goes through `homeDb`
 
 ```ts
@@ -256,6 +339,13 @@ Never `new Date(...)` arithmetic, `getHours()`, or `toDateString()` for anything
 sees. Those read the server's clock, which is UTC in production and something else on a
 laptop — the same input then means different things in different places. Both test suites
 run with `TZ=UTC` so this fails on the machine that wrote it rather than in CI.
+
+**`formatInZone` and `formatDayInZone` are machine-only, deliberately with no locale.**
+What they write is read back — a date input's value, `ClearedWeek.week`, two calls compared
+to decide a week's range — and a locale would stop the result matching the rows written
+before a home switched language. **A person reads `readInZone` / `readDayInZone` instead**,
+which take a language and a pattern written as a `Phrase` rather than a bare string, because
+a pattern can hold words a locale alone would not translate (`"d MMM 'at' HH:mm"`).
 
 ### Pictures are shrunk in the browser, and checked again on arrival
 
@@ -698,8 +788,10 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
   (`src/lib/recipes.ts`), and dropped otherwise rather than failing the import.
   `shoppingText` strips only a unit word it knows; one it does not stays attached to the
   ingredient, so a model writing "2 tablespoons salt" breaks the pantry silently. Danish
-  first, because that is what this household's recipes are in — and the recipe **keeps its
-  own language**, never translated.
+  first, because that is what this household's recipes are in. **The recipe is read into
+  the home's own language**, translated where the source was in the other one — see "A
+  home is read in a language" above for the prompt/render split that does it, and for why
+  a unit word is never the thing translated by the model.
 - **A page's own machine-readable `totalTime` beats the reader's.** `PT1H30M` is the site
   stating the answer; a number read out of prose is an inference.
 - **The link is fetched from this app's own server, so it is checked the way that has to be:**

@@ -1,5 +1,9 @@
 import { z } from "zod";
+import type { HomeLanguage } from "@prisma/client";
 import { invalid, parsed, type Parsed } from "./action-result";
+import { DEFAULT_LANGUAGE } from "./language";
+import { sayIn } from "./copy/say";
+import { FORMS } from "./copy/forms";
 
 /**
  * Reads a form against a schema, giving back either the fields or the first message
@@ -7,10 +11,17 @@ import { invalid, parsed, type Parsed } from "./action-result";
  *
  * Every action validates this way, so the wording a person sees lives beside the field
  * it belongs to rather than in a chain of hand-written checks.
+ *
+ * `language` is optional and defaults to English: it only reaches this function's own
+ * fallback line, since every schema's own messages are still whatever string the
+ * caller built them from. An action that already has `say` in scope passes its
+ * language along; the rest convert in PR 2, alongside the schemas that name their
+ * messages in English today.
  */
 export function readForm<S extends z.ZodType>(
   schema: S,
   formData: FormData,
+  language: HomeLanguage = DEFAULT_LANGUAGE,
 ): Parsed<z.infer<S>> {
   const result = schema.safeParse(Object.fromEntries(formData));
 
@@ -19,7 +30,7 @@ export function readForm<S extends z.ZodType>(
   // `||` rather than `??`: an issue carrying an empty message is still an issue with
   // nothing to show, and a refusal that says nothing is the bare `return` this type
   // exists to rule out.
-  return invalid(result.error.issues[0]?.message || "Check the form and try again.");
+  return invalid(result.error.issues[0]?.message || sayIn(language)(FORMS.checkAndTryAgain));
 }
 
 /**

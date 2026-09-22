@@ -194,9 +194,41 @@ same arrangement `tests/unit/storage.test.ts` has for a kind's name in TypeScrip
 colour in the stylesheet. It also asserts that the wire schema carries no enum at all, as a
 canary: if a future SDK starts carrying it, the check here could be tightened.
 
-For the same reason the recipe **keeps its own language**. A Danish reel stays Danish: the
-units a Danish kitchen writes are the ones the pantry was built on, and translating would be
-the importer rewriting a recipe rather than cleaning it.
+**The recipe is read into the home's own language now, not kept in the source's.** That
+was not always so: before a home had a language of its own, a Danish reel stayed Danish and
+an English one stayed English, on the reasoning that translating would be the importer
+rewriting a recipe rather than cleaning it. It stopped being the right answer the moment a
+household's language became a real fact about the household rather than an assumption
+baked into the prompt — a Danish kitchen given an English recipe by this reasoning would
+have kept a recipe in a language it does not cook in, which is exactly the "quietly worse"
+outcome the rest of this file's rules exist to refuse.
+
+So `systemPrompt(language)` in `recipe-normalize.ts` carries one instruction that changed:
+write the title, every ingredient name, every step and `reviewReason` in the household's
+language, translating only where the source was in the other one. Everything else about
+"cleaning rather than rewriting" still holds, and holds *harder* for it: the ingredient
+words are translated but their **units are not**, on purpose and by a different mechanism.
+The model is told to leave a unit word exactly as the source wrote it — from the list
+`UNITS` already offers — because which word a unit is spelled with is a question with one
+right answer, and asking a model to answer it is asking it to guess at a translation
+`SAME_MEASURE` (in the same file) already knows deterministically: `tsp`↔`tsk`,
+`tbsp`↔`spsk`, `clove`↔`fed`, and so on, applied to the *canonical* unit `canonicalUnit`
+already resolved, after the model has answered and the recipe is otherwise settled.
+`cup`, `oz` and `lb` are left as they are in every language, because a Danish kitchen has
+no word for them — mapping one to `dl` or `g` would be measurement arithmetic on a model's
+say-so, which is the one thing "units are never converted" was written to forbid, and
+remains written to forbid; only who is being told not to convert changed. `formatAmount`
+writes the decimal the household's own language does, a comma in Danish and a point in
+English, for the same reason the rest of a stored line reads as that language throughout.
+
+`src/lib/cook-steps.ts`'s prompt is untouched, and that is also on purpose rather than an
+oversight. It runs on a recipe already saved — already in the household's language,
+whichever way it arrived there — and it must never translate anything: a recipe somebody
+typed by hand in a third language is that household's own words, and this second model
+call exists to break a recipe into hands-free steps, not to hold an opinion about what
+language a person chooses to cook in. This is the pantry's own rule read the other way
+round — an import answers what its source assumed, never what a person deliberately
+typed.
 
 **A page's own `totalTime` still beats the reader's.** `PT1H30M` in a schema.org field is
 the site stating the answer outright; a number read back out of prose is an inference,

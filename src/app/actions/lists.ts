@@ -501,6 +501,7 @@ async function writeRecipesToList(
 export async function addRecipeIngredients(
   formData: FormData,
 ): Promise<ActionResult | PantryDecision> {
+  const user = await requireHomeUser();
   const recipe = await recipeInScope(String(formData.get("recipeId")));
   const list = await listInScope(String(formData.get("listId")));
 
@@ -518,7 +519,7 @@ export async function addRecipeIngredients(
   // page to say so on.
   if (added === 0) return fail("Nothing to add — the pantry already has all of it.");
 
-  return ok(pantryNote(covered));
+  return ok(pantryNote(covered, user.homeLanguage));
 }
 
 /**
@@ -569,5 +570,5 @@ export async function addMealPlanIngredients(
   const { covered, added } = result;
   if (added === 0) return fail("Nothing to add — the pantry already has all of it.");
 
-  return ok(pantryNote(covered));
+  return ok(pantryNote(covered, user.homeLanguage));
 }

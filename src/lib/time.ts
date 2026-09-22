@@ -1,5 +1,8 @@
 import { TZDate } from "@date-fns/tz";
 import { addDays, differenceInCalendarDays, format, startOfWeek } from "date-fns";
+import type { HomeLanguage } from "@prisma/client";
+import { DATE_LOCALES } from "./language";
+import { sayIn, type Phrase } from "./copy/say";
 
 /**
  * The household's timezone. Every due date is decided and displayed here, never in the
@@ -23,9 +26,29 @@ export function todayInZone(now: Date = new Date()) {
   return format(inZone(now), "yyyy-MM-dd");
 }
 
-/** Formats an instant using the home's clock rather than the server's. */
+/**
+ * Formats an instant using the home's clock rather than the server's.
+ *
+ * Machine-only, deliberately with no locale: what this writes is read back — a date
+ * input's value, or compared against another call of itself to decide a week range —
+ * and a key in the reader's language would stop matching the rows written before they
+ * switched. A person reads `readInZone` instead.
+ */
 export function formatInZone(date: Date, pattern: string) {
   return format(inZone(date), pattern);
+}
+
+/**
+ * An instant as a person reads it, in the household's clock and in its language.
+ *
+ * The pattern is a `Phrase` and not a bare string, because a pattern can hold words —
+ * the quoted `'at'` in "d MMM 'at' HH:mm" is English sitting inside what looks like a
+ * format, invisible to anything looking for copy that is not here. Danish writes
+ * "d. MMM 'kl.' HH:mm", which also moves the full stop after the day — so even the
+ * patterns with no words in them are not shared.
+ */
+export function readInZone(date: Date, pattern: Phrase, language: HomeLanguage): string {
+  return format(inZone(date), sayIn(language)(pattern), { locale: DATE_LOCALES[language] });
 }
 
 /**
@@ -121,9 +144,18 @@ function noonOn(day: string) {
  * `formatInZone` is for an instant the app stored; this is for a day the app already
  * holds as a day, and it must not become an instant on the way past. Read at noon in the
  * home's zone, so no pattern can print the day before.
+ *
+ * Machine-only, like `formatInZone` — `weekLabel` in `src/lib/meals.ts` compares two
+ * calls of this against each other to decide how to write a week range, which a locale
+ * would leave comparing the wrong strings. A person reads `readDayInZone` instead.
  */
 export function formatDayInZone(day: string, pattern: string): string {
   return format(noonOn(day), pattern);
+}
+
+/** `readInZone`, for a day the app holds as a day rather than an instant. */
+export function readDayInZone(day: string, pattern: Phrase, language: HomeLanguage): string {
+  return format(noonOn(day), sayIn(language)(pattern), { locale: DATE_LOCALES[language] });
 }
 
 /** The Monday after the given one, as "yyyy-MM-dd". */

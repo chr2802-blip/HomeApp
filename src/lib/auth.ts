@@ -3,9 +3,10 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
-import type { HomeTheme, MemberRole, PlatformRole } from "@prisma/client";
+import type { HomeLanguage, HomeTheme, MemberRole, PlatformRole } from "@prisma/client";
 import { prisma } from "./prisma";
 import { DEFAULT_THEME } from "./theme";
+import { DEFAULT_LANGUAGE } from "./language";
 
 const COOKIE = "homehub_session";
 const MAX_AGE = 60 * 60 * 24 * 30;
@@ -65,6 +66,8 @@ export type Membership = {
   photoId: string | null;
   /** The colour it is dressed in, so a home is recognised in the list before it is read. */
   theme: HomeTheme;
+  /** The language it is read in and its imports are stored in. */
+  language: HomeLanguage;
   role: MemberRole;
 };
 
@@ -90,6 +93,12 @@ export type SessionUser = {
    * the whole app — sheets and menus included — is wearing it.
    */
   homeTheme: HomeTheme;
+  /**
+   * The language that home reads the app in, and its imports are read into. Read by
+   * `sayIn` and put on the document as `<html lang>` by the root layout, the same way
+   * `homeTheme` is.
+   */
+  homeLanguage: HomeLanguage;
   /**
    * What they may do in that home, or null when it is not one of theirs — which only
    * a super admin, looking into a household they are not in, ever is.
@@ -125,12 +134,12 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
-      activeHome: { select: { id: true, name: true, photoId: true, theme: true } },
+      activeHome: { select: { id: true, name: true, photoId: true, theme: true, language: true } },
       memberships: {
         orderBy: { createdAt: "asc" },
         select: {
           role: true,
-          home: { select: { id: true, name: true, photoId: true, theme: true } },
+          home: { select: { id: true, name: true, photoId: true, theme: true, language: true } },
         },
       },
     },
@@ -170,9 +179,22 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     // Somebody between homes, or on a page that belongs to none, gets the app's own
     // colours rather than the last home's.
     homeTheme: active?.theme ?? DEFAULT_THEME,
+    // Same fallback, same reason: English is what the app is in before a household has
+    // said otherwise.
+    homeLanguage: active?.language ?? DEFAULT_LANGUAGE,
     homeRole: homes.find((home) => home.id === active?.id)?.role ?? null,
   };
 });
+
+/**
+ * The language to write in when there is nobody to ask — `/login`, `global-error`, a
+ * page reached before a session exists. A one-liner over the cached `getCurrentUser`
+ * rather than a second round trip, and English when it finds nobody, because English is
+ * what the app is in before a household has said otherwise.
+ */
+export async function currentLanguage(): Promise<HomeLanguage> {
+  return (await getCurrentUser())?.homeLanguage ?? DEFAULT_LANGUAGE;
+}
 
 export async function requireUser(): Promise<SessionUser> {
   const user = await getCurrentUser();

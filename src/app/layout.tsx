@@ -3,6 +3,9 @@ import localFont from "next/font/local";
 import { Analytics } from "@vercel/analytics/next";
 import { getCurrentUser } from "@/lib/auth";
 import { BAND, DEFAULT_THEME } from "@/lib/theme";
+import { DEFAULT_LANGUAGE, HTML_LANG } from "@/lib/language";
+import { sayIn } from "@/lib/copy/say";
+import { APP } from "@/lib/copy/app";
 import "./globals.css";
 
 /**
@@ -28,21 +31,32 @@ const heading = localFont({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "HomeHub",
-  description: "Lists, recurring tasks and recipes for your home.",
-  manifest: "/manifest.webmanifest",
-  /*
-   * Installed from Safari, the app runs with no chrome of its own and the strip above it
-   * holds the clock and the battery. `default` is what puts the phone's own dark glyphs
-   * there, which is the only readable choice against the band — a pale tint, and the
-   * translucent style would hand the strip to the app and leave those glyphs white on
-   * near-white. What it is painted with is the document's background, which carries the
-   * band from globals.css, so the strip is right on iOS without anything here being told
-   * a colour.
-   */
-  appleWebApp: { capable: true, title: "HomeHub", statusBarStyle: "default" },
-};
+/**
+ * A function rather than the static object this used to be, so the description can
+ * follow the reader's home the way everything else here does. `title` and
+ * `appleWebApp.title` stay "HomeHub" in both languages — a proper noun, the same as the
+ * app's own name never changes when a home switches colour.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const user = await getCurrentUser();
+  const say = sayIn(user?.homeLanguage ?? DEFAULT_LANGUAGE);
+
+  return {
+    title: "HomeHub",
+    description: say(APP.meta.description),
+    manifest: "/manifest.webmanifest",
+    /*
+     * Installed from Safari, the app runs with no chrome of its own and the strip above it
+     * holds the clock and the battery. `default` is what puts the phone's own dark glyphs
+     * there, which is the only readable choice against the band — a pale tint, and the
+     * translucent style would hand the strip to the app and leave those glyphs white on
+     * near-white. What it is painted with is the document's background, which carries the
+     * band from globals.css, so the strip is right on iOS without anything here being told
+     * a colour.
+     */
+    appleWebApp: { capable: true, title: "HomeHub", statusBarStyle: "default" },
+  };
+}
 
 /**
  * The strip above the header, and who paints it.
@@ -96,7 +110,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const user = await getCurrentUser();
 
   return (
-    <html lang="en" data-theme={user?.homeTheme ?? DEFAULT_THEME} className={heading.variable}>
+    <html
+      lang={HTML_LANG[user?.homeLanguage ?? DEFAULT_LANGUAGE]}
+      data-theme={user?.homeTheme ?? DEFAULT_THEME}
+      className={heading.variable}
+    >
       {/* The page's own colour is in globals.css, beside the band the canvas behind it
           wears: the two are a pair, and a class here would put half of it elsewhere. */}
       <body className="min-h-screen text-slate-900 antialiased">

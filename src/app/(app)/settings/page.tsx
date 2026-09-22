@@ -21,11 +21,15 @@ import { ReminderStatus } from "@/components/reminder-status";
 import { StorageUsage } from "@/components/storage-usage";
 import { AiSpendUsage } from "@/components/ai-spend";
 import { RecipeCategoriesAdmin } from "@/components/recipe-categories-admin";
-import { formatInZone } from "@/lib/time";
+import { readInZone } from "@/lib/time";
+import { DATE } from "@/lib/copy/dates";
 import { ItemMenu } from "@/components/item-menu";
 import { PhotoAvatar } from "@/components/photo";
 import { PhotoField } from "@/components/photo-field";
 import { ThemeField } from "@/components/theme-field";
+import { LanguageField } from "@/components/language-field";
+import { sayIn } from "@/lib/copy/say";
+import { SETTINGS } from "@/lib/copy/settings";
 
 /**
  * Running one household: its name and picture, who is in it, who is invited, what its
@@ -38,11 +42,12 @@ import { ThemeField } from "@/components/theme-field";
  */
 export default async function SettingsPage() {
   const user = await requireAdmin();
+  const say = sayIn(user.homeLanguage);
 
   if (!user.homeId) {
     return (
       <>
-        <PageHeader title="Settings" />
+        <PageHeader title={say(SETTINGS.title)} />
         <EmptyState>
           <p>Select a home first.</p>
           <ButtonLink href="/admin/homes" className="mt-4">
@@ -75,26 +80,30 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" description={`Managing ${home.name}`} />
+      <PageHeader title={say(SETTINGS.title)} description={say(SETTINGS.managing, { home: home.name })} />
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Home</h2>
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">{say(SETTINGS.homeHeading)}</h2>
         <Card>
-          <ActionForm action={updateHome} submitLabel="Save home" className="grid gap-4 sm:grid-cols-2">
+          <ActionForm
+            action={updateHome}
+            submitLabel={say(SETTINGS.saveHome)}
+            className="grid gap-4 sm:grid-cols-2"
+          >
             <input type="hidden" name="homeId" value={home.id} />
             <div className="space-y-1">
-              <Label htmlFor="name">Home name</Label>
+              <Label htmlFor="name">{say(SETTINGS.homeName)}</Label>
               <Input id="name" name="name" defaultValue={home.name} required />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="address">Address (optional)</Label>
+              <Label htmlFor="address">{say(SETTINGS.address)}</Label>
               <Input id="address" name="address" defaultValue={home.address ?? ""} />
             </div>
             <div className="sm:col-span-2">
               <PhotoField
                 defaultPhotoId={home.photoId}
-                label="Home picture"
-                hint="Shown beside the home's name and across the top of the dashboard."
+                label={say(SETTINGS.homePicture)}
+                hint={say(SETTINGS.homePictureHint)}
               />
             </div>
             {/* The colour belongs with the name and the picture: all three are what this
@@ -102,13 +111,19 @@ export default async function SettingsPage() {
             <div className="sm:col-span-2">
               <ThemeField defaultTheme={home.theme} />
             </div>
+            {/* The language belongs here too, for the same reason: it is what this
+                household sounds like, and it is saved by the same button as the rest of
+                what it looks like. */}
+            <div className="sm:col-span-2">
+              <LanguageField defaultLanguage={home.language} />
+            </div>
           </ActionForm>
         </Card>
       </section>
 
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Reminders</h2>
-        <ReminderStatus homeId={home.id} />
+        <ReminderStatus homeId={home.id} language={user.homeLanguage} />
       </section>
 
       {/* Where the household's space is going. It sits under Reminders rather than
@@ -191,7 +206,8 @@ export default async function SettingsPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{invite.email}</p>
                   <p className="text-xs text-slate-500">
-                    {invite.role.toLowerCase()} · expires {formatInZone(invite.expiresAt, "d MMM yyyy")}
+                    {invite.role.toLowerCase()} · expires{" "}
+                    {readInZone(invite.expiresAt, DATE.dayMonthYear, user.homeLanguage)}
                   </p>
                 </div>
                 <form action={revokeInvite}>

@@ -6,6 +6,9 @@ import type { HomeTheme } from "@prisma/client";
 import { switchHome } from "@/app/actions/admin";
 import { PhotoAvatar } from "./photo";
 import { HomeDot } from "./home-dot";
+import { useLanguage } from "./language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { APP } from "@/lib/copy/app";
 
 export type HomeOption = {
   id: string;
@@ -48,6 +51,7 @@ export function HomeMenu({
   const [open, setOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const say = sayIn(useLanguage());
 
   // Hydration leaves no mark of its own, so this is the mark: the trigger says when it
   // can really open, and the browser tests wait on it instead of guessing.
@@ -81,7 +85,7 @@ export function HomeMenu({
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`${label} — home menu`}
+        aria-label={say(APP.homeMenu.ariaLabel, { name: label })}
         data-ready={ready ? "true" : undefined}
         onClick={() => setOpen((was) => !was)}
         className="pressable flex min-w-0 items-center gap-1.5 rounded-lg text-lg font-semibold tracking-tight text-[var(--accent-text)] transition active:scale-95"
@@ -107,7 +111,7 @@ export function HomeMenu({
       {open && (
         <div
           role="menu"
-          aria-label="This home and you"
+          aria-label={say(APP.homeMenu.menuLabel)}
           className="animate-row-in absolute top-full left-0 z-50 mt-2 min-w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
         >
           {/* Above Settings, and drawn for everybody: the pantry is this household's
@@ -119,7 +123,7 @@ export function HomeMenu({
             onClick={() => setOpen(false)}
             className={`${entry} text-slate-700`}
           >
-            Pantry
+            {say(APP.homeMenu.pantry)}
           </Link>
           {canAdminister && (
             <Link
@@ -128,7 +132,7 @@ export function HomeMenu({
               onClick={() => setOpen(false)}
               className={`${entry} text-slate-700`}
             >
-              Settings
+              {say(APP.homeMenu.settings)}
             </Link>
           )}
           <Link
@@ -137,7 +141,7 @@ export function HomeMenu({
             onClick={() => setOpen(false)}
             className={`${entry} text-slate-700`}
           >
-            Profile
+            {say(APP.homeMenu.profile)}
           </Link>
 
           {/* Switching homes is below the two above rather than beside them: this is a
@@ -162,7 +166,7 @@ export function HomeMenu({
                     <span className="truncate">{home.name}</span>
                     {home.id === currentId && (
                       <span className="ml-auto shrink-0 text-xs font-normal text-slate-400">
-                        Current
+                        {say(APP.homeMenu.current)}
                       </span>
                     )}
                   </button>
@@ -177,7 +181,7 @@ export function HomeMenu({
             onClick={() => setOpen(false)}
             className={`${entry} mt-1 border-t border-slate-100 text-slate-500`}
           >
-            All your homes
+            {say(APP.homeMenu.allHomes)}
           </Link>
         </div>
       )}
