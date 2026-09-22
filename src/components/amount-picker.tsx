@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { MAX_AMOUNT, MIN_AMOUNT, clampAmount } from "@/lib/amount";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { LISTS } from "@/lib/copy/lists";
 
 /**
  * How many of an item are wanted: minus, a box, plus.
@@ -25,6 +28,7 @@ export function AmountPicker({
 }) {
   const [draft, setDraft] = useState(String(value));
   const [shown, setShown] = useState(value);
+  const say = sayIn(useLanguage());
 
   // The amount can change underneath us — another person's edit arriving, or our own
   // optimistic one landing. Adopting it during render keeps the box honest without an
@@ -52,7 +56,7 @@ export function AmountPicker({
         type="button"
         onClick={step(-1)}
         disabled={disabled || value <= MIN_AMOUNT}
-        aria-label={`Decrease ${label}`}
+        aria-label={say(LISTS.decrease, { name: label })}
         className="pressable h-9 w-6 rounded-l-lg text-slate-600 hover:bg-slate-100 active:scale-90 disabled:opacity-30 disabled:hover:bg-transparent sm:w-8"
       >
         −
@@ -81,7 +85,7 @@ export function AmountPicker({
         type="button"
         onClick={step(1)}
         disabled={disabled || value >= MAX_AMOUNT}
-        aria-label={`Increase ${label}`}
+        aria-label={say(LISTS.increase, { name: label })}
         className="pressable h-9 w-6 rounded-r-lg text-slate-600 hover:bg-slate-100 active:scale-90 disabled:opacity-30 disabled:hover:bg-transparent sm:w-8"
       >
         +

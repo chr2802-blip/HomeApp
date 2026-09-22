@@ -10,6 +10,9 @@ import { newId } from "@/lib/offline-queue";
 import type { OfflineOp } from "@/lib/offline-ops";
 import { clampAmount, MIN_AMOUNT } from "@/lib/amount";
 import { ok, type FormAction } from "@/lib/action-result";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { LISTS } from "@/lib/copy/lists";
 
 export type Suggestion = { id: string; text: string };
 
@@ -40,6 +43,7 @@ export function AddItemForm({
   const [restoring, startRestore] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
   const { record } = useOfflineList(listId);
+  const say = sayIn(useLanguage());
 
   /**
    * Adding, whether or not there is anybody to add it with.
@@ -141,7 +145,7 @@ export function AddItemForm({
           {trackAmounts && (
             <>
               <input type="hidden" name="amount" value={amount} />
-              <AmountPicker value={amount} onChange={setAmount} label="Amount" />
+              <AmountPicker value={amount} onChange={setAmount} label={say(LISTS.amount)} />
             </>
           )}
           <Input
@@ -153,7 +157,7 @@ export function AddItemForm({
               setHighlighted(-1);
             }}
             onKeyDown={onKeyDown}
-            placeholder="Add an item"
+            placeholder={say(LISTS.addItem)}
             required
             autoComplete="off"
             role="combobox"
@@ -163,7 +167,7 @@ export function AddItemForm({
             className="flex-1"
           />
           <Button type="submit" disabled={pending || restoring} aria-busy={pending}>
-            {pending ? "Adding…" : "Add"}
+            {pending ? say(LISTS.adding) : say(LISTS.add)}
           </Button>
         </div>
         {state?.ok === false && (
@@ -177,11 +181,11 @@ export function AddItemForm({
         <ul
           id="item-suggestions"
           role="listbox"
-          aria-label="Already on this list"
+          aria-label={say(LISTS.alreadyOnList)}
           className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
         >
           <li className="border-b border-slate-100 px-3 py-1.5 text-xs text-slate-500">
-            Ticked off earlier — pick one to put it back
+            {say(LISTS.pickOneBack)}
           </li>
           {matches.map((item, index) => (
             <li key={item.id}>

@@ -46,6 +46,15 @@ export const APP = {
   saveChanges: { EN: "Save changes", DA: "Gem ændringer" },
   saving: { EN: "Saving…", DA: "Gemmer…" },
   added: { EN: "Added.", DA: "Tilføjet." },
+  /** `ConfirmButton`/`ConfirmDialog`'s own default title — every destructive sheet in
+   *  the app that does not name its own question. */
+  areYouSure: { EN: "Are you sure?", DA: "Er du sikker?" },
+  /** A destructive action's pending state — the same word wherever a delete is in flight. */
+  working: { EN: "Working…", DA: "Arbejder…" },
+  /** Every sheet's own close button. */
+  close: { EN: "Close", DA: "Luk" },
+  /** The three dots' own accessible name, when they carry no face of their own. */
+  actionsFor: { EN: "Actions for {name}", DA: "Handlinger for {name}" },
 
   /** "Add to list", shared by a recipe page, the meal plan and the pantry. */
   addToList: {

@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { APP } from "@/lib/copy/app";
 
 /**
  * How long the closing animation runs. The sheet stays mounted for exactly this long
@@ -43,6 +46,7 @@ export function Modal({
 }) {
   const [mounted, setMounted] = useState(false);
   const [closing, setClosing] = useState(false);
+  const say = sayIn(useLanguage());
 
   // Opening needs no second step: the entrance is an animation, which runs from the
   // moment the sheet is in the document. Closing does, because the sheet has to outlive
@@ -131,7 +135,7 @@ export function Modal({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={say(APP.close)}
             className="-mr-1 shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-900 active:scale-90"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">

@@ -11,6 +11,9 @@ import { ItemMenu } from "@/components/item-menu";
 import { PhotoField } from "@/components/photo-field";
 import { PhotoThumb } from "@/components/photo";
 import { ProgressBar } from "@/components/progress-bar";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { LISTS } from "@/lib/copy/lists";
 
 export type ListSummary = {
   id: string;
@@ -30,6 +33,8 @@ function isListDone(list: ListSummary) {
 }
 
 function ListCards({ lists }: { lists: ListSummary[] }) {
+  const say = sayIn(useLanguage());
+
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {lists.map((list, index) => (
@@ -48,11 +53,13 @@ function ListCards({ lists }: { lists: ListSummary[] }) {
           >
             {/* Decorative: the title is right beside it, and a screen reader
                 reading the same words twice helps nobody. */}
+            {/* eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a
+                PhotoKind glyph, not copy. */}
             <PhotoThumb photoId={list.photoId} alt="" className="h-11 w-11" placeholder="list" />
             <div className="min-w-0 flex-1">
               <p className="font-medium hover:underline">{list.title}</p>
               <p className="mt-1 text-xs text-slate-500">
-                {list.open} open · {list.total} total
+                {say(LISTS.openTotal, { open: list.open, total: list.total })}
               </p>
             </div>
           </Link>
@@ -63,14 +70,14 @@ function ListCards({ lists }: { lists: ListSummary[] }) {
             name="listId"
             id={list.id}
             label={list.title}
-            editTitle="Edit list"
+            editTitle={say(LISTS.editList)}
             editAction={updateList}
             deleteAction={deleteList}
-            deleteMessage={`Delete "${list.title}" and all its items?`}
+            deleteMessage={say(LISTS.deleteListMessage, { title: list.title })}
             className="-mr-2"
           >
             <div className="space-y-1">
-              <Label htmlFor={`title-${list.id}`}>List name</Label>
+              <Label htmlFor={`title-${list.id}`}>{say(LISTS.listName)}</Label>
               <Input id={`title-${list.id}`} name="title" defaultValue={list.title} required autoFocus />
             </div>
             <AmountsField defaultChecked={list.trackAmounts} />
@@ -99,6 +106,7 @@ function ListCards({ lists }: { lists: ListSummary[] }) {
  */
 export function ListDirectory({ lists }: { lists: ListSummary[] }) {
   const [query, setQuery] = useState("");
+  const say = sayIn(useLanguage());
 
   const needle = query.trim().toLowerCase();
   const matches = needle
@@ -106,11 +114,7 @@ export function ListDirectory({ lists }: { lists: ListSummary[] }) {
     : lists;
 
   if (lists.length === 0) {
-    return (
-      <EmptyState icon="📝">
-        Nothing on the shelf yet — create your first list with the button above.
-      </EmptyState>
-    );
+    return <EmptyState icon="📝">{say(LISTS.empty)}</EmptyState>;
   }
 
   // A finished list folds away like a finished task, for the same reason: it is worth
@@ -138,15 +142,15 @@ export function ListDirectory({ lists }: { lists: ListSummary[] }) {
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search lists"
-          aria-label="Search lists"
+          placeholder={say(LISTS.searchLists)}
+          aria-label={say(LISTS.searchLists)}
           autoComplete="off"
           className="pl-9"
         />
       </div>
 
       {matches.length === 0 ? (
-        <EmptyState>No list matches “{query.trim()}”.</EmptyState>
+        <EmptyState>{say(LISTS.noMatch, { query: query.trim() })}</EmptyState>
       ) : (
         <>
           {active.length > 0 && <ListCards lists={active} />}
@@ -154,7 +158,7 @@ export function ListDirectory({ lists }: { lists: ListSummary[] }) {
           {done.length > 0 && (
             <section className={active.length > 0 ? "mt-8" : undefined}>
               <Collapsible
-                summary={`Done (${done.length})`}
+                summary={say(LISTS.done, { count: done.length })}
                 headingClassName="mb-3 text-sm font-semibold text-slate-500 uppercase"
                 triggerClassName="hover:text-slate-700"
                 panelClassName="pb-1"

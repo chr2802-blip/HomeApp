@@ -91,6 +91,7 @@ export function RecipeImportField({
           <Input
             id="importUrl"
             type="url"
+            // eslint-disable-next-line no-restricted-syntax -- an example address, not prose
             placeholder="https://www.example.com/recipe/..."
             value={url}
             onChange={(event) => setUrl(event.target.value)}

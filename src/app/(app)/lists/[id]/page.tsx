@@ -10,10 +10,13 @@ import { FavoriteButton } from "@/components/favorite-button";
 import { AddItemForm } from "@/components/add-item-form";
 import { PhotoField } from "@/components/photo-field";
 import { PhotoThumb } from "@/components/photo";
+import { sayIn } from "@/lib/copy/say";
+import { LISTS } from "@/lib/copy/lists";
 
 export default async function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
 
   // Both scoped to the caller's home, so another home's id simply finds nothing —
   // indistinguishable from a record that never existed, which is the point. Asked
@@ -68,14 +71,14 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
           name="listId"
           id={list.id}
           label={list.title}
-          editTitle="Edit list"
+          editTitle={say(LISTS.editList)}
           editAction={updateList}
           deleteAction={deleteList}
-          deleteMessage={`Delete "${list.title}" and all its items?`}
+          deleteMessage={say(LISTS.deleteListMessage, { title: list.title })}
           className="-mr-2"
         >
           <div className="space-y-1">
-            <Label htmlFor="title">List name</Label>
+            <Label htmlFor="title">{say(LISTS.listName)}</Label>
             <Input id="title" name="title" defaultValue={list.title} required autoFocus />
           </div>
           <AmountsField defaultChecked={list.trackAmounts} />

@@ -2,6 +2,9 @@
 
 import { useOptimistic, useTransition } from "react";
 import { toggleListFavorite } from "@/app/actions/lists";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { LISTS } from "@/lib/copy/lists";
 
 /**
  * The star that pins a list to the person's own dashboard.
@@ -24,6 +27,7 @@ export function FavoriteButton({
 }) {
   const [starred, setStarred] = useOptimistic(favorite);
   const [, startTransition] = useTransition();
+  const say = sayIn(useLanguage());
 
   function toggle() {
     const data = new FormData();
@@ -43,8 +47,8 @@ export function FavoriteButton({
       // screen reader says "Favourite Shopping, pressed" rather than renaming the
       // control under the person using it.
       aria-pressed={starred}
-      aria-label={`Favourite ${title}`}
-      title={starred ? "Remove from favourites" : "Add to favourites"}
+      aria-label={say(LISTS.favourite, { name: title })}
+      title={starred ? say(LISTS.removeFromFavourites) : say(LISTS.addToFavourites)}
       className={`pressable shrink-0 rounded-lg p-2 active:scale-90 ${
         starred ? "text-amber-500 hover:text-amber-600" : "text-slate-300 hover:text-slate-500"
       } ${className}`}

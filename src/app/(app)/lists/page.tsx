@@ -7,9 +7,12 @@ import { FormDialog } from "@/components/form-dialog";
 import { AmountsField } from "@/components/amounts-field";
 import { PhotoField } from "@/components/photo-field";
 import { ListDirectory, type ListSummary } from "@/components/list-directory";
+import { sayIn } from "@/lib/copy/say";
+import { LISTS } from "@/lib/copy/lists";
 
 export default async function ListsPage() {
   const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
 
   // The lists themselves, and how much of each is still open. Two queries rather than
   // one because a relation can only be counted one way per query — see `openItemCounts`
@@ -45,23 +48,23 @@ export default async function ListsPage() {
   return (
     <>
       <PageHeader
-        title="Lists"
-        description="Shopping lists, to-dos, anything you want to tick off."
+        title={say(LISTS.title)}
+        description={say(LISTS.description)}
         action={
           <FormDialog
-            triggerLabel="New list"
+            triggerLabel={say(LISTS.newList)}
             triggerVariant="create"
             triggerShape="icon"
-            title="New list"
-            submitLabel="Create list"
+            title={say(LISTS.newList)}
+            submitLabel={say(LISTS.createList)}
             action={createList}
           >
             <div className="space-y-1">
-              <Label htmlFor="title">List name</Label>
-              <Input id="title" name="title" placeholder="Shopping list" required autoFocus />
+              <Label htmlFor="title">{say(LISTS.listName)}</Label>
+              <Input id="title" name="title" placeholder={say(LISTS.namePlaceholder)} required autoFocus />
             </div>
             <AmountsField />
-            <PhotoField hint="Optional — a picture makes the list easy to pick out." />
+            <PhotoField hint={say(LISTS.photoHint)} />
           </FormDialog>
         }
       />

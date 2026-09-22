@@ -1,4 +1,5 @@
 import { statusLine } from "@/lib/offline-ops";
+import { useLanguage } from "@/components/language-provider";
 
 /**
  * What the list has to say about the connection, and only when it has something to say.
@@ -22,7 +23,7 @@ export function QueueStatus({
   waiting: number;
   sending: boolean;
 }) {
-  const message = statusLine(online, waiting, sending);
+  const message = statusLine(online, waiting, sending, useLanguage());
   if (!message) return null;
 
   return (

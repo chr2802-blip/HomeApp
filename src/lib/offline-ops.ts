@@ -1,5 +1,8 @@
 import { z } from "zod";
+import type { HomeLanguage } from "@prisma/client";
 import { MAX_AMOUNT, MIN_AMOUNT } from "@/lib/amount";
+import { sayIn } from "@/lib/copy/say";
+import { LISTS } from "@/lib/copy/lists";
 
 /**
  * A change made to a list while the connection was gone, waiting to be sent.
@@ -180,18 +183,28 @@ export function isSettled(items: ListRow[], op: OfflineOp): boolean {
  * when there is something, and never a sentence claiming a change was saved anywhere it
  * was not.
  */
-export function statusLine(online: boolean, waiting: number, sending: boolean): string | null {
+export function statusLine(
+  online: boolean,
+  waiting: number,
+  sending: boolean,
+  language: HomeLanguage,
+): string | null {
+  const say = sayIn(language);
   if (!online) {
     return waiting > 0
-      ? `Offline — ${changes(waiting)} saved on this phone, and sent when you are back.`
-      : "Offline — ticks are saved here and sent when you are back.";
+      ? say(LISTS.offlineWaiting, { changes: changes(waiting, language) })
+      : say(LISTS.offlineIdle);
   }
   // Sending says what is happening; a count of what is left says it more precisely, and
   // between the two there is nothing to report.
-  if (waiting > 0) return sending ? `Sending ${changes(waiting)}…` : `${changes(waiting)} to send.`;
+  if (waiting > 0) {
+    return sending
+      ? say(LISTS.sending, { changes: changes(waiting, language) })
+      : say(LISTS.toSend, { changes: changes(waiting, language) });
+  }
   return null;
 }
 
-function changes(count: number) {
-  return `${count} change${count === 1 ? "" : "s"}`;
+function changes(count: number, language: HomeLanguage) {
+  return sayIn(language)(LISTS.changes, { count });
 }

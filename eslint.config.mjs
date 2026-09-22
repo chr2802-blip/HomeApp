@@ -82,6 +82,66 @@ const eslintConfig = [
       ],
     },
   },
+  {
+    /*
+     * A string written into a screen is a string one of these households cannot read.
+     *
+     * Nothing derived can catch this: a line in JSX that never reached
+     * `src/lib/copy/` is not in any structure a test could walk, and it renders
+     * perfectly in English for however long it takes somebody Danish to open that
+     * screen. So it is caught where `prisma.list` is caught — by the shape of the
+     * syntax, at the moment it is typed.
+     *
+     * `files` is the frontier, not a style choice: it names exactly the screens and
+     * components already converted, and widening it is how the rest of the app gets
+     * done. When it reads `src/app/**` and `src/components/**` whole, there is
+     * nothing left to convert, and the rule itself says so rather than somebody's
+     * count.
+     */
+    files: [
+      "src/app/(app)/layout.tsx",
+      "src/app/(app)/pantry/page.tsx",
+      "src/app/(app)/lists/page.tsx",
+      "src/app/(app)/lists/[id]/page.tsx",
+      "src/components/pantry-row.tsx",
+      "src/components/add-to-list-menu.tsx",
+      "src/components/new-recipe-dialog.tsx",
+      "src/components/recipe-import-field.tsx",
+      "src/components/home-menu.tsx",
+      "src/components/bottom-nav.tsx",
+      "src/components/nav-links.tsx",
+      "src/components/language-field.tsx",
+      "src/components/item-menu.tsx",
+      "src/components/confirm-button.tsx",
+      "src/components/confirm-dialog.tsx",
+      "src/components/modal.tsx",
+      "src/components/context-menu.tsx",
+      "src/components/list-directory.tsx",
+      "src/components/list-items.tsx",
+      "src/components/add-item-form.tsx",
+      "src/components/amounts-field.tsx",
+      "src/components/favorite-button.tsx",
+      "src/components/amount-picker.tsx",
+      "src/components/queue-status.tsx",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          // Three letters rather than one, so `&nbsp;`, `·`, `%` and an emoji pass.
+          selector: "JSXText[value=/[A-Za-z]{3}/]",
+          message:
+            "Say this through a phrase in src/lib/copy/ — a line written here is English for every household, including the Danish ones.",
+        },
+        {
+          selector:
+            "JSXAttribute[name.name=/^(title|label|description|placeholder|message|summaryLabel|submitLabel|pendingLabel|successLabel|hint|aria-label)$/] > Literal[value=/[A-Za-z]{3}/]",
+          message:
+            "Say this through a phrase in src/lib/copy/. A label passed as a literal is copy wherever it is going.",
+        },
+      ],
+    },
+  },
 ];
 
 export default eslintConfig;
