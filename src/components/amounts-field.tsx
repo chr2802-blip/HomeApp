@@ -1,5 +1,5 @@
+import type { HomeLanguage } from "@prisma/client";
 import { Label } from "@/components/ui";
-import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
 import { LISTS } from "@/lib/copy/lists";
 
@@ -8,9 +8,19 @@ import { LISTS } from "@/lib/copy/lists";
  *
  * Shared by the create and edit sheets rather than written twice, so the wording and the
  * field name cannot drift apart — the action reads the same checkbox from both.
+ *
+ * Rendered from a server component page as often as from a client one — see
+ * `AssigneeField` — so it takes `language` as a prop rather than reaching for
+ * `useLanguage()`.
  */
-export function AmountsField({ defaultChecked = false }: { defaultChecked?: boolean }) {
-  const say = sayIn(useLanguage());
+export function AmountsField({
+  defaultChecked = false,
+  language,
+}: {
+  defaultChecked?: boolean;
+  language: HomeLanguage;
+}) {
+  const say = sayIn(language);
 
   return (
     <div className="space-y-1">

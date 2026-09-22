@@ -81,7 +81,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
             <Label htmlFor="title">{say(LISTS.listName)}</Label>
             <Input id="title" name="title" defaultValue={list.title} required autoFocus />
           </div>
-          <AmountsField defaultChecked={list.trackAmounts} />
+          <AmountsField defaultChecked={list.trackAmounts} language={user.homeLanguage} />
           <PhotoField defaultPhotoId={list.photoId} />
         </ItemMenu>
       </div>

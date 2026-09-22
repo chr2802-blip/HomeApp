@@ -33,7 +33,8 @@ function isListDone(list: ListSummary) {
 }
 
 function ListCards({ lists }: { lists: ListSummary[] }) {
-  const say = sayIn(useLanguage());
+  const language = useLanguage();
+  const say = sayIn(language);
 
   return (
     <div className="grid gap-3 sm:grid-cols-2">
@@ -80,7 +81,7 @@ function ListCards({ lists }: { lists: ListSummary[] }) {
               <Label htmlFor={`title-${list.id}`}>{say(LISTS.listName)}</Label>
               <Input id={`title-${list.id}`} name="title" defaultValue={list.title} required autoFocus />
             </div>
-            <AmountsField defaultChecked={list.trackAmounts} />
+            <AmountsField defaultChecked={list.trackAmounts} language={language} />
             <PhotoField defaultPhotoId={list.photoId} />
           </ItemMenu>
 

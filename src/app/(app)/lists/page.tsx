@@ -63,7 +63,7 @@ export default async function ListsPage() {
               <Label htmlFor="title">{say(LISTS.listName)}</Label>
               <Input id="title" name="title" placeholder={say(LISTS.namePlaceholder)} required autoFocus />
             </div>
-            <AmountsField />
+            <AmountsField language={user.homeLanguage} />
             <PhotoField hint={say(LISTS.photoHint)} />
           </FormDialog>
         }

@@ -1,3 +1,5 @@
+"use client";
+
 import { statusLine } from "@/lib/offline-ops";
 import { useLanguage } from "@/components/language-provider";
 
