@@ -1,3 +1,4 @@
+import type { HomeLanguage } from "@prisma/client";
 import { homeDb } from "./home-db";
 import { leftoversLabel } from "./meals";
 import { todayInZone } from "./time";
@@ -88,7 +89,7 @@ export type TonightsDinner = {
  * Returns null when there is nothing to show at all: a night out, or nothing planned and
  * nothing eligible to plan either.
  */
-export async function tonightsDinner(homeId: string): Promise<TonightsDinner> {
+export async function tonightsDinner(homeId: string, language: HomeLanguage): Promise<TonightsDinner> {
   const today = todayInZone();
   const db = homeDb(homeId);
 
@@ -107,6 +108,7 @@ export async function tonightsDinner(homeId: string): Promise<TonightsDinner> {
     return {
       title: leftoversLabel(
         source?.recipe ? { day: plan.leftoverOf, title: source.recipe.title } : null,
+        language,
       ),
       description: null,
       photoId: source?.recipe?.photoId ?? null,

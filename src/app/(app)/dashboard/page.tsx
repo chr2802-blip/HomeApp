@@ -17,6 +17,9 @@ import { homeStreak } from "@/lib/streak";
 import { weekWorkload } from "@/lib/week";
 import { WeekProgress } from "@/components/week-progress";
 import { Collapsible } from "@/components/collapsible";
+import { sayIn } from "@/lib/copy/say";
+import { DASHBOARD } from "@/lib/copy/dashboard";
+import { APP } from "@/lib/copy/app";
 
 /**
  * How many lists the dashboard draws before it stops and offers the rest.
@@ -44,10 +47,11 @@ const DASHBOARD_LISTS = 4;
  */
 const LIST_COUNTS = { _count: { select: { items: true } } } as const;
 
-function itemsLine(total: number, open: number) {
-  if (total === 0) return "Nothing on it yet";
-  if (open === 0) return "All done";
-  return `${open} open`;
+function itemsLine(total: number, open: number, language: HomeLanguage) {
+  const say = sayIn(language);
+  if (total === 0) return say(DASHBOARD.nothingOnItYet);
+  if (open === 0) return say(DASHBOARD.allDone);
+  return say(APP.addToList.open, { count: open });
 }
 
 type DueTaskRow = {
@@ -90,10 +94,12 @@ function DueTask({
   now: Date;
   language: HomeLanguage;
 }) {
+  const say = sayIn(language);
   return (
     <Card className="py-3">
       <div className="flex items-start gap-3">
         {/* Decorative: the task's own name is right beside it. */}
+        {/* eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a PhotoKind glyph, not copy. */}
         <PhotoThumb photoId={task.photoId} alt="" className="h-11 w-11" placeholder="task" />
         <div className="min-w-0 flex-1">
           <p className="font-medium">{task.title}</p>
@@ -117,7 +123,7 @@ function DueTask({
         <Badge tone={dueTone(task.nextDueAt, now)}>{dueLabel(task.nextDueAt, language, now)}</Badge>
         {/* The same press as the one on the tasks page, drawn by the same component so
             the tick rises out of it in both places. */}
-        <TaskDoneButton taskId={task.id} action={completeTask} label="Done" />
+        <TaskDoneButton taskId={task.id} action={completeTask} label={say(DASHBOARD.done)} />
       </div>
     </Card>
   );
@@ -125,15 +131,16 @@ function DueTask({
 
 export default async function DashboardPage() {
   const user = await requireUser();
+  const say = sayIn(user.homeLanguage);
 
   if (!user.homeId) {
     return (
       <>
-        <PageHeader title="No home selected" description="Pick a home to work in." />
+        <PageHeader title={say(DASHBOARD.noHomeSelected)} description={say(DASHBOARD.pickAHome)} />
         <EmptyState>
-          <p>You are not in a home at the moment.</p>
+          <p>{say(DASHBOARD.notInAHome)}</p>
           <ButtonLink href="/homes" className="mt-4">
-            Go to your homes
+            {say(DASHBOARD.goToYourHomes)}
           </ButtonLink>
         </EmptyState>
       </>
@@ -200,21 +207,23 @@ export default async function DashboardPage() {
           bar, so the page opens on the picture rather than on a framed copy of it. */}
       <PhotoBanner
         photoId={user.homePhotoId}
-        alt={user.homeName ?? "This home"}
+        alt={user.homeName ?? say(DASHBOARD.thisHome)}
         bleed
         short
         className="mb-4"
       />
 
       <PageHeader
-        title={`Hi ${user.name.split(" ")[0]}`}
-        description={user.homeName ? `${user.homeName} · what needs attention` : undefined}
+        title={say(DASHBOARD.greeting, { name: user.name.split(" ")[0]! })}
+        description={
+          user.homeName ? say(DASHBOARD.whatNeedsAttention, { home: user.homeName }) : undefined
+        }
       />
 
       {/* The household's own rhythm rather than a scoreboard, and still nobody's name
           on it. It draws nothing at all on a home with no jobs and no history, where
           every number would be a zero. */}
-      <WeekProgress week={week} streak={streak} />
+      <WeekProgress week={week} streak={streak} language={user.homeLanguage} />
 
       <NotificationSetup />
 
@@ -228,7 +237,9 @@ export default async function DashboardPage() {
       */}
       {mine.length > 0 && (
         <section className="mt-6">
-          <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Due for you</h2>
+          <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
+            {say(DASHBOARD.dueForYou)}
+          </h2>
           <div className="space-y-2">
             {mine.map((task) => (
               <DueTask key={task.id} task={task} now={now} language={user.homeLanguage} />
@@ -248,7 +259,7 @@ export default async function DashboardPage() {
       {theirs.length > 0 && (
         <section className="mt-6">
           <Collapsible
-            summary={`Due for someone else (${theirs.length})`}
+            summary={say(DASHBOARD.dueForSomeoneElse, { count: theirs.length })}
             headingClassName="mb-3 text-sm font-semibold text-slate-500 uppercase"
             triggerClassName="hover:text-slate-700"
             panelClassName="space-y-2"
@@ -262,29 +273,29 @@ export default async function DashboardPage() {
 
       {/* Below what is due, above the lists: a suggestion is a decision to make this
           evening, not a job that is late. */}
-      <SuggestedRecipe homeId={user.homeId} />
+      <SuggestedRecipe homeId={user.homeId} language={user.homeLanguage} />
 
       <section className="mt-6">
         {/* The heading and the way out of it on one row: the link only appears when
             there is something it would show that this section does not. */}
         <div className="mb-3 flex items-baseline justify-between gap-3">
           <h2 className="text-sm font-semibold text-slate-500 uppercase">
-            {starred ? "Favourite lists" : "Recent lists"}
+            {starred ? say(DASHBOARD.favouriteLists) : say(DASHBOARD.recentLists)}
           </h2>
           {/* The same plain link the rest of this page uses for "Create one" and
               "lists page": the home's colour dresses controls, and this is a
               sentence's worth of text beside a heading. */}
           {more && (
             <Link href="/lists" className="text-xs font-medium text-slate-900 underline">
-              See all
+              {say(DASHBOARD.seeAll)}
             </Link>
           )}
         </div>
         {lists.length === 0 ? (
           <EmptyState icon="📝">
-            No lists yet.{" "}
+            {say(DASHBOARD.noListsYet)}{" "}
             <Link href="/lists" className="font-medium text-slate-900 underline">
-              Create one
+              {say(DASHBOARD.createOne)}
             </Link>
           </EmptyState>
         ) : (
@@ -301,10 +312,13 @@ export default async function DashboardPage() {
                 >
                   <Card className="relative flex items-center gap-3 overflow-hidden transition hover:border-slate-400">
                     {/* Decorative: the list's own name is right beside it. */}
+                    {/* eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a PhotoKind glyph, not copy. */}
                     <PhotoThumb photoId={list.photoId} alt="" className="h-11 w-11" placeholder="list" />
                     <div className="min-w-0 flex-1">
                       <p className="font-medium">{list.title}</p>
-                      <p className="text-xs text-slate-500">{itemsLine(total, stillOpen)}</p>
+                      <p className="text-xs text-slate-500">
+                        {itemsLine(total, stillOpen, user.homeLanguage)}
+                      </p>
                     </div>
                     {/* The same edge the lists page draws, and only where there is
                         something to be a proportion of — a list with nothing on it is
@@ -318,11 +332,11 @@ export default async function DashboardPage() {
         )}
         {!starred && lists.length > 0 && (
           <p className="mt-3 text-xs text-slate-500">
-            Star a list on the{" "}
+            {say(DASHBOARD.starAListOn)}{" "}
             <Link href="/lists" className="font-medium text-slate-900 underline">
-              lists page
+              {say(DASHBOARD.listsPage)}
             </Link>{" "}
-            to keep it here instead.
+            {say(DASHBOARD.toKeepItHereInstead)}
           </p>
         )}
       </section>

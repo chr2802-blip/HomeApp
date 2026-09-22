@@ -1,3 +1,4 @@
+import type { HomeLanguage } from "@prisma/client";
 import {
   MONTHLY_LIMIT_DKK,
   formatDkk,
@@ -7,6 +8,8 @@ import {
 import { Card, EmptyState } from "@/components/ui";
 import { ProgressBar } from "@/components/progress-bar";
 import { HomeDot } from "@/components/home-dot";
+import { sayIn } from "@/lib/copy/say";
+import { AI_SPEND } from "@/lib/copy/admin";
 
 /**
  * What the app's one AI feature — reading an imported recipe — is costing, against the
@@ -20,44 +23,41 @@ import { HomeDot } from "@/components/home-dot";
  */
 
 /** The line under the bar: what has been spent, out of what the month allows. */
-function SpendLine({ costDkk }: { costDkk: number }) {
+function SpendLine({ costDkk, language }: { costDkk: number; language: HomeLanguage }) {
+  const say = sayIn(language);
   const over = costDkk > MONTHLY_LIMIT_DKK;
   return (
     <p className={`mt-1.5 text-sm ${over ? "text-red-600" : "text-slate-600"}`}>
-      {formatDkk(costDkk)} of {formatDkk(MONTHLY_LIMIT_DKK)} this month
-      {over && " — over the limit"}
+      {say(AI_SPEND.spendLine, { spent: formatDkk(costDkk), limit: formatDkk(MONTHLY_LIMIT_DKK) })}
+      {over && say(AI_SPEND.overTheLimit)}
     </p>
   );
 }
 
-function Footnote() {
-  return (
-    <p className="mt-3 text-xs text-slate-500">
-      What Anthropic billed for reading imported recipes this calendar month, converted
-      from its own price in USD at a fixed rate. Resets on the first of the month.
-    </p>
-  );
+function Footnote({ language }: { language: HomeLanguage }) {
+  return <p className="mt-3 text-xs text-slate-500">{sayIn(language)(AI_SPEND.footnote)}</p>;
 }
 
 /** One household's own AI spend, on its Settings page. */
-export async function AiSpendUsage({ homeId }: { homeId: string }) {
+export async function AiSpendUsage({ homeId, language }: { homeId: string; language: HomeLanguage }) {
   const spend = await getHomeAiSpend(homeId);
 
   return (
     <Card>
       <ProgressBar done={spend.costDkk} total={MONTHLY_LIMIT_DKK} />
-      <SpendLine costDkk={spend.costDkk} />
-      <Footnote />
+      <SpendLine costDkk={spend.costDkk} language={language} />
+      <Footnote language={language} />
     </Card>
   );
 }
 
 /** Every home's AI spend this month, on the super admin's System page. */
-export async function AiSpendAcrossHomes() {
+export async function AiSpendAcrossHomes({ language }: { language: HomeLanguage }) {
   const { homes } = await getInstallationAiSpend();
+  const say = sayIn(language);
 
   if (homes.length === 0) {
-    return <EmptyState>No homes yet.</EmptyState>;
+    return <EmptyState>{say(AI_SPEND.noHomesYet)}</EmptyState>;
   }
 
   return (
@@ -83,7 +83,7 @@ export async function AiSpendAcrossHomes() {
           </div>
         ))}
       </Card>
-      <Footnote />
+      <Footnote language={language} />
     </>
   );
 }

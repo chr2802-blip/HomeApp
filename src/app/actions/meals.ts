@@ -6,6 +6,8 @@ import { homeDb } from "@/lib/home-db";
 import { dueAtDaysFrom, dueAtOn, todayInZone, weekDays, weekStartOn } from "@/lib/time";
 import { PLAN_FIELD, PLAN_OUT, leftoversDay } from "@/lib/meals";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
+import { sayIn } from "@/lib/copy/say";
+import { MEALS } from "@/lib/copy/meals";
 
 /**
  * The week's plan is read on the meals page, and tonight's is the sort of thing the
@@ -16,11 +18,6 @@ function refreshMealViews() {
   revalidatePath("/meals");
   revalidatePath("/dashboard");
 }
-
-const NOT_A_DAY = "That is not a real date.";
-const NOT_A_RECIPE = "That recipe is not in this home.";
-const NOT_COOKED_YET = "There is nothing cooked that day to have leftovers of.";
-const NOT_YET_EATEN = "Leftovers come after the meal, not before it.";
 
 /**
  * What the household is eating on one day: a recipe, a night out, yesterday's cooking
@@ -46,9 +43,10 @@ const NOT_YET_EATEN = "Leftovers come after the meal, not before it.";
  */
 export async function planMeal(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
 
   const date = String(formData.get("date") ?? "").trim();
-  if (!dueAtOn(date)) return fail(NOT_A_DAY);
+  if (!dueAtOn(date)) return fail(say(MEALS.notARealDate));
 
   const choice = String(formData.get(PLAN_FIELD) ?? "").trim();
   const db = homeDb(user.homeId);
@@ -63,8 +61,8 @@ export async function planMeal(_prev: ActionResult, formData: FormData): Promise
 
   const leftoverOf = leftoversDay(choice);
   if (leftoverOf !== null) {
-    if (!dueAtOn(leftoverOf)) return fail(NOT_A_DAY);
-    if (leftoverOf >= date) return fail(NOT_YET_EATEN);
+    if (!dueAtOn(leftoverOf)) return fail(say(MEALS.notARealDate));
+    if (leftoverOf >= date) return fail(say(MEALS.notYetEaten));
 
     // Sortable text, so the comparison above is the date comparison it looks like — the
     // same property the week's rows are fetched by name with.
@@ -72,7 +70,7 @@ export async function planMeal(_prev: ActionResult, formData: FormData): Promise
       where: { homeId_date: { homeId: user.homeId, date: leftoverOf } },
       select: { recipeId: true },
     });
-    if (!source?.recipeId) return fail(NOT_COOKED_YET);
+    if (!source?.recipeId) return fail(say(MEALS.notCookedYet));
   }
 
   const recipeId = choice === PLAN_OUT || leftoverOf !== null ? null : choice;
@@ -80,7 +78,7 @@ export async function planMeal(_prev: ActionResult, formData: FormData): Promise
   // Asked through `homeDb`, so another household's recipe is simply not found: the check
   // is the query rather than a comparison somebody has to remember to write.
   if (recipeId && !(await db.recipe.findUnique({ where: { id: recipeId } }))) {
-    return fail(NOT_A_RECIPE);
+    return fail(say(MEALS.notARecipeInHome));
   }
 
   await db.mealPlan.upsert({

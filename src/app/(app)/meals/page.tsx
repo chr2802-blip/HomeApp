@@ -9,14 +9,14 @@ import { PhotoThumb } from "@/components/photo";
 import { MealWeek } from "@/components/meal-week";
 import type { PlanGroup, PlanOption } from "@/components/meal-picker";
 import {
-  LEFTOVERS_LABEL,
-  NOTHING_LABEL,
-  OUT_LABEL,
   PLAN_NOTHING,
   PLAN_OUT,
   dayAndMonth,
   leftoversChoice,
+  leftoversHeading,
   leftoversLabel,
+  nothingPlannedLabel,
+  outLabel,
   weekLabel,
   weekdayName,
 } from "@/lib/meals";
@@ -37,6 +37,9 @@ import {
   weekStartInZone,
   weekStartOn,
 } from "@/lib/time";
+import type { HomeLanguage } from "@prisma/client";
+import { sayIn } from "@/lib/copy/say";
+import { MEALS } from "@/lib/copy/meals";
 
 /** What the week's rows are drawn from: one day, and whatever has been decided about it. */
 type PlannedDay = {
@@ -83,12 +86,15 @@ function DayFace({
   today,
   plan,
   source,
+  language,
 }: {
   day: string;
   today: string;
   plan: PlannedDay["plan"];
   source: Source;
+  language: HomeLanguage;
 }) {
+  const say = sayIn(language);
   const recipe = plan?.recipe ?? null;
   // A leftovers day wears the picture of what is being eaten, because that is what is
   // being eaten. It is the same meal a second time, not a different kind of evening.
@@ -106,6 +112,7 @@ function DayFace({
       {photoId ? (
         <PhotoThumb photoId={photoId} alt="" className="h-12 w-12" />
       ) : isCooking ? (
+        // eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a PhotoKind glyph, not copy.
         <PhotoThumb photoId={null} alt="" className="h-12 w-12" placeholder="recipe" />
       ) : (
         <div aria-hidden="true" className="h-12 w-12 shrink-0 rounded-xl bg-slate-100" />
@@ -113,20 +120,20 @@ function DayFace({
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="font-medium">{weekdayName(day)}</p>
-          <span className="text-xs text-slate-500">{dayAndMonth(day)}</span>
-          {day === today && <Badge>Today</Badge>}
+          <p className="font-medium">{weekdayName(day, language)}</p>
+          <span className="text-xs text-slate-500">{dayAndMonth(day, language)}</span>
+          {day === today && <Badge>{say(MEALS.today)}</Badge>}
         </div>
         {/* Four states, four sentences. "Nothing planned" is grey because it is the
             absence of an answer rather than an answer, which is also how it is stored. */}
         {recipe ? (
           <p className="mt-0.5 truncate text-sm text-slate-600">{recipe.title}</p>
         ) : plan?.leftoverOf ? (
-          <p className="mt-0.5 truncate text-sm text-slate-600">{leftoversLabel(source)}</p>
+          <p className="mt-0.5 truncate text-sm text-slate-600">{leftoversLabel(source, language)}</p>
         ) : plan ? (
-          <p className="mt-0.5 text-sm text-slate-600">{OUT_LABEL}</p>
+          <p className="mt-0.5 text-sm text-slate-600">{outLabel(language)}</p>
         ) : (
-          <p className="mt-0.5 text-sm text-slate-400">{NOTHING_LABEL}</p>
+          <p className="mt-0.5 text-sm text-slate-400">{nothingPlannedLabel(language)}</p>
         )}
       </div>
     </>
@@ -139,6 +146,7 @@ export default async function MealsPage({
   searchParams: Promise<{ week?: string }>;
 }) {
   const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
   const now = new Date();
   const today = todayInZone(now);
 
@@ -232,7 +240,10 @@ export default async function MealsPage({
       .filter((other) => other < day && planned.get(other)?.recipe)
       .map((other) => ({
         value: leftoversChoice(other),
-        label: leftoversLabel({ day: other, title: planned.get(other)!.recipe!.title }),
+        label: leftoversLabel(
+          { day: other, title: planned.get(other)!.recipe!.title },
+          user.homeLanguage,
+        ),
         photoId: planned.get(other)!.recipe!.photoId,
       }));
 
@@ -277,7 +288,9 @@ export default async function MealsPage({
     const recipe = plan.recipeId ? byId.get(plan.recipeId) : undefined;
     if (!recipe || seenRecently.has(recipe.id)) continue;
     seenRecently.add(recipe.id);
-    recent.push(recipeOption(recipe, `Last planned ${dayAndMonth(plan.date)}`));
+    recent.push(
+      recipeOption(recipe, say(MEALS.lastPlanned, { day: dayAndMonth(plan.date, user.homeLanguage) })),
+    );
   }
 
   /**
@@ -305,29 +318,29 @@ export default async function MealsPage({
       {
         heading: null,
         options: [
-          { value: PLAN_NOTHING, label: NOTHING_LABEL },
-          { value: PLAN_OUT, label: OUT_LABEL },
+          { value: PLAN_NOTHING, label: nothingPlannedLabel(user.homeLanguage) },
+          { value: PLAN_OUT, label: outLabel(user.homeLanguage) },
         ],
       },
-      { heading: LEFTOVERS_LABEL, options: leftoversFor(day) },
+      { heading: leftoversHeading(user.homeLanguage), options: leftoversFor(day) },
       {
-        heading: "Suggested",
+        heading: say(MEALS.suggested),
         options: take(
           suggested.map((suggestion) =>
             recipeOption(byId.get(suggestion.recipeId)!, suggestionReason(suggestion)),
           ),
         ),
       },
-      { heading: "Recently planned", options: take(recent) },
-      { heading: "All recipes", options: take(recipes.map((recipe) => recipeOption(recipe))) },
+      { heading: say(MEALS.recentlyPlanned), options: take(recent) },
+      { heading: say(MEALS.allRecipes), options: take(recipes.map((recipe) => recipeOption(recipe))) },
     ].filter((group) => group.options.length > 0);
   };
 
   return (
     <>
       <PageHeader
-        title="Meals"
-        description="What the week is eating. Pick a recipe for a day, or say you are out."
+        title={say(MEALS.title)}
+        description={say(MEALS.description)}
         action={
           // Only where there is something cooking this week to shop for — a control
           // that would only ever answer "nothing is being cooked this week yet" is a
@@ -350,23 +363,23 @@ export default async function MealsPage({
       {/* The week, and the way to the ones either side of it. Links rather than buttons:
           a week is a place, so it can be shared, bookmarked and reached with the back
           arrow — which is also what lets the whole page stay on the server. */}
-      <nav aria-label="Week" className="mb-4 flex items-center justify-between gap-2">
+      <nav aria-label={say(MEALS.weekAria)} className="mb-4 flex items-center justify-between gap-2">
         <ButtonLink
           href={`/meals?week=${previousWeekStart(week)}`}
           variant="secondary"
-          aria-label="Previous week"
+          aria-label={say(MEALS.previousWeek)}
         >
           ‹
         </ButtonLink>
 
         <div className="min-w-0 text-center">
-          <p className="truncate text-sm font-medium">{weekLabel(days)}</p>
+          <p className="truncate text-sm font-medium">{weekLabel(days, user.homeLanguage)}</p>
           <div className="mt-0.5 flex items-center justify-center gap-2">
             {/* Only away from the live week: a link back to where you already are is
                 furniture, and it is the one link here whose target is not relative. */}
             {week !== thisWeek && (
               <ButtonLink href="/meals" variant="info" className="px-2 py-1 text-xs">
-                Back to this week
+                {say(MEALS.backToThisWeek)}
               </ButtonLink>
             )}
             {/* Only where there is something to clear — a reset that would do nothing is
@@ -375,13 +388,13 @@ export default async function MealsPage({
               <form action={resetMealWeek}>
                 <input type="hidden" name="week" value={week} />
                 <ConfirmButton
-                  title="Reset this week?"
-                  confirmLabel="Reset"
-                  message={`Clear everything planned for ${weekLabel(days)}? The recipes themselves are untouched — only this week's plan.`}
+                  title={say(MEALS.resetWeekTitle)}
+                  confirmLabel={say(MEALS.resetWeek)}
+                  message={say(MEALS.resetWeekMessage, { week: weekLabel(days, user.homeLanguage) })}
                   triggerVariant="danger"
                   triggerClassName="px-2 py-1 text-xs"
                 >
-                  Reset week
+                  {say(MEALS.resetWeek)}
                 </ConfirmButton>
               </form>
             )}
@@ -391,7 +404,7 @@ export default async function MealsPage({
         <ButtonLink
           href={`/meals?week=${nextWeekStart(week)}`}
           variant="secondary"
-          aria-label="Next week"
+          aria-label={say(MEALS.nextWeek)}
         >
           ›
         </ButtonLink>
@@ -401,7 +414,7 @@ export default async function MealsPage({
         action={planMeal}
         days={days.map((day) => ({
           date: day,
-          title: `${weekdayName(day)} ${dayAndMonth(day)}`,
+          title: `${weekdayName(day, user.homeLanguage)} ${dayAndMonth(day, user.homeLanguage)}`,
           selected: planSelection(planned.get(day)),
           groups: groupsFor(day),
           highlighted: day === today,
@@ -414,16 +427,14 @@ export default async function MealsPage({
               today={today}
               plan={planned.get(day)}
               source={sourceOf(planned.get(day))}
+              language={user.homeLanguage}
             />
           ),
         }))}
       />
 
       {recipes.length === 0 && (
-        <Card className="mt-6 text-sm text-slate-500">
-          There are no recipes in this home yet. Save a few on the Recipes tab and they will
-          show up here — until then a day can still be marked as eating out.
-        </Card>
+        <Card className="mt-6 text-sm text-slate-500">{say(MEALS.noRecipesYet)}</Card>
       )}
     </>
   );

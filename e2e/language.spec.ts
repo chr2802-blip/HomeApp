@@ -112,4 +112,54 @@ test("speaks the pantry, the importer's own copy, and the hardest sentence in th
   await page.goto("/tasks");
   await expect(page.getByRole("heading", { name: "Opgaver", level: 1 })).toBeVisible();
   await expect(page.getByText("Ingen opgaver endnu — tilføj den første ovenfor.")).toBeVisible();
+
+  // The meals area is converted too — the week's own heading, and an unplanned day
+  // saying so in Danish. Not a count of all seven: `tonightsDinner` auto-plans today
+  // the moment anything calls it, including the bottom nav's own prefetch of
+  // /dashboard, so today's row is not reliably still empty by the time this runs.
+  await page.goto("/meals");
+  await expect(page.getByRole("heading", { name: "Måltider", level: 1 })).toBeVisible();
+  await expect(page.getByText("Intet planlagt").first()).toBeVisible();
+
+  // The dashboard is converted too — the greeting, and the "Indkøb" list made earlier
+  // showing under its Danish heading.
+  await page.goto("/dashboard");
+  await expect(page.getByRole("heading", { name: /^Hej /, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Seneste lister" })).toBeVisible();
+
+  // /homes is converted too — the page's own heading, and this member's role on their
+  // one home said in Danish rather than "Member".
+  await page.goto("/homes");
+  await expect(page.getByRole("heading", { name: "Jeres hjem", level: 1 })).toBeVisible();
+  await expect(page.getByText("Medlem", { exact: true })).toBeVisible();
+
+  // /profile is converted too — reached by nobody's home, so it is proof the page's own
+  // `currentLanguage`-free path (a plain `user.homeLanguage`) still comes out Danish.
+  await page.goto("/profile");
+  await expect(page.getByRole("heading", { name: "Profil", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dine oplysninger" })).toBeVisible();
+});
+
+test("speaks settings and admin in the household's own language, and login before any session at all", async ({
+  page,
+  loginAs,
+}) => {
+  await prisma().home.updateMany({ where: { name: HOME_NAME }, data: { language: "DA" } });
+
+  await loginAs(ACCOUNTS.admin);
+
+  // Settings is where the picker itself lives, and its own member/invite copy is
+  // converted too.
+  await page.goto("/settings");
+  await expect(page.getByRole("heading", { name: "Medlemmer" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Inviter nogen" })).toBeVisible();
+
+  // /login and /accept-invite are reached before any session exists at all, so they
+  // read through `currentLanguage()` rather than a page's own session — and there is
+  // nobody's home to have set Danish on yet, so this is instead proof the pages
+  // default sensibly (English) with nothing to ask.
+  await page.context().clearCookies();
+  await page.goto("/login");
+  await expect(htmlOf(page)).toHaveAttribute("lang", "en");
+  await expect(page.getByText("Log in to your home.")).toBeVisible();
 });
