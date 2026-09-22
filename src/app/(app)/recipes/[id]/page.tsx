@@ -8,7 +8,7 @@ import { ItemMenu } from "@/components/item-menu";
 import { AddToMealPlanMenuItem } from "@/components/add-to-meal-plan-menu-item";
 import { RECIPE_SAVE_OVERLAY, RecipeFields } from "@/components/recipe-fields";
 import { PhotoBanner } from "@/components/photo";
-import { SocialVideoEmbed } from "@/components/video-embed";
+import { safeExternalHref } from "@/lib/embed";
 import { AddToListMenu } from "@/components/add-to-list-menu";
 import { ScreenAwakeToggle } from "@/components/screen-awake-toggle";
 import { ingredientLines, instructionLines, timeLabel } from "@/lib/recipes";
@@ -59,6 +59,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
 
   const ingredients = ingredientLines(recipe.ingredients);
   const instructions = instructionLines(recipe.instructions);
+  const videoHref = safeExternalHref(recipe.videoUrl);
 
   return (
     <>
@@ -100,18 +101,31 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
         </div>
       </div>
 
-      {/* Above the video, when there is both: the picture is what the dish should end
-          up looking like, and it loads instantly where an embed does not. */}
       <PhotoBanner photoId={recipe.photoId} alt={recipe.title} className="mb-6" placeholder="recipe" />
 
-      <SocialVideoEmbed url={recipe.videoUrl} title={recipe.title} />
-
-      {/* The point of the recipe, on the recipe: cooking it. Drawn only where there is
-          something to cook — a recipe that is only a video has no steps to turn. */}
-      {instructions.length > 0 && (
-        <ButtonLink href={`/recipes/${recipe.id}/cook`} className="mb-6 w-full sm:w-auto">
-          Start cooking
-        </ButtonLink>
+      {/* Start cooking, drawn only where there is something to cook — a recipe that is
+          only a link has no steps to turn. Go to link, beside it rather than instead of
+          it, for the source itself: a video-only recipe still needs a way to reach it now
+          that it is no longer embedded on this page. */}
+      {(instructions.length > 0 || videoHref) && (
+        <div className="mb-6 flex flex-wrap gap-2">
+          {instructions.length > 0 && (
+            <ButtonLink href={`/recipes/${recipe.id}/cook`} className="flex-1 sm:flex-none">
+              Start cooking
+            </ButtonLink>
+          )}
+          {videoHref && (
+            <ButtonLink
+              href={videoHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              variant="secondary"
+              className="flex-1 sm:flex-none"
+            >
+              Go to link
+            </ButtonLink>
+          )}
+        </div>
       )}
 
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
