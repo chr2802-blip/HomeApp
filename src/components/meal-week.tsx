@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Button, Card } from "@/components/ui";
+import { Button, ButtonLink, Card } from "@/components/ui";
 import { Modal, ModalBody, ModalFooter } from "@/components/modal";
 import { DialogSubmitButton } from "@/components/form-dialog";
 import { MealPicker, type PlanGroup } from "@/components/meal-picker";
-import { PLAN_FIELD } from "@/lib/meals";
+import { PLAN_FIELD, PLAN_NOTHING, PLAN_OUT, leftoversDay } from "@/lib/meals";
 import type { ActionResult, FormAction } from "@/lib/action-result";
 
 /** One day of the week, exactly as its row and its sheet need it. */
@@ -54,6 +54,10 @@ export function MealWeek({ days, action }: { days: MealDayInfo[]; action: FormAc
   }, [day]);
 
   const [choice, setChoice] = useState("");
+  // What `choice` is when it is neither the empty answer, an evening out, nor a
+  // leftovers pointer: a recipe id, which is the one state worth a way to its own page.
+  const chosenRecipeId =
+    choice !== PLAN_NOTHING && choice !== PLAN_OUT && !leftoversDay(choice) ? choice : null;
   const [state, setState] = useState<ActionResult>(undefined);
   const [pending, startTransition] = useTransition();
 
@@ -227,6 +231,11 @@ export function MealWeek({ days, action }: { days: MealDayInfo[]; action: FormAc
                 <p role="alert" className="mb-3 text-sm text-red-600">
                   {state.error}
                 </p>
+              )}
+              {chosenRecipeId && (
+                <ButtonLink href={`/recipes/${chosenRecipeId}`} variant="info" className="mb-2 w-full">
+                  Go to recipe
+                </ButtonLink>
               )}
               <div className="flex gap-2">
                 <DialogSubmitButton label="Save" pending={pending} />

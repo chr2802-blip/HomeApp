@@ -130,6 +130,29 @@ test("a recipe can be planned for a day, and shows on that day", async ({ page }
   await expect(page.getByText("Nothing planned")).toHaveCount(6);
 });
 
+test("a recipe chosen in the sheet offers a way to its own page", async ({ page }) => {
+  const recipe = await seedRecipe("Pancakes");
+  await page.reload();
+
+  const today = todayInZone();
+  await openDay(page, today);
+
+  // Nothing is chosen yet, so there is no recipe to go to.
+  const link = page.getByRole("link", { name: "Go to recipe" });
+  await expect(link).toHaveCount(0);
+
+  await choice(page, "Pancakes").check();
+  await expect(link).toHaveAttribute("href", `/recipes/${recipe.id}`);
+
+  // Eating out is a choice too, but not a recipe with a page of its own.
+  await choice(page, "Eating out").check();
+  await expect(link).toHaveCount(0);
+
+  await choice(page, "Pancakes").check();
+  await link.click();
+  await expect(page).toHaveURL(`/recipes/${recipe.id}`);
+});
+
 test("a day can be marked as eating out, and taken back to nothing", async ({ page }) => {
   const today = todayInZone();
 
@@ -202,7 +225,13 @@ test("a day can live off an earlier one's cooking, and says whose", async ({ pag
   await page.goto(`/meals?week=${FUTURE_WEEK}`);
 
   await plan(page, monday!, "Pancakes");
-  await plan(page, tuesday!, "Leftovers — Monday's Pancakes");
+
+  await openDay(page, tuesday!);
+  await choice(page, "Leftovers — Monday's Pancakes").check();
+  // Leftovers is a choice, but not a recipe with a page of its own.
+  await expect(page.getByRole("link", { name: "Go to recipe" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
 
   // The row names the meal and the day it was cooked: "Leftovers" alone says no dinner.
   await expect(day(page, tuesday!)).toContainText("Leftovers — Monday's Pancakes");
