@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Quicksand } from "next/font/google";
+import localFont from "next/font/local";
 import { Analytics } from "@vercel/analytics/next";
 import { getCurrentUser } from "@/lib/auth";
 import { BAND, DEFAULT_THEME } from "@/lib/theme";
@@ -11,10 +11,19 @@ import "./globals.css";
  * text stays the platform's own sans, which is what stays legible and dense in a list
  * of ingredients or a row of tasks. Exposed as a variable rather than set directly, so
  * globals.css decides where it actually lands.
+ *
+ * Vendored rather than fetched through `next/font/google`: that loader makes a live
+ * request to Google Fonts on every production build, and an edge node occasionally
+ * answers with something its own regex can't parse, which throws a bare `TypeError`
+ * out of `next/font`'s compiled loader and fails the build — a network flake with no
+ * retry inside Next itself. `quicksand-variable.woff2` is the same Latin-subset file
+ * Google serves for weights 500–700 (a single variable-width file, so one download
+ * covers the whole range), fetched once and checked in; the build no longer depends on
+ * Google Fonts being reachable at all.
  */
-const heading = Quicksand({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
+const heading = localFont({
+  src: "./fonts/quicksand-variable.woff2",
+  weight: "500 700",
   variable: "--font-heading",
   display: "swap",
 });
