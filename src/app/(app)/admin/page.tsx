@@ -49,7 +49,7 @@ function Entry({
   description: string;
 }) {
   return (
-    <Link href={href} prefetch className="pressable block rounded-xl active:scale-[0.99]">
+    <Link href={href} prefetch className="pressable block rounded-xl active:scale-[0.98]">
       <Card className="h-full transition hover:border-slate-300 hover:shadow-md">
         <h2 className="font-semibold tracking-tight">{title}</h2>
         <p className="mt-1 text-sm text-slate-500">{description}</p>
