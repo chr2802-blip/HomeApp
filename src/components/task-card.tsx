@@ -81,7 +81,7 @@ export function TaskCard({
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="pressable flex min-w-0 flex-1 items-start gap-3 px-5 py-4 text-left hover:bg-slate-50"
+            className="pressable flex min-w-0 flex-1 items-start gap-3 px-5 py-4 text-left hover:bg-slate-50 active:scale-[0.98] active:bg-slate-100"
           >
             {photo}
             <div className="min-w-0 flex-1">{summary}</div>
