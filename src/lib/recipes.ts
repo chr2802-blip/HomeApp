@@ -1,3 +1,7 @@
+import type { HomeLanguage } from "@prisma/client";
+import { sayIn } from "./copy/say";
+import { RECIPES } from "./copy/recipes";
+
 /**
  * The field the category picker submits, one entry per heading ticked.
  *
@@ -39,12 +43,15 @@ export const QUICK_RECIPE_MINUTES = 30;
  * longer number than the dish actually takes ("90 min"), which is correct and not how
  * anyone thinks about it.
  */
-export function timeLabel(totalTimeMinutes: number | null): string | null {
+export function timeLabel(totalTimeMinutes: number | null, language: HomeLanguage): string | null {
   if (totalTimeMinutes === null) return null;
   const hours = Math.floor(totalTimeMinutes / 60);
   const minutes = totalTimeMinutes % 60;
-  if (hours === 0) return `${minutes} min`;
-  return minutes === 0 ? `${hours} hr` : `${hours} hr ${minutes} min`;
+  const say = sayIn(language);
+  if (hours === 0) return say(RECIPES.minutesOnly, { min: minutes });
+  return minutes === 0
+    ? say(RECIPES.hoursOnly, { hr: hours })
+    : say(RECIPES.hoursMinutes, { hr: hours, min: minutes });
 }
 
 /**

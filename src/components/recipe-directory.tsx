@@ -1,14 +1,18 @@
 "use client";
 
+import type { HomeLanguage } from "@prisma/client";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { deleteRecipe, updateRecipe } from "@/app/actions/recipes";
 import { Card, EmptyState, Input } from "@/components/ui";
 import { ItemMenu } from "@/components/item-menu";
 import { AddToMealPlanMenuItem } from "@/components/add-to-meal-plan-menu-item";
-import { RECIPE_SAVE_OVERLAY, RecipeFields } from "@/components/recipe-fields";
+import { recipeSaveOverlay, RecipeFields } from "@/components/recipe-fields";
 import { PhotoCover } from "@/components/photo";
 import { QUICK_RECIPE_MINUTES, timeLabel } from "@/lib/recipes";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { RECIPES } from "@/lib/copy/recipes";
 
 export type RecipeSummary = {
   id: string;
@@ -67,6 +71,8 @@ export function RecipeDirectory({
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState<string>(ALL);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
+  const language = useLanguage();
+  const say = sayIn(language);
 
   const needle = query.trim().toLowerCase();
 
@@ -105,9 +111,7 @@ export function RecipeDirectory({
   if (recipes.length === 0) {
     return (
       <EmptyState icon={categories.length === 0 ? "🗂️" : "🍳"}>
-        {categories.length === 0
-          ? "No recipe categories yet — an admin adds them under Settings, and then recipes can be saved."
-          : "No recipes yet — save your first one with the button above."}
+        {categories.length === 0 ? say(RECIPES.noCategoriesYet) : say(RECIPES.noRecipesYet)}
       </EmptyState>
     );
   }
@@ -149,8 +153,8 @@ export function RecipeDirectory({
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search recipes and ingredients"
-          aria-label="Search recipes"
+          placeholder={say(RECIPES.searchRecipes)}
+          aria-label={say(RECIPES.searchRecipesAria)}
           autoComplete="off"
           className="pl-9"
         />
@@ -158,14 +162,15 @@ export function RecipeDirectory({
 
       <div
         role="group"
-        aria-label="Filter by category"
+        aria-label={say(RECIPES.filterByCategory)}
         className="scrollbar-hidden mb-3 flex flex-nowrap gap-2 overflow-x-auto"
       >
         <FilterChip
-          label="All"
+          label={say(RECIPES.all)}
           active={categoryId === ALL}
           count={recipes.length}
           onClick={() => setCategoryId(ALL)}
+          language={language}
         />
         {categories.map((category) => (
           <FilterChip
@@ -174,6 +179,7 @@ export function RecipeDirectory({
             active={categoryId === category.id}
             count={counts.get(category.id) ?? 0}
             onClick={() => setCategoryId(category.id)}
+            language={language}
           />
         ))}
       </div>
@@ -181,42 +187,49 @@ export function RecipeDirectory({
       {hasTimedRecipe && (
         <div
           role="group"
-          aria-label="Filter by time"
+          aria-label={say(RECIPES.filterByTime)}
           className="scrollbar-hidden mb-5 flex flex-nowrap gap-2 overflow-x-auto"
         >
           <FilterChip
-            label="Any time"
+            label={say(RECIPES.anyTime)}
             active={timeFilter === "all"}
             count={recipes.length}
             onClick={() => setTimeFilter("all")}
+            language={language}
           />
           <FilterChip
-            label={`Under ${QUICK_RECIPE_MINUTES} min`}
+            label={say(RECIPES.underMin, { min: QUICK_RECIPE_MINUTES })}
             active={timeFilter === "quick"}
             count={quickCount}
             onClick={() => setTimeFilter("quick")}
+            language={language}
           />
           <FilterChip
-            label={`${QUICK_RECIPE_MINUTES} min+`}
+            label={say(RECIPES.minPlus, { min: QUICK_RECIPE_MINUTES })}
             active={timeFilter === "slow"}
             count={slowCount}
             onClick={() => setTimeFilter("slow")}
+            language={language}
           />
         </div>
       )}
 
       {groups.length === 0 ? (
         <EmptyState>
-          {needle ? (
-            <>No recipe matches “{query.trim()}”.</>
-          ) : timeFilter !== "all" ? (
-            <>
-              No recipes {timeFilter === "quick" ? `under ${QUICK_RECIPE_MINUTES} min` : `${QUICK_RECIPE_MINUTES} min or more`}
-              {categoryId !== ALL ? " in this category" : ""}.
-            </>
-          ) : (
-            "Nothing filed under this category yet."
-          )}
+          {needle
+            ? say(RECIPES.noRecipeMatch, { query: query.trim() })
+            : timeFilter !== "all"
+              ? say(
+                  timeFilter === "quick"
+                    ? categoryId !== ALL
+                      ? RECIPES.noneUnderTimeInCategory
+                      : RECIPES.noneUnderTime
+                    : categoryId !== ALL
+                      ? RECIPES.noneOverTimeInCategory
+                      : RECIPES.noneOverTime,
+                  { min: QUICK_RECIPE_MINUTES },
+                )
+              : say(RECIPES.nothingInCategory)}
         </EmptyState>
       ) : (
         /*
@@ -262,7 +275,10 @@ export function RecipeDirectory({
                         )}
                         {(recipe.totalTimeMinutes !== null || recipe.hasVideo) && (
                           <p className="mt-2 text-xs text-slate-500">
-                            {[timeLabel(recipe.totalTimeMinutes), recipe.hasVideo ? "Includes a video" : null]
+                            {[
+                              timeLabel(recipe.totalTimeMinutes, language),
+                              recipe.hasVideo ? say(RECIPES.includesVideo) : null,
+                            ]
                               .filter(Boolean)
                               .join(" · ")}
                           </p>
@@ -276,15 +292,15 @@ export function RecipeDirectory({
                       name="recipeId"
                       id={recipe.id}
                       label={recipe.title}
-                      editTitle="Edit recipe"
+                      editTitle={say(RECIPES.editRecipe)}
                       editAction={updateRecipe}
-                      editOverlay={RECIPE_SAVE_OVERLAY}
+                      editOverlay={recipeSaveOverlay(language)}
                       deleteAction={deleteRecipe}
-                      deleteMessage={`Delete the recipe "${recipe.title}"?`}
+                      deleteMessage={say(RECIPES.deleteRecipeMessage, { title: recipe.title })}
                       extraItems={<AddToMealPlanMenuItem recipeId={recipe.id} />}
                       className="absolute top-2 right-2 bg-white/80 backdrop-blur-sm"
                     >
-                      <RecipeFields recipe={recipe} categories={categories} />
+                      <RecipeFields recipe={recipe} categories={categories} language={language} />
                     </ItemMenu>
                   </Card>
                 ))}
@@ -309,18 +325,20 @@ function FilterChip({
   active,
   count,
   onClick,
+  language,
 }: {
   label: string;
   active: boolean;
   count: number;
   onClick: () => void;
+  language: HomeLanguage;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      aria-label={`${label}, ${count} ${count === 1 ? "recipe" : "recipes"}`}
+      aria-label={sayIn(language)(RECIPES.filterAriaLabel, { label, count })}
       className={`pressable shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium active:scale-[0.96] ${
         active
           ? "border-slate-900 bg-slate-900 text-white"

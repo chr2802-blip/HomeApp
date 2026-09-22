@@ -6,12 +6,14 @@ import { addRecipeIngredients } from "@/app/actions/lists";
 import { Badge, ButtonLink, Card } from "@/components/ui";
 import { ItemMenu } from "@/components/item-menu";
 import { AddToMealPlanMenuItem } from "@/components/add-to-meal-plan-menu-item";
-import { RECIPE_SAVE_OVERLAY, RecipeFields } from "@/components/recipe-fields";
+import { recipeSaveOverlay, RecipeFields } from "@/components/recipe-fields";
 import { PhotoBanner } from "@/components/photo";
 import { safeExternalHref } from "@/lib/embed";
 import { AddToListMenu } from "@/components/add-to-list-menu";
 import { ScreenAwakeToggle } from "@/components/screen-awake-toggle";
 import { ingredientLines, instructionLines, timeLabel } from "@/lib/recipes";
+import { sayIn } from "@/lib/copy/say";
+import { RECIPES } from "@/lib/copy/recipes";
 
 /**
  * Editing a recipe runs as a server action from this page, and saving one now reads its
@@ -23,6 +25,7 @@ export const maxDuration = 60;
 export default async function RecipePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
 
   const db = homeDb(user.homeId);
 
@@ -72,7 +75,9 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
           </div>
           <h1 className="text-2xl font-semibold tracking-tight break-words">{recipe.title}</h1>
           {recipe.totalTimeMinutes !== null && (
-            <p className="mt-1 text-sm text-slate-500">{timeLabel(recipe.totalTimeMinutes)}</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {timeLabel(recipe.totalTimeMinutes, user.homeLanguage)}
+            </p>
           )}
           {recipe.description && <p className="mt-1 text-sm text-slate-500">{recipe.description}</p>}
         </div>
@@ -82,11 +87,11 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
             name="recipeId"
             id={recipe.id}
             label={recipe.title}
-            editTitle="Edit recipe"
+            editTitle={say(RECIPES.editRecipe)}
             editAction={updateRecipe}
-            editOverlay={RECIPE_SAVE_OVERLAY}
+            editOverlay={recipeSaveOverlay(user.homeLanguage)}
             deleteAction={deleteRecipe}
-            deleteMessage={`Delete the recipe "${recipe.title}"?`}
+            deleteMessage={say(RECIPES.deleteRecipeMessage, { title: recipe.title })}
             extraItems={<AddToMealPlanMenuItem recipeId={recipe.id} />}
             className="-mr-2"
           >
@@ -96,6 +101,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
                 categoryIds: recipe.categories.map((filed) => filed.category.id),
               }}
               categories={categories}
+              language={user.homeLanguage}
             />
           </ItemMenu>
         </div>
@@ -111,7 +117,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
         <div className="mb-6 flex flex-wrap gap-2">
           {instructions.length > 0 && (
             <ButtonLink href={`/recipes/${recipe.id}/cook`} className="flex-1 sm:flex-none">
-              Start cooking
+              {say(RECIPES.startCooking)}
             </ButtonLink>
           )}
           {videoHref && (
@@ -122,7 +128,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
               variant="secondary"
               className="flex-1 sm:flex-none"
             >
-              Go to link
+              {say(RECIPES.goToLink)}
             </ButtonLink>
           )}
         </div>
@@ -132,7 +138,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
         <Card>
           <div className="mb-3 flex items-start justify-between gap-3">
             <h2 className="mt-2 shrink-0 text-sm font-semibold text-slate-500 uppercase">
-              Ingredients
+              {say(RECIPES.ingredientsHeading)}
             </h2>
             {/* Only where there is something to add. A recipe still being written would
                 otherwise offer to put nothing on a list. */}
@@ -149,7 +155,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
             )}
           </div>
           {ingredients.length === 0 ? (
-            <p className="text-sm text-slate-500">None listed.</p>
+            <p className="text-sm text-slate-500">{say(RECIPES.noneListed)}</p>
           ) : (
             <ul className="space-y-1.5 text-sm">
               {ingredients.map((item, index) => (
@@ -163,9 +169,11 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
         </Card>
 
         <Card>
-          <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Instructions</h2>
+          <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
+            {say(RECIPES.instructionsHeading)}
+          </h2>
           {instructions.length === 0 ? (
-            <p className="text-sm text-slate-500">None written — follow the video.</p>
+            <p className="text-sm text-slate-500">{say(RECIPES.noneWrittenFollowVideo)}</p>
           ) : (
             <ol className="space-y-2.5 text-sm">
               {instructions.map((step, index) => (
