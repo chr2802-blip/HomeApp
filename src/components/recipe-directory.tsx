@@ -6,7 +6,7 @@ import { deleteRecipe, updateRecipe } from "@/app/actions/recipes";
 import { Card, EmptyState, Input } from "@/components/ui";
 import { ItemMenu } from "@/components/item-menu";
 import { AddToMealPlanMenuItem } from "@/components/add-to-meal-plan-menu-item";
-import { RecipeFields } from "@/components/recipe-fields";
+import { RECIPE_SAVE_OVERLAY, RecipeFields } from "@/components/recipe-fields";
 import { PhotoCover } from "@/components/photo";
 import { QUICK_RECIPE_MINUTES, timeLabel } from "@/lib/recipes";
 
@@ -278,6 +278,7 @@ export function RecipeDirectory({
                       label={recipe.title}
                       editTitle="Edit recipe"
                       editAction={updateRecipe}
+                      editOverlay={RECIPE_SAVE_OVERLAY}
                       deleteAction={deleteRecipe}
                       deleteMessage={`Delete the recipe "${recipe.title}"?`}
                       extraItems={<AddToMealPlanMenuItem recipeId={recipe.id} />}

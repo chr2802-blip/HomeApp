@@ -1,7 +1,9 @@
 "use client";
 
+import { AiOverlay } from "@/components/ai-overlay";
 import { Button, Card } from "@/components/ui";
 import {
+  RECIPE_SAVE_OVERLAY,
   RecipeFields,
   type CategoryOption,
   type RecipeValues,
@@ -23,7 +25,7 @@ export function RecipeForm({
   const { state, pending, handleSubmit } = useFormAction(action);
 
   return (
-    <Card>
+    <Card className="relative overflow-hidden">
       <form onSubmit={handleSubmit} className="space-y-4">
         {recipe?.id && <input type="hidden" name="recipeId" value={recipe.id} />}
         <RecipeFields recipe={recipe} categories={categories} />
@@ -36,6 +38,7 @@ export function RecipeForm({
           {pending ? "Saving…" : submitLabel}
         </Button>
       </form>
+      <AiOverlay active={pending} {...RECIPE_SAVE_OVERLAY} />
     </Card>
   );
 }
