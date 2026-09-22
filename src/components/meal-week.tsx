@@ -28,6 +28,20 @@ export type MealDayInfo = {
 const SWIPE_THRESHOLD_PX = 60;
 
 /**
+ * The recipe a day's already-saved answer names, or null where it names something else.
+ *
+ * `selected` carries the same four shapes the picker's own field does — see
+ * `lib/meals.ts` — and a recipe is the one shape worth a way to its own page: eating out
+ * and nothing planned have no page, and leftovers already names the recipe under its own
+ * row, on the day it was actually cooked.
+ */
+function recipeIdOf(selected: string): string | null {
+  return selected !== PLAN_NOTHING && selected !== PLAN_OUT && !leftoversDay(selected)
+    ? selected
+    : null;
+}
+
+/**
  * The week's seven rows, and the one sheet shared between them.
  *
  * One sheet rather than one per day: swiping between days has to feel like turning a
@@ -54,10 +68,6 @@ export function MealWeek({ days, action }: { days: MealDayInfo[]; action: FormAc
   }, [day]);
 
   const [choice, setChoice] = useState("");
-  // What `choice` is when it is neither the empty answer, an evening out, nor a
-  // leftovers pointer: a recipe id, which is the one state worth a way to its own page.
-  const chosenRecipeId =
-    choice !== PLAN_NOTHING && choice !== PLAN_OUT && !leftoversDay(choice) ? choice : null;
   const [state, setState] = useState<ActionResult>(undefined);
   const [pending, startTransition] = useTransition();
 
@@ -164,35 +174,52 @@ export function MealWeek({ days, action }: { days: MealDayInfo[]; action: FormAc
   return (
     <>
       <div className="space-y-3">
-        {days.map((entry, index) => (
-          <div
-            key={entry.date}
-            className="animate-row-in"
-            style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
-          >
-            <Card
-              padded={false}
-              className={`overflow-hidden ${
-                entry.highlighted ? "border-[var(--accent-line)] accent-tint-ring" : ""
-              }`}
+        {days.map((entry, index) => {
+          const recipeId = recipeIdOf(entry.selected);
+
+          return (
+            <div
+              key={entry.date}
+              className="animate-row-in"
+              style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
             >
-              <button
-                type="button"
-                onClick={() => openAt(index)}
-                disabled={entry.disabled}
-                // Hydration leaves no mark of its own, so the trigger says when it can
-                // actually open — what a browser test waits on instead of the markup,
-                // which looks identical before React has attached anything to it.
-                data-ready="true"
-                className={`pressable flex w-full items-center gap-3 px-4 py-3 text-left ${
-                  entry.disabled ? "cursor-not-allowed opacity-50" : "hover:bg-slate-50"
+              <Card
+                padded={false}
+                className={`overflow-hidden ${
+                  entry.highlighted ? "border-[var(--accent-line)] accent-tint-ring" : ""
                 }`}
               >
-                {entry.face}
-              </button>
-            </Card>
-          </div>
-        ))}
+                <div className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => openAt(index)}
+                    disabled={entry.disabled}
+                    // Hydration leaves no mark of its own, so the trigger says when it
+                    // can actually open — what a browser test waits on instead of the
+                    // markup, which looks identical before React has attached anything.
+                    data-ready="true"
+                    className={`pressable flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left ${
+                      entry.disabled ? "cursor-not-allowed opacity-50" : "hover:bg-slate-50"
+                    }`}
+                  >
+                    {entry.face}
+                  </button>
+                  {/* Beside the row's own button rather than inside it: a button cannot
+                      hold a link, and going to the recipe must not also open the sheet. */}
+                  {recipeId && (
+                    <ButtonLink
+                      href={`/recipes/${recipeId}`}
+                      variant="info"
+                      className="mr-3 shrink-0 px-2.5 py-1.5 text-xs"
+                    >
+                      Go to recipe
+                    </ButtonLink>
+                  )}
+                </div>
+              </Card>
+            </div>
+          );
+        })}
       </div>
 
       <Modal open={day !== null} onClose={close} title={shown?.title ?? ""}>
@@ -231,11 +258,6 @@ export function MealWeek({ days, action }: { days: MealDayInfo[]; action: FormAc
                 <p role="alert" className="mb-3 text-sm text-red-600">
                   {state.error}
                 </p>
-              )}
-              {chosenRecipeId && (
-                <ButtonLink href={`/recipes/${chosenRecipeId}`} variant="info" className="mb-2 w-full">
-                  Go to recipe
-                </ButtonLink>
               )}
               <div className="flex gap-2">
                 <DialogSubmitButton label="Save" pending={pending} />
