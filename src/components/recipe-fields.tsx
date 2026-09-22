@@ -1,7 +1,11 @@
 import Link from "next/link";
+import type { HomeLanguage } from "@prisma/client";
 import { Input, Label, Textarea } from "@/components/ui";
 import { PhotoField } from "@/components/photo-field";
 import { CATEGORY_FIELD } from "@/lib/recipes";
+import { sayIn } from "@/lib/copy/say";
+import { RECIPES } from "@/lib/copy/recipes";
+import { SETTINGS } from "@/lib/copy/settings";
 
 export type RecipeValues = {
   id?: string;
@@ -27,11 +31,10 @@ export type CategoryOption = { id: string; name: string };
  * mean — so the wording says "if", rather than claiming a recipe with no instructions
  * yet is waiting on the AI too.
  */
-export const RECIPE_SAVE_OVERLAY = {
-  title: "Saving your recipe…",
-  detail:
-    "If there are instructions, the AI is turning them into steps for cooking mode — this can take up to 20 seconds.",
-};
+export function recipeSaveOverlay(language: HomeLanguage) {
+  const say = sayIn(language);
+  return { title: say(RECIPES.savingRecipe), detail: say(RECIPES.savingRecipeDetail) };
+}
 
 /**
  * The category picker: a box to tick per heading, because a recipe belongs under as
@@ -51,18 +54,22 @@ export const RECIPE_SAVE_OVERLAY = {
 function CategoryField({
   categories,
   selected = [],
+  language,
 }: {
   categories: CategoryOption[];
   selected?: string[];
+  language: HomeLanguage;
 }) {
+  const say = sayIn(language);
+
   if (categories.length === 0) {
     return (
       <fieldset className="space-y-1">
-        <legend className="block text-sm font-medium text-slate-700">Categories</legend>
+        <legend className="block text-sm font-medium text-slate-700">{say(RECIPES.categories)}</legend>
         <p className="rounded-lg border border-dashed border-slate-300 p-3 text-sm text-slate-500">
-          This home has no recipe categories yet. An admin can add them under{" "}
+          {say(RECIPES.noCategoriesField)}{" "}
           <Link href="/settings" className="font-medium text-slate-900 underline">
-            Settings
+            {say(SETTINGS.title)}
           </Link>
           .
         </p>
@@ -74,8 +81,8 @@ function CategoryField({
     <fieldset className="space-y-1">
       {/* A legend rather than a label: the field is a group of boxes, and there is no
           single control for a label to point at. */}
-      <legend className="block text-sm font-medium text-slate-700">Categories</legend>
-      <p className="text-xs text-slate-500">Tick every heading this recipe belongs under.</p>
+      <legend className="block text-sm font-medium text-slate-700">{say(RECIPES.categories)}</legend>
+      <p className="text-xs text-slate-500">{say(RECIPES.tickEveryHeading)}</p>
       <div className="flex flex-wrap gap-2 pt-1">
         {categories.map((category) => (
           <label key={category.id} className="pressable cursor-pointer">
@@ -103,26 +110,30 @@ function CategoryField({
 export function RecipeFields({
   recipe,
   categories,
+  language,
 }: {
   recipe?: RecipeValues;
   categories: CategoryOption[];
+  language: HomeLanguage;
 }) {
+  const say = sayIn(language);
+
   return (
     <>
       <div className="space-y-1">
-        <Label htmlFor="title">Title</Label>
+        <Label htmlFor="title">{say(RECIPES.titleField)}</Label>
         <Input id="title" name="title" defaultValue={recipe?.title ?? ""} required />
       </div>
 
-      <CategoryField categories={categories} selected={recipe?.categoryIds} />
+      <CategoryField categories={categories} selected={recipe?.categoryIds} language={language} />
 
       <div className="space-y-1">
-        <Label htmlFor="description">Short description</Label>
+        <Label htmlFor="description">{say(RECIPES.shortDescription)}</Label>
         <Input id="description" name="description" defaultValue={recipe?.description ?? ""} />
       </div>
 
       <div className="space-y-1">
-        <Label htmlFor="totalTimeMinutes">Total time (minutes)</Label>
+        <Label htmlFor="totalTimeMinutes">{say(RECIPES.totalTimeMinutesField)}</Label>
         <Input
           id="totalTimeMinutes"
           name="totalTimeMinutes"
@@ -135,42 +146,41 @@ export function RecipeFields({
 
       <PhotoField
         defaultPhotoId={recipe?.photoId ?? null}
-        label="Picture"
-        hint="What it looks like when it is finished — shown on the recipe and on its card."
+        label={say(RECIPES.picture)}
+        hint={say(RECIPES.pictureHint)}
       />
 
       <div className="space-y-1">
-        <Label htmlFor="videoUrl">Video link (Instagram, YouTube, TikTok…)</Label>
+        <Label htmlFor="videoUrl">{say(RECIPES.videoLink)}</Label>
         <Input
           id="videoUrl"
           name="videoUrl"
           type="url"
+          // eslint-disable-next-line no-restricted-syntax -- an example address, not prose
           placeholder="https://www.instagram.com/reel/..."
           defaultValue={recipe?.videoUrl ?? ""}
         />
-        <p className="text-xs text-slate-500">
-          Paste the link and the video is embedded on the recipe page.
-        </p>
+        <p className="text-xs text-slate-500">{say(RECIPES.videoLinkHint)}</p>
       </div>
 
       <div className="space-y-1">
-        <Label htmlFor="ingredients">Ingredients</Label>
+        <Label htmlFor="ingredients">{say(RECIPES.ingredientsField)}</Label>
         <Textarea
           id="ingredients"
           name="ingredients"
           rows={5}
-          placeholder={"One per line\n200 g flour\n2 eggs"}
+          placeholder={say(RECIPES.ingredientsPlaceholder)}
           defaultValue={recipe?.ingredients ?? ""}
         />
       </div>
 
       <div className="space-y-1">
-        <Label htmlFor="instructions">Instructions</Label>
+        <Label htmlFor="instructions">{say(RECIPES.instructionsField)}</Label>
         <Textarea
           id="instructions"
           name="instructions"
           rows={6}
-          placeholder="One step per line"
+          placeholder={say(RECIPES.onePerLineStep)}
           defaultValue={recipe?.instructions ?? ""}
         />
       </div>

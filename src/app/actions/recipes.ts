@@ -13,47 +13,49 @@ import { safeExternalHref } from "@/lib/embed";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { readCategoryChoice } from "@/lib/recipes";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
+import { sayIn, type Say } from "@/lib/copy/say";
+import { RECIPES } from "@/lib/copy/recipes";
 
 const recipeInScope = homeScoped("Recipe", (id) => prisma.recipe.findUnique({ where: { id } }));
 
-const TIME_MESSAGE = "Time must be a whole number of minutes.";
+/** Create and edit take the same fields. */
+function recipeSchema(say: Say) {
+  const timeMessage = say(RECIPES.timeMessage);
 
-/** Blank means the recipe's time was not given — not a recipe that takes no time. */
-const totalTimeMinutes = z
-  .string()
-  .trim()
-  .optional()
-  .transform((value) => (value ? Number(value) : null))
-  .refine((value) => value === null || (Number.isInteger(value) && value > 0), {
-    error: TIME_MESSAGE,
-  });
-
-const recipeSchema = z.object({
-  title: requiredText("Give the recipe a title."),
-  description: optionalText,
-  ingredients: bodyText,
-  instructions: bodyText,
-  totalTimeMinutes,
-  // A link that was typed but cannot be understood is a mistake worth reporting,
-  // rather than silently dropping what the cook pasted. Checked before the transform,
-  // which would otherwise make an empty field and a bad link both look like null.
-  videoUrl: z
+  /** Blank means the recipe's time was not given — not a recipe that takes no time. */
+  const totalTimeMinutes = z
     .string()
     .trim()
     .optional()
-    .superRefine((raw, context) => {
-      if (raw && !safeExternalHref(raw)) {
-        context.addIssue({
-          code: "custom",
-          message: "That video link is not a valid web address.",
-        });
-      }
-    })
-    .transform((raw) => (raw ? safeExternalHref(raw) : null)),
-});
+    .transform((value) => (value ? Number(value) : null))
+    .refine((value) => value === null || (Number.isInteger(value) && value > 0), {
+      error: timeMessage,
+    });
 
-/** Said the same way whether none was chosen or one that this home cannot see. */
-const NO_CATEGORY = "Choose at least one category for this recipe.";
+  return z.object({
+    title: requiredText(say(RECIPES.titleRequired)),
+    description: optionalText,
+    ingredients: bodyText,
+    instructions: bodyText,
+    totalTimeMinutes,
+    // A link that was typed but cannot be understood is a mistake worth reporting,
+    // rather than silently dropping what the cook pasted. Checked before the transform,
+    // which would otherwise make an empty field and a bad link both look like null.
+    videoUrl: z
+      .string()
+      .trim()
+      .optional()
+      .superRefine((raw, context) => {
+        if (raw && !safeExternalHref(raw)) {
+          context.addIssue({
+            code: "custom",
+            message: say(RECIPES.invalidVideoLink),
+          });
+        }
+      })
+      .transform((raw) => (raw ? safeExternalHref(raw) : null)),
+  });
+}
 
 /**
  * The categories this recipe is to be filed under, once they are known to be this
@@ -80,8 +82,6 @@ async function chosenCategories(homeId: string, formData: FormData) {
 
 /** The pairings a recipe is written with, as a nested create on the recipe itself. */
 const filedUnder = (categoryIds: string[]) => categoryIds.map((categoryId) => ({ categoryId }));
-
-const READER_UNAVAILABLE = "Could not prepare these steps just now. Try again in a moment.";
 
 type RecipeText = { title: string; ingredients: string; instructions: string };
 
@@ -119,11 +119,12 @@ async function withCookSteps(fields: RecipeText, homeId: string) {
 
 export async function createRecipe(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const user = await requireHomeUser();
-  const form = readForm(recipeSchema, formData);
+  const say = sayIn(user.homeLanguage);
+  const form = readForm(recipeSchema(say), formData, user.homeLanguage);
   if (!form.ok) return fail(form.error);
 
   const categoryIds = await chosenCategories(user.homeId, formData);
-  if (!categoryIds) return fail(NO_CATEGORY);
+  if (!categoryIds) return fail(say(RECIPES.chooseCategory));
 
   const photo = await readPhotoChoice(formData, user.homeId);
   if (!photo.ok) return fail(photo.error);
@@ -144,12 +145,14 @@ export async function createRecipe(_prev: ActionResult, formData: FormData): Pro
 }
 
 export async function updateRecipe(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
   const recipe = await recipeInScope(String(formData.get("recipeId")));
-  const form = readForm(recipeSchema, formData);
+  const form = readForm(recipeSchema(say), formData, user.homeLanguage);
   if (!form.ok) return fail(form.error);
 
   const categoryIds = await chosenCategories(recipe.homeId, formData);
-  if (!categoryIds) return fail(NO_CATEGORY);
+  if (!categoryIds) return fail(say(RECIPES.chooseCategory));
 
   const photo = await readPhotoChoice(formData, recipe.homeId);
   if (!photo.ok) return fail(photo.error);
@@ -206,10 +209,11 @@ export async function prepareRecipeSteps(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
+  const user = await requireHomeUser();
   const recipe = await recipeInScope(String(formData.get("recipeId")));
 
   const read = await (await reader())(recipe, recipe.homeId);
-  if (!read.ok) return fail(READER_UNAVAILABLE);
+  if (!read.ok) return fail(sayIn(user.homeLanguage)(RECIPES.prepareReaderUnavailable));
 
   await prisma.recipe.update({
     where: { id: recipe.id },

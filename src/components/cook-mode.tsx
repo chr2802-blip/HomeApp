@@ -1,5 +1,6 @@
 "use client";
 
+import type { HomeLanguage } from "@prisma/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -12,6 +13,10 @@ import type { FormAction } from "@/lib/action-result";
 import { Button } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
 import { useWakeLock } from "@/components/use-wake-lock";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { RECIPES } from "@/lib/copy/recipes";
+import { APP } from "@/lib/copy/app";
 
 /**
  * Action mode: a recipe read at the hob rather than at the table.
@@ -59,6 +64,8 @@ export function CookMode({
 }) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const language = useLanguage();
+  const say = sayIn(language);
 
   // Page 0 is the mise en place, then one page per step, then the finish. The
   // ingredients are a page rather than a panel on every step because reading them all
@@ -180,7 +187,7 @@ export function CookMode({
       data-ready="true"
       role="dialog"
       aria-modal="true"
-      aria-label={`Cooking ${title}`}
+      aria-label={say(RECIPES.cookingTitle, { title })}
       className="fixed inset-0 z-50 flex flex-col bg-[var(--page)]"
     >
       <header className="shrink-0 border-b border-[var(--accent-line)] bg-[var(--band)] pt-[env(safe-area-inset-top)]">
@@ -189,15 +196,15 @@ export function CookMode({
             <p className="truncate text-sm font-medium">{title}</p>
             <p className="text-xs text-slate-500">
               {page === 0
-                ? "Ingredients"
+                ? say(RECIPES.ingredientsHeading)
                 : done
-                  ? "Finished"
-                  : `Step ${page} of ${steps.length}`}
+                  ? say(RECIPES.finished)
+                  : say(RECIPES.stepOfTotal, { number: page, total: steps.length })}
             </p>
           </div>
           <Link
             href={`/recipes/${recipeId}`}
-            aria-label="Close"
+            aria-label={say(APP.close)}
             className="pressable shrink-0 rounded-lg p-2 text-slate-400 active:scale-90 hover:bg-slate-200 hover:text-slate-900"
           >
             <svg
@@ -238,7 +245,8 @@ export function CookMode({
                   finished ? "bg-emerald-600 text-white" : "accent-tint-bg text-slate-700"
                 }`}
               >
-                Step {timer.step + 1} · {finished ? "done" : clockLabel(remaining)}
+                {say(RECIPES.stepNumber, { number: timer.step + 1 })} ·{" "}
+                {finished ? say(RECIPES.timerDone) : clockLabel(remaining)}
               </button>
             );
           })}
@@ -268,6 +276,7 @@ export function CookMode({
             recipeId={recipeId}
             prepareAction={prepareAction}
             hasSteps={steps.length > 0}
+            language={language}
           />
         )}
 
@@ -277,18 +286,19 @@ export function CookMode({
             step={step}
             running={timers.some((timer) => timer.step === page - 1)}
             onStartTimer={(minutes) => startTimer(page - 1, minutes)}
+            language={language}
           />
         )}
 
-        {done && <Finished recipeId={recipeId} />}
+        {done && <Finished recipeId={recipeId} language={language} />}
       </main>
 
       <footer className="flex shrink-0 items-center gap-3 border-t border-slate-200 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <Button variant="secondary" onClick={back} disabled={page === 0} className="flex-1">
-          Back
+          {say(RECIPES.backButton)}
         </Button>
         <Button onClick={forward} disabled={done} className="flex-[2]">
-          {page === 0 ? "Start" : page === steps.length ? "Finish" : "Next"}
+          {page === 0 ? say(RECIPES.start) : page === steps.length ? say(RECIPES.finish) : say(RECIPES.next)}
         </Button>
       </footer>
     </div>,
@@ -304,6 +314,7 @@ function MiseEnPlace({
   recipeId,
   prepareAction,
   hasSteps,
+  language,
 }: {
   title: string;
   ingredients: string[];
@@ -311,13 +322,18 @@ function MiseEnPlace({
   recipeId: string;
   prepareAction: FormAction;
   hasSteps: boolean;
+  language: HomeLanguage;
 }) {
+  const say = sayIn(language);
+
   return (
     <div className="mx-auto max-w-xl">
       <h1 className="text-2xl font-semibold tracking-tight break-words">{title}</h1>
-      <h2 className="mt-6 mb-3 text-sm font-semibold text-slate-500 uppercase">Ingredients</h2>
+      <h2 className="mt-6 mb-3 text-sm font-semibold text-slate-500 uppercase">
+        {say(RECIPES.ingredientsHeading)}
+      </h2>
       {ingredients.length === 0 ? (
-        <p className="text-sm text-slate-500">None listed.</p>
+        <p className="text-sm text-slate-500">{say(RECIPES.noneListed)}</p>
       ) : (
         <ul className="space-y-2 text-base">
           {ingredients.map((line, index) => (
@@ -330,7 +346,7 @@ function MiseEnPlace({
       )}
 
       {hasSteps && !prepared && (
-        <PrepareOffer recipeId={recipeId} action={prepareAction} />
+        <PrepareOffer recipeId={recipeId} action={prepareAction} language={language} />
       )}
     </div>
   );
@@ -343,18 +359,24 @@ function MiseEnPlace({
  * It says what it would do rather than simply doing it: this rewrites the recipe's own
  * steps, which is not something to take on a cook's behalf because they opened a screen.
  */
-function PrepareOffer({ recipeId, action }: { recipeId: string; action: FormAction }) {
+function PrepareOffer({
+  recipeId,
+  action,
+  language,
+}: {
+  recipeId: string;
+  action: FormAction;
+  language: HomeLanguage;
+}) {
   const { state, pending, handleSubmit } = useFormAction(action);
+  const say = sayIn(language);
 
   return (
     <form onSubmit={handleSubmit} className="mt-8 rounded-xl border border-dashed border-slate-300 p-4">
-      <p className="text-sm text-slate-600">
-        These steps have not been prepared for cooking yet — they will show without their
-        ingredients. Preparing them tidies the steps and works out what each one needs.
-      </p>
+      <p className="text-sm text-slate-600">{say(RECIPES.notPreparedNotice)}</p>
       <input type="hidden" name="recipeId" value={recipeId} />
       <Button type="submit" variant="secondary" disabled={pending} aria-busy={pending} className="mt-3">
-        {pending ? "Preparing…" : "Prepare these steps"}
+        {pending ? say(RECIPES.preparing) : say(RECIPES.prepareSteps)}
       </Button>
       {state?.ok === false && (
         <p role="alert" className="mt-2 text-sm text-red-600">
@@ -371,15 +393,19 @@ function StepPage({
   step,
   running,
   onStartTimer,
+  language,
 }: {
   number: number;
   step: CookStep;
   running: boolean;
   onStartTimer: (minutes: number) => void;
+  language: HomeLanguage;
 }) {
+  const say = sayIn(language);
+
   return (
     <div className="mx-auto max-w-xl">
-      <p className="text-sm font-semibold text-[var(--accent)]">Step {number}</p>
+      <p className="text-sm font-semibold text-[var(--accent)]">{say(RECIPES.stepNumber, { number })}</p>
       <p className="mt-3 text-xl leading-relaxed break-words">{step.text}</p>
 
       {step.minutes !== null && (
@@ -399,7 +425,9 @@ function StepPage({
             <circle cx="12" cy="13" r="8" />
             <path d="M12 9v4l2.5 2M9 2h6" strokeLinecap="round" />
           </svg>
-          {running ? `Restart ${timeLabel(step.minutes)}` : `Start ${timeLabel(step.minutes)}`}
+          {say(running ? RECIPES.restartTimer : RECIPES.startTimer, {
+            time: timeLabel(step.minutes, language) ?? "",
+          })}
         </button>
       )}
 
@@ -407,7 +435,9 @@ function StepPage({
           line a cook has to read to find out it was not worth reading. */}
       {step.ingredients.length > 0 && (
         <div className="accent-tint-bg mt-7 rounded-xl p-4">
-          <h2 className="mb-2.5 text-xs font-semibold text-slate-500 uppercase">For this step</h2>
+          <h2 className="mb-2.5 text-xs font-semibold text-slate-500 uppercase">
+            {say(RECIPES.forThisStep)}
+          </h2>
           <ul className="space-y-1.5 text-base">
             {step.ingredients.map((line, index) => (
               <li key={index} className="flex gap-2.5">
@@ -423,19 +453,21 @@ function StepPage({
 }
 
 /** The way out, which a screen with no chrome on it has to offer explicitly. */
-function Finished({ recipeId }: { recipeId: string }) {
+function Finished({ recipeId, language }: { recipeId: string; language: HomeLanguage }) {
+  const say = sayIn(language);
+
   return (
     <div className="mx-auto flex max-w-xl flex-col items-center py-12 text-center">
       <p className="text-4xl" aria-hidden="true">
         🍽️
       </p>
-      <h1 className="mt-4 text-2xl font-semibold tracking-tight">That is dinner.</h1>
-      <p className="mt-2 text-sm text-slate-500">Every step done.</p>
+      <h1 className="mt-4 text-2xl font-semibold tracking-tight">{say(RECIPES.thatIsDinner)}</h1>
+      <p className="mt-2 text-sm text-slate-500">{say(RECIPES.everyStepDone)}</p>
       <Link
         href={`/recipes/${recipeId}`}
         className="pressable mt-8 inline-flex items-center justify-center rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--accent-text)] active:scale-[0.96]"
       >
-        Back to the recipe
+        {say(RECIPES.backToRecipe)}
       </Link>
     </div>
   );

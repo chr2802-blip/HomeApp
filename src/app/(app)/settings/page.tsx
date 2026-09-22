@@ -30,6 +30,7 @@ import { ThemeField } from "@/components/theme-field";
 import { LanguageField } from "@/components/language-field";
 import { sayIn } from "@/lib/copy/say";
 import { SETTINGS } from "@/lib/copy/settings";
+import { RECIPES } from "@/lib/copy/recipes";
 
 /**
  * Running one household: its name and picture, who is in it, who is invited, what its
@@ -221,8 +222,10 @@ export default async function SettingsPage() {
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Recipe categories</h2>
-        <RecipeCategoriesAdmin homeId={home.id} />
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
+          {say(RECIPES.recipeCategoriesHeading)}
+        </h2>
+        <RecipeCategoriesAdmin homeId={home.id} language={user.homeLanguage} />
       </section>
     </>
   );

@@ -5,7 +5,7 @@ import { Modal, ModalBody, ModalFooter } from "@/components/modal";
 import { DialogForm } from "@/components/form-dialog";
 import { Button, IconButton } from "@/components/ui";
 import {
-  RECIPE_SAVE_OVERLAY,
+  recipeSaveOverlay,
   RecipeFields,
   type CategoryOption,
   type RecipeValues,
@@ -87,7 +87,8 @@ export function NewRecipeDialog({
   const [autoUrl, setAutoUrl] = useState<string | undefined>(undefined);
   const [noRecipeFound, setNoRecipeFound] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const say = sayIn(useLanguage());
+  const language = useLanguage();
+  const say = sayIn(language);
 
   function openFresh() {
     setInitial(undefined);
@@ -198,7 +199,7 @@ export function NewRecipeDialog({
             submitLabel={say(RECIPES.saveRecipe)}
             onDone={close}
             onCancel={close}
-            overlay={RECIPE_SAVE_OVERLAY}
+            overlay={recipeSaveOverlay(language)}
           >
             {/*
               What the import thought was worth a second look — a description that stopped
@@ -212,7 +213,7 @@ export function NewRecipeDialog({
                 {say(RECIPES.worthChecking, { note })}
               </p>
             )}
-            <RecipeFields recipe={initial} categories={categories} />
+            <RecipeFields recipe={initial} categories={categories} language={language} />
           </DialogForm>
         )}
       </Modal>

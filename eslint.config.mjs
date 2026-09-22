@@ -129,6 +129,16 @@ const eslintConfig = [
       "src/components/task-snooze.tsx",
       "src/components/repeat-field.tsx",
       "src/components/assignee-field.tsx",
+      "src/app/(app)/recipes/page.tsx",
+      "src/app/(app)/recipes/new/page.tsx",
+      "src/app/(app)/recipes/[id]/page.tsx",
+      "src/app/(app)/recipes/[id]/edit/page.tsx",
+      "src/components/recipe-directory.tsx",
+      "src/components/recipe-fields.tsx",
+      "src/components/recipe-form.tsx",
+      "src/components/cook-mode.tsx",
+      "src/components/recipe-categories-admin.tsx",
+      "src/app/(app)/recipes/[id]/cook/page.tsx",
     ],
     rules: {
       "no-restricted-syntax": [
