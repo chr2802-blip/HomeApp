@@ -42,12 +42,17 @@ describe("isFinished", () => {
 
 describe("repeatLabel", () => {
   it("names the interval for a recurring task", () => {
-    expect(repeatLabel({ intervalDays: 7 })).toBe("Every 7 days");
-    expect(repeatLabel({ intervalDays: 1 })).toBe("Every 1 days");
+    expect(repeatLabel({ intervalDays: 7 }, "EN")).toBe("Every 7 days");
+    expect(repeatLabel({ intervalDays: 1 }, "EN")).toBe("Every 1 day");
   });
 
   it("says a one-off has no rhythm rather than naming one", () => {
-    expect(repeatLabel({ intervalDays: null })).toBe("One-off");
+    expect(repeatLabel({ intervalDays: null }, "EN")).toBe("One-off");
+  });
+
+  it("reads in the household's own language", () => {
+    expect(repeatLabel({ intervalDays: 7 }, "DA")).toBe("Hver 7. dag");
+    expect(repeatLabel({ intervalDays: 1 }, "DA")).toBe("Hver 1. dag");
   });
 });
 

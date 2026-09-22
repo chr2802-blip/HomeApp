@@ -10,6 +10,10 @@ import { SubmitButton } from "@/components/submit-button";
 import { TaskDoneButton } from "@/components/task-done-button";
 import { SnoozeMenuItem } from "@/components/task-snooze";
 import type { FormAction } from "@/lib/action-result";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { APP } from "@/lib/copy/app";
+import { TASKS } from "@/lib/copy/tasks";
 
 /**
  * One task, of either kind.
@@ -73,6 +77,7 @@ export function TaskCard({
 }) {
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const say = sayIn(useLanguage());
 
   return (
     <>
@@ -91,10 +96,10 @@ export function TaskCard({
           <ContextMenu label={title} className="mt-3 mr-3">
             {snoozable && <SnoozeMenuItem taskId={taskId} action={snoozeAction} />}
             <MenuItem icon="pencil" onSelect={() => setOpen(true)}>
-              Edit
+              {say(APP.edit)}
             </MenuItem>
             <MenuItem icon="bin" tone="danger" onSelect={() => setConfirming(true)}>
-              Delete
+              {say(APP.delete)}
             </MenuItem>
           </ContextMenu>
         </div>
@@ -107,20 +112,20 @@ export function TaskCard({
             // form: the tick rising out of the button would be celebrating an undo.
             <form action={reopenAction}>
               <input type="hidden" name="taskId" value={taskId} />
-              <SubmitButton variant="secondary" pendingLabel="Saving…">
-                Reopen
+              <SubmitButton variant="secondary" pendingLabel={say(APP.saving)}>
+                {say(TASKS.reopen)}
               </SubmitButton>
             </form>
           ) : (
-            <TaskDoneButton taskId={taskId} action={completeAction} label="Mark done" />
+            <TaskDoneButton taskId={taskId} action={completeAction} label={say(TASKS.markDone)} />
           )}
         </div>
       </Card>
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Edit task">
+      <Modal open={open} onClose={() => setOpen(false)} title={say(TASKS.editTask)}>
         <DialogForm
           action={updateAction}
-          submitLabel="Save changes"
+          submitLabel={say(APP.saveChanges)}
           onDone={() => setOpen(false)}
           onCancel={() => setOpen(false)}
         >
@@ -132,7 +137,7 @@ export function TaskCard({
       <ConfirmDialog
         open={confirming}
         onClose={() => setConfirming(false)}
-        message={`Delete the task "${title}"?`}
+        message={say(TASKS.deleteTaskMessage, { title })}
         action={deleteAction}
       >
         <input type="hidden" name="taskId" value={taskId} />

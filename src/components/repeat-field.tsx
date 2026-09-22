@@ -8,6 +8,9 @@ import {
   REPEAT_FIELD,
   REPEAT_ONCE,
 } from "@/lib/tasks";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { TASKS } from "@/lib/copy/tasks";
 
 /**
  * Whether a task comes back, and how often.
@@ -26,11 +29,12 @@ export function RepeatField({ intervalDays = null }: { intervalDays?: number | n
   const [days, setDays] = useState(String(intervalDays ?? 7));
   const repeatId = useId();
   const daysId = useId();
+  const say = sayIn(useLanguage());
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-1">
-        <Label htmlFor={repeatId}>Repeat</Label>
+        <Label htmlFor={repeatId}>{say(TASKS.repeat)}</Label>
         <Select
           id={repeatId}
           name={REPEAT_FIELD}
@@ -38,14 +42,14 @@ export function RepeatField({ intervalDays = null }: { intervalDays?: number | n
           onChange={(event) => setRepeats(event.target.value === REPEAT_DAYS)}
           className="w-full"
         >
-          <option value={REPEAT_ONCE}>Just once</option>
-          <option value={REPEAT_DAYS}>Regularly</option>
+          <option value={REPEAT_ONCE}>{say(TASKS.justOnce)}</option>
+          <option value={REPEAT_DAYS}>{say(TASKS.regularly)}</option>
         </Select>
       </div>
 
       {repeats && (
         <div className="space-y-1">
-          <Label htmlFor={daysId}>Repeat every (days)</Label>
+          <Label htmlFor={daysId}>{say(TASKS.repeatEveryDays)}</Label>
           <Input
             id={daysId}
             name="intervalDays"

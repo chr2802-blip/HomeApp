@@ -188,6 +188,19 @@ what lets a lib module work identically whether it is called from a server page 
 `useLanguage()` in `src/components/language-provider.tsx`, from a client component — there is
 one API, `sayIn`, not a server `t()` and a client one.
 
+**The same rule holds for a plain component with no `"use client"` of its own, and it is
+easier to get wrong there than in `src/lib`.** A component like `AssigneeField` or
+`AmountsField` carries no directive because it has no interactivity — but it is rendered
+both as a child passed down from a server page (`/tasks`, `/lists`) *and* from inside an
+already-client component (`list-directory.tsx`). `useContext` only resolves on the client
+side of a boundary, and a component with no boundary of its own runs wherever its caller
+does — so calling `useLanguage()` inside one crashes the instant a server page renders it
+directly, while the exact same component rendered from a client parent works, which is
+what makes it easy to ship and only fail in the one shape nobody happened to test. **Such
+a component takes `language` as a prop, like `repeatLabel` and `dueLabel` do**, and its
+caller supplies it — `user.homeLanguage` from a server page, `useLanguage()` from a client
+one — rather than the component reaching for the context itself.
+
 **Interpolation is `{name}` and a `String.replace`**, and the type makes a phrase with slots
 impossible to say without filling them — an unfilled `{n}` reading as literal characters on a
 phone is the one i18n bug that looks like bad data rather than a bug. **A conjunction is never

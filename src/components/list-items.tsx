@@ -46,6 +46,9 @@ import { applyPending, type ListRow, type Person } from "@/lib/offline-ops";
 import { newId } from "@/lib/offline-queue";
 import { cheer, tick } from "@/lib/haptics";
 import { MIN_AMOUNT } from "@/lib/amount";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { LISTS } from "@/lib/copy/lists";
 
 /**
  * One row, defined beside the overlay that has to be able to make one — an item added
@@ -141,6 +144,7 @@ function Row({
     id: item.id,
     disabled: !draggable,
   });
+  const say = sayIn(useLanguage());
 
   /*
    * Pressing the text is what opens it, rather than a menu entry — a name is the one
@@ -183,7 +187,7 @@ function Row({
           type="button"
           {...attributes}
           {...listeners}
-          aria-label={`Reorder ${item.text}`}
+          aria-label={say(LISTS.reorder, { name: item.text })}
           // touch-none stops the browser scrolling the page instead of dragging. The
           // padding is generous on purpose: this is dragged with a thumb, in a kitchen.
           className="touch-none cursor-grab rounded px-2 py-3 text-slate-400 hover:text-slate-700 focus-visible:outline-2 active:cursor-grabbing"
@@ -204,7 +208,7 @@ function Row({
       <form action={onToggle} className="flex flex-1 items-center gap-3">
         <button
           type="submit"
-          aria-label={item.done ? "Mark as not done" : "Mark as done"}
+          aria-label={item.done ? say(LISTS.markNotDone) : say(LISTS.markDone)}
           aria-pressed={item.done}
           onClick={() => onPress(!item.done)}
           className={`pressable flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs active:scale-90 ${
@@ -233,14 +237,14 @@ function Row({
                   setEditing(false);
                 }
               }}
-              aria-label={`Edit ${item.text}`}
+              aria-label={say(LISTS.editItemAria, { name: item.text })}
               className="block w-full rounded border border-slate-300 bg-white px-1 py-0.5 text-sm outline-none focus-visible:border-slate-500"
             />
           ) : (
             <button
               type="button"
               onClick={() => setEditing(true)}
-              aria-label={`Edit ${item.text}`}
+              aria-label={say(LISTS.editItemAria, { name: item.text })}
               className={`block w-full rounded py-0.5 text-left text-sm transition-colors duration-150 hover:bg-slate-50 ${
                 item.done ? "text-slate-400 line-through" : ""
               }`}
@@ -253,7 +257,7 @@ function Row({
               this worth reading where it does appear. */}
           {item.sources.length > 0 && (
             <span className="mt-0.5 block text-xs text-slate-400">
-              From{" "}
+              {say(LISTS.from)}{" "}
               {item.sources.map((source, index) => (
                 <span key={source.id}>
                   {index > 0 && ", "}
@@ -277,7 +281,7 @@ function Row({
         <PersonMark
           name={item.completedBy.name}
           photoId={item.completedBy.photoId}
-          what="Ticked off by"
+          what={say(LISTS.tickedOffBy)}
           className="h-5 w-5"
         />
       )}
@@ -289,14 +293,18 @@ function Row({
         (item.done ? (
           <span className="shrink-0 text-sm tabular-nums text-slate-400">×{item.amount}</span>
         ) : (
-          <AmountPicker value={item.amount} onChange={onAmount} label={`Amount for ${item.text}`} />
+          <AmountPicker
+            value={item.amount}
+            onChange={onAmount}
+            label={say(LISTS.amountFor, { name: item.text })}
+          />
         ))}
 
       <form action={onRemove}>
         <ConfirmButton
-          title="Remove item"
-          confirmLabel="Remove"
-          message={`Remove "${item.text}" from this list?`}
+          title={say(LISTS.removeItem)}
+          confirmLabel={say(LISTS.remove)}
+          message={say(LISTS.removeItemMessage, { name: item.text })}
           triggerVariant="ghost"
           triggerClassName="px-2 py-1 text-sm text-slate-400 hover:text-red-600"
         >
@@ -313,7 +321,7 @@ function Row({
           >
             <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
           </svg>
-          <span className="sr-only sm:not-sr-only">Remove</span>
+          <span className="sr-only sm:not-sr-only">{say(LISTS.remove)}</span>
         </ConfirmButton>
       </form>
     </div>
@@ -344,6 +352,7 @@ export function ListItems({
   shared: boolean;
 }) {
   const { pending, record, onlyOnline, reconcile, online, sending } = useOfflineList(listId);
+  const say = sayIn(useLanguage());
 
   /*
    * What the rows are drawn from: what the server last said, with everything this phone
@@ -494,7 +503,7 @@ export function ListItems({
   if (total === 0) {
     return (
       <p className="animate-row-in p-6 text-center text-sm text-slate-500">
-        🛒 This list is empty — add something below.
+        {say(LISTS.emptyList)}
       </p>
     );
   }
@@ -602,7 +611,7 @@ export function ListItems({
       <div className="space-y-2 px-4 py-3">
         <div className="flex items-baseline justify-between gap-3 text-xs">
           <span className="font-medium text-slate-600">
-            {ticked === total ? "All done 🎉" : `${total - ticked} missing`}
+            {ticked === total ? say(LISTS.allDone) : say(LISTS.missing, { count: total - ticked })}
           </span>
           <span className="tabular-nums text-slate-400">
             {Math.round((ticked / total) * 100)}%
@@ -628,7 +637,7 @@ export function ListItems({
 
       {open.length === 0 && (
         <p className="animate-row-in p-6 text-center text-sm text-slate-500">
-          🎉 Nice — everything here is ticked off.
+          {say(LISTS.allTicked)}
         </p>
       )}
 
@@ -642,7 +651,7 @@ export function ListItems({
                 onAnimationEnd={() => setJustCompleted(false)}
                 className={`inline-block origin-left ${justCompleted ? "animate-check-pop" : ""}`}
               >
-                Completed ({done.length})
+                {say(LISTS.completed, { count: done.length })}
               </span>
             }
             triggerClassName="w-full px-4 py-3 text-sm font-medium text-slate-500 hover:bg-slate-50"

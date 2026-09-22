@@ -207,17 +207,25 @@ describe("readOps", () => {
 
 describe("statusLine", () => {
   it("says nothing at all when the connection is there and nothing is waiting", () => {
-    expect(statusLine(true, 0, false)).toBeNull();
+    expect(statusLine(true, 0, false, "EN")).toBeNull();
   });
 
   it("says what is being kept when there is no connection", () => {
-    expect(statusLine(false, 0, false)).toMatch(/^Offline/);
-    expect(statusLine(false, 1, false)).toContain("1 change");
-    expect(statusLine(false, 3, false)).toContain("3 changes");
+    expect(statusLine(false, 0, false, "EN")).toMatch(/^Offline/);
+    expect(statusLine(false, 1, false, "EN")).toContain("1 change");
+    expect(statusLine(false, 3, false, "EN")).toContain("3 changes");
   });
 
   it("says what is happening once there is a connection again", () => {
-    expect(statusLine(true, 2, true)).toBe("Sending 2 changes…");
-    expect(statusLine(true, 2, false)).toBe("2 changes to send.");
+    expect(statusLine(true, 2, true, "EN")).toBe("Sending 2 changes…");
+    expect(statusLine(true, 2, false, "EN")).toBe("2 changes to send.");
+  });
+
+  it("reads in the household's own language", () => {
+    expect(statusLine(false, 0, false, "DA")).toMatch(/^Offline/);
+    expect(statusLine(false, 1, false, "DA")).toContain("1 ændring");
+    expect(statusLine(false, 3, false, "DA")).toContain("3 ændringer");
+    expect(statusLine(true, 2, true, "DA")).toBe("Sender 2 ændringer…");
+    expect(statusLine(true, 2, false, "DA")).toBe("2 ændringer skal sendes.");
   });
 });

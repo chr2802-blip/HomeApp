@@ -3,6 +3,9 @@
 import { useRef, useState } from "react";
 import { Modal, ModalBody, ModalFooter } from "@/components/modal";
 import { Button } from "@/components/ui";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { APP } from "@/lib/copy/app";
 
 /**
  * Asks before doing something irreversible, using the app's own sheet rather than the
@@ -14,8 +17,8 @@ import { Button } from "@/components/ui";
  */
 export function ConfirmButton({
   message,
-  title = "Are you sure?",
-  confirmLabel = "Delete",
+  title,
+  confirmLabel,
   triggerVariant = "danger",
   triggerClassName = "",
   children,
@@ -31,6 +34,7 @@ export function ConfirmButton({
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const say = sayIn(useLanguage());
 
   function confirm() {
     const form = triggerRef.current?.closest("form");
@@ -51,7 +55,7 @@ export function ConfirmButton({
         {children}
       </Button>
 
-      <Modal open={open} onClose={() => setOpen(false)} title={title}>
+      <Modal open={open} onClose={() => setOpen(false)} title={title ?? say(APP.areYouSure)}>
         <ModalBody>
           <p className="text-sm text-slate-600">{message}</p>
         </ModalBody>
@@ -65,10 +69,10 @@ export function ConfirmButton({
               aria-busy={submitting}
               className="flex-1 sm:flex-none"
             >
-              {submitting ? "Working…" : confirmLabel}
+              {submitting ? say(APP.working) : (confirmLabel ?? say(APP.delete))}
             </Button>
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {say(APP.cancel)}
             </Button>
           </div>
         </ModalFooter>

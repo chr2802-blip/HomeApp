@@ -3,6 +3,9 @@
 import { useTransition } from "react";
 import { ContextMenu, MenuItem } from "@/components/context-menu";
 import { tick } from "@/lib/haptics";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { TASKS } from "@/lib/copy/tasks";
 
 type SnoozeAction = (formData: FormData) => void | Promise<void>;
 
@@ -21,6 +24,7 @@ type SnoozeAction = (formData: FormData) => void | Promise<void>;
  */
 export function SnoozeMenuItem({ taskId, action }: { taskId: string; action: SnoozeAction }) {
   const [, startTransition] = useTransition();
+  const say = sayIn(useLanguage());
 
   return (
     <MenuItem
@@ -34,7 +38,7 @@ export function SnoozeMenuItem({ taskId, action }: { taskId: string; action: Sno
         });
       }}
     >
-      Snooze to tomorrow
+      {say(TASKS.snoozeToTomorrow)}
     </MenuItem>
   );
 }

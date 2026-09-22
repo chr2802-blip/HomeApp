@@ -6,6 +6,9 @@ import { ContextMenu, MenuItem } from "@/components/context-menu";
 import { DialogForm } from "@/components/form-dialog";
 import { Modal } from "@/components/modal";
 import type { FormAction } from "@/lib/action-result";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { APP } from "@/lib/copy/app";
 
 /**
  * The standard menu on anything the app stores: edit it, delete it.
@@ -22,13 +25,13 @@ export function ItemMenu({
   id,
   label,
   editTitle,
-  editSubmitLabel = "Save changes",
+  editSubmitLabel,
   editAction,
   editOverlay,
-  editLabel = "Edit",
-  deleteTitle = "Are you sure?",
-  deleteLabel = "Delete",
-  deleteConfirmLabel = "Delete",
+  editLabel,
+  deleteTitle,
+  deleteLabel,
+  deleteConfirmLabel,
   deleteMessage,
   deleteAction,
   extraFields,
@@ -70,26 +73,30 @@ export function ItemMenu({
 }) {
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const say = sayIn(useLanguage());
+
+  const shownEditLabel = editLabel ?? say(APP.edit);
+  const shownDeleteLabel = deleteLabel ?? say(APP.delete);
 
   return (
     <>
       <ContextMenu label={label} className={className}>
         {editAction && (
           <MenuItem icon="pencil" onSelect={() => setEditing(true)}>
-            {editLabel}
+            {shownEditLabel}
           </MenuItem>
         )}
         {extraItems}
         <MenuItem icon="bin" tone="danger" onSelect={() => setConfirming(true)}>
-          {deleteLabel}
+          {shownDeleteLabel}
         </MenuItem>
       </ContextMenu>
 
       {editAction && (
-        <Modal open={editing} onClose={() => setEditing(false)} title={editTitle ?? editLabel}>
+        <Modal open={editing} onClose={() => setEditing(false)} title={editTitle ?? shownEditLabel}>
           <DialogForm
             action={editAction}
-            submitLabel={editSubmitLabel}
+            submitLabel={editSubmitLabel ?? say(APP.saveChanges)}
             onDone={() => setEditing(false)}
             onCancel={() => setEditing(false)}
             overlay={editOverlay}
@@ -104,9 +111,9 @@ export function ItemMenu({
       <ConfirmDialog
         open={confirming}
         onClose={() => setConfirming(false)}
-        title={deleteTitle}
+        title={deleteTitle ?? say(APP.areYouSure)}
         message={deleteMessage}
-        confirmLabel={deleteConfirmLabel}
+        confirmLabel={deleteConfirmLabel ?? say(APP.delete)}
         action={deleteAction}
       >
         <input type="hidden" name={name} value={id} />

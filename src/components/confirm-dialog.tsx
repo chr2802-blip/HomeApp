@@ -3,6 +3,9 @@
 import { Modal, ModalBody, ModalFooter } from "@/components/modal";
 import { Button } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { APP } from "@/lib/copy/app";
 
 /**
  * The sheet that asks before something irreversible happens, with the destructive
@@ -16,9 +19,9 @@ import { SubmitButton } from "@/components/submit-button";
 export function ConfirmDialog({
   open,
   onClose,
-  title = "Are you sure?",
+  title,
   message,
-  confirmLabel = "Delete",
+  confirmLabel,
   action,
   children,
 }: {
@@ -31,8 +34,10 @@ export function ConfirmDialog({
   /** Hidden fields naming what the action acts on. */
   children?: React.ReactNode;
 }) {
+  const say = sayIn(useLanguage());
+
   return (
-    <Modal open={open} onClose={onClose} title={title}>
+    <Modal open={open} onClose={onClose} title={title ?? say(APP.areYouSure)}>
       <form action={action} className="flex min-h-0 flex-1 flex-col">
         <ModalBody>
           <p className="text-sm text-slate-600">{message}</p>
@@ -40,11 +45,11 @@ export function ConfirmDialog({
         <ModalFooter>
           <div className="flex gap-2">
             {children}
-            <SubmitButton variant="danger" pendingLabel="Working…" className="flex-1 sm:flex-none">
-              {confirmLabel}
+            <SubmitButton variant="danger" pendingLabel={say(APP.working)} className="flex-1 sm:flex-none">
+              {confirmLabel ?? say(APP.delete)}
             </SubmitButton>
             <Button type="button" variant="secondary" onClick={onClose}>
-              Cancel
+              {say(APP.cancel)}
             </Button>
           </div>
         </ModalFooter>

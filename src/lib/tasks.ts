@@ -1,5 +1,7 @@
-import type { Prisma } from "@prisma/client";
+import type { HomeLanguage, Prisma } from "@prisma/client";
 import { calendarDaysBetween, dueAtDaysFrom } from "./time";
+import { sayIn } from "./copy/say";
+import { TASKS } from "./copy/tasks";
 
 /**
  * A task is either a one-off or a recurring one, and `intervalDays` is which: null for
@@ -27,9 +29,8 @@ export const FINISHED = {
  */
 export const UNFINISHED = { NOT: FINISHED } satisfies Prisma.TaskWhereInput;
 
-/** Longest repeat a task may be given, and the wording shown when one is refused. */
+/** Longest repeat a task may be given. */
 export const MAX_INTERVAL_DAYS = 3650;
-export const INTERVAL_MESSAGE = `Repeat every 1 to ${MAX_INTERVAL_DAYS} days.`;
 
 /**
  * The form field saying which kind of task is being written, and its two values.
@@ -56,8 +57,9 @@ export function isFinished(task: TaskKind & { lastCompletedAt: Date | null }) {
 }
 
 /** How a card describes the task's rhythm, or that it has none. */
-export function repeatLabel(task: TaskKind) {
-  return isOneOff(task) ? "One-off" : `Every ${task.intervalDays} days`;
+export function repeatLabel(task: TaskKind, language: HomeLanguage) {
+  const say = sayIn(language);
+  return isOneOff(task) ? say(TASKS.oneOff) : say(TASKS.everyNDays, { count: task.intervalDays! });
 }
 
 /**

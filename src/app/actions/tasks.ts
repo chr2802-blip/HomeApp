@@ -10,7 +10,6 @@ import { optionalText, readForm, requiredText } from "@/lib/form";
 import { dueAtDaysFrom, dueAtOn } from "@/lib/time";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import {
-  INTERVAL_MESSAGE,
   MAX_INTERVAL_DAYS,
   REPEAT_FIELD,
   REPEAT_ONCE,
@@ -19,20 +18,23 @@ import {
   snoozedTo,
 } from "@/lib/tasks";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
+import { sayIn, type Say } from "@/lib/copy/say";
+import { TASKS } from "@/lib/copy/tasks";
 
 const taskInScope = homeScoped("Task", (id) => prisma.task.findUnique({ where: { id } }));
 
 /** Create and edit take the same fields; only the name of the date differs. */
-const taskSchema = z.object({
-  title: requiredText("Give the task a name."),
-  notes: optionalText,
-});
+function taskSchema(say: Say) {
+  return z.object({
+    title: requiredText(say(TASKS.nameRequired)),
+    notes: optionalText,
+  });
+}
 
-const intervalSchema = z.coerce
-  .number({ error: INTERVAL_MESSAGE })
-  .int(INTERVAL_MESSAGE)
-  .min(1, INTERVAL_MESSAGE)
-  .max(MAX_INTERVAL_DAYS, INTERVAL_MESSAGE);
+function intervalSchema(say: Say) {
+  const message = say(TASKS.intervalMessage, { max: MAX_INTERVAL_DAYS });
+  return z.coerce.number({ error: message }).int(message).min(1, message).max(MAX_INTERVAL_DAYS, message);
+}
 
 function refreshTaskViews() {
   revalidatePath("/tasks");
@@ -50,15 +52,15 @@ function refreshTaskViews() {
  * task was before one-offs existed — so an interval is still required, and still
  * checked, for anything that has not opted in.
  */
-function readInterval(formData: FormData) {
+function readInterval(formData: FormData, say: Say) {
   if (String(formData.get(REPEAT_FIELD) ?? "") === REPEAT_ONCE) {
     return { ok: true as const, intervalDays: null };
   }
 
-  const parsed = intervalSchema.safeParse(formData.get("intervalDays"));
+  const parsed = intervalSchema(say).safeParse(formData.get("intervalDays"));
   return parsed.success
     ? { ok: true as const, intervalDays: parsed.data }
-    : { ok: false as const, error: parsed.error.issues[0]?.message ?? INTERVAL_MESSAGE };
+    : { ok: false as const, error: parsed.error.issues[0]?.message ?? say(TASKS.intervalMessage, { max: MAX_INTERVAL_DAYS }) };
 }
 
 /**
@@ -79,8 +81,6 @@ async function readAssignee(formData: FormData, homeId: string) {
   return member ? { ok: true as const, assigneeId: member.userId } : { ok: false as const };
 }
 
-const NOT_A_MEMBER = "That person is not in this home.";
-
 /** A blank date means "leave it alone"; anything else has to be a real date. */
 function readDueDate(formData: FormData, field: string, label: string) {
   const raw = String(formData.get(field) ?? "").trim();
@@ -92,17 +92,18 @@ function readDueDate(formData: FormData, field: string, label: string) {
 
 export async function createTask(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const user = await requireHomeUser();
-  const form = readForm(taskSchema, formData);
+  const say = sayIn(user.homeLanguage);
+  const form = readForm(taskSchema(say), formData, user.homeLanguage);
   if (!form.ok) return fail(form.error);
 
-  const repeat = readInterval(formData);
+  const repeat = readInterval(formData, say);
   if (!repeat.ok) return fail(repeat.error);
 
-  const due = readDueDate(formData, "firstDueAt", "That first due date is not a real date.");
+  const due = readDueDate(formData, "firstDueAt", say(TASKS.firstDueNotReal));
   if (!due.ok) return fail(due.label);
 
   const assignee = await readAssignee(formData, user.homeId);
-  if (!assignee.ok) return fail(NOT_A_MEMBER);
+  if (!assignee.ok) return fail(say(TASKS.notAMember));
 
   const photo = await readPhotoChoice(formData, user.homeId);
   if (!photo.ok) return fail(photo.error);
@@ -124,18 +125,20 @@ export async function createTask(_prev: ActionResult, formData: FormData): Promi
 }
 
 export async function updateTask(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
   const task = await taskInScope(String(formData.get("taskId")));
-  const form = readForm(taskSchema, formData);
+  const form = readForm(taskSchema(say), formData, user.homeLanguage);
   if (!form.ok) return fail(form.error);
 
-  const repeat = readInterval(formData);
+  const repeat = readInterval(formData, say);
   if (!repeat.ok) return fail(repeat.error);
 
-  const due = readDueDate(formData, "nextDueAt", "That due date is not a real date.");
+  const due = readDueDate(formData, "nextDueAt", say(TASKS.dueNotReal));
   if (!due.ok) return fail(due.label);
 
   const assignee = await readAssignee(formData, task.homeId);
-  if (!assignee.ok) return fail(NOT_A_MEMBER);
+  if (!assignee.ok) return fail(say(TASKS.notAMember));
 
   const photo = await readPhotoChoice(formData, task.homeId);
   if (!photo.ok) return fail(photo.error);

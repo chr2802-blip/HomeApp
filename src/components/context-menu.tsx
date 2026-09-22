@@ -10,6 +10,9 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { APP } from "@/lib/copy/app";
 
 /**
  * The three dots that hold what is done *to* a thing rather than *with* it — editing
@@ -62,6 +65,7 @@ export function ContextMenu({
   const [ready, setReady] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const say = sayIn(useLanguage());
 
   // Hydration leaves no mark of its own: the trigger's markup is identical before and
   // after React attaches its listeners, so a press in between does nothing and looks
@@ -141,7 +145,7 @@ export function ContextMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         data-ready={ready ? "true" : undefined}
-        aria-label={trigger ? undefined : `Actions for ${label}`}
+        aria-label={trigger ? undefined : say(APP.actionsFor, { name: label })}
         onClick={() => {
           if (open) {
             setOpen(false);
@@ -170,7 +174,7 @@ export function ContextMenu({
             <div
               ref={panelRef}
               role="menu"
-              aria-label={trigger ? label : `Actions for ${label}`}
+              aria-label={trigger ? label : say(APP.actionsFor, { name: label })}
               style={{ top: position.top, right: position.right }}
               className="animate-row-in fixed z-50 min-w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
             >
