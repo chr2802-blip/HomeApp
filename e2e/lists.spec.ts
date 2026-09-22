@@ -127,14 +127,14 @@ test("the list says how far along it is, and the bar draws what it says", async 
     await expect(page.getByText(item, { exact: true })).toBeVisible();
   }
 
-  await expect(page.getByText("0 of 2 ticked off")).toBeVisible();
+  await expect(page.getByText("2 missing")).toBeVisible();
 
   await page.getByRole("button", { name: "Mark as done" }).first().click();
 
   // The count is told by the same optimistic state the rows are, so it moves on the
   // press rather than on the answer — which is also why the row it belongs to is still
   // sliding away while this is already true.
-  await expect(page.getByText("1 of 2 ticked off")).toBeVisible();
+  await expect(page.getByText("1 missing")).toBeVisible();
 
   const bar = page.locator("[data-progress]").first();
   await expect(bar).toHaveAttribute("data-progress", "50");
