@@ -305,9 +305,9 @@ So **a reel takes a second route through stage one**, chosen by `isReelUrl` befo
 is fetched. There is one opinion in this app about what counts as a reel and it is
 `captionSources` in `src/lib/reel-import.ts`: a link it has no addresses for is not a reel,
 and takes the ordinary route. `parseSocialEmbed` in `embed.ts` knows the same hosts for a
-different job — building an iframe `src` for the browser — and the two are deliberately
-apart, because one is about what this app fetches and the other about what the recipe page
-renders.
+different job — recognising that a link carries a video at all, for the badge on the
+recipes list — and the two are deliberately apart, because one is about what this app
+fetches and the other about what the recipes list shows.
 
 **What it is not any more is a second route through the *reading*.** It was, and
 `caption-recipe.ts` was 382 lines of heuristics doing it: heading sets in two languages, a
@@ -375,10 +375,13 @@ become the answer to a second kind of failure as well: with the reader being the
 a key that has stopped working leaves the box as the only way in, and it still is one.
 
 **A reel fills the video link, which an ordinary recipe page does not.** There the pasted
-link *is* the video, so `ImportedRecipe.videoUrl` carries it and the recipe page plays it
-through the embed `embed.ts` already builds — including on the paste route, where it is the
-one thing the pasted text cannot say. The poster frame is the nearest thing a reel has to a
-photograph of the finished dish and is stored exactly as any upload is, quietly failing like
+link *is* the video, so `ImportedRecipe.videoUrl` carries it and the recipe page offers a
+"Go to link" button beside "Start cooking" to reach it — including on the paste route,
+where it is the one thing the pasted text cannot say. An iframe embedding it on the page
+was tried first and taken back out: it cost more of the screen than a recipe read on a
+phone can spare, for a video a cook is going to leave to look at the ingredients anyway.
+The poster frame is the nearest thing a reel has to a photograph of the finished dish and
+is stored exactly as any upload is, quietly failing like
 any other picture rather than refusing a recipe whose text was perfectly good. Its address
 is resolved against whichever source answered rather than against the reel link, which has
 to stay what it is so the video points at the post.

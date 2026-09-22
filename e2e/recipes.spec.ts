@@ -52,7 +52,9 @@ test("a recipe is saved and shown with its ingredients and steps", async ({ page
   await expect(page.getByText("Rest the batter.")).toBeVisible();
 });
 
-test("a YouTube link is embedded as an iframe", async ({ page }) => {
+test("a recipe's video link opens in a new tab from a Go to link button, never embedded", async ({
+  page,
+}) => {
   await fillRecipe(page, {
     title: "Carbonara",
     videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
@@ -60,38 +62,34 @@ test("a YouTube link is embedded as an iframe", async ({ page }) => {
   await page.getByRole("button", { name: "Save recipe" }).click();
   await page.waitForURL(SAVED_RECIPE);
 
-  const frame = page.locator("iframe");
-  await expect(frame).toHaveAttribute("src", "https://www.youtube.com/embed/dQw4w9WgXcQ");
-  await expect(frame).toHaveAttribute("sandbox", /allow-scripts/);
-});
-
-test("an Instagram reel is embedded", async ({ page }) => {
-  await fillRecipe(page, {
-    title: "Reel dinner",
-    videoUrl: "https://www.instagram.com/reel/AbC123/",
-  });
-  await page.getByRole("button", { name: "Save recipe" }).click();
-  await page.waitForURL(SAVED_RECIPE);
-
-  await expect(page.locator("iframe")).toHaveAttribute(
-    "src",
-    "https://www.instagram.com/reel/AbC123/embed",
-  );
-});
-
-test("a link that cannot be embedded falls back to opening in a new tab", async ({ page }) => {
-  await fillRecipe(page, {
-    title: "Blog recipe",
-    videoUrl: "https://example.com/some/recipe",
-  });
-  await page.getByRole("button", { name: "Save recipe" }).click();
-  await page.waitForURL(SAVED_RECIPE);
-
   await expect(page.locator("iframe")).toHaveCount(0);
-  const link = page.getByRole("link", { name: "Open the linked video" });
-  await expect(link).toHaveAttribute("href", "https://example.com/some/recipe");
+  const link = page.getByRole("link", { name: "Go to link" });
+  await expect(link).toHaveAttribute("href", "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
   await expect(link).toHaveAttribute("target", "_blank");
   await expect(link).toHaveAttribute("rel", /noopener/);
+});
+
+test("a recipe with no video link has no Go to link button", async ({ page }) => {
+  await fillRecipe(page, { title: "No video", ingredients: "Flour" });
+  await page.getByRole("button", { name: "Save recipe" }).click();
+  await page.waitForURL(SAVED_RECIPE);
+
+  await expect(page.getByRole("link", { name: "Go to link" })).toHaveCount(0);
+});
+
+test("a recipe with both steps and a video link offers Start cooking and Go to link together", async ({
+  page,
+}) => {
+  await fillRecipe(page, {
+    title: "Both",
+    instructions: "Do it.",
+    videoUrl: "https://youtu.be/dQw4w9WgXcQ",
+  });
+  await page.getByRole("button", { name: "Save recipe" }).click();
+  await page.waitForURL(SAVED_RECIPE);
+
+  await expect(page.getByRole("link", { name: "Start cooking" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Go to link" })).toBeVisible();
 });
 
 test("a recipe can be edited from its page", async ({ page }) => {
@@ -157,13 +155,17 @@ test("a recipe's total time is saved and shown on its page", async ({ page }) =>
   await expect(page.getByText("25 min", { exact: true })).toBeVisible();
 });
 
-test("a recipe with no written steps says to follow the video", async ({ page }) => {
+test("a recipe with no written steps says to follow the video, and offers a way to it", async ({
+  page,
+}) => {
   await fillRecipe(page, { title: "Video only", videoUrl: "https://youtu.be/dQw4w9WgXcQ" });
   await page.getByRole("button", { name: "Save recipe" }).click();
   await page.waitForURL(SAVED_RECIPE);
 
   await expect(page.getByText("None written — follow the video.")).toBeVisible();
   await expect(page.getByText("None listed.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Start cooking" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Go to link" })).toBeVisible();
 });
 
 /*

@@ -154,6 +154,7 @@ export const RECIPES = {
 
   // The recipe's own page
   startCooking: { EN: "Start cooking", DA: "Begynd madlavning" },
+  goToLink: { EN: "Go to link", DA: "Gå til linket" },
   ingredientsHeading: { EN: "Ingredients", DA: "Ingredienser" },
   instructionsHeading: { EN: "Instructions", DA: "Fremgangsmåde" },
   noneListed: { EN: "None listed.", DA: "Ingen angivet." },
