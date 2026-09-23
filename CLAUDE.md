@@ -586,6 +586,24 @@ and "salt" are not two basic goods. A name that normalises to nothing at all ("`
 refused rather than stored — it would match no ingredient line ever written, and then
 claim the next such entry was a duplicate of it.
 
+**Only an exact key is answered for without asking; a key matched by its trailing words
+is asked about instead.** `matchedStockedKey` in `src/lib/pantry.ts` tries the key as
+written first, then, word by word from the front, its own shrinking tail — so "tørret
+spidskommen" is *matched* by a pantry that has "spidskommen", and "røget paprika" by one
+that has "paprika": a recipe names the ingredient last far more often than the other way
+round. But a modifier the household never typed into the pantry is not assumed to mean
+the same shelf, so `matchLine` keeps the two apart — `fullyExact` is true only where
+every part of the line matched *as written* — and `stripStocked` silently drops a line
+off the shop only on `fullyExact`. Anything matched only by dropping a modifier is
+routed through `ambiguousLines` exactly like a combined line the pantry only partly
+answers for, and the household is asked. Only whole words move, never a substring,
+because Danish compounds carry no space of their own ("hvidløg", "rødløg") — a pantry
+entry for "løg" stays an exact match for "løg" and is never mistaken for garlic, and
+never even reaches the question. A line naming more than one thing ("Salt og
+friskkværnet peber") is split on "og"/"and"/"&" first, and each half is checked the same
+way — so a cupboard with salt and pepper, spelled however the recipe qualified the
+pepper, still asks rather than silently deciding the pepper qualifies too.
+
 **The cupboard is taken out in one place**, `writeRecipesToList` in
 `src/app/actions/lists.ts`, so a recipe added from its own page and a whole week added
 from the meal plan cannot come to disagree about it. It is read at the press rather than

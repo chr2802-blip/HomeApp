@@ -44,40 +44,88 @@ export function pantryKey(name: string): string {
  */
 const CONJUNCTION = /\s+(?:og|and)\s+|\s*&\s*/i;
 
-/** A line split on its conjunction, and which of its parts the pantry already has. */
-function matchParts(
-  text: string,
-  stocked: Set<string>,
-): { parts: string[]; matched: string[] } | null {
-  const parts = text
-    .split(CONJUNCTION)
-    .map((part) => part.trim())
-    .filter(Boolean);
-  if (parts.length < 2) return null;
-  return { parts, matched: parts.filter((part) => stocked.has(pantryKey(part))) };
+/**
+ * The stocked key that answers for `key` exactly, or, failing that, the key's own
+ * trailing words once whatever comes in front is dropped: "tørret spidskommen" is
+ * answered by a pantry that has "spidskommen", "røget paprika" by one that has
+ * "paprika". A recipe names the ingredient last and the preparation first ("finely
+ * chopped", "smoked", "freshly ground") far more often than the other way round, so
+ * only a *leading* run of words is ever dropped.
+ *
+ * Only whole words move, one at a time — never a substring. Danish compounds carry no
+ * space of their own ("hvidløg", "rødløg"), so a pantry entry for "løg" is never
+ * mistaken for garlic or a red onion; it is still only ever an exact match for "løg".
+ *
+ * The caller decides what a non-exact match is worth: `matchLine` below is the one
+ * place that reads whether the key returned is `key` itself.
+ */
+function matchedStockedKey(key: string, stocked: Set<string>): string | null {
+  if (stocked.has(key)) return key;
+  const words = key.split(/\s+/).filter(Boolean);
+  for (let from = 1; from < words.length; from++) {
+    const suffix = words.slice(from).join(" ");
+    if (stocked.has(suffix)) return suffix;
+  }
+  return null;
+}
+
+/** A stocked key, which is never typed, as the ambiguous dialog names it. */
+function displayKey(key: string): string {
+  return key.length === 0 ? key : key.charAt(0).toUpperCase() + key.slice(1);
 }
 
 /**
- * A recipe line naming more than one thing, where the pantry has some of it but not all —
- * "salt og peber" against a cupboard that has salt but has run out of pepper. Neither
- * answered for (the household still wants pepper) nor plainly new (it would silently
- * re-buy the salt), so `writeRecipesToList` asks rather than guessing either way.
+ * A line taken apart into whatever the pantry can say about it: a combined line's
+ * halves, or the line whole where it names one thing, each checked through
+ * `matchedStockedKey`.
  *
- * A line the pantry has *none* of is plainly new, and one it has *all* of — every part
- * stocked — is answered for exactly as a single-item line would be: see `stripStocked`.
- * Only the line stuck in between is ambiguous, which is deliberately the narrow case:
- * most presses never see the question at all.
+ * `fullyExact` is the only case `stripStocked` still leaves unquestioned — every part
+ * matched, and matched *exactly*, the key as written and not a modifier stripped off
+ * to find it. Anything else that matched at all — a lone "røget paprika" answered for
+ * only by dropping "røget", or a combined line where some but not all halves are
+ * stocked — is a match `stripStocked` still has to ask about rather than guess at
+ * either way, because a modifier the household never typed into the pantry is not
+ * something this file assumes means the same shelf.
+ */
+function matchLine(
+  text: string,
+  stocked: Set<string>,
+): { matchedKeys: string[]; fullyExact: boolean } {
+  const split = text
+    .split(CONJUNCTION)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const parts = split.length >= 2 ? split : [text];
+
+  const matches = parts.map((part) => matchedStockedKey(pantryKey(part), stocked));
+  const matchedKeys = matches.filter((key): key is string => key !== null);
+  const fullyExact = matches.every((key, i) => key !== null && key === pantryKey(parts[i]));
+
+  return { matchedKeys, fullyExact };
+}
+
+/**
+ * A recipe line the pantry only partly answers for — "salt og peber" against a
+ * cupboard that has salt but has run out of pepper, or a lone "røget paprika" answered
+ * for only by dropping "røget" to find the pantry's own "paprika". Neither answered
+ * for outright (a modifier the household never typed into the pantry is not assumed to
+ * mean the same shelf) nor plainly new (it would silently re-buy the salt, or silently
+ * hide a match that was probably meant), so `writeRecipesToList` asks rather than
+ * guessing either way.
+ *
+ * A line the pantry has *none* of is plainly new, and one every part of which is
+ * stocked *exactly* is answered for without asking: see `stripStocked`. Only the line
+ * stuck in between is ambiguous, which is deliberately the narrow case: most presses
+ * never see the question at all.
  */
 export type AmbiguousLine = { key: string; text: string; matched: string[] };
 
 export function ambiguousLines(wanted: Map<string, string>, stocked: Set<string>): AmbiguousLine[] {
   const found: AmbiguousLine[] = [];
   for (const [key, text] of wanted) {
-    if (stocked.has(key)) continue;
-    const split = matchParts(text, stocked);
-    if (split && split.matched.length > 0 && split.matched.length < split.parts.length) {
-      found.push({ key, text, matched: split.matched });
-    }
+    const { matchedKeys, fullyExact } = matchLine(text, stocked);
+    if (fullyExact || matchedKeys.length === 0) continue;
+    found.push({ key, text, matched: matchedKeys.map(displayKey) });
   }
   return found;
 }
@@ -108,18 +156,19 @@ export function stripStocked(
   const covered: string[] = [];
 
   for (const [key, text] of wanted) {
-    if (stocked.has(key)) {
+    const { matchedKeys, fullyExact } = matchLine(text, stocked);
+
+    if (fullyExact) {
       covered.push(text);
       continue;
     }
 
-    const split = matchParts(text, stocked);
-    if (split && split.matched.length > 0) {
-      // Every part in stock answers for the line as fully as one entry keyed "salt og
-      // peber" would; some but not all is covered only once resolved — unresolved,
-      // `ambiguousLines` is what keeps this from being reached at all.
-      const fullyBySplit = split.matched.length === split.parts.length;
-      if (fullyBySplit || !resolvedKeep.has(key)) {
+    if (matchedKeys.length > 0) {
+      // Matched, but not cleanly enough to answer for on its own — a modifier had to
+      // be dropped to find it, or a combined line left some of itself unaccounted
+      // for. Covered only once resolved — unresolved, `ambiguousLines` is what keeps
+      // this from being reached at all.
+      if (!resolvedKeep.has(key)) {
         covered.push(text);
         continue;
       }
