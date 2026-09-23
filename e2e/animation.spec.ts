@@ -213,23 +213,33 @@ test.describe("ticking something off a list", () => {
   /**
    * Ticks a row off, and reports what ran because of it.
    *
-   * The same hydration problem the recipe filters have: the checkbox is the same markup
-   * before and after React attaches to it, so the press is offered again until the row
-   * says it is ticked. The recording is cleared inside the retry rather than before it,
-   * so what is asserted is what the press that actually worked caused.
+   * Pressed once, after the page has said it is hydrated — the list's own three-dot
+   * trigger grows `data-ready` once React has attached to the page, and the rows are
+   * hydrated in the same pass. It used to press again every second until the row said
+   * it was ticked, the way `pressFilter` below still does, but a row is not a chip: a
+   * press that landed and was merely slow to show settles the row into the folded
+   * "Completed" section a moment later, and the retry then finds no row to press. That
+   * only happened on a loaded machine, which is exactly when a retry fires.
    */
   async function tickOff(page: Page, text: string) {
     // The row's own form, and the one button in it. Found by the row rather than by the
-    // button's name, because that name is the thing about to change: a locator naming
-    // "Mark as done" stops matching the moment the press works, which is exactly when
-    // the retry below needs to read the button's state.
+    // button's name, because that name is the thing about to change.
     const box = page.locator("form").filter({ hasText: text }).getByRole("button").first();
 
-    await expect(async () => {
-      await forget(page);
-      await box.click();
-      await expect(box).toHaveAttribute("aria-pressed", "true", { timeout: 1000 });
-    }).toPass({ timeout: 20_000 });
+    await expect(page.getByRole("button", { name: /^Actions for / }).first()).toHaveAttribute(
+      "data-ready",
+      "true",
+    );
+    await forget(page);
+    await box.click();
+    // Not "the box says pressed": a pressed row settles into the folded "Completed"
+    // section a moment later, and an assertion polling on a loaded machine can look
+    // before and then after that and never see it pressed. "Nothing called Milk still
+    // offers to be marked done" is true in both states and false only if the press
+    // missed.
+    await expect(
+      page.locator("form").filter({ hasText: text }).getByRole("button", { name: "Mark as done" }),
+    ).toHaveCount(0);
   }
 
   test("is seen on the row it happened to, and again where the row lands", async ({ page }) => {

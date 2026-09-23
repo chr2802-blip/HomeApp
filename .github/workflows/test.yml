@@ -126,6 +126,17 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
+      # The browser suite starts with a full production build, and Next keeps what it can
+      # reuse between builds here. Restored from the nearest earlier run, so a change to
+      # one page rebuilds that page rather than all of them; Next checks every entry
+      # against the source itself, so a stale cache costs time and never correctness.
+      - uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**', 'public/**', 'next.config.ts', 'postcss.config.mjs', 'tsconfig.json') }}
+          restore-keys: |
+            next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+
       - name: Run browser tests
         run: npm run e2e
 

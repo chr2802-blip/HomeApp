@@ -11,8 +11,28 @@ always; the integration and browser suites only when `src/`, `prisma/`, `tests/`
 not reach the remote.
 
 Integration and E2E use **separate** databases (`homehub_test`, `homehub_e2e`), created
-automatically. They truncate between tests, and refuse to run against a database whose
-name lacks the right suffix.
+automatically. They empty every table between tests, and refuse to run against a
+database whose name lacks the right suffix.
+
+**Emptying is `DELETE`, not `TRUNCATE`.** `TRUNCATE` swaps a fresh file in for every table
+it names, rows or none, and measured about 55ms a call — before each of 544 integration
+tests and 270 browser ones. A `DELETE` of what one test left behind is about 3ms. The
+order is the only thing it has to get right, and only a key that refuses (`NO ACTION`,
+`RESTRICT`) constrains it: a cascading key takes its rows along whichever table goes
+first, and a `SET NULL` one lets go. The schema has a cycle (a home has a picture, a
+picture belongs to a home) but none made of refusing keys, which is what makes a
+children-first order exist; `scripts/test-db.mjs` falls back to `TRUNCATE` on the day
+one does, rather than failing. Integration went from about 51s to 38s on a four-core
+container.
+
+**The browser suite hands out tests, not files** (`fullyParallel: true`). Handing out
+files left the run waiting on `meals.spec.ts` — a third of the wall clock alone — with
+the other workers idle. It is safe because every test reseeds its worker's database
+first. Turning it on shook out one race that CI's single retry had been hiding:
+`animation.spec.ts`'s `tickOff` pressed a row again every second until it read as
+ticked, and on a loaded machine a slow-to-show first press settled the row into the
+folded "Completed" section, leaving the retry nothing to press. It now waits for the
+page's `data-ready` and presses once.
 
 **Both suites run their files at the same time, and a worker owns a whole world.** The
 plain names — `homehub_test`, `homehub_e2e` — are **templates**: migrated, and never run
