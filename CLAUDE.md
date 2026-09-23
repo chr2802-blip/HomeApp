@@ -53,7 +53,14 @@ Mirror the whole tree with per-file symlinks under the revision directory name P
 actually asks for, for both `chromium-<rev>` and `chromium_headless_shell-<rev>`. **Which
 revision Playwright wants is asked of Playwright** (`playwright install --dry-run` names
 the directory it will look in and the archive it would have unpacked there) rather than
-written down, because it moves with every lockfile bump.
+written down, because it moves with every lockfile bump. **Such a container's e2e run also
+drops one random, unrelated test more often than not** — the full suite runs Playwright's
+default worker count against 4 CPUs, and a different single spec times out on each attempt
+(a sheet's own close animation, a link click, a validation toast — never the same one
+twice, and never anything the diff under test touched). Before treating a lone failure as a
+real regression, re-run just that spec alone (`npx playwright test <file> -g "<test
+name>"`): it passes in a couple of seconds when it was contention, and that is cheaper than
+re-running the whole suite on a guess.
 
 ## Conventions that are not optional
 

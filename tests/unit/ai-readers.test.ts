@@ -144,7 +144,9 @@ describe("the ingredient rules", () => {
       "DA",
     );
 
-    const [save, importer] = parse.mock.calls.map((call) => call[0].system as string);
+    const [save, importer] = parse.mock.calls.map(
+      (call) => (call[0].system as [{ text: string }])[0].text,
+    );
     expect(save).toContain(ingredientRules());
     expect(importer).toContain(ingredientRules());
     expect(save).toContain(languageRules("DA"));
