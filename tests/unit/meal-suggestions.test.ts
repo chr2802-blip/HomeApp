@@ -135,8 +135,17 @@ describe("rankByOverlap", () => {
 describe("suggestionReason", () => {
   it("says what is being offered rather than a score out of ten", () => {
     // Something a cook can disagree with by opening the recipe, rather than take on trust.
-    expect(suggestionReason({ recipeId: "a", title: "Lasagne", shared: 4, total: 6 })).toBe(
+    expect(suggestionReason({ recipeId: "a", title: "Lasagne", shared: 4, total: 6 }, "EN")).toBe(
       "Shares 4 of 6 ingredients with the week",
+    );
+  });
+
+  it("says it in the household's language, and divides at one like every other count", () => {
+    expect(suggestionReason({ recipeId: "a", title: "Lasagne", shared: 4, total: 6 }, "DA")).toBe(
+      "Deler 4 af 6 ingredienser med ugen",
+    );
+    expect(suggestionReason({ recipeId: "a", title: "Toast", shared: 1, total: 1 }, "EN")).toBe(
+      "Shares 1 of 1 ingredient with the week",
     );
   });
 });

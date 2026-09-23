@@ -23,6 +23,8 @@ import { stockedKeys } from "@/lib/pantry-stock";
 import { weekDays, weekStartInZone, weekStartOn } from "@/lib/time";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
+import { sayIn, type Say } from "@/lib/copy/say";
+import { LISTS } from "@/lib/copy/lists";
 import {
   addItem,
   nextPosition,
@@ -67,27 +69,29 @@ const checkbox = z
   .optional()
   .transform((value) => value !== undefined);
 
-const listSchema = z.object({
-  title: requiredText("Give the list a name."),
-  trackAmounts: checkbox,
-});
+const listSchema = (say: Say) =>
+  z.object({
+    title: requiredText(say(LISTS.nameRequired)),
+    trackAmounts: checkbox,
+  });
 /*
  * The same ceiling `opsSchema` puts on a queued add (`lib/offline-ops.ts`). The two have
  * to agree: a line this accepted and the queue refused would be a line somebody could
  * type at the kitchen table and not in a shop, which is the one place this app promises
  * to keep working.
  */
-const itemSchema = z.object({
-  text: requiredText("Write something to add.", MAX_ITEM_TEXT),
-  amount,
-});
+const itemSchema = (say: Say) =>
+  z.object({
+    text: requiredText(say(LISTS.itemRequired), MAX_ITEM_TEXT),
+    amount,
+  });
 
 export async function createList(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const user = await requireHomeUser();
-  const form = readForm(listSchema, formData);
+  const form = readForm(listSchema(sayIn(user.homeLanguage)), formData, user.homeLanguage);
   if (!form.ok) return fail(form.error);
 
-  const photo = await readPhotoChoice(formData, user.homeId);
+  const photo = await readPhotoChoice(formData, user.homeId, user.homeLanguage);
   if (!photo.ok) return fail(photo.error);
 
   const list = await prisma.list.create({
@@ -115,11 +119,12 @@ export async function deleteList(formData: FormData) {
 }
 
 export async function updateList(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const user = await requireHomeUser();
   const list = await listInScope(String(formData.get("listId")));
-  const form = readForm(listSchema, formData);
+  const form = readForm(listSchema(sayIn(user.homeLanguage)), formData, user.homeLanguage);
   if (!form.ok) return fail(form.error);
 
-  const photo = await readPhotoChoice(formData, list.homeId);
+  const photo = await readPhotoChoice(formData, list.homeId, user.homeLanguage);
   if (!photo.ok) return fail(photo.error);
 
   await prisma.list.update({
@@ -172,15 +177,17 @@ export async function toggleListFavorite(formData: FormData) {
  * milk".
  */
 export async function addListItem(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
   const list = await listInScope(String(formData.get("listId")));
-  const form = readForm(itemSchema, formData);
+  const form = readForm(itemSchema(say), formData, user.homeLanguage);
   if (!form.ok) return fail(form.error);
 
   // The same write the offline queue's endpoint makes, including what it means to add
   // something already on the list — see `addItem`. An id is passed only where one was
   // chosen before the row existed, which is the queue's case and not this one.
   const outcome = await addItem(list.id, form.fields.text, form.fields.amount);
-  if (!outcome.ok) return fail(`"${outcome.clash}" is already on the list.`);
+  if (!outcome.ok) return fail(say(LISTS.alreadyOnListNamed, { name: outcome.clash }));
 
   revalidatePath(`/lists/${list.id}`);
   return ok();
@@ -502,11 +509,12 @@ export async function addRecipeIngredients(
   formData: FormData,
 ): Promise<ActionResult | PantryDecision> {
   const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
   const recipe = await recipeInScope(String(formData.get("recipeId")));
   const list = await listInScope(String(formData.get("listId")));
 
   if (dedupedIngredients(recipe.ingredients).size === 0) {
-    return fail("This recipe has no ingredients to add yet.");
+    return fail(say(LISTS.recipeHasNoIngredients));
   }
 
   const result = await writeRecipesToList(list, [recipe], readPantryKeep(formData));
@@ -517,7 +525,7 @@ export async function addRecipeIngredients(
   // Shopping" would be the one thing that did not happen. Said as a refusal because that
   // is what it is — there was nothing to do — and a cook who disagrees has the pantry
   // page to say so on.
-  if (added === 0) return fail("Nothing to add — the pantry already has all of it.");
+  if (added === 0) return fail(say(LISTS.pantryHasAll));
 
   return ok(pantryNote(covered, user.homeLanguage));
 }
@@ -536,6 +544,7 @@ export async function addMealPlanIngredients(
   formData: FormData,
 ): Promise<ActionResult | PantryDecision> {
   const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
   const list = await listInScope(String(formData.get("listId")));
   const week = weekStartOn(String(formData.get("week") ?? "")) ?? weekStartInZone(new Date());
 
@@ -544,7 +553,7 @@ export async function addMealPlanIngredients(
     where: { date: { in: weekDays(week) }, recipeId: { not: null } },
     select: { recipeId: true },
   });
-  if (plans.length === 0) return fail("Nothing is being cooked this week yet.");
+  if (plans.length === 0) return fail(say(LISTS.nothingCookedThisWeek));
 
   const recipes = await db.recipe.findMany({
     where: { id: { in: [...new Set(plans.map((plan) => plan.recipeId!))] } },
@@ -562,13 +571,13 @@ export async function addMealPlanIngredients(
 
   const withIngredients = cooking.filter((recipe) => dedupedIngredients(recipe.ingredients).size > 0);
   if (withIngredients.length === 0) {
-    return fail("None of this week's recipes have ingredients to add yet.");
+    return fail(say(LISTS.weekHasNoIngredients));
   }
 
   const result = await writeRecipesToList(list, withIngredients, readPantryKeep(formData));
   if ("needsDecision" in result) return result;
   const { covered, added } = result;
-  if (added === 0) return fail("Nothing to add — the pantry already has all of it.");
+  if (added === 0) return fail(say(LISTS.pantryHasAll));
 
   return ok(pantryNote(covered, user.homeLanguage));
 }

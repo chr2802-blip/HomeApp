@@ -1,4 +1,7 @@
+import type { HomeLanguage } from "@prisma/client";
 import { ingredientLines, shoppingText } from "./recipes";
+import { MEALS } from "./copy/meals";
+import { sayIn } from "./copy/say";
 
 /**
  * A recipe as the ranking needs to see it: what it is called, and what it asks the
@@ -143,6 +146,6 @@ export function rankByOverlap({
  * "Shares 4 of 6 ingredients" is something a cook can disagree with by looking at the
  * recipe; a number out of ten is something they can only take on trust.
  */
-export function suggestionReason({ shared, total }: MealSuggestion) {
-  return `Shares ${shared} of ${total} ingredients with the week`;
+export function suggestionReason({ shared, total }: MealSuggestion, language: HomeLanguage) {
+  return sayIn(language)(MEALS.sharesWithWeek, { shared, count: total });
 }

@@ -44,8 +44,10 @@ export function costMicros(model: string, inputTokens: number, outputTokens: num
 }
 
 /**
- * What a home may spend on AI calls in a month, before anything is said about being
- * over it — nothing here stops a call past this, it only says so.
+ * What a home may spend on AI calls in a month. Both readers ask `overMonthlyLimit`
+ * before every call and answer as they do when the reader is down, so this is a limit
+ * rather than a number on Settings — though a home can land one call's worth past it,
+ * since what a call will cost is only known once it has been made.
  */
 export const MONTHLY_LIMIT_USD = 5;
 
@@ -116,6 +118,16 @@ export async function getHomeAiSpend(homeId: string, now: Date = new Date()): Pr
     _sum: { costMicros: true },
   });
   return toSpend(result._sum.costMicros ?? 0);
+}
+
+/**
+ * Whether a home has spent its month's allowance, asked by both readers before they call
+ * the model — in the reader rather than at each action, so there is one place every paid
+ * call passes and no way into the model that forgot to ask.
+ */
+export async function overMonthlyLimit(homeId: string, now: Date = new Date()): Promise<boolean> {
+  const spend = await getHomeAiSpend(homeId, now);
+  return spend.costMicros >= MONTHLY_LIMIT_USD * 1_000_000;
 }
 
 /** One home's share of the installation's AI spend, as the super admin's page lists them. */

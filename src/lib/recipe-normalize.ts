@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { HomeLanguage } from "@prisma/client";
 import type { RawExtract } from "./recipe-extract";
 import { UNIT_WORDS } from "./recipes";
-import { recordAiUsage } from "./ai-usage";
+import { overMonthlyLimit, recordAiUsage } from "./ai-usage";
 
 /**
  * Stage two of an import: reading raw text as a recipe. One pass, one opinion, for a web
@@ -232,7 +232,7 @@ export type NormalizedFields = {
  */
 export type NormalizeOutcome =
   | { ok: true; recipe: NormalizedFields }
-  | { ok: false; reason: "not-a-recipe" | "unavailable" };
+  | { ok: false; reason: "not-a-recipe" | "unavailable" | "over-limit" };
 
 /**
  * What each language is called in the system prompt's own words, so the instruction
@@ -351,6 +351,9 @@ export async function normalizeRecipe(
     logUnavailable("no_api_key", "ANTHROPIC_API_KEY is not set");
     return { ok: false, reason: "unavailable" };
   }
+  // Told apart from `unavailable` because the cook's next move differs: trying again in a
+  // moment will not help, and neither will the paste box, which comes to this same reader.
+  if (await overMonthlyLimit(homeId)) return { ok: false, reason: "over-limit" };
 
   let parsed: NormalizedRecipe | null;
   try {

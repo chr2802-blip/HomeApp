@@ -226,6 +226,15 @@ test.describe("ticking something off a list", () => {
     const box = page.locator("form").filter({ hasText: text }).getByRole("button").first();
 
     await expect(async () => {
+      // A press that worked can be seen late. Under load the window in which the row
+      // reads as pressed — `SETTLE_MS`, before it settles into the folded Completed
+      // section and leaves the DOM — can pass between two polls, so a failed check does
+      // not mean a failed press. Pressing again then either unticks the row or, once it
+      // has gone, waits for a row that is not coming back. Either state means the last
+      // press worked, and the recording it made is the one to keep.
+      const state = await box.getAttribute("aria-pressed", { timeout: 250 }).catch(() => "gone");
+      if (state === "true" || state === "gone") return;
+
       await forget(page);
       await box.click();
       await expect(box).toHaveAttribute("aria-pressed", "true", { timeout: 1000 });

@@ -98,4 +98,25 @@ export const LISTS = {
     EN: { one: "{count} change", other: "{count} changes" },
     DA: { one: "{count} ændring", other: "{count} ændringer" },
   },
+
+  // What the list actions refuse with.
+  nameRequired: { EN: "Give the list a name.", DA: "Giv listen et navn." },
+  itemRequired: { EN: "Write something to add.", DA: "Skriv noget, der skal på." },
+  alreadyOnListNamed: { EN: "“{name}” is already on the list.", DA: "“{name}” er allerede på listen." },
+  recipeHasNoIngredients: {
+    EN: "This recipe has no ingredients to add yet.",
+    DA: "Opskriften har ingen ingredienser at tilføje endnu.",
+  },
+  pantryHasAll: {
+    EN: "Nothing to add — the pantry already has all of it.",
+    DA: "Intet at tilføje — spisekammeret har det hele allerede.",
+  },
+  nothingCookedThisWeek: {
+    EN: "Nothing is being cooked this week yet.",
+    DA: "Der er ikke planlagt noget madlavning i denne uge endnu.",
+  },
+  weekHasNoIngredients: {
+    EN: "None of this week's recipes have ingredients to add yet.",
+    DA: "Ingen af ugens opskrifter har ingredienser at tilføje endnu.",
+  },
 } as const satisfies Record<string, Phrase | Plural>;
