@@ -18,11 +18,33 @@ import { ingredientLines, instructionLines } from "@/lib/recipes";
  * disagreement rather than salvaging part of it.
  */
 
+/**
+ * The version a breakdown is written with once the recipe it describes has been read into
+ * the one ingredient format (`ingredient-line.ts`). Version 1 is everything written
+ * before that format existed — still a perfectly good breakdown for action mode, but the
+ * recipe's lines were never tidied, so its next save reads it.
+ *
+ * Kept in the breakdown rather than a column of its own because the two are one fact: a
+ * breakdown is written by the same reading that tidied the lines, and cleared by any save
+ * the reader could not answer. A flag beside it could say "tidied" about a recipe whose
+ * breakdown had just been cleared.
+ */
+export const IN_FORMAT = 2;
+
+/**
+ * Whether a recipe's text is known to be in the one ingredient format already — which is
+ * what lets a save that leaves its ingredients and steps alone skip the reader entirely.
+ */
+export function isInFormat(cookSteps: unknown): boolean {
+  const read = StoredSteps.safeParse(cookSteps);
+  return read.success && read.data.v === IN_FORMAT;
+}
+
 /** The shape stored in `Recipe.cookSteps`, as written. Nothing here narrows: the column
  *  is read back defensively below, because a row written by an older version of this
  *  app is exactly the case the guards exist for. */
 const StoredSteps = z.object({
-  v: z.literal(1),
+  v: z.union([z.literal(1), z.literal(IN_FORMAT)]),
   steps: z.array(
     z.object({
       uses: z.array(z.number()).nullish(),

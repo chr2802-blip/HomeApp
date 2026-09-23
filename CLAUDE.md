@@ -220,7 +220,7 @@ and `readDayInZone` take a `Phrase` pattern and a language, because a pattern ca
 in `src/lib/ingredient-line.ts` — handed to **both** model calls, the importer's and the
 save's — tells the model to write the whole recipe (title, ingredients, steps, `reviewReason`)
 in the household's language, translating where it is in the other one. **That includes a
-recipe typed by hand**: every save is read, so every stored recipe ends up in its home's
+recipe typed by hand**: every recipe is read before it is stored, so every one ends up in its home's
 language, however it arrived. Which *word* a unit is spelled with is decided afterwards,
 deterministically, by `SAME_MEASURE` (`tsp`↔`tsk`, `tbsp`↔`spsk`, and so on) — never by the
 model, because a spelling has one right answer. Converting a cup, an ounce or a pound to
@@ -733,8 +733,9 @@ forward**, as lifting a right-hand page over does.
   `PantryItem.key` is.
 - **A write that changes `ingredients` or `instructions` also writes `cookSteps`** — to a
   fresh mapping, or to `DbNull` when the reader could not answer. Both writers are
-  `createRecipe` and `updateRecipe`, and **every save is read**, not only one that changed
-  the text (`readForSaving`); `tests/integration/recipes.test.ts` holds it. A reader that is
+  `createRecipe` and `updateRecipe`, and a save is read (`readForSaving`) except where the
+  answer cannot differ — see *Every ingredient line is …* below;
+  `tests/integration/recipes.test.ts` holds it. A reader that is
   down never fails a save: the recipe stores as written, the column clears.
   **Anything that changes how a save behaves has five call sites to check, not one**:
   `createRecipe` is handed in by `recipes/page.tsx` (to `NewRecipeDialog`) and
@@ -886,15 +887,20 @@ about which words to throw away.
 
 - **One description, one writer, two callers.** `src/lib/ingredient-line.ts` holds the rules
   (`ingredientRules`), the shape the model answers in (`IngredientSchema` — name, amount,
-  unit, group; **no field for preparation or a note**, because a field is a place to put
+  unit; **no field for preparation, a note or a component**, because a field is a place to put
   one) and the writer (`renderIngredient`). The importer and the save are both handed all
   three, word for word; `tests/unit/ai-readers.test.ts` asserts both prompts contain the
   same rules. Never write a third description of a line.
-- **The save decides what is stored.** Every `createRecipe` and `updateRecipe` goes through
-  `prepareCookSteps`, so an imported draft is read a second time (and comes back as it went
-  in), and a hand-typed recipe gets the same treatment. Recipes stored before this are
-  **not** migrated: editing one and saving brings it into the format, and so does the
-  "prepare" button in action mode.
+- **The save decides what is stored, and skips the reader only where the answer cannot
+  differ.** A hand-typed recipe and any changed line go through `prepareCookSteps`. An
+  import saved untouched stores the importer's own breakdown, carried in the form as a
+  token signed with `AUTH_SECRET` (`reading-token.ts`, `READING_FIELD`) that vouches only
+  for those exact lines in that home — the importer is handed `stepRules` too, so its
+  breakdown is the save's answer. An edit leaving both blocks alone skips the reader when
+  the recipe is already in the format: `IN_FORMAT` (`v: 2` on `cookSteps`, `src/lib/cook.ts`)
+  is written only by a reading under the format. Recipes stored before this (`v: 1`, or no
+  breakdown) are **not** migrated: any save of one reads it, and so does the "prepare"
+  button in action mode.
 - **What leaves a line goes into the steps, never nowhere** — the household's own decisions,
   each a bullet of `ingredientRules`: a cut (`i tern`) and a state (`stuetemperatur`) become
   or join a step; a size (`1 stort løg`) is `1 løg` and the step says "det store løg"; `efter
@@ -909,8 +915,9 @@ about which words to throw away.
   its number alone** (`2 æg`, never `2 stk æg` — a `stk` that arrives is dropped).
   **Units are metric**: the reader converts cups, ounces and pounds, choosing weight or
   volume for the ingredient; where a source gives two measures, the metric one is kept.
-- **The same ingredient in two components is two lines** (`50 g smør`, `100 g smør`) —
-  never merged across components, always merged within one.
+- **Each ingredient appears once in the whole recipe.** Butter in the dough and in the
+  filling is one line (`150 g smør`), with the steps saying how much goes where; different
+  units are converted before adding, so the total never under-buys.
 
 ### Sheets, folds, movement, and how a form submits
 

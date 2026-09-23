@@ -15,13 +15,18 @@ import { createHome } from "../helpers/factories";
  * says — every assertion below is about a photograph, and where it ended up filed.
  */
 
-const READ = {
+/** What the form is handed. The importer signs its reading, so a save that leaves the
+ *  text alone need not read it again; what the token says is `reading-token.test.ts`'s. */
+const IMPORTED = {
   title: "Pandekager",
   ingredients: "200 g mel",
   instructions: "Steg dem.",
   totalTimeMinutes: null,
   note: null,
+  reading: expect.any(String),
 };
+
+const READ = { ...IMPORTED, reading: undefined, steps: [{ uses: [0], minutes: null }] };
 
 const { normalizeRecipe } = vi.hoisted(() => ({ normalizeRecipe: vi.fn() }));
 
@@ -165,7 +170,7 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
 
     // A picture that cannot be read is decoration this recipe goes without, never a
     // reason to refuse a recipe that was otherwise perfectly readable.
-    expect(result).toEqual({ ok: true, recipe: { ...READ, photoId: null, videoUrl: null } });
+    expect(result).toEqual({ ok: true, recipe: { ...IMPORTED, photoId: null, videoUrl: null } });
     expect(await prisma.photo.count()).toBe(0);
   });
 
@@ -181,7 +186,7 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
 
     const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id, home.language);
 
-    expect(result).toEqual({ ok: true, recipe: { ...READ, photoId: null, videoUrl: null } });
+    expect(result).toEqual({ ok: true, recipe: { ...IMPORTED, photoId: null, videoUrl: null } });
     expect(await prisma.photo.count()).toBe(0);
   });
 
@@ -196,7 +201,7 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
 
     const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id, home.language);
 
-    expect(result).toEqual({ ok: true, recipe: { ...READ, photoId: null, videoUrl: null } });
+    expect(result).toEqual({ ok: true, recipe: { ...IMPORTED, photoId: null, videoUrl: null } });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(await prisma.photo.count()).toBe(0);
   });
@@ -378,7 +383,7 @@ describe("a reel's poster frame", () => {
       home.language,
     );
 
-    expect(result).toEqual({ ok: true, recipe: { ...READ, photoId: null, videoUrl: REEL } });
+    expect(result).toEqual({ ok: true, recipe: { ...IMPORTED, photoId: null, videoUrl: REEL } });
     expect(await prisma.photo.count()).toBe(0);
   });
 });

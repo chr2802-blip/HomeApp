@@ -3,7 +3,9 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import type { HomeLanguage } from "@prisma/client";
 import type { RawExtract } from "./recipe-extract";
-import { IngredientSchema, ingredientRules, languageRules, renderIngredient } from "./ingredient-line";
+import { IngredientSchema, ingredientRules, languageRules } from "./ingredient-line";
+import { PreparedStep, renderReading, stepRules } from "./cook-steps";
+import type { StoredStep } from "./cook";
 import { overMonthlyLimit, recordAiUsage } from "./ai-usage";
 
 /**
@@ -69,22 +71,10 @@ const MAX_TOKENS = 8_000;
 /** How much raw text is ever sent, so a pathological page cannot become a pathological bill. */
 const MAX_INPUT_CHARS = 24_000;
 
-const Step = z.object({
-  step: z
-    .string()
-    .describe("One thing to do, with no step number in front of it.")
-    .nullish(),
-  component: z
-    .string()
-    .describe("The component this step belongs to, matching an ingredient's group.")
-    .nullish(),
-});
-
 /**
- * What the reader hands back. Deliberately a little richer than what is stored: `group`
- * exists so the model can reason correctly about *not* merging the dough's butter with the
- * filling's, even though what is saved in the end is a flat list of lines. The ingredient
- * shape is `IngredientSchema` from `ingredient-line.ts`, the same one the save answers in.
+ * What the reader hands back. The ingredient shape is `IngredientSchema` from `ingredient-line.ts` and each step is `PreparedStep`
+ * from `cook-steps.ts` — the same shapes the save answers in, breakdown included, so an
+ * import saved untouched needs no second reading.
  *
  * Exported for `tests/unit/recipe-normalize.test.ts`, which hands it to `zodOutputFormat`
  * and checks what comes back out. The SDK's helper takes a `zod/v4` schema and this project
@@ -120,7 +110,7 @@ export const NormalizedRecipeSchema = z.object({
     )
     .nullish(),
   ingredients: z.array(IngredientSchema).default([]),
-  instructions: z.array(Step).default([]),
+  instructions: z.array(PreparedStep).default([]),
   needsReview: z
     .boolean()
     .describe("True when the text is cut off, sends the cook to a link for the amounts, or leaves out key quantities.")
@@ -141,6 +131,8 @@ export type NormalizedFields = {
   totalTimeMinutes: number | null;
   /** What the cook should look over before saving, or null. */
   note: string | null;
+  /** Action mode's breakdown of `instructions`, one entry per line of it. */
+  steps: StoredStep[];
 };
 
 /**
@@ -167,9 +159,10 @@ ${languageRules(language)}
 ${ingredientRules()}
 
 ### Instructions
-- One action per step, in order, with no step number in front (they are numbered when displayed).
+- In order, with no step number in front (they are numbered when displayed).
 - Remove repeated steps, repeated introductions, and the same method restated — scraped markup often carries a summary and the full method both.
-- \`component\` names the part of the dish a step belongs to, matching an ingredient's \`group\`, where the recipe works that way.
+
+${stepRules()}
 
 ### What to throw away
 Hashtags, @handles, "følg med for flere opskrifter", "link in bio", "gem den til senere", "save this", sponsor mentions, affiliate links, cookie notices, navigation, comment counts, and the writer's story about their grandmother. None of it is the dinner.
@@ -326,11 +319,11 @@ function logUnavailable(reason: string, detail: string) {
  *
  * Two consequences worth naming:
  *
- * **A group is never written as a heading line.** "Til dressingen:" on a line of its own
+ * **A component is never written as a heading line.** "Til dressingen:" on a line of its own
  * would be perfectly readable on the recipe page and would also go onto the shopping list as
- * an errand, because `writeRecipesToList` walks every line. So the components live in the
- * model's reasoning — which is what stops the dough's butter being merged with the
- * filling's — and surface only as a prefix on the steps, which nothing parses.
+ * an errand, because `writeRecipesToList` walks every line. So the components surface only
+ * in the wording of the steps, which nothing parses — and an ingredient two components share
+ * is one line, with the steps saying how much goes where.
  *
  * **A line is an amount, a unit and the thing bought, and nothing else.** Everything the
  * source said about preparing, sizing or seasoning an ingredient was moved into the steps
@@ -343,19 +336,7 @@ export function renderNormalized(
   raw: RawExtract,
   language: HomeLanguage,
 ): NormalizedFields {
-  const ingredients = parsed.ingredients
-    .map((item) => renderIngredient(item, language))
-    .filter(Boolean)
-    .join("\n");
-
-  const instructions = parsed.instructions
-    .map(({ step, component }) => {
-      const text = step?.trim() ?? "";
-      if (!text) return "";
-      return component?.trim() ? `${component.trim()}: ${text}` : text;
-    })
-    .filter(Boolean)
-    .join("\n");
+  const { ingredients, instructions, steps } = renderReading(parsed.ingredients, parsed.instructions, language);
 
   return {
     title: (parsed.title?.trim() || raw.rawTitle?.trim() || "").slice(0, 200),
@@ -365,6 +346,7 @@ export function renderNormalized(
     // the answer; anything read back out of prose is an inference, however good.
     totalTimeMinutes: raw.timeHintMinutes ?? cookingMinutes(parsed.totalTimeMinutes),
     note: parsed.needsReview ? (parsed.reviewReason?.trim() || null) : null,
+    steps,
   };
 }
 

@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { createRecipe, deleteRecipe, prepareRecipeSteps, updateRecipe } from "@/app/actions/recipes";
 import { MONTHLY_LIMIT_USD } from "@/lib/ai-usage";
 import { RECIPES } from "@/lib/copy/recipes";
+import { IN_FORMAT } from "@/lib/cook";
+import { READING_FIELD } from "@/lib/recipes";
+import { signReading } from "@/lib/reading-token";
 import {
   createHome,
   createHomeWithMembers,
@@ -522,17 +525,48 @@ describe("what a save leaves in cookSteps", () => {
   });
 
   /*
-   * Every save is read, not only one that changed the text: that is how a recipe stored
-   * before the one ingredient format existed is brought into it — edit anything, save. So
-   * a title-only edit asks the reader too, and with none to answer here it stores the
+   * A recipe never read into the one ingredient format is read on any save, even one that
+   * changed neither block: that is how a recipe stored before the format existed is
+   * brought into it — edit anything, save. With no reader to answer here, it stores the
    * recipe as written and clears the breakdown, exactly as any other save would.
    */
-  it("reads a save that changed neither block too", async () => {
+  it("reads a recipe from before the format on a save that changed neither block", async () => {
     const recipe = await seedPrepared();
 
     await edit(recipe, { title: "Better pancakes", description: "Improved" });
 
     expect(await only()).toMatchObject({ title: "Better pancakes", ingredients: "Flour\nMilk", cookSteps: null });
+  });
+
+  /*
+   * One already in the format costs no reading where its text was left alone: a title, a
+   * picture or a category is nothing the reader looks at. The breakdown is left exactly as
+   * it was — with no reader here, a reading would have cleared it.
+   */
+  it("leaves a recipe already in the format alone where neither block changed", async () => {
+    const recipe = await seedPrepared();
+    const inFormat = { v: IN_FORMAT, steps: prepared.steps };
+    await prisma.recipe.update({
+      where: { id: recipe.id },
+      data: { ingredients: "Flour\nMilk", instructions: "Mix and fry.", cookSteps: inFormat },
+    });
+
+    // A textarea sends its lines back with `\r\n`; that is the same text.
+    await edit(recipe, { title: "Better pancakes", ingredients: "Flour\r\nMilk\r\n" });
+
+    expect(await only()).toMatchObject({ title: "Better pancakes", cookSteps: inFormat });
+  });
+
+  it("still reads a recipe already in the format once a block has changed", async () => {
+    const recipe = await seedPrepared();
+    await prisma.recipe.update({
+      where: { id: recipe.id },
+      data: { ingredients: "Flour\nMilk", instructions: "Mix and fry.", cookSteps: { v: IN_FORMAT, steps: prepared.steps } },
+    });
+
+    await edit(recipe, { ingredients: "Flour\nMilk\nSalt" });
+
+    expect((await only()).cookSteps).toBeNull();
   });
 
   it("saves the recipe anyway when the reader cannot answer", async () => {
@@ -541,6 +575,53 @@ describe("what a save leaves in cookSteps", () => {
     await edit(recipe, { instructions: "Mix.\nFry.", title: "Better pancakes" });
 
     expect(await only()).toMatchObject({ title: "Better pancakes", instructions: "Mix.\nFry." });
+  });
+
+  /*
+   * An import saved untouched is stored as the importer read it: the form carries the
+   * importer's signed reading, and the save needs no reader to answer — there is none
+   * here, and the breakdown arrives anyway.
+   */
+  it("stores an import saved untouched as the importer read it, without reading it again", async () => {
+    const imported = { ingredients: "400 g pasta\nsalt", instructions: "Kog pastaen.\nSmag til med salt.", steps: [{ uses: [0], minutes: 10 }, { uses: [1], minutes: null }] };
+
+    await captureRedirect(() =>
+      createRecipe(
+        undefined,
+        formData({
+          title: "Pasta",
+          categoryIds: [category.id],
+          ingredients: imported.ingredients,
+          instructions: imported.instructions,
+          [READING_FIELD]: signReading(home.id, imported)!,
+        }),
+      ),
+    );
+
+    expect(await only()).toMatchObject({
+      ingredients: imported.ingredients,
+      cookSteps: { v: IN_FORMAT, steps: imported.steps },
+    });
+  });
+
+  it("reads an import whose text was edited before saving, as it would anything typed", async () => {
+    const imported = { ingredients: "400 g pasta", instructions: "Kog pastaen.", steps: [{ uses: [0], minutes: 10 }] };
+
+    await captureRedirect(() =>
+      createRecipe(
+        undefined,
+        formData({
+          title: "Pasta",
+          categoryIds: [category.id],
+          ingredients: "400 g pasta, kogt al dente",
+          instructions: imported.instructions,
+          [READING_FIELD]: signReading(home.id, imported)!,
+        }),
+      ),
+    );
+
+    // No reader here, so what was typed is stored as typed — and nothing vouches for it.
+    expect(await only()).toMatchObject({ ingredients: "400 g pasta, kogt al dente", cookSteps: null });
   });
 
   it("writes nothing for a recipe created while the reader is down", async () => {

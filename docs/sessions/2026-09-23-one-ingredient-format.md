@@ -2,7 +2,7 @@
 
 - **Date** — 2026-09-23
 - **Branch** — `claude/recipe-ingredient-normalization-tsi5pe`
-- **PR** — not opened yet
+- **PR** — #123
 - **Reached production** — not yet
 
 ## The idea
@@ -49,15 +49,29 @@ section, *Every ingredient line is an amount, a unit and the thing bought*.
 
 ## Decided rather than known
 
-- Every save re-reads the recipe, including a title-only edit. This follows from "AI rewrites
-  on every save" and from the choice to tidy old recipes by editing them, but it costs one
-  model call per save.
+- Every save re-read the recipe at first, including a title-only edit. The household found
+  the waiting too long, so two saves now skip the call (see below).
+- The importer now answers the breakdown too, carried through the form in a token signed
+  with `AUTH_SECRET`. Chosen over trusting a hidden field so that a browser cannot claim
+  arbitrary text is already in the format.
+- The "in the format" marker is the breakdown's version (`v: 2`), not a new column.
+- Merging one ingredient across components with different units (weight and volume) is
+  left to the reader's conversion, the same judgement it makes for cups.
 - The save's reader moved from `low` effort to `medium` with adaptive thinking (the importer
   found `low` missed preparation matches), with a 30-second timeout and 8,000 max tokens.
   Not measured against real recipes.
 - The title is translated along with the rest when the save reads it.
 - A recipe with ingredients but no instructions is still sent to the reader, so its lines
   are normalised; only a recipe with neither skips the model.
+
+## Second round, same session
+
+The household asked where the wait could be skipped, and changed one answer: the same
+ingredient in two components is now **one line**, not two (the `group` field went with it).
+Two skips were added: an import saved untouched stores the importer's own signed breakdown,
+and an edit that leaves both blocks alone skips the reader on a recipe already in the format.
+The cost behind this round: the first round did not ask how long Save was allowed to take,
+and "AI rewrites on every save" was taken literally.
 
 ## Left over
 

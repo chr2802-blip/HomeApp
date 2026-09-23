@@ -143,7 +143,9 @@ suggestions on it. So `renderNormalized` is written against what those four can 
 - **A component is never a heading line of its own.** "Til dressingen:" would read perfectly
   well on the recipe page and would also go onto the shopping list as an errand. So the
   groups live in the model's reasoning — which is what stops the dough's butter being merged
-  with the filling's — and surface only as a prefix on the steps, which nothing parses.
+  with the filling's — and surface only as a prefix on the steps, which nothing parses. *(Superseded 2026-09-23:
+  the household wants each ingredient once, so the dough's butter and the filling's are one
+  line and the steps say how much goes where; the `group` field is gone.)*
 - **Amounts are written as a cook writes them**: `1.5` becomes `1½`, and anything that is not
   a familiar fraction gets a comma. Both shapes are ones `LEADING_AMOUNT` already matches.
 
@@ -588,7 +590,7 @@ bullet of `ingredientRules` in `src/lib/ingredient-line.ts`:
 | `1 cup mel` | grams or decilitres, the reader's choice | — |
 | `1 dåse hakkede tomater (400 g)` | `400 g hakkede tomater` | — |
 | `græsk yoghurt 10%`, `kyllingebryst uden skind` | kept whole | these change what is bought |
-| butter in the dough and in the filling | two lines | never merged across components |
+| butter in the dough and in the filling | `150 g smør`, once | the steps say 50 g to the dough, the rest to the filling |
 
 **Why the save and not the form.** A rule that only the importer follows leaves every
 hand-typed recipe outside it, and a rule applied in the browser would be a second writer. So
@@ -617,3 +619,29 @@ The earlier rule was right about the question it asked — respelling `tsp` as `
 right answer and belongs in a table — but a cup of flour is not a volume a Danish kitchen
 measures flour in, and the right conversion depends on the ingredient, which is a judgement a
 table cannot make.
+
+### The second reading is skipped wherever it could only give the same answer
+
+*2026-09-23, same day.* Reading every save made Save wait on the model every time, and
+the household noticed. Two saves could never get a different answer, so they no longer ask:
+
+- **An import saved untouched.** The importer now answers the breakdown too — each step's
+  `uses` and `minutes` — under the same `stepRules` the save's reader is given, so its
+  reading is already everything a save would store. It travels through the form as a token
+  signed with `AUTH_SECRET` (`src/lib/reading-token.ts`, field `READING_FIELD`), naming the
+  home and the exact lines it was about. `createRecipe` stores that breakdown without a call
+  when the signature holds, the home matches, and the ingredients and steps are line for
+  line what was read. Edit one line and the token vouches for nothing; the save reads the
+  recipe as it would one typed by hand. Signed rather than trusted, because the breakdown
+  also claims "this text is in the format", and a claim a browser could make about any text
+  would make the format a suggestion.
+- **An edit that leaves the ingredients and steps alone, on a recipe already in the
+  format.** `IN_FORMAT` in `src/lib/cook.ts` is the breakdown's version (`v: 2`): written
+  only by a reading done under the one format. A recipe from before it (`v: 1`, or no
+  breakdown) is still read on any save — that is how old recipes get tidied — but a
+  title, picture or category change on one already in the format costs nothing. It lives
+  in the breakdown rather than a column beside it because it is the same fact: a save the
+  reader could not answer clears both at once.
+
+What is still read: a recipe typed from scratch, any save that changed a line, an old
+recipe's first save, and the "prepare" button.
