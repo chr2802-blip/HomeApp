@@ -162,7 +162,6 @@ export const RECIPES = {
 
   // Action mode — src/components/cook-mode.tsx
   cookingTitle: { EN: "Cooking {title}", DA: "Laver {title}" },
-  finished: { EN: "Finished", DA: "Færdig" },
   stepOfTotal: { EN: "Step {number} of {total}", DA: "Trin {number} af {total}" },
   stepNumber: { EN: "Step {number}", DA: "Trin {number}" },
   timerDone: { EN: "done", DA: "færdig" },
@@ -177,11 +176,8 @@ export const RECIPES = {
   preparing: { EN: "Preparing…", DA: "Forbereder…" },
   backButton: { EN: "Back", DA: "Tilbage" },
   start: { EN: "Start", DA: "Start" },
-  finish: { EN: "Finish", DA: "Afslut" },
+  complete: { EN: "Complete", DA: "Afslut" },
   next: { EN: "Next", DA: "Næste" },
-  thatIsDinner: { EN: "That is dinner.", DA: "Så er der mad." },
-  everyStepDone: { EN: "Every step done.", DA: "Alle trin er klaret." },
-  backToRecipe: { EN: "Back to the recipe", DA: "Tilbage til opskriften" },
 
   // Recipe categories, on /settings — src/components/recipe-categories-admin.tsx
   recipeCategoriesHeading: { EN: "Recipe categories", DA: "Opskriftskategorier" },

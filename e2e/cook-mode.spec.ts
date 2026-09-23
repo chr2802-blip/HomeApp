@@ -152,15 +152,37 @@ test("covers the app's own chrome, and gives a way back at the end", async ({ pa
   );
   expect(covered).toBe(true);
 
-  for (const label of ["Start", "Next", "Next", "Finish"]) {
+  for (const label of ["Start", "Next", "Next", "Complete"]) {
     await surface.getByRole("button", { name: label, exact: true }).click();
   }
 
-  await expect(surface.getByRole("heading", { name: "That is dinner." })).toBeVisible();
-
-  await surface.getByRole("link", { name: "Back to the recipe" }).click();
+  // Completing the last step is a close, not one more page: there is nothing after it
+  // to turn to.
   await expect(page).toHaveURL(`/recipes/${recipe.id}`);
   await expect(page.getByRole("heading", { name: "Ovnkartofler" })).toBeVisible();
+});
+
+test("closes on the first page and completes on the last, both without a Back to fall on", async ({
+  page,
+}) => {
+  const recipe = await seedPrepared();
+  let surface = await openCookMode(page, recipe.id);
+
+  // Nothing to turn back to from the mise en place, so the left action closes instead.
+  await expect(surface.getByRole("button", { name: "Back", exact: true })).toHaveCount(0);
+  await surface.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page).toHaveURL(`/recipes/${recipe.id}`);
+
+  surface = await openCookMode(page, recipe.id);
+  for (const label of ["Start", "Next", "Next"]) {
+    await surface.getByRole("button", { name: label, exact: true }).click();
+  }
+
+  // On the last step there is nowhere left to turn to either, so the right action reads
+  // Complete rather than Next and closes the mode the same way.
+  await expect(surface.getByRole("button", { name: "Next", exact: true })).toHaveCount(0);
+  await surface.getByRole("button", { name: "Complete", exact: true }).click();
+  await expect(page).toHaveURL(`/recipes/${recipe.id}`);
 });
 
 test("counts a step's own time down while the pages keep turning", async ({ page }) => {
