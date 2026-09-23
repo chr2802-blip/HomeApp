@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { HomeLanguage } from "@prisma/client";
 import { Input, Label, Textarea } from "@/components/ui";
 import { PhotoField } from "@/components/photo-field";
-import { CATEGORY_FIELD } from "@/lib/recipes";
+import { CATEGORY_FIELD, READING_FIELD } from "@/lib/recipes";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
 import { SETTINGS } from "@/lib/copy/settings";
@@ -18,6 +18,8 @@ export type RecipeValues = {
   videoUrl?: string | null;
   photoId?: string | null;
   totalTimeMinutes?: number | null;
+  /** An import's signed reading of the ingredients and steps — see `READING_FIELD`. */
+  reading?: string | null;
 };
 
 export type CategoryOption = { id: string; name: string };
@@ -119,6 +121,7 @@ export function RecipeFields({
 
   return (
     <>
+      {recipe?.reading && <input type="hidden" name={READING_FIELD} value={recipe.reading} />}
       <div className="space-y-1">
         <Label htmlFor="title">{say(RECIPES.titleField)}</Label>
         <Input id="title" name="title" defaultValue={recipe?.title ?? ""} required />

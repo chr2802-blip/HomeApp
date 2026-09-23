@@ -4,6 +4,7 @@ import { MAX_EDGE, THUMB_EDGE } from "./downscale";
 import { storePhoto } from "./photos";
 import { extractFromHtml, type RawExtract } from "./recipe-extract";
 import { normalizeRecipe } from "./recipe-normalize";
+import { signReading } from "./reading-token";
 import {
   captionFromHtml,
   captionFromOEmbed,
@@ -60,6 +61,12 @@ export type ImportedRecipe = {
    * lost. The form is already a review step; this says where in it to look.
    */
   note: string | null;
+  /**
+   * The importer's reading of these very ingredients and steps, signed
+   * (`reading-token.ts`). The form sends it back with the save, which stores it as it
+   * stands wherever the text was left alone, rather than reading the recipe again.
+   */
+  reading: string | null;
 };
 
 /**
@@ -378,6 +385,7 @@ async function finish(
       instructions: read.recipe.instructions,
       totalTimeMinutes: read.recipe.totalTimeMinutes,
       note: read.recipe.note,
+      reading: signReading(homeId, read.recipe),
       photoId,
       videoUrl: options.videoUrl ?? (raw.kind === "reel" ? raw.sourceUrl : null),
     },

@@ -5,7 +5,13 @@ import { z } from "zod";
 import { overMonthlyLimit, recordAiUsage } from "./ai-usage";
 import type { StoredStep } from "./cook";
 import type { HomeLanguage } from "@prisma/client";
-import { IngredientSchema, ingredientRules, languageRules, renderIngredient } from "./ingredient-line";
+import {
+  IngredientSchema,
+  ingredientRules,
+  languageRules,
+  renderIngredient,
+  type ParsedIngredient,
+} from "./ingredient-line";
 import { ingredientLines, instructionLines } from "./recipes";
 
 /**
@@ -79,7 +85,7 @@ export const MAX_INPUT_CHARS = 12_000;
  * `uses` is the one that matters most here: without its description the model has no way
  * to know the numbers are its own ingredient answer.
  */
-const PreparedStep = z.object({
+export const PreparedStep = z.object({
   step: z
     .string()
     .describe(
@@ -109,6 +115,34 @@ export const PreparedStepsSchema = z.object({
 });
 
 export type PreparedSteps = z.infer<typeof PreparedStepsSchema>;
+export type PreparedStepAnswer = z.infer<typeof PreparedStep>;
+
+/**
+ * The rules for a recipe's steps and what each one uses — handed word for word to the
+ * importer as well as to this reader, because the importer now answers the breakdown too:
+ * an import saved without its text being touched is stored as the importer read it,
+ * without asking this reader the same question again (see `reading-token.ts`). Two
+ * callers, one set of rules, so either answer is one this household would have got from
+ * the other.
+ */
+export function stepRules(): string {
+  return `### The steps
+- Keep, as far as the job allows, the recipe's own words. This is the household's recipe, not yours.
+- **One unit of work per step** — one thing a cook does before looking up again. A run-on instruction that covers three separate jobs becomes three steps. Two half-sentences that are really one action become one.
+- **Each step must stand on its own**, because it will be read with nothing else on screen. "Repeat with the rest" needs to say what is being repeated.
+- Carry a component heading into the steps that belong to it ("Til dressingen: pisk ..."), never as a step of its own — a step that is only a heading is a screen a cook swipes past.
+- Add a step only where the ingredient rules above need one, to say what used to sit on an ingredient line. No preheating the recipe never mentions, no washing up, no serving suggestion of your own.
+- Drop anything that is not cooking: "god fornøjelse", "husk at tagge mig", a note about the photograph.
+
+### Which ingredients each step uses
+- \`uses\` holds the **positions** of ingredients in your own \`ingredients\` answer — zero-based, so the first ingredient you return is 0.
+- An ingredient goes on **every step that uses it**. Salt used twice is listed twice.
+- A step that uses nothing — "lad dejen hvile", "forvarm ovnen" — has an empty list.
+
+### Each step's own time
+- \`minutes\` is this **step's own** timing where the recipe states it: "bag i 20 minutter" is 20, "kog pastaen efter anvisningen" is null.
+- Never a guess, and never the whole dish's time on one step.`;
+}
 
 function systemPrompt(language: HomeLanguage): string {
   return `You read a household's own recipe as it is being saved, and return it in the one shape every recipe in this household is stored in: clean ingredient lines, and steps for a hands-free cooking mode, where one step fills the screen at a time with only the ingredients that step needs beside it.
@@ -123,22 +157,7 @@ ${languageRules(language)}
 
 ${ingredientRules()}
 
-### The steps
-- Keep, as far as the job allows, the recipe's own words. This is the household's recipe, not yours.
-- **One unit of work per step** — one thing a cook does before looking up again. A run-on instruction that covers three separate jobs becomes three steps. Two half-sentences that are really one action become one.
-- **Each step must stand on its own**, because it will be read with nothing else on screen. "Repeat with the rest" needs to say what is being repeated.
-- Carry a component heading into the steps that belong to it ("Til dressingen: pisk ..."), never as a step of its own — a step that is only a heading is a screen a cook swipes past.
-- Add a step only where the ingredient rules above need one, to say what used to sit on an ingredient line. No preheating the recipe never mentions, no washing up, no serving suggestion of your own.
-- Drop anything that is not cooking: "god fornøjelse", "husk at tagge mig", a note about the photograph.
-
-### Which ingredients each step uses
-- \`uses\` holds the **positions** of ingredients in your own \`ingredients\` answer — zero-based, so the first ingredient you return is 0.
-- An ingredient goes on **every step that uses it**. Salt used twice is listed twice.
-- A step that uses nothing — "lad dejen hvile", "forvarm ovnen" — has an empty list.
-
-### The time
-- \`minutes\` is this **step's own** timing where the recipe states it: "bag i 20 minutter" is 20, "kog pastaen efter anvisningen" is null.
-- Never a guess, and never the whole dish's time on one step.
+${stepRules()}
 
 ## Important
 
@@ -179,11 +198,27 @@ function userMessage(recipe: { title: string; ingredients: string; instructions:
  *   the wrong step at the hob.
  */
 export function readAnswer(parsed: PreparedSteps, language: HomeLanguage) {
+  return {
+    title: parsed.title?.trim().slice(0, 200) || null,
+    ...renderReading(parsed.ingredients, parsed.steps, language),
+  };
+}
+
+/**
+ * The ingredients and steps of a reading, written out as a recipe is stored — shared by
+ * this reader and the importer, which answer in the same shape so that an import saved
+ * untouched can be stored exactly as it was read.
+ */
+export function renderReading(
+  ingredients: ParsedIngredient[],
+  answered: PreparedStepAnswer[],
+  language: HomeLanguage,
+) {
   const lines: string[] = [];
   /** The model's position → the stored line's position, for every ingredient kept. */
   const position = new Map<number, number>();
 
-  parsed.ingredients.forEach((item, index) => {
+  ingredients.forEach((item, index) => {
     const line = renderIngredient(item, language);
     if (!line) return;
     position.set(index, lines.length);
@@ -193,7 +228,7 @@ export function readAnswer(parsed: PreparedSteps, language: HomeLanguage) {
   const steps: string[] = [];
   const breakdown: StoredStep[] = [];
 
-  for (const step of parsed.steps) {
+  for (const step of answered) {
     // A newline inside a step would split it into two on the way back out, and the
     // breakdown would then be describing the wrong lines from there on.
     const text = step.step?.trim().replace(/\s*\n+\s*/g, " ");
@@ -212,12 +247,7 @@ export function readAnswer(parsed: PreparedSteps, language: HomeLanguage) {
     });
   }
 
-  return {
-    title: parsed.title?.trim().slice(0, 200) || null,
-    ingredients: lines.join("\n"),
-    instructions: steps.join("\n"),
-    steps: breakdown,
-  };
+  return { ingredients: lines.join("\n"), instructions: steps.join("\n"), steps: breakdown };
 }
 
 /** Zero, a negative, a fraction and an infinity all mean "the recipe did not say". */

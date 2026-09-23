@@ -71,9 +71,9 @@ export const UNITS = [
 ] as const;
 
 /**
- * One ingredient as a reader answers it. `group` is never written onto the line — it
- * exists so the model can reason about *not* merging the dough's butter with the
- * filling's, and so a step can be tied to its component.
+ * One ingredient as a reader answers it: what is bought, how much, in what unit. An
+ * ingredient appears once however many parts of the dish use it, so there is no field
+ * saying which part — the steps say how much goes where.
  *
  * The same two traps as every schema sent to the model, and both are load-bearing:
  * nothing narrows a value (the SDK validates the answer against this original schema, so
@@ -101,12 +101,6 @@ export const IngredientSchema = z.object({
     .string()
     .describe(
       `Exactly one of: ${UNITS.join(", ")}. Null for counted things ('2 æg') and for anything unmeasured.`,
-    )
-    .nullish(),
-  group: z
-    .string()
-    .describe(
-      "The component this belongs to where the recipe separates them: 'Dej', 'Dressing', 'Marinade'. Null for a recipe with one component.",
     )
     .nullish(),
 });
@@ -158,9 +152,8 @@ Every ingredient is answered as \`name\`, \`amount\` and \`unit\`, and **nothing
 - **Amounts are decimals**: "1 1/2" and "1½" are both 1.5. **A range takes the higher number** — "2-3 fed hvidløg" is 3 — and the range itself is not kept anywhere.
 - **Counted things have no unit**: "2 æg", "3 kartofler". Leave \`unit\` null even where the text wrote "stk".
 - **Units are metric.** Keep g, kg, dl, cl, ml, l, tsk, spsk, tsp, tbsp and the kitchen's own measures (fed, dåse, pakke, glas, bundt, skive, håndfuld, knivspids) exactly as written. Convert cups, ounces, pounds, pints, fluid ounces and sticks of butter to metric: weigh what a metric cook weighs (flour, sugar, butter, cheese) in g, and measure liquids in dl or ml, rounding to an amount a cook would write. Where the text gives two measures for one ingredient ("1 dåse hakkede tomater (400 g)"), keep the metric one: \`amount: 400, unit: "g"\`.
-- **Deduplicate within a component**: the same ingredient listed twice in one part of the dish is one ingredient with the amounts added together. This happens constantly in scraped markup.
-- **Never merge across components.** Butter in "Til dejen" and butter in "Til fyldet" are two ingredients, each with its own amount and \`group\`. When the recipe has no components at all, \`group\` is null everywhere.
-- **A heading is never an ingredient.** "Til dressingen:" is a \`group\`, not a line.`;
+- **Each ingredient appears once in the whole recipe.** The same ingredient listed twice — in one part of the dish, or in two ("50 g smør" til dejen and "100 g smør" til fyldet) — is one ingredient with the amounts added together: "150 g smør". The steps then say how much goes where: "Tilsæt 50 g af smørret til dejen", "Brug resten af smørret (100 g) til fyldet". Where the two are in different units, convert one into the other before adding — exactly where the units are of the same kind (1 kg + 200 g is 1.2 kg; 1 spsk + 1 tsk is 4 tsk), and the way a metric cook would where one is weighed and the other measured by volume (1 spsk smør is about 15 g) — so the total is never less than the recipe uses.
+- **A heading is never an ingredient.** "Til dressingen:" is not a line; the steps that belong to it say so.`;
 }
 
 /**
