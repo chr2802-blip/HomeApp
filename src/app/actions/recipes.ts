@@ -12,7 +12,9 @@ import { homeScoped } from "@/lib/scoped";
 import { bodyText, optionalText, readForm, requiredText } from "@/lib/form";
 import { safeExternalHref } from "@/lib/embed";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
-import { ingredientLines, instructionLines, readCategoryChoice } from "@/lib/recipes";
+import { ingredientLines, instructionLines, READING_FIELD, readCategoryChoice } from "@/lib/recipes";
+import { IN_FORMAT, isInFormat } from "@/lib/cook";
+import { readingFor } from "@/lib/reading-token";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { sayIn, type Say } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
@@ -137,8 +139,18 @@ async function readForSaving(
     title: read.title,
     ingredients: read.ingredients,
     instructions: read.instructions,
-    cookSteps: { v: 1, steps: read.steps },
+    cookSteps: { v: IN_FORMAT, steps: read.steps },
   };
+}
+
+/**
+ * Whether two blocks of recipe text are the same lines, compared the way every reader
+ * splits them — a textarea sends `\r\n`, and a trailing blank line is not a new step.
+ */
+function sameText(a: string, b: string) {
+  const left = ingredientLines(a);
+  const right = ingredientLines(b);
+  return left.length === right.length && left.every((line, index) => line === right[index]);
 }
 
 /**
@@ -150,6 +162,28 @@ async function languageOf(homeId: string, user: { homeId: string | null; homeLan
   if (homeId === user.homeId) return user.homeLanguage;
   const home = await prisma.home.findUnique({ where: { id: homeId }, select: { language: true } });
   return home?.language ?? user.homeLanguage;
+}
+
+/**
+ * A new recipe's reading: the import's own, where the form carries one that still vouches
+ * for the text being saved (`reading-token.ts`), and a fresh one otherwise.
+ *
+ * An import saved untouched is the commonest way a recipe arrives, and the importer has
+ * already answered everything the save would ask — the lines in the one format, the steps,
+ * the breakdown — under the same rules. Asking again spends a paid call and up to half a
+ * minute behind the Save button to get the same answer back. The moment a line is edited
+ * the token no longer matches and the save reads it as it would anything typed by hand.
+ */
+async function readForCreating(
+  fields: RecipeText,
+  formData: FormData,
+  homeId: string,
+  userId: string,
+  language: HomeLanguage,
+) {
+  const imported = readingFor(formData.get(READING_FIELD), homeId, fields);
+  if (imported) return { cookSteps: { v: IN_FORMAT, steps: imported } };
+  return readForSaving(fields, homeId, userId, language);
 }
 
 /**
@@ -182,7 +216,7 @@ export async function createRecipe(_prev: ActionResult, formData: FormData): Pro
   const recipe = await prisma.recipe.create({
     data: {
       ...form.fields,
-      ...(await readForSaving(form.fields, user.homeId, user.id, user.homeLanguage)),
+      ...(await readForCreating(form.fields, formData, user.homeId, user.id, user.homeLanguage)),
       photoId: photo.photoId ?? null,
       homeId: user.homeId,
       createdById: user.id,
@@ -207,11 +241,17 @@ export async function updateRecipe(_prev: ActionResult, formData: FormData): Pro
   const photo = await readPhotoChoice(formData, recipe.homeId, user.homeLanguage);
   if (!photo.ok) return fail(photo.error);
 
-  // Read on every save, not only when the text changed: this is how a recipe stored before
-  // the one ingredient format existed is brought into it — edit anything and save. A recipe
-  // already in the format reads back as it went in.
-  const language = await languageOf(recipe.homeId, user);
-  const read = await readForSaving(form.fields, recipe.homeId, user.id, language);
+  // Read wherever the answer could differ from what is stored: the ingredients or the
+  // steps changed, or the recipe was never read into the one format — which is how a
+  // recipe stored before it existed is brought in: edit anything and save. A title, a
+  // picture or a category changed on a recipe already in the format costs no reading.
+  const untouched =
+    sameText(form.fields.ingredients, recipe.ingredients) &&
+    sameText(form.fields.instructions, recipe.instructions) &&
+    isInFormat(recipe.cookSteps);
+  const read = untouched
+    ? {}
+    : await readForSaving(form.fields, recipe.homeId, user.id, await languageOf(recipe.homeId, user));
 
   // The old pairings go before the new ones are written, in one transaction: a heading
   // that was ticked before and still is would otherwise be written twice, and a recipe
@@ -273,7 +313,7 @@ export async function prepareRecipeSteps(
       title: read.title,
       ingredients: read.ingredients,
       instructions: read.instructions,
-      cookSteps: { v: 1, steps: read.steps },
+      cookSteps: { v: IN_FORMAT, steps: read.steps },
     },
   });
 

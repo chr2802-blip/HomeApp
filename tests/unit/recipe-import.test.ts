@@ -36,6 +36,7 @@ function reads(fields: Partial<{ title: string; ingredients: string; instruction
       instructions: "Steg dem.",
       totalTimeMinutes: null,
       note: null,
+      steps: [{ uses: [0], minutes: null }],
       ...fields,
     },
   });
@@ -97,6 +98,8 @@ describe("fetchRecipeFromUrl", () => {
         photoId: null,
         totalTimeMinutes: null,
         note: null,
+        // Signed by the importer, so a save that leaves the text alone need not read it again.
+        reading: expect.any(String),
         videoUrl: null,
       },
     });
@@ -431,6 +434,8 @@ describe("fetchRecipeFromUrl — a reel", () => {
         photoId: null,
         totalTimeMinutes: null,
         note: null,
+        // Signed by the importer, so a save that leaves the text alone need not read it again.
+        reading: expect.any(String),
         videoUrl: REEL,
       },
     });
@@ -693,6 +698,8 @@ describe("importPastedCaption", () => {
         photoId: null,
         totalTimeMinutes: null,
         note: null,
+        // Signed by the importer, so a save that leaves the text alone need not read it again.
+        reading: expect.any(String),
         videoUrl: "https://www.instagram.com/reel/ABC123/",
       },
     });

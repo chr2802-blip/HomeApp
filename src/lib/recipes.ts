@@ -12,6 +12,13 @@ import { RECIPES } from "./copy/recipes";
 export const CATEGORY_FIELD = "categoryIds";
 
 /**
+ * The hidden field an imported recipe's form carries its signed reading in
+ * (`reading-token.ts`), so a save that leaves the imported text alone need not ask the
+ * reader the same question a second time.
+ */
+export const READING_FIELD = "reading";
+
+/**
  * The categories a submitted form chose: in the order the picker offered them, without
  * repeats, and with nothing blank.
  *

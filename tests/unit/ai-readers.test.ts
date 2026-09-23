@@ -28,7 +28,7 @@ vi.mock("@anthropic-ai/sdk", () => {
 const overMonthlyLimit = vi.fn();
 vi.mock("@/lib/ai-usage", () => ({ recordAiUsage: vi.fn(), overMonthlyLimit }));
 
-const { MAX_INPUT_CHARS, prepareCookSteps } = await import("@/lib/cook-steps");
+const { MAX_INPUT_CHARS, prepareCookSteps, stepRules } = await import("@/lib/cook-steps");
 const { normalizeRecipe } = await import("@/lib/recipe-normalize");
 const { ingredientRules, languageRules } = await import("@/lib/ingredient-line");
 
@@ -149,6 +149,10 @@ describe("the ingredient rules", () => {
     expect(importer).toContain(ingredientRules());
     expect(save).toContain(languageRules("DA"));
     expect(importer).toContain(languageRules("DA"));
+    // The importer answers the breakdown too, so an import saved untouched can be stored
+    // as it was read — which is only the same answer if it was asked the same way.
+    expect(save).toContain(stepRules());
+    expect(importer).toContain(stepRules());
   });
 });
 

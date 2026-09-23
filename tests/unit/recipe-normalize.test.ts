@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { NormalizedRecipeSchema, renderNormalized, type NormalizedRecipe } from "@/lib/recipe-normalize";
-import { SAME_MEASURE, UNITS } from "@/lib/ingredient-line";
+import { ingredientRules, SAME_MEASURE, UNITS } from "@/lib/ingredient-line";
 import type { RawExtract } from "@/lib/recipe-extract";
 import { ingredientLines, shoppingText } from "@/lib/recipes";
 import { pantryKey } from "@/lib/pantry";
@@ -48,7 +48,6 @@ function ingredient(overrides: Partial<NormalizedRecipe["ingredients"][number]>)
     name: "spaghetti",
     amount: null,
     unit: null,
-    group: null,
     ...overrides,
   };
 }
@@ -154,7 +153,7 @@ describe("the schema the reader must answer in", () => {
       "never '1 1/2'",
       "For a range, the higher number",
       "never a guess, and never zero",
-      "no step number in front of it",
+      "No step number in front of it",
       "sends the cook to a link for the amounts",
     ]) {
       expect(wire).toContain(guidance);
@@ -198,8 +197,8 @@ describe("an answer the wire schema permits", () => {
     isRecipe: true,
     title: "Boller",
     totalTimeMinutes: null,
-    ingredients: [{ name: "mel", amount: 500, unit: "g", group: null }],
-    instructions: [{ step: "Ælt det sammen.", component: null }],
+    ingredients: [{ name: "mel", amount: 500, unit: "g" }],
+    instructions: [{ step: "Ælt det sammen.", uses: [0], minutes: null }],
     needsReview: false,
     reviewReason: null,
   };
@@ -391,24 +390,17 @@ describe("renderNormalized — what reaches the shopping list and the pantry", (
   });
 
   /*
-   * A component heading would read perfectly well on the recipe page and would also go onto
-   * the shopping list as an errand, because `writeRecipesToList` walks every line. So the
-   * group stays in the model's reasoning — which is what stops the dough's butter being
-   * merged with the filling's — and never reaches the page.
+   * The household's rule: an ingredient appears once in the whole recipe, however many
+   * parts of the dish use it — the reader adds the amounts and the steps say how much goes
+   * where. There is no field left to say which part an ingredient belongs to, so nothing
+   * can reach the page as a heading line either.
    */
-  it("never writes a component as a heading line of its own", () => {
-    const { ingredients } = renderNormalized(
-      normalized({
-        ingredients: [
-          ingredient({ name: "smør", amount: 100, unit: "g", group: "Dej" }),
-          ingredient({ name: "smør", amount: 50, unit: "g", group: "Fyld" }),
-        ],
-      }),
-      RAW,
-      "DA",
-    );
+  it("has no way to say which part of the dish an ingredient belongs to", () => {
+    const wire = JSON.stringify(zodOutputFormat(NormalizedRecipeSchema).schema);
 
-    expect(ingredientLines(ingredients)).toEqual(["100 g smør", "50 g smør"]);
+    expect(wire).not.toContain('"group"');
+    expect(ingredientRules()).toContain("Each ingredient appears once in the whole recipe");
+    expect(ingredientRules()).not.toContain("Never merge across components");
   });
 });
 
@@ -417,8 +409,8 @@ describe("renderNormalized — the rest of the recipe", () => {
     const { instructions } = renderNormalized(
       normalized({
         instructions: [
-          { step: "Kog pastaen.", component: null },
-          { step: "Riv citronskallen i.", component: null },
+          { step: "Kog pastaen." },
+          { step: "Riv citronskallen i." },
         ],
       }),
       RAW,
@@ -428,14 +420,31 @@ describe("renderNormalized — the rest of the recipe", () => {
     expect(instructions).toBe("Kog pastaen.\nRiv citronskallen i.");
   });
 
-  it("names the component a step belongs to, since the ingredients cannot", () => {
-    const { instructions } = renderNormalized(
-      normalized({ instructions: [{ step: "Rør det hele sammen.", component: "Dressing" }] }),
+  /*
+   * The importer answers the breakdown too, in the save's own shape, so an import saved
+   * untouched is stored as it was read rather than read a second time. Its positions are
+   * into its own ingredient answer, and are renumbered past one it gave no name.
+   */
+  it("carries action mode's breakdown, pointing at the lines actually written", () => {
+    const { ingredients, instructions, steps } = renderNormalized(
+      normalized({
+        ingredients: [ingredient({ name: "pasta" }), ingredient({ name: " " }), ingredient({ name: "salt" })],
+        instructions: [
+          { step: "Kog pastaen.", uses: [0, 2], minutes: 10 },
+          { step: "  " },
+          { step: "Server.", uses: [] },
+        ],
+      }),
       RAW,
       "DA",
     );
 
-    expect(instructions).toBe("Dressing: Rør det hele sammen.");
+    expect(ingredientLines(ingredients)).toEqual(["pasta", "salt"]);
+    expect(instructions).toBe("Kog pastaen.\nServer.");
+    expect(steps).toEqual([
+      { uses: [0, 1], minutes: 10 },
+      { uses: [], minutes: null },
+    ]);
   });
 
   it("falls back to whatever the page called itself when the reader found no title", () => {
