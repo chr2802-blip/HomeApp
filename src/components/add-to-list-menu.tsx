@@ -80,7 +80,7 @@ export function AddToListMenu({
       // the household rather than guessed at either way. Nothing has been written yet —
       // confirming re-submits with an answer, which is the only path back to `action`.
       if (outcome && "needsDecision" in outcome) {
-        setDecision({ list, lines: outcome.lines, keep: new Set(outcome.lines.map((l) => l.key)) });
+        setDecision({ list, lines: outcome.lines, keep: new Set() });
         return;
       }
 
@@ -163,8 +163,10 @@ export function AddToListMenu({
       </p>
 
       {/* Only for the lines the pantry can't answer for on its own — a line it has
-          none of or all of never reaches here at all. Checked by default: leaving
-          every box alone adds the same lines a press always used to. */}
+          none of or all of never reaches here at all. Unchecked by default: leaving
+          every box alone adds none of them, the same as a line the pantry answered
+          for outright — the help text says so, since a silent default here would
+          read as the app having simply dropped them. */}
       <Modal
         open={decision !== null}
         onClose={() => setDecision(null)}
@@ -173,6 +175,7 @@ export function AddToListMenu({
         {decision && (
           <>
             <ModalBody className="space-y-3">
+              <p className="text-sm text-slate-500">{say(APP.addToList.decisionHelp)}</p>
               {decision.lines.map((line) => (
                 <label key={line.key} className="flex items-start gap-2.5 text-sm">
                   <input
