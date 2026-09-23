@@ -1,6 +1,8 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { createRecipe, deleteRecipe, updateRecipe } from "@/app/actions/recipes";
+import { createRecipe, deleteRecipe, prepareRecipeSteps, updateRecipe } from "@/app/actions/recipes";
+import { MONTHLY_LIMIT_USD } from "@/lib/ai-usage";
+import { RECIPES } from "@/lib/copy/recipes";
 import {
   createHome,
   createHomeWithMembers,
@@ -553,5 +555,71 @@ describe("what a save leaves in cookSteps", () => {
     // The cook's own steps survive untouched — a reader that could not read them has no
     // opinion about them.
     expect(recipe.instructions).toBe("Ælt.\nBag.");
+  });
+});
+
+/**
+ * The two ways into a paid model call besides the importer: a save that changes the text,
+ * and the "prepare" button. Both are counted against the person pressing, and both are
+ * refused once the home has spent its month — the second of which is asked inside the
+ * reader, so these need a key in the environment to get that far. Nothing reaches the
+ * network: every case here is turned away before a client is built.
+ */
+describe("what bounds a call to the reader", () => {
+  const press = (recipeId: string) => prepareRecipeSteps(undefined, formData({ recipeId }));
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("turns the ninth preparation in a quarter of an hour away, and says when to come back", async () => {
+    const recipe = await seedRecipe({ homeId: home.id, createdById: member.id, categoryIds: [category.id] });
+
+    for (let i = 0; i < 8; i++) {
+      expect(await press(recipe.id)).toEqual({ ok: false, error: RECIPES.prepareReaderUnavailable.EN });
+    }
+
+    expect(await press(recipe.id)).toEqual({
+      ok: false,
+      error: expect.stringMatching(/^That's a lot of preparing at once\. Try again in \d+ min\.$/),
+    });
+  });
+
+  it("still saves a recipe once its author is over the limit, and clears its breakdown", async () => {
+    const recipe = await seedRecipe({ homeId: home.id, createdById: member.id, categoryIds: [category.id] });
+    await prisma.recipe.update({ where: { id: recipe.id }, data: { cookSteps: { v: 1, steps: [{ uses: [0], minutes: null }] } } });
+    for (let i = 0; i < 8; i++) await press(recipe.id);
+
+    await expectRedirect(
+      () =>
+        updateRecipe(
+          undefined,
+          formData({
+            recipeId: recipe.id,
+            categoryIds: [category.id],
+            title: "Pancakes",
+            ingredients: "Flour\nMilk",
+            instructions: "Mix.\nFry.",
+          }),
+        ),
+      `/recipes/${recipe.id}`,
+    );
+
+    expect(await only()).toMatchObject({ instructions: "Mix.\nFry.", cookSteps: null });
+  });
+
+  it("tells a home past its month's allowance so, rather than to try again in a moment", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "never-sent");
+    const recipe = await seedRecipe({ homeId: home.id, createdById: member.id, categoryIds: [category.id] });
+    await prisma.aiUsage.create({
+      data: {
+        homeId: home.id,
+        feature: "cook_steps",
+        model: "claude-sonnet-5",
+        inputTokens: 0,
+        outputTokens: 0,
+        costMicros: MONTHLY_LIMIT_USD * 1_000_000,
+      },
+    });
+
+    expect(await press(recipe.id)).toEqual({ ok: false, error: RECIPES.prepareOverLimit.EN });
   });
 });

@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { BAND, DEFAULT_THEME, THEMES, THEME_LABELS } from "@/lib/theme";
+import { BAND, DEFAULT_THEME, THEMES } from "@/lib/theme";
+import { SETTINGS } from "@/lib/copy/settings";
 
 /**
  * A home's colour is named in TypeScript and drawn in CSS, and nothing but this holds
@@ -37,10 +38,10 @@ function blockFor(theme: string): string | null {
 
 describe("home themes", () => {
   it("offers every theme the schema has, each with a name", () => {
-    // THEME_LABELS is typed as a Record over the enum, so a theme with no name here
-    // fails to compile; this is only that the list read off it is not empty.
+    // The names are held to a Record over the enum in `lib/theme.ts`, so a theme with no
+    // name fails to compile; this is only that the list read off them is not empty.
     expect(THEMES.length).toBeGreaterThan(1);
-    for (const theme of THEMES) expect(THEME_LABELS[theme]).toBeTruthy();
+    for (const theme of THEMES) expect(SETTINGS.colour.names[theme].DA).toBeTruthy();
   });
 
   it.each(THEMES)("draws %s in the stylesheet", (theme) => {

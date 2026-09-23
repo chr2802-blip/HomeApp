@@ -110,7 +110,7 @@ export default async function SettingsPage() {
             {/* The colour belongs with the name and the picture: all three are what this
                 household looks like, and all three are saved by the one button. */}
             <div className="sm:col-span-2">
-              <ThemeField defaultTheme={home.theme} />
+              <ThemeField defaultTheme={home.theme} language={home.language} />
             </div>
             {/* The language belongs here too, for the same reason: it is what this
                 household sounds like, and it is saved by the same button as the rest of

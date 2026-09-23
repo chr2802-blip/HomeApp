@@ -6,12 +6,13 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireHomeUser } from "@/lib/auth";
+import { checkRateLimit, recordFailedAttempt, type RateLimitResult } from "@/lib/rate-limit";
 import { homeDb } from "@/lib/home-db";
 import { homeScoped } from "@/lib/scoped";
 import { bodyText, optionalText, readForm, requiredText } from "@/lib/form";
 import { safeExternalHref } from "@/lib/embed";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
-import { readCategoryChoice } from "@/lib/recipes";
+import { instructionLines, readCategoryChoice } from "@/lib/recipes";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { sayIn, type Say } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
@@ -109,12 +110,32 @@ const reader = async () => (await import("@/lib/cook-steps")).prepareCookSteps;
  * the save does not fail. Nothing about a model being down should stand between a cook
  * and writing down a recipe.
  */
-async function withCookSteps(fields: RecipeText, homeId: string) {
+async function withCookSteps(fields: RecipeText, homeId: string, userId: string) {
+  const cleared = { instructions: fields.instructions, cookSteps: Prisma.DbNull };
+  // Counted only where there is something to read: a recipe with no steps is answered
+  // without the model, and should neither spend an attempt nor be refused one.
+  if (instructionLines(fields.instructions).length && !(await takeReading(userId)).allowed) {
+    return cleared;
+  }
+
   const read = await (await reader())(fields, homeId);
 
-  return read.ok
-    ? { instructions: read.instructions, cookSteps: { v: 1, steps: read.steps } }
-    : { instructions: fields.instructions, cookSteps: Prisma.DbNull };
+  return read.ok ? { instructions: read.instructions, cookSteps: { v: 1, steps: read.steps } } : cleared;
+}
+
+/**
+ * One call to the reader, counted against the person asking — the importer's limiter
+ * pointed at the other two ways into a paid model call, a save and the "prepare" button.
+ *
+ * Counted per attempt rather than per failure, as the importer's is: it is the spending
+ * being bounded. A save over the limit still saves; it just does what a save does while
+ * the reader is down, which is store the recipe and clear its breakdown. Nothing about a
+ * limit on the model should stand between a cook and writing a recipe down.
+ */
+async function takeReading(userId: string): Promise<RateLimitResult> {
+  const limit = await checkRateLimit("prepare", userId);
+  if (limit.allowed) await recordFailedAttempt("prepare", userId);
+  return limit;
 }
 
 export async function createRecipe(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
@@ -126,13 +147,13 @@ export async function createRecipe(_prev: ActionResult, formData: FormData): Pro
   const categoryIds = await chosenCategories(user.homeId, formData);
   if (!categoryIds) return fail(say(RECIPES.chooseCategory));
 
-  const photo = await readPhotoChoice(formData, user.homeId);
+  const photo = await readPhotoChoice(formData, user.homeId, user.homeLanguage);
   if (!photo.ok) return fail(photo.error);
 
   const recipe = await prisma.recipe.create({
     data: {
       ...form.fields,
-      ...(await withCookSteps(form.fields, user.homeId)),
+      ...(await withCookSteps(form.fields, user.homeId, user.id)),
       photoId: photo.photoId ?? null,
       homeId: user.homeId,
       createdById: user.id,
@@ -154,7 +175,7 @@ export async function updateRecipe(_prev: ActionResult, formData: FormData): Pro
   const categoryIds = await chosenCategories(recipe.homeId, formData);
   if (!categoryIds) return fail(say(RECIPES.chooseCategory));
 
-  const photo = await readPhotoChoice(formData, recipe.homeId);
+  const photo = await readPhotoChoice(formData, recipe.homeId, user.homeLanguage);
   if (!photo.ok) return fail(photo.error);
 
   // Read again only where the answer could have changed: the text it was derived from, or
@@ -166,7 +187,7 @@ export async function updateRecipe(_prev: ActionResult, formData: FormData): Pro
     form.fields.ingredients !== recipe.ingredients ||
     recipe.cookSteps === null;
 
-  const prepared = rewrite ? await withCookSteps(form.fields, recipe.homeId) : null;
+  const prepared = rewrite ? await withCookSteps(form.fields, recipe.homeId, user.id) : null;
 
   // The old pairings go before the new ones are written, in one transaction: a heading
   // that was ticked before and still is would otherwise be written twice, and a recipe
@@ -210,10 +231,16 @@ export async function prepareRecipeSteps(
   formData: FormData,
 ): Promise<ActionResult> {
   const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
   const recipe = await recipeInScope(String(formData.get("recipeId")));
 
+  const limit = await takeReading(user.id);
+  if (!limit.allowed) return fail(say(RECIPES.prepareRateLimited, { minutes: limit.retryAfterMinutes }));
+
   const read = await (await reader())(recipe, recipe.homeId);
-  if (!read.ok) return fail(sayIn(user.homeLanguage)(RECIPES.prepareReaderUnavailable));
+  if (!read.ok) {
+    return fail(say(read.reason === "over-limit" ? RECIPES.prepareOverLimit : RECIPES.prepareReaderUnavailable));
+  }
 
   await prisma.recipe.update({
     where: { id: recipe.id },

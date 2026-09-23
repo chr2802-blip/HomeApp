@@ -156,7 +156,7 @@ export async function updateHome(_prev: ActionResult, formData: FormData): Promi
   const form = readForm(editHomeSchema(sayIn(user.homeLanguage)), formData, user.homeLanguage);
   if (!form.ok) return fail(form.error);
 
-  const photo = await readPhotoChoice(formData, homeId);
+  const photo = await readPhotoChoice(formData, homeId, user.homeLanguage);
   if (!photo.ok) return fail(photo.error);
 
   const previous = await prisma.home.findUnique({
@@ -294,7 +294,7 @@ export async function updateOwnProfile(
   // of theirs could have gone to. Somebody in no home at all is shown no picture field,
   // so there is nothing here to read.
   const photo = user.homeId
-    ? await readPhotoChoice(formData, user.homeId)
+    ? await readPhotoChoice(formData, user.homeId, user.homeLanguage)
     : ({ ok: true, photoId: undefined } as const);
   if (!photo.ok) return fail(photo.error);
 

@@ -3,6 +3,8 @@
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { sendPushToUsers } from "@/lib/push";
+import { sayIn } from "@/lib/copy/say";
+import { APP } from "@/lib/copy/app";
 
 /**
  * A push endpoint is issued by the browser's push service and is only known to the
@@ -43,7 +45,7 @@ export async function sendTestPush() {
   const user = await requireUser();
   const delivered = await sendPushToUsers([user.id], {
     title: "HomeHub",
-    body: "Notifications are working.",
+    body: sayIn(user.homeLanguage)(APP.push.testBody),
     url: "/dashboard",
   });
   return delivered;

@@ -8,7 +8,7 @@ import type { Locale } from "date-fns";
  * read yet.
  *
  * `Record<HomeLanguage, string>` rather than a list, so adding a language to the schema
- * fails to compile until it has a name here — the same reason `THEME_LABELS` is a
+ * fails to compile until it has a name here — the same reason `THEME_NAMES` is a
  * `Record` and not an array.
  */
 export const LANGUAGE_LABELS: Record<HomeLanguage, string> = {

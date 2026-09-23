@@ -55,6 +55,10 @@ export const RECIPES = {
     EN: "Couldn't read that recipe just now. Try again in a moment, paste the description below, or fill the form in by hand.",
     DA: "Kunne ikke læse den opskrift lige nu. Prøv igen om lidt, indsæt beskrivelsen nedenfor, eller udfyld formularen selv.",
   },
+  aiLimitReached: {
+    EN: "This home has used this month's allowance for reading recipes. Fill the form in by hand, or try again next month.",
+    DA: "Hjemmet har brugt denne måneds kvote til at læse opskrifter. Udfyld formularen selv, eller prøv igen næste måned.",
+  },
   rateLimited: {
     EN: "That's a lot of imports at once. Try again in {minutes} min, or fill the form in by hand.",
     DA: "Det er mange importer på én gang. Prøv igen om {minutes} min, eller udfyld formularen selv.",
@@ -209,6 +213,14 @@ export const RECIPES = {
   chooseCategory: {
     EN: "Choose at least one category for this recipe.",
     DA: "Vælg mindst én kategori til denne opskrift.",
+  },
+  prepareOverLimit: {
+    EN: "This home has used this month's allowance for preparing recipes. The steps still work as they are.",
+    DA: "Hjemmet har brugt denne måneds kvote til at forberede opskrifter. Trinene virker stadig, som de er.",
+  },
+  prepareRateLimited: {
+    EN: "That's a lot of preparing at once. Try again in {minutes} min.",
+    DA: "Det er mange forberedelser på én gang. Prøv igen om {minutes} min.",
   },
   prepareReaderUnavailable: {
     EN: "Could not prepare these steps just now. Try again in a moment.",

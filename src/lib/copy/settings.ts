@@ -26,6 +26,22 @@ export const SETTINGS = {
   },
   homeNameRequired: { EN: "Give the home a name.", DA: "Giv hjemmet et navn." },
 
+  colour: {
+    legend: { EN: "Colour", DA: "Farve" },
+    hint: {
+      EN: "Worn by everyone in this home, so the household on screen can be told at a glance from the others you are in.",
+      DA: "Båret af alle i dette hjem, så husstanden på skærmen kan kendes fra de andre, du er med i, med ét blik.",
+    },
+    names: {
+      SLATE: { EN: "Slate", DA: "Skifer" },
+      OCEAN: { EN: "Ocean", DA: "Hav" },
+      INDIGO: { EN: "Indigo", DA: "Indigo" },
+      VIOLET: { EN: "Violet", DA: "Violet" },
+      PLUM: { EN: "Plum", DA: "Blomme" },
+      SAND: { EN: "Sand", DA: "Sand" },
+    },
+  },
+
   language: {
     legend: { EN: "Language", DA: "Sprog" },
     hint: {
@@ -82,4 +98,4 @@ export const SETTINGS = {
   notAllowed: { EN: "Not allowed.", DA: "Ikke tilladt." },
   invalidEmail: { EN: "Enter a valid email address.", DA: "Indtast en gyldig e-mailadresse." },
   alreadyInHome: { EN: "They are already in this home.", DA: "De er allerede i dette hjem." },
-} as const satisfies Record<string, Phrase | Record<string, Phrase>>;
+} as const satisfies Record<string, Phrase | Record<string, Phrase | Record<string, Phrase>>>;

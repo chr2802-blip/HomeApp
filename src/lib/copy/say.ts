@@ -3,8 +3,8 @@ import type { HomeLanguage } from "@prisma/client";
 /**
  * One thing to say, in every language this app has.
  *
- * `Record<HomeLanguage, string>`, exactly as `THEME_LABELS` is a
- * `Record<HomeTheme, string>`: adding a language to the schema fails to compile against
+ * `Record<HomeLanguage, string>`, exactly as `THEME_NAMES` is a
+ * `Record<HomeTheme, Phrase>`: adding a language to the schema fails to compile against
  * every phrase in the app until each one has a form for it. There is no English
  * catalogue with a Danish file beside it, because that is an English master and a
  * Danish copy — and the copy is the one that quietly falls behind, in a file no

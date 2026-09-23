@@ -1,4 +1,4 @@
-import type { Phrase } from "./say";
+import type { Phrase, Plural } from "./say";
 
 /** `/meals`, the week's rows, the day sheet, and the picker inside it. */
 export const MEALS = {
@@ -17,6 +17,16 @@ export const MEALS = {
 
   // The picker's groups
   suggested: { EN: "Suggested", DA: "Foreslået" },
+  sharesWithWeek: {
+    EN: {
+      one: "Shares {shared} of {count} ingredient with the week",
+      other: "Shares {shared} of {count} ingredients with the week",
+    },
+    DA: {
+      one: "Deler {shared} af {count} ingrediens med ugen",
+      other: "Deler {shared} af {count} ingredienser med ugen",
+    },
+  },
   recentlyPlanned: { EN: "Recently planned", DA: "Senest planlagt" },
   allRecipes: { EN: "All recipes", DA: "Alle opskrifter" },
   lastPlanned: { EN: "Last planned {day}", DA: "Sidst planlagt {day}" },
@@ -63,4 +73,4 @@ export const MEALS = {
     EN: "Leftovers come after the meal, not before it.",
     DA: "Rester kommer efter måltidet, ikke før det.",
   },
-} as const satisfies Record<string, Phrase>;
+} as const satisfies Record<string, Phrase | Plural>;

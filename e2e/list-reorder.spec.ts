@@ -180,7 +180,7 @@ test.describe("suggesting what was ticked off", () => {
     await page.getByPlaceholder("Add an item").fill("Milk");
     await page.getByRole("button", { name: "Add", exact: true }).click();
 
-    await expect(page.getByText('"Milk" is already on the list.')).toBeVisible();
+    await expect(page.getByText("“Milk” is already on the list.")).toBeVisible();
     expect(await prisma().listItem.count()).toBe(1);
   });
 
