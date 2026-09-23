@@ -13,6 +13,7 @@ import {
   type PantryDecision,
 } from "@/lib/pantry";
 import { useLanguage } from "@/components/language-provider";
+import { useSnackbar } from "@/components/snackbar";
 import { sayIn } from "@/lib/copy/say";
 import { APP } from "@/lib/copy/app";
 
@@ -38,8 +39,11 @@ type Decision = { list: ListChoice; lines: AmbiguousLine[]; keep: Set<string> };
  * only ever decides which list, the same choice either way.
  *
  * What happened is said here rather than left to the page: the menu closes on the press
- * and the list being written to is somewhere else entirely, so without a line of text
- * the only evidence would be on a screen nobody is looking at.
+ * and the list being written to is somewhere else entirely, so without a word about it
+ * the only evidence would be on a screen nobody is looking at. It goes through the
+ * snackbar rather than a line drawn in place — this menu sits inside a recipe's own
+ * ingredients card, and a sentence about the shopping list wrapping in among the lines
+ * it is reporting on is the thing this is for.
  *
  * Pressing a list can come back asking a further question rather than saying what
  * happened — a line naming more than one thing where the pantry has some but not all
@@ -55,10 +59,10 @@ export function AddToListMenu({
   extraData: Record<string, string>;
 }) {
   const [pending, startAdding] = useTransition();
-  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [decision, setDecision] = useState<Decision | null>(null);
   const language = useLanguage();
   const say = sayIn(language);
+  const notify = useSnackbar();
 
   function submit(list: ListChoice, resolved?: Set<string>) {
     const data = new FormData();
@@ -69,7 +73,6 @@ export function AddToListMenu({
       for (const key of resolved) data.append(PANTRY_KEEP_FIELD, key);
     }
 
-    setResult(null);
     startAdding(async () => {
       const outcome = await action(data);
 
@@ -81,18 +84,16 @@ export function AddToListMenu({
         return;
       }
 
-      setResult(
-        outcome?.ok === false
-          ? { ok: false, message: outcome.error }
-          : {
-              ok: true,
-              // The note is what the pantry took care of. Said here rather than left
-              // out, because a household that cannot tell "we already have salt" from
-              // "the salt went missing" stops trusting the button either way.
-              message: [say(APP.addToList.addedTo, { list: list.title }), outcome?.note]
-                .filter(Boolean)
-                .join(" "),
-            },
+      if (outcome?.ok === false) {
+        notify(outcome.error, "error");
+        return;
+      }
+
+      // The note is what the pantry took care of. Said here rather than left out,
+      // because a household that cannot tell "we already have salt" from "the salt
+      // went missing" stops trusting the button either way.
+      notify(
+        [say(APP.addToList.addedTo, { list: list.title }), outcome?.note].filter(Boolean).join(" "),
       );
     });
   }
@@ -154,13 +155,11 @@ export function AddToListMenu({
         )}
       </ContextMenu>
 
-      {/* A live region, so the outcome is announced rather than only drawn: the press
-          that caused it moved focus nowhere. */}
-      <p
-        role="status"
-        className={`text-xs ${result?.ok === false ? "text-red-600" : "text-slate-500"}`}
-      >
-        {pending ? say(APP.addToList.adding) : (result?.message ?? "")}
+      {/* A live region, so the press being under way is announced rather than only
+          drawn: the press that caused it moved focus nowhere. What happened once it
+          lands is the snackbar's to say — this is only ever "Adding…" or nothing. */}
+      <p role="status" className="text-xs text-slate-500">
+        {pending ? say(APP.addToList.adding) : ""}
       </p>
 
       {/* Only for the lines the pantry can't answer for on its own — a line it has
