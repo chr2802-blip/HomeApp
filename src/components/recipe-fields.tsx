@@ -63,8 +63,6 @@ export function recipeImportOverlay(language: HomeLanguage): AiWait {
       RECIPES.readingStage2,
       RECIPES.readingStage3,
       RECIPES.readingStage4,
-      RECIPES.readingStage5,
-      RECIPES.readingStage6,
     ].map(say),
     expectedSeconds: 15,
   };

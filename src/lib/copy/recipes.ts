@@ -31,9 +31,7 @@ export const RECIPES = {
   readingStage1: { EN: "Fetching the page…", DA: "Henter siden…" },
   readingStage2: { EN: "Looking for the recipe…", DA: "Leder efter opskriften…" },
   readingStage3: { EN: "Sorting out the ingredients…", DA: "Sorterer ingredienserne…" },
-  readingStage4: { EN: "Converting to metric…", DA: "Omregner til gram og liter…" },
-  readingStage5: { EN: "Writing up the steps…", DA: "Skriver trinene ind…" },
-  readingStage6: { EN: "Checking it all over…", DA: "Tjekker det hele igennem…" },
+  readingStage4: { EN: "Writing up the steps…", DA: "Skriver trinene ind…" },
   pasteLinkFirst: { EN: "Paste a link to a recipe first.", DA: "Indsæt først et link til en opskrift." },
   pasteCaptionFirst: {
     EN: "Paste the reel's description first.",
