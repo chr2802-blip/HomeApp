@@ -512,16 +512,39 @@ model RecipeCategoryLink {
 }
 
 /**
- * One basic good a household keeps in the cupboard, and whether it has it.
+ * The unit a pantry quantity is counted in, or none at all for a plain count — the
+ * same reason a counted recipe ingredient carries no unit either (see `UNIT_WORDS`).
+ * What each one is called is `PANTRY_UNIT_LABELS` in `src/lib/copy/pantry.ts`, and kept
+ * to the app's other common units: `CAN`/`BAG` are the same `dåse`/`pose` a Danish
+ * kitchen already writes on a recipe's own ingredient lines.
+ */
+enum PantryUnit {
+  G
+  KG
+  DL
+  L
+  CAN
+  BAG
+  PACK
+  JAR
+  BUNCH
+}
+
+/**
+ * One basic good a household keeps in the cupboard, and how much of it there is.
  * Salt, pepper, oil, flour, rice: the lines almost every recipe asks for and almost
  * nobody needs to buy. A recipe's ingredients are put on a shopping list through
  * `writeRecipesToList`, which leaves out every line the pantry says is already in —
  * so "add the lasagne" adds the mince and not the salt.
- * `inStock` is the whole of what an entry says, because that is the whole of what a
- * cupboard says: there is rice or there is not. Running out is therefore not deleting
- * the entry but unticking it — and the next recipe that wants rice puts rice back on
- * the list, which is the second half of what this is for. Deleting is for something
- * the household has stopped treating as a basic good at all.
+ * `quantity` is the whole of what an entry says: zero is "we've run out" (what
+ * `inStock: false` used to mean), and any amount past that is "we have it". Running
+ * out is therefore not deleting the entry but bringing its quantity down to zero — and
+ * the next recipe that wants rice puts rice back on the list, which is the second half
+ * of what this is for. Deleting is for something the household has stopped treating as
+ * a basic good at all. `unit` is what the quantity is counted in, and is never read by
+ * `writeRecipesToList` or anything else matching against the shopping list — the pantry
+ * still answers only in or out, the same question it always has; the quantity and its
+ * unit are for the household reading its own cupboard.
  * `name` is what somebody typed, and `key` is that name as a shopping list would have
  * written it — `pantryKey` in lib/pantry.ts, which is `shoppingText` again, the same
  * normalisation that decides whether two recipes' lines land on one row of the shop.
@@ -531,15 +554,18 @@ model RecipeCategoryLink {
  * and "salt" are not two basic goods.
  */
 model PantryItem {
-  id        String   @id @default(cuid())
+  id        String      @id @default(cuid())
   homeId    String
   /// What it is called, as the household wrote it.
   name      String
   /// The same thing as the shopping list would write it: `pantryKey(name)`.
   key       String
-  /// Whether the household has it. Ticked is "no need to buy this".
-  inStock   Boolean  @default(true)
-  createdAt DateTime @default(now())
+  /// How much the household has of it. Zero is what `inStock: false` used to mean;
+  /// anything more is what `true` did.
+  quantity  Int         @default(1)
+  /// What the quantity is counted in, or null for a plain count with no unit.
+  unit      PantryUnit?
+  createdAt DateTime    @default(now())
 
   home Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
 

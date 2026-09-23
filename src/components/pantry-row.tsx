@@ -1,28 +1,29 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { deletePantryItem, renamePantryItem, setPantryStock } from "@/app/actions/pantry";
+import type { PantryUnit } from "@prisma/client";
+import { deletePantryItem, renamePantryItem, setPantryQuantity } from "@/app/actions/pantry";
 import { ItemMenu } from "@/components/item-menu";
+import { PantryQuantityField } from "@/components/pantry-quantity-field";
 import { tick } from "@/lib/haptics";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
 import { PANTRY } from "@/lib/copy/pantry";
 
 /**
- * One basic good: whether the household has it, what it is called, and the way to drop
- * it.
+ * One basic good: how much the household has of it, what it is counted in, what it is
+ * called, and the way to drop it.
  *
- * **The state is a switch, not a tick.** A checkbox says "this one is selected" — a
- * thing picked out of a list on the way to doing something with it, which is what a
- * shopping list's boxes mean. This is not that: it is a standing fact about the
- * cupboard, on or off until somebody changes it, and a switch is what that looks like
- * in every app a phone already has.
+ * **The state is a quantity, not a tick.** Zero is "we've run out" and anything past
+ * that is "we have it" — the same bit a switch used to carry, now a number a household
+ * can actually read off the shelf: "500 g", "2 dåser".
  *
  * It moves the moment it is pressed rather than when the server answers, for the reason
  * the star on a list does: this is a passing thought on the way somewhere else, and a
  * control that waits half a second to admit it heard you gets pressed twice. The write
- * is told the state to land in rather than "the other one", so the second press of a
- * double tap leaves the cupboard saying what the thumb meant.
+ * is told the quantity to land in rather than "one more/one less", so the same press
+ * arriving twice — a double tap, a retry — leaves the cupboard saying what the thumb
+ * meant.
  *
  * **The name is edited by pressing it**, exactly as a list item's is — a name is the one
  * thing on a row worth changing without a trip to a sheet, and a rename that costs a
@@ -33,13 +34,15 @@ import { PANTRY } from "@/lib/copy/pantry";
 export function PantryRow({
   id,
   name,
-  inStock,
+  quantity,
+  unit,
 }: {
   id: string;
   name: string;
-  inStock: boolean;
+  quantity: number;
+  unit: PantryUnit | null;
 }) {
-  const [stocked, setStocked] = useOptimistic(inStock);
+  const [stock, setStock] = useOptimistic({ quantity, unit });
   /*
    * The name shown, which leads the stored one while a rename is in flight. A refused
    * rename — the household already keeps something under that name — needs no undoing:
@@ -51,17 +54,19 @@ export function PantryRow({
   const [draft, setDraft] = useState(name);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
-  const say = sayIn(useLanguage());
+  const language = useLanguage();
+  const say = sayIn(language);
 
-  function toggle() {
+  function changeStock(nextQuantity: number, nextUnit: PantryUnit | null) {
     const data = new FormData();
     data.set("pantryItemId", id);
-    data.set("inStock", stocked ? "false" : "true");
+    data.set("quantity", String(nextQuantity));
+    data.set("unit", nextUnit ?? "");
 
     tick();
     startTransition(async () => {
-      setStocked(!stocked);
-      await setPantryStock(data);
+      setStock({ quantity: nextQuantity, unit: nextUnit });
+      await setPantryQuantity(data);
     });
   }
 
@@ -92,29 +97,13 @@ export function PantryRow({
   return (
     <div className="px-4 py-2">
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          role="switch"
-          aria-checked={stocked}
-          // Named for the state rather than the press: a screen reader says "Rice, on"
-          // rather than renaming the control under the person using it.
-          aria-label={shown}
-          title={say(stocked ? PANTRY.isIn : PANTRY.hasRunOut, { name: shown })}
-          onClick={toggle}
-          className={`pressable relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition active:scale-95 ${
-            // The home's own colour: this is a control, and a control is exactly what
-            // the accent dresses. Grey off, because off is the absence of the state
-            // rather than a second one.
-            stocked ? "bg-[var(--accent)]" : "bg-slate-300"
-          }`}
-        >
-          <span
-            aria-hidden="true"
-            className={`h-5 w-5 rounded-full bg-white shadow transition ${
-              stocked ? "translate-x-[1.375rem]" : "translate-x-0.5"
-            }`}
-          />
-        </button>
+        <PantryQuantityField
+          quantity={stock.quantity}
+          unit={stock.unit}
+          onChange={changeStock}
+          label={shown}
+          language={language}
+        />
 
         {editing ? (
           <input
@@ -150,10 +139,12 @@ export function PantryRow({
         )}
 
         {/* Only the half worth interrupting the page for. Having something in is the
-            ordinary state of a cupboard and the switch says it; having run out is what
-            somebody scans the column for, and it names exactly what "Add to list" at
-            the top of the page will take. */}
-        {!stocked && <span className="shrink-0 text-xs text-slate-500">{say(PANTRY.runOut)}</span>}
+            ordinary state of a cupboard and the quantity already says it; having run
+            out is what somebody scans the column for, and it names exactly what "Add
+            to list" at the top of the page will take. */}
+        {stock.quantity === 0 && (
+          <span className="shrink-0 text-xs text-slate-500">{say(PANTRY.runOut)}</span>
+        )}
 
         <ItemMenu
           name="pantryItemId"

@@ -10,7 +10,7 @@ import { homeScoped } from "@/lib/scoped";
 import { readForm, requiredText } from "@/lib/form";
 import { addItem } from "@/lib/list-writes";
 import { MIN_AMOUNT } from "@/lib/amount";
-import { alreadyOnListNote, pantryKey } from "@/lib/pantry";
+import { alreadyOnListNote, clampPantryQuantity, isPantryUnit, pantryKey } from "@/lib/pantry";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { sayIn, type Say } from "@/lib/copy/say";
 import { PANTRY } from "@/lib/copy/pantry";
@@ -142,20 +142,28 @@ export async function renamePantryItem(formData: FormData): Promise<ActionResult
 }
 
 /**
- * Says whether the household has it, which is the whole of what an entry does.
+ * Says how much of it the household has, which is the whole of what an entry does.
+ * Zero is "run out", and anything past that is "in" — the same bit the switch this
+ * replaced carried, now a number.
  *
- * Given the state to land in rather than "the other one", for the reason every queued
- * offline op is: the press that sets it is optimistic, so the same press arriving twice
- * — a double tap, a retry — must leave the cupboard saying what the thumb meant, not
- * flipped back. Acts on one id and reports nothing; there is nothing to refuse.
+ * Given the quantity to land in rather than "one more/one less", for the reason every
+ * queued offline op is: the press that sets it is optimistic, so the same press
+ * arriving twice — a double tap, a retry — must leave the cupboard saying what the
+ * thumb meant, not applied again on top of itself. Acts on one id and reports nothing;
+ * there is nothing to refuse. The unit is held to `PANTRY_UNITS` and dropped to null
+ * otherwise, the same leniency `canonicalUnit` gives a recipe's own unit word.
  */
-export async function setPantryStock(formData: FormData) {
+export async function setPantryQuantity(formData: FormData) {
   const item = await itemInScope(String(formData.get("pantryItemId")));
   if (!item) return;
 
+  const quantity = clampPantryQuantity(formData.get("quantity"));
+  const rawUnit = String(formData.get("unit") ?? "");
+  const unit = isPantryUnit(rawUnit) ? rawUnit : null;
+
   await prisma.pantryItem.update({
     where: { id: item.id },
-    data: { inStock: formData.get("inStock") === "true" },
+    data: { quantity, unit },
   });
 
   refreshPantryViews();
@@ -202,7 +210,7 @@ export async function addPantryToList(formData: FormData): Promise<ActionResult>
   const say = sayIn(user.homeLanguage);
 
   const missing = await homeDb(user.homeId).pantryItem.findMany({
-    where: { inStock: false },
+    where: { quantity: 0 },
     orderBy: { name: "asc" },
   });
   if (missing.length === 0) return fail(say(PANTRY.nothingRunOut));
