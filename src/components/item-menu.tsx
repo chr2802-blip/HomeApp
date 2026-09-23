@@ -9,6 +9,7 @@ import type { FormAction } from "@/lib/action-result";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
 import { APP } from "@/lib/copy/app";
+import type { AiWait } from "@/components/ai-overlay";
 
 /**
  * The standard menu on anything the app stores: edit it, delete it.
@@ -49,7 +50,7 @@ export function ItemMenu({
   /** Omitted where there is nothing to edit — a home is only ever deleted. */
   editAction?: FormAction;
   /** Shown over the edit sheet while `editAction` is pending — see `DialogForm`. */
-  editOverlay?: { title: string; detail: string };
+  editOverlay?: AiWait;
   editLabel?: string;
   deleteTitle?: string;
   deleteLabel?: string;

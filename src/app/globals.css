@@ -704,6 +704,134 @@ h3 {
   transform-origin: right center;
 }
 
+/*
+ * The AI wait (`AiOverlay`). The household's own `--accent` leads, with violet and cyan
+ * beside it as the colours of "something is thinking" — neither is green, red or amber,
+ * so none of the meanings is borrowed. Movement is `rotate`/`scale` as their own
+ * properties, not `transform`, so the sparkle's `-translate-*` centring survives.
+ */
+.ai-aurora {
+  background:
+    radial-gradient(40% 35% at 20% 25%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 70%),
+    radial-gradient(35% 30% at 80% 30%, rgb(139 92 246 / 0.16), transparent 70%),
+    radial-gradient(45% 35% at 50% 85%, rgb(6 182 212 / 0.14), transparent 70%);
+  animation: ai-drift 9s ease-in-out infinite alternate;
+}
+
+.ai-halo {
+  background: conic-gradient(from 0deg, var(--accent), #8b5cf6, #06b6d4, var(--accent));
+  filter: blur(18px);
+  opacity: 0.55;
+  animation: ai-spin 6s linear infinite, ai-breathe 2.4s ease-in-out infinite;
+}
+
+.ai-ring {
+  background: conic-gradient(from 0deg, var(--accent), #8b5cf6, #06b6d4, transparent 80%, var(--accent));
+  animation: ai-spin 1.6s linear infinite;
+}
+
+.ai-orbit {
+  animation: ai-spin 3.2s linear infinite;
+}
+
+.ai-orbit-slow {
+  animation-duration: 5s;
+  animation-direction: reverse;
+}
+
+.ai-orbit-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px;
+  border-radius: 9999px;
+  background: #8b5cf6;
+  box-shadow: 0 0 12px 3px rgb(139 92 246 / 0.6);
+}
+
+.ai-orbit-dot-small {
+  width: 7px;
+  height: 7px;
+  margin: -3.5px;
+  background: #06b6d4;
+  box-shadow: 0 0 10px 2px rgb(6 182 212 / 0.6);
+}
+
+.ai-sparkle {
+  animation: ai-breathe 1.8s ease-in-out infinite;
+}
+
+.ai-title {
+  background: linear-gradient(90deg, #0f172a 0%, #0f172a 35%, var(--accent) 45%, #8b5cf6 50%, #06b6d4 55%, #0f172a 65%, #0f172a 100%);
+  background-size: 250% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: ai-shimmer 2.6s linear infinite;
+}
+
+.ai-stage {
+  animation: ai-stage-in 450ms ease-out both;
+}
+
+.ai-bar {
+  background: linear-gradient(90deg, var(--accent), #8b5cf6, #06b6d4, var(--accent));
+  background-size: 200% 100%;
+  transition: width 400ms ease-out;
+  animation: ai-shimmer 1.8s linear infinite;
+}
+
+.ai-step-now {
+  background: linear-gradient(90deg, var(--accent), #8b5cf6);
+}
+
+@keyframes ai-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes ai-breathe {
+  0%,
+  100% {
+    scale: 0.94;
+  }
+  50% {
+    scale: 1.06;
+  }
+}
+
+@keyframes ai-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}
+
+@keyframes ai-drift {
+  from {
+    scale: 1;
+    rotate: 0deg;
+  }
+  to {
+    scale: 1.15;
+    rotate: 8deg;
+  }
+}
+
+@keyframes ai-stage-in {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
 /* Respect users who ask the system to reduce motion. */
 @media (prefers-reduced-motion: reduce) {
   *,
