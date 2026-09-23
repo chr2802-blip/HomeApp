@@ -592,6 +592,27 @@ and "salt" are not two basic goods. A name that normalises to nothing at all ("`
 refused rather than stored — it would match no ingredient line ever written, and then
 claim the next such entry was a duplicate of it.
 
+**Only an exact key is answered for without asking; a key matched by a run of its own
+words is asked about instead.** `matchedStockedKey` in `src/lib/pantry.ts` tries the key
+as written first, then the longest contiguous run of its own words that the pantry has
+an entry for, from any position — a qualifier sits in front of the ingredient it
+describes ("tørret spidskommen" is *matched* by a pantry that has "spidskommen", "røget
+paprika" by one that has "paprika") as often as it trails it ("hakkede tomater på dåse"
+is matched by one that has "hakkede tomater" — "på dåse" names the tin, not the tomato).
+But a qualifier the household never typed into the pantry is not assumed to mean the
+same shelf, so `matchLine` keeps the two apart — `fullyExact` is true only where every
+part of the line matched *as written* — and `stripStocked` silently drops a line off the
+shop only on `fullyExact`. Anything matched only by dropping a qualifier is routed
+through `ambiguousLines` exactly like a combined line the pantry only partly answers
+for, and the household is asked. Only whole words move, and only as a contiguous run,
+never a substring reaching inside one — Danish compounds carry no space of their own
+("hvidløg", "rødløg") — a pantry entry for "løg" stays an exact match for "løg" and is
+never mistaken for garlic, and never even reaches the question. A line naming more than
+one thing ("Salt og
+friskkværnet peber") is split on "og"/"and"/"&" first, and each half is checked the same
+way — so a cupboard with salt and pepper, spelled however the recipe qualified the
+pepper, still asks rather than silently deciding the pepper qualifies too.
+
 **The cupboard is taken out in one place**, `writeRecipesToList` in
 `src/app/actions/lists.ts`, so a recipe added from its own page and a whole week added
 from the meal plan cannot come to disagree about it. It is read at the press rather than

@@ -100,6 +100,61 @@ describe("stripStocked", () => {
     expect([...keep.values()]).toEqual(["Salt og peber"]);
     expect(covered).toEqual([]);
   });
+
+  // A recipe names the ingredient last far more often than the other way round, so a
+  // pantry entry is also matched against a line's trailing words once a modifier in
+  // front is dropped — "tørret spidskommen" against a cupboard that has "spidskommen".
+  // That is a match, but not an exact one: a modifier the household never typed into
+  // the pantry is not assumed to mean the same shelf, so on its own — unresolved, the
+  // same as a combined line only partly stocked — the default is to leave it off the
+  // list rather than silently re-buy it. `ambiguousLines` is what is meant to ask
+  // before this is ever reached at all.
+  it("defaults to leaving a modifier-qualified line off the list, unresolved", () => {
+    const wanted = new Map([
+      ["tørret spidskommen", "Tørret spidskommen"],
+      ["røget paprika", "Røget paprika"],
+    ]);
+    const { keep, covered } = stripStocked(wanted, new Set(["spidskommen", "paprika"]));
+
+    expect(keep.size).toBe(0);
+    expect(covered).toEqual(["Tørret spidskommen", "Røget paprika"]);
+  });
+
+  it("keeps a modifier-qualified line once the household has said to still add it", () => {
+    const wanted = new Map([["røget paprika", "Røget paprika"]]);
+    const { keep, covered } = stripStocked(wanted, new Set(["paprika"]), new Set(["røget paprika"]));
+
+    expect([...keep.values()]).toEqual(["Røget paprika"]);
+    expect(covered).toEqual([]);
+  });
+
+  it("defaults to leaving a combined line off the list where a part is only modifier-qualified", () => {
+    const combined = new Map([["salt og friskkværnet peber", "Salt og friskkværnet peber"]]);
+    const { keep, covered } = stripStocked(combined, new Set(["salt", "peber"]));
+
+    expect(keep.size).toBe(0);
+    expect(covered).toEqual(["Salt og friskkværnet peber"]);
+  });
+
+  // A qualifier can trail the ingredient too — "på dåse" names the tin, not the
+  // tomato — so the match is not only ever found by dropping words off the front.
+  it("defaults to leaving a line off the list where the qualifier trails the ingredient", () => {
+    const wanted = new Map([["hakkede tomater på dåse", "Hakkede tomater på dåse"]]);
+    const { keep, covered } = stripStocked(wanted, new Set(["hakkede tomater"]));
+
+    expect(keep.size).toBe(0);
+    expect(covered).toEqual(["Hakkede tomater på dåse"]);
+  });
+
+  // A Danish compound carries no space of its own, so dropping a leading word must never
+  // reach inside one: "hvidløg" (garlic) is not "løg" (onion) wearing a modifier.
+  it("never turns a compound word into a match for one of its parts", () => {
+    const wanted = new Map([["hvidløg", "Hvidløg"]]);
+    const { keep, covered } = stripStocked(wanted, new Set(["løg"]));
+
+    expect([...keep.values()]).toEqual(["Hvidløg"]);
+    expect(covered).toEqual([]);
+  });
 });
 
 describe("ambiguousLines", () => {
@@ -124,6 +179,61 @@ describe("ambiguousLines", () => {
   it("leaves a single-item line alone, however normal a word it is", () => {
     expect(ambiguousLines(new Map([["salt", "Salt"]]), new Set(["salt"]))).toEqual([]);
     expect(ambiguousLines(new Map([["salt", "Salt"]]), new Set())).toEqual([]);
+  });
+
+  it("names the qualified half of a combined line the pantry only partly answers for", () => {
+    const wanted = new Map([["salt og friskkværnet peber", "Salt og friskkværnet peber"]]);
+
+    expect(ambiguousLines(wanted, new Set(["salt"]))).toEqual([
+      { key: "salt og friskkværnet peber", text: "Salt og friskkværnet peber", matched: ["Salt"] },
+    ]);
+  });
+
+  // A qualifier can trail the ingredient too — "på dåse" names the tin, not the
+  // tomato — so the match cannot only ever be found by dropping words off the front.
+  it("asks about a line qualified by something that trails the ingredient", () => {
+    const wanted = new Map([["hakkede tomater på dåse", "Hakkede tomater på dåse"]]);
+
+    expect(ambiguousLines(wanted, new Set(["hakkede tomater"]))).toEqual([
+      { key: "hakkede tomater på dåse", text: "Hakkede tomater på dåse", matched: ["Hakkede tomater"] },
+    ]);
+  });
+
+  it("prefers the more specific of two stocked entries a line could be matched by", () => {
+    const wanted = new Map([["hakkede tomater på dåse", "Hakkede tomater på dåse"]]);
+
+    expect(ambiguousLines(wanted, new Set(["tomater", "hakkede tomater"]))).toEqual([
+      { key: "hakkede tomater på dåse", text: "Hakkede tomater på dåse", matched: ["Hakkede tomater"] },
+    ]);
+  });
+
+  // The point of the report: a modifier stripped off to find a match is never assumed
+  // to mean the same shelf, so it is asked about rather than silently left off the list
+  // — a lone "røget paprika" against a pantry that has "paprika" is not covered on its
+  // own the way an exact "Paprika" would be.
+  it("asks about a single-item line only matched by dropping its own modifier", () => {
+    const wanted = new Map([["røget paprika", "Røget paprika"]]);
+
+    expect(ambiguousLines(wanted, new Set(["paprika"]))).toEqual([
+      { key: "røget paprika", text: "Røget paprika", matched: ["Paprika"] },
+    ]);
+  });
+
+  it("leaves a single-item line alone where the pantry does not have it at all, modifier or no", () => {
+    const wanted = new Map([["røget paprika", "Røget paprika"]]);
+
+    expect(ambiguousLines(wanted, new Set())).toEqual([]);
+  });
+
+  // Both halves of "Salt og friskkværnet peber" are matched — salt exactly, peber only
+  // by dropping "friskkværnet" — but matched is not the same as matched *exactly*, so
+  // the combined line still asks rather than being answered for outright.
+  it("asks about a combined line even where every part matched, if a part only matched by its modifier", () => {
+    const wanted = new Map([["salt og friskkværnet peber", "Salt og friskkværnet peber"]]);
+
+    expect(ambiguousLines(wanted, new Set(["salt", "peber"]))).toEqual([
+      { key: "salt og friskkværnet peber", text: "Salt og friskkværnet peber", matched: ["Salt", "Peber"] },
+    ]);
   });
 });
 
