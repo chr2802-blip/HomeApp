@@ -208,30 +208,8 @@ test("a line naming two things the pantry only partly has is asked about, not gu
   await expect(decision).toBeVisible();
   await expect(decision.getByText("Salt already in the pantry.")).toBeVisible();
 
-  // Left checked, the default, adds the line exactly as a press always used to.
-  await decision.getByRole("button", { name: "Add checked" }).click();
-
-  await page.goto("/lists");
-  await page.getByRole("link", { name: /Groceries/ }).click();
-  await page.waitForURL(/\/lists\/[a-z0-9]+$/);
-
-  await expect(page.getByText("Salt og peber", { exact: true })).toBeVisible();
-  await expect(page.getByText("Kylling", { exact: true })).toBeVisible();
-});
-
-test("unchecking that line in the dialog leaves it off the list, same as a covered one", async ({
-  page,
-}) => {
-  await newList(page, "Groceries");
-
-  await page.goto("/pantry");
-  await keepIn(page, "Salt");
-
-  await newRecipe(page, "Karry", "Salt og peber\n500 g kylling");
-  await addToList(page, "Groceries");
-
-  const decision = page.getByRole("dialog", { name: "Already have some of this?" });
-  await decision.getByRole("checkbox", { name: /Salt og peber/ }).uncheck();
+  // Left unchecked, the default, leaves the line off — the same as a line the pantry
+  // answered for outright.
   await decision.getByRole("button", { name: "Add checked" }).click();
 
   await expect(page.getByText("Salt og peber already in the pantry.")).toBeVisible();
@@ -242,4 +220,25 @@ test("unchecking that line in the dialog leaves it off the list, same as a cover
 
   await expect(page.getByText("Kylling", { exact: true })).toBeVisible();
   await expect(page.getByText("Salt og peber", { exact: true })).toHaveCount(0);
+});
+
+test("checking that line in the dialog adds it anyway", async ({ page }) => {
+  await newList(page, "Groceries");
+
+  await page.goto("/pantry");
+  await keepIn(page, "Salt");
+
+  await newRecipe(page, "Karry", "Salt og peber\n500 g kylling");
+  await addToList(page, "Groceries");
+
+  const decision = page.getByRole("dialog", { name: "Already have some of this?" });
+  await decision.getByRole("checkbox", { name: /Salt og peber/ }).check();
+  await decision.getByRole("button", { name: "Add checked" }).click();
+
+  await page.goto("/lists");
+  await page.getByRole("link", { name: /Groceries/ }).click();
+  await page.waitForURL(/\/lists\/[a-z0-9]+$/);
+
+  await expect(page.getByText("Salt og peber", { exact: true })).toBeVisible();
+  await expect(page.getByText("Kylling", { exact: true })).toBeVisible();
 });

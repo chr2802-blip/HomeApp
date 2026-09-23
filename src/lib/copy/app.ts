@@ -102,6 +102,10 @@ export const APP = {
       DA: { one: "{count} åben", other: "{count} åbne" },
     },
     decisionTitle: { EN: "Already have some of this?", DA: "Har I allerede noget af det?" },
+    decisionHelp: {
+      EN: "These look like things you already have, so none are added yet. Check any you still want on the list.",
+      DA: "Det ser ud som om I allerede har det her, så intet er tilføjet endnu. Marker det, I alligevel skal bruge på listen.",
+    },
     addChecked: { EN: "Add checked", DA: "Tilføj markerede" },
   },
 } as const satisfies Record<string, Phrase | Plural | Record<string, Phrase | Plural>>;
