@@ -44,6 +44,27 @@ export function pantryKey(name: string): string {
  */
 const CONJUNCTION = /\s+(?:og|and)\s+|\s*&\s*/i;
 
+/**
+ * Whether a pantry that has `stocked` answers for `key` — the key itself, or, failing
+ * that, the key's own trailing words once whatever comes in front is dropped: "tørret
+ * spidskommen" is answered by a pantry that has "spidskommen", "røget paprika" by one
+ * that has "paprika". A recipe names the ingredient last and the preparation first
+ * ("finely chopped", "smoked", "freshly ground") far more often than the other way
+ * round, so only a *leading* run of words is ever dropped.
+ *
+ * Only whole words move, one at a time — never a substring. Danish compounds carry no
+ * space of their own ("hvidløg", "rødløg"), so a pantry entry for "løg" is never
+ * mistaken for garlic or a red onion; it is still only ever an exact match for "løg".
+ */
+function stockedMatch(key: string, stocked: Set<string>): boolean {
+  if (stocked.has(key)) return true;
+  const words = key.split(/\s+/).filter(Boolean);
+  for (let from = 1; from < words.length; from++) {
+    if (stocked.has(words.slice(from).join(" "))) return true;
+  }
+  return false;
+}
+
 /** A line split on its conjunction, and which of its parts the pantry already has. */
 function matchParts(
   text: string,
@@ -54,7 +75,7 @@ function matchParts(
     .map((part) => part.trim())
     .filter(Boolean);
   if (parts.length < 2) return null;
-  return { parts, matched: parts.filter((part) => stocked.has(pantryKey(part))) };
+  return { parts, matched: parts.filter((part) => stockedMatch(pantryKey(part), stocked)) };
 }
 
 /**
@@ -73,7 +94,7 @@ export type AmbiguousLine = { key: string; text: string; matched: string[] };
 export function ambiguousLines(wanted: Map<string, string>, stocked: Set<string>): AmbiguousLine[] {
   const found: AmbiguousLine[] = [];
   for (const [key, text] of wanted) {
-    if (stocked.has(key)) continue;
+    if (stockedMatch(key, stocked)) continue;
     const split = matchParts(text, stocked);
     if (split && split.matched.length > 0 && split.matched.length < split.parts.length) {
       found.push({ key, text, matched: split.matched });
@@ -108,7 +129,7 @@ export function stripStocked(
   const covered: string[] = [];
 
   for (const [key, text] of wanted) {
-    if (stocked.has(key)) {
+    if (stockedMatch(key, stocked)) {
       covered.push(text);
       continue;
     }

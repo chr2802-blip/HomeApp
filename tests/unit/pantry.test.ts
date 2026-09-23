@@ -100,6 +100,38 @@ describe("stripStocked", () => {
     expect([...keep.values()]).toEqual(["Salt og peber"]);
     expect(covered).toEqual([]);
   });
+
+  // A recipe names the ingredient last far more often than the other way round, so a
+  // pantry entry is also matched against a line's trailing words once a modifier in
+  // front is dropped — "tørret spidskommen" against a cupboard that has "spidskommen".
+  it("answers for a line qualified by a modifier the pantry entry does not carry", () => {
+    const wanted = new Map([
+      ["tørret spidskommen", "Tørret spidskommen"],
+      ["røget paprika", "Røget paprika"],
+    ]);
+    const { keep, covered } = stripStocked(wanted, new Set(["spidskommen", "paprika"]));
+
+    expect(keep.size).toBe(0);
+    expect(covered).toEqual(["Tørret spidskommen", "Røget paprika"]);
+  });
+
+  it("answers for a combined line where a part is itself qualified by a modifier", () => {
+    const combined = new Map([["salt og friskkværnet peber", "Salt og friskkværnet peber"]]);
+    const { keep, covered } = stripStocked(combined, new Set(["salt", "peber"]));
+
+    expect(keep.size).toBe(0);
+    expect(covered).toEqual(["Salt og friskkværnet peber"]);
+  });
+
+  // A Danish compound carries no space of its own, so dropping a leading word must never
+  // reach inside one: "hvidløg" (garlic) is not "løg" (onion) wearing a modifier.
+  it("never turns a compound word into a match for one of its parts", () => {
+    const wanted = new Map([["hvidløg", "Hvidløg"]]);
+    const { keep, covered } = stripStocked(wanted, new Set(["løg"]));
+
+    expect([...keep.values()]).toEqual(["Hvidløg"]);
+    expect(covered).toEqual([]);
+  });
 });
 
 describe("ambiguousLines", () => {
@@ -124,6 +156,14 @@ describe("ambiguousLines", () => {
   it("leaves a single-item line alone, however normal a word it is", () => {
     expect(ambiguousLines(new Map([["salt", "Salt"]]), new Set(["salt"]))).toEqual([]);
     expect(ambiguousLines(new Map([["salt", "Salt"]]), new Set())).toEqual([]);
+  });
+
+  it("names the qualified half of a combined line the pantry only partly answers for", () => {
+    const wanted = new Map([["salt og friskkværnet peber", "Salt og friskkværnet peber"]]);
+
+    expect(ambiguousLines(wanted, new Set(["salt"]))).toEqual([
+      { key: "salt og friskkværnet peber", text: "Salt og friskkværnet peber", matched: ["Salt"] },
+    ]);
   });
 });
 

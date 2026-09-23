@@ -586,6 +586,20 @@ and "salt" are not two basic goods. A name that normalises to nothing at all ("`
 refused rather than stored — it would match no ingredient line ever written, and then
 claim the next such entry was a duplicate of it.
 
+**A key matches whole, or by its trailing words, and a line naming more than one thing is
+split before either check.** `stockedMatch` in `src/lib/pantry.ts` tries the key as
+written first, then, word by word from the front, its own shrinking tail — so "tørret
+spidskommen" is answered by a pantry that has "spidskommen", and "røget paprika" by one
+that has "paprika": a recipe names the ingredient last far more often than the other way
+round. Only whole words move, never a substring, because Danish compounds carry no space
+of their own ("hvidløg", "rødløg") — a pantry entry for "løg" stays an exact match for
+"løg" and is never mistaken for garlic. A line naming more than one thing ("Salt og
+friskkværnet peber") is split on "og"/"and"/"&" first, in `matchParts`, and each half is
+then run through the same whole-or-trailing check — which is what lets a cupboard that
+has salt and pepper, spelled however the recipe qualified the pepper, answer for the
+whole line; where it only has some of the halves, `ambiguousLines` is what asks rather
+than guessing.
+
 **The cupboard is taken out in one place**, `writeRecipesToList` in
 `src/app/actions/lists.ts`, so a recipe added from its own page and a whole week added
 from the meal plan cannot come to disagree about it. It is read at the press rather than
