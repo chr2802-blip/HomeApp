@@ -26,10 +26,9 @@ export type CategoryOption = { id: string; name: string };
  * What every place that saves a recipe tells `AiOverlay` — one wording, because a
  * create, an edit page and the two edit-from-a-sheet call sites disagreeing about why
  * Save is slow would read as four different features rather than the same one. Saving
- * a recipe with instructions writes its cooking steps in the same request
- * (`withCookSteps` in `app/actions/recipes.ts`), which is the one model call this can
- * mean — so the wording says "if", rather than claiming a recipe with no instructions
- * yet is waiting on the AI too.
+ * a recipe reads its ingredients and instructions into the stored shape in the same
+ * request (`readForSaving` in `app/actions/recipes.ts`), which is the one model call
+ * this can mean.
  */
 export function recipeSaveOverlay(language: HomeLanguage) {
   const say = sayIn(language);

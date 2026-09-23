@@ -30,22 +30,23 @@ const RECIPE = {
   title: "Cremet pasta med kylling",
   totalTimeMinutes: 25,
   ingredients: [
-    { name: "pasta", amount: 400, unit: "g", preparation: null, note: null, group: null },
-    { name: "kyllingebryst", amount: 500, unit: "g", preparation: "i strimler", note: null, group: null },
-    { name: "fløde", amount: 2, unit: "dl", preparation: null, note: null, group: null },
-    { name: "salt", amount: null, unit: null, preparation: null, note: "efter smag", group: null },
+    { name: "pasta", amount: 400, unit: "g", group: null },
+    { name: "kyllingebryst", amount: 500, unit: "g", group: null },
+    { name: "fløde", amount: 2, unit: "dl", group: null },
+    { name: "salt", amount: null, unit: null, group: null },
   ],
   instructions: [
     { step: "Kog pastaen.", component: null },
-    { step: "Steg kyllingen.", component: null },
+    { step: "Skær kyllingebrystet i strimler, og steg det.", component: null },
+    { step: "Smag til med salt.", component: null },
   ],
   needsReview: false,
   reviewReason: null,
 };
 
 /**
- * The other question this stub is asked: breaking a stored recipe into steps for action
- * mode (`src/lib/cook-steps.ts`). It is told apart from an import by the schema the
+ * The other question this stub is asked: reading a recipe as it is saved — its ingredient
+ * lines and its steps for action mode (`src/lib/cook-steps.ts`). It is told apart from an import by the schema the
  * request asks for — only the importer's mentions `isRecipe`.
  *
  * Here the stub **echoes rather than answers**, and that is deliberate. Every recipe
@@ -54,6 +55,12 @@ const RECIPE = {
  * the text it typed is on the page afterwards, and it should. So the steps come back
  * exactly as they were sent, which is still the whole wiring under test: the request
  * built, the answer parsed, the breakdown stored and read back under each step.
+ *
+ * The ingredients echo too, with one piece of the real contract imitated: whatever
+ * follows a comma is not the thing bought, so it is dropped here as the model would move
+ * it into a step. The rest comes back as the name, measure and all — `renderIngredient`
+ * writes it out unchanged, so a line a test typed as "250 g carrots, grated" is stored as
+ * "250 g carrots", which is what the shopping list would have made of it either way.
  *
  * The parts it does invent are deterministic and minimal: step *n* uses ingredient *n*
  * where there is one, so a test can assert a particular line under a particular step, and
@@ -75,10 +82,19 @@ function preparedSteps(sent) {
           .filter(Boolean);
   };
 
-  const ingredients = fenced("--- INGREDIENTS (numbered) ---", "--- END INGREDIENTS ---");
+  const ingredients = fenced("--- INGREDIENTS AS WRITTEN ---", "--- END INGREDIENTS ---").filter(
+    (line) => line !== "(none listed)",
+  );
   const steps = fenced("--- INSTRUCTIONS AS WRITTEN ---", "--- END INSTRUCTIONS ---");
 
   return {
+    title: null,
+    ingredients: ingredients.map((line) => ({
+      name: line.split(",")[0].trim(),
+      amount: null,
+      unit: null,
+      group: null,
+    })),
     steps: steps.map((step, index) => ({
       step,
       uses: index < ingredients.length ? [index] : [],
@@ -92,25 +108,26 @@ function preparedSteps(sent) {
  * section asked for English rather than Danish.
  *
  * This proves only that the right instruction reached the API — the literal sentence
- * `systemPrompt(language)` writes when `language` is `"EN"` — never that a model
+ * `languageRules(language)` writes when `language` is `"EN"` — never that a model
  * translates anything. Nothing here reads the raw text being imported, so it cannot
  * prove a Danish source became this English recipe; that half is deterministic and
- * proved properly by `tests/unit/recipe-normalize.test.ts`'s `SAME_MEASURE` and
- * `formatAmount` cases, which need no server at all.
+ * proved properly by `tests/unit/ingredient-line.test.ts`'s `SAME_MEASURE` and
+ * amount cases, which need no server at all.
  */
 const RECIPE_EN = {
   isRecipe: true,
   title: "Creamy chicken pasta",
   totalTimeMinutes: 25,
   ingredients: [
-    { name: "pasta", amount: 400, unit: "g", preparation: null, note: null, group: null },
-    { name: "chicken breast", amount: 500, unit: "g", preparation: "sliced", note: null, group: null },
-    { name: "cream", amount: 2, unit: "dl", preparation: null, note: null, group: null },
-    { name: "salt", amount: null, unit: null, preparation: null, note: "to taste", group: null },
+    { name: "pasta", amount: 400, unit: "g", group: null },
+    { name: "chicken breast", amount: 500, unit: "g", group: null },
+    { name: "cream", amount: 2, unit: "dl", group: null },
+    { name: "salt", amount: null, unit: null, group: null },
   ],
   instructions: [
     { step: "Cook the pasta.", component: null },
-    { step: "Fry the chicken.", component: null },
+    { step: "Slice the chicken and fry it.", component: null },
+    { step: "Season with salt to taste.", component: null },
   ],
   needsReview: false,
   reviewReason: null,
@@ -127,7 +144,7 @@ function answer(sent) {
   // says which of the two questions this is.
   if (!sent.includes("isRecipe")) return preparedSteps(sent);
 
-  // The exact sentence `languageSection` in src/lib/recipe-normalize.ts writes for
+  // The exact sentence `languageRules` in src/lib/ingredient-line.ts writes for
   // English — see the doc comment on RECIPE_EN for what finding it does and does not
   // prove.
   const recipe = sent.includes("Write the recipe in English") ? RECIPE_EN : RECIPE;

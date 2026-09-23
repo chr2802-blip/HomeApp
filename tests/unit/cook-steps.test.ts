@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 
 import { PreparedStepsSchema, readAnswer } from "@/lib/cook-steps";
-import { instructionLines } from "@/lib/recipes";
+import { ingredientLines, instructionLines } from "@/lib/recipes";
 
 /**
  * The reading itself is a model's job and is not tested here — there is no key in this
@@ -27,8 +27,8 @@ describe("the schema the model is actually sent", () => {
    */
   it("carries the guidance for each field, which is all that travels", () => {
     for (const guidance of [
-      "in the recipe's own language",
-      "Zero-based: the first ingredient is 0",
+      "in the household's language",
+      "Zero-based: the first ingredient you return is 0",
       "never a guess",
     ]) {
       expect(wire()).toContain(guidance);
@@ -49,9 +49,11 @@ describe("the schema the model is actually sent", () => {
 });
 
 describe("an answer the wire schema permits", () => {
+  /** An answer with `ingredientCount` plain ingredients unless it names its own. */
   function read(answer: Record<string, unknown>, ingredientCount = 3) {
-    const parsed = zodOutputFormat(PreparedStepsSchema).parse(JSON.stringify(answer));
-    return readAnswer(parsed, ingredientCount);
+    const ingredients = Array.from({ length: ingredientCount }, (_, index) => ({ name: `ting ${index}` }));
+    const parsed = zodOutputFormat(PreparedStepsSchema).parse(JSON.stringify({ ingredients, ...answer }));
+    return readAnswer(parsed, "DA");
   }
 
   it("becomes one step to a line, with one entry each", () => {
@@ -134,8 +136,8 @@ describe("an answer the wire schema permits", () => {
   });
 
   it("takes an answer with no steps in it, rather than throwing the call away", () => {
-    expect(read({})).toEqual({ instructions: "", steps: [] });
-    expect(read({ steps: [] })).toEqual({ instructions: "", steps: [] });
+    expect(read({})).toMatchObject({ instructions: "", steps: [] });
+    expect(read({ steps: [] })).toMatchObject({ instructions: "", steps: [] });
   });
 
   /*
@@ -147,5 +149,49 @@ describe("an answer the wire schema permits", () => {
     const { steps } = read({ steps: [{ step: "Kog pastaen.", uses: [0, 1], minutes: null }] }, 0);
 
     expect(steps[0].uses).toEqual([]);
+  });
+
+  /*
+   * The save writes the ingredient lines as well as the steps, through the same writer an
+   * import uses — so a hand-typed recipe comes out in exactly the shape an imported one does.
+   */
+  it("writes the ingredients as amount, unit and name, in the household's own spelling", () => {
+    const { ingredients } = read({
+      ingredients: [
+        { name: "kartofler", amount: 100, unit: "g" },
+        { name: "æg", amount: 2, unit: "stk" },
+        { name: "sukker", amount: 1.5, unit: "tbsp" },
+        { name: "salt" },
+      ],
+      steps: [],
+    });
+
+    expect(ingredientLines(ingredients)).toEqual(["100 g kartofler", "2 æg", "1½ spsk sukker", "salt"]);
+  });
+
+  /*
+   * The model's positions are into its own answer; the stored ones are into the lines
+   * actually written. An ingredient dropped for having no name has to move every position
+   * after it down by one, or the rest of the recipe sits beside the wrong step at the hob.
+   */
+  it("renumbers the steps' ingredients past one that was dropped", () => {
+    const { ingredients, steps } = read({
+      ingredients: [{ name: "mel" }, { name: "  " }, { name: "vand" }, { name: "salt" }],
+      steps: [
+        { step: "Bland.", uses: [0, 1, 2], minutes: null },
+        { step: "Smag til.", uses: [3], minutes: null },
+      ],
+    });
+
+    expect(ingredientLines(ingredients)).toEqual(["mel", "vand", "salt"]);
+    expect(steps).toEqual([
+      { uses: [0, 1], minutes: null },
+      { uses: [2], minutes: null },
+    ]);
+  });
+
+  it("carries the title it was given, and nothing where it gave none", () => {
+    expect(read({ title: "  Kartoffelsuppe " }).title).toBe("Kartoffelsuppe");
+    expect(read({}).title).toBeNull();
   });
 });
