@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import {
-  NormalizedRecipeSchema,
-  renderNormalized,
-  SAME_MEASURE,
-  UNITS,
-  type NormalizedRecipe,
-} from "@/lib/recipe-normalize";
+import { NormalizedRecipeSchema, renderNormalized, type NormalizedRecipe } from "@/lib/recipe-normalize";
+import { SAME_MEASURE, UNITS } from "@/lib/ingredient-line";
 import type { RawExtract } from "@/lib/recipe-extract";
 import { ingredientLines, shoppingText } from "@/lib/recipes";
 import { pantryKey } from "@/lib/pantry";
@@ -53,8 +48,6 @@ function ingredient(overrides: Partial<NormalizedRecipe["ingredients"][number]>)
     name: "spaghetti",
     amount: null,
     unit: null,
-    preparation: null,
-    note: null,
     group: null,
     ...overrides,
   };
@@ -76,8 +69,16 @@ describe("the units a recipe may be written in", () => {
   });
 
   it("is Danish-first, because that is what the household's recipes are written in", () => {
-    for (const unit of ["tsk", "spsk", "dl", "stk", "fed"]) {
+    for (const unit of ["tsk", "spsk", "dl", "fed"]) {
       expect(UNITS).toContain(unit);
+    }
+  });
+
+  // A counted thing is its number alone ("2 æg"), so the counting word is not offered, and
+  // cups, ounces and pounds are converted to metric by the reader rather than written.
+  it("offers neither a counting word nor an imperial measure", () => {
+    for (const unit of ["stk", "cup", "oz", "lb"]) {
+      expect(UNITS).not.toContain(unit);
     }
   });
 });
@@ -109,8 +110,8 @@ describe("SAME_MEASURE — the same unit, spelled the household's way", () => {
     }
   });
 
-  // cup, oz and lb are not a Danish kitchen's units at all — mapping them to dl or g
-  // would be this app doing conversion arithmetic on a model's say-so.
+  // SAME_MEASURE only respells. Turning a cup into decilitres or grams depends on what is
+  // being measured, which is the reader's question (see `ingredientRules`), never a table's.
   it("never converts a unit with no equivalent measure", () => {
     for (const unit of ["cup", "oz", "lb"]) {
       expect(SAME_MEASURE.DA[unit]).toBeUndefined();
@@ -149,8 +150,9 @@ describe("the schema the reader must answer in", () => {
     const wire = JSON.stringify(zodOutputFormat(NormalizedRecipeSchema).schema);
 
     for (const guidance of [
-      "The ingredient alone",
+      "What is bought, and only that",
       "never '1 1/2'",
+      "For a range, the higher number",
       "never a guess, and never zero",
       "no step number in front of it",
       "sends the cook to a link for the amounts",
@@ -196,7 +198,7 @@ describe("an answer the wire schema permits", () => {
     isRecipe: true,
     title: "Boller",
     totalTimeMinutes: null,
-    ingredients: [{ name: "mel", amount: 500, unit: "g", preparation: null, note: null, group: null }],
+    ingredients: [{ name: "mel", amount: 500, unit: "g", group: null }],
     instructions: [{ step: "Ælt det sammen.", component: null }],
     needsReview: false,
     reviewReason: null,
@@ -277,18 +279,28 @@ describe("renderNormalized — an ingredient line", () => {
     expect(line({ name: "æg", amount: 2, unit: null })).toBe("2 æg");
   });
 
-  it("writes the preparation after a comma, where shoppingText cuts it off", () => {
-    expect(line({ name: "gulerødder", amount: 3, unit: "stk", preparation: "groftrevet" })).toBe(
-      "3 stk gulerødder, groftrevet",
+  it("writes a counted ingredient with its number alone, even where the reader said stk", () => {
+    expect(line({ name: "gulerødder", amount: 3, unit: "stk" })).toBe("3 gulerødder");
+    expect(line({ name: "æg", amount: 2, unit: "Stk." })).toBe("2 æg");
+  });
+
+  /*
+   * `shoppingText` cuts a line at its first comma, so a comma inside a name would cut the
+   * product in half on the shopping list; brackets would travel there and match nothing in
+   * the pantry. The rules forbid both, and the writer makes the forbidding true.
+   */
+  it("never writes a comma or a bracket inside a name", () => {
+    expect(line({ name: "græsk yoghurt, 10%", amount: 200, unit: "g" })).toBe("200 g græsk yoghurt 10%");
+    expect(line({ name: "hakkede tomater (på dåse)", amount: 1, unit: "dåse" })).toBe(
+      "1 dåse hakkede tomater på dåse",
     );
   });
 
-  // In brackets this would read "Salt (efter smag)" on the shopping list and match no
-  // pantry entry. After a comma it is cut off and the cupboard's salt is found.
-  it("writes a note after a comma too, never in brackets", () => {
-    expect(line({ name: "salt", amount: null, unit: null, note: "efter smag" })).toBe(
-      "salt, efter smag",
-    );
+  // The whole contract in one line: an amount, a unit and the thing bought. There is no
+  // field for anything else, so there is nothing for the writer to put after it.
+  it("writes nothing but the amount, the unit and the name", () => {
+    expect(line({ name: "salt", amount: null, unit: null })).toBe("salt");
+    expect(line({ name: "kartofler", amount: 100, unit: "g" })).toBe("100 g kartofler");
   });
 
   // "knivspids salt" is a thing called knivspids salt as far as `shoppingText` is
@@ -346,16 +358,13 @@ describe("renderNormalized — what reaches the shopping list and the pantry", (
    * could plausibly have written differently.
    */
   it.each([
-    [ingredient({ name: "salt", amount: null, unit: null, note: "efter smag" }), "Salt", "salt"],
+    [ingredient({ name: "salt", amount: null, unit: null }), "Salt", "salt"],
+    [ingredient({ name: "græsk yoghurt 10%", amount: 200, unit: "g" }), "Græsk yoghurt 10%", "græsk yoghurt 10%"],
     [ingredient({ name: "hakket oksekød", amount: 500, unit: "g" }), "Hakket oksekød", "hakket oksekød"],
     [ingredient({ name: "fløde", amount: 1.5, unit: "dl" }), "Fløde", "fløde"],
     [ingredient({ name: "hvidløg", amount: 2, unit: "fed" }), "Hvidløg", "hvidløg"],
     [ingredient({ name: "æg", amount: 2, unit: null }), "Æg", "æg"],
-    [
-      ingredient({ name: "gulerødder", amount: 3, unit: "stk", preparation: "groftrevet" }),
-      "Gulerødder",
-      "gulerødder",
-    ],
+    [ingredient({ name: "gulerødder", amount: 3, unit: "stk" }), "Gulerødder", "gulerødder"],
     [ingredient({ name: "olivenolie", amount: 1, unit: "spsk" }), "Olivenolie", "olivenolie"],
   ])("$name becomes one errand and one pantry key", (item, errand, key) => {
     const { ingredients } = renderNormalized(normalized({ ingredients: [item] }), RAW, "DA");

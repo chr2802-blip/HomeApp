@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { Prisma } from "@prisma/client";
+import { Prisma, type HomeLanguage } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireHomeUser } from "@/lib/auth";
@@ -12,7 +12,7 @@ import { homeScoped } from "@/lib/scoped";
 import { bodyText, optionalText, readForm, requiredText } from "@/lib/form";
 import { safeExternalHref } from "@/lib/embed";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
-import { instructionLines, readCategoryChoice } from "@/lib/recipes";
+import { ingredientLines, instructionLines, readCategoryChoice } from "@/lib/recipes";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { sayIn, type Say } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
@@ -97,30 +97,59 @@ type RecipeText = { title: string; ingredients: string; instructions: string };
 const reader = async () => (await import("@/lib/cook-steps")).prepareCookSteps;
 
 /**
- * The instructions and the breakdown action mode reads them by, written together.
+ * What a save stores for the recipe's text: its ingredient lines and steps read into the
+ * one shape every recipe in the app is kept in (`ingredient-line.ts`), and the breakdown
+ * action mode reads them by, all written together.
  *
- * **The invariant this exists to keep: a write that changes `ingredients` or
- * `instructions` also writes `cookSteps`.** The breakdown points at lines by their
- * position, so one left behind by an edit would put another ingredient under a step —
- * at the hob, silently. `lib/cook.ts` guards against that by refusing a mapping whose
- * length has drifted, but the guard is the net; this is the mechanism.
+ * **Every save goes through this**, typed by hand or pre-filled by an import, so there is
+ * one way a stored ingredient line looks however the recipe arrived. Whatever a line loses
+ * — a cut, a temperature, "efter smag" — the reader moves into the steps, which is why the
+ * two are rewritten at once and never one without the other.
  *
- * So a reader that could not answer clears the column rather than leaving what was there.
- * The recipe still saves, and action mode shows its steps plainly: the feature degrades,
- * the save does not fail. Nothing about a model being down should stand between a cook
- * and writing down a recipe.
+ * **The invariant this also keeps: a write that changes `ingredients` or `instructions`
+ * also writes `cookSteps`.** The breakdown points at lines by their position, so one left
+ * behind by an edit would put another ingredient under a step — at the hob, silently.
+ * `lib/cook.ts` guards against that by refusing a mapping whose length has drifted, but the
+ * guard is the net; this is the mechanism.
+ *
+ * So a reader that could not answer stores the recipe exactly as it was written and clears
+ * the column rather than leaving what was there. The feature degrades, the save does not
+ * fail: nothing about a model being down should stand between a cook and writing down a
+ * recipe, and the next save while it is up tidies the recipe then.
  */
-async function withCookSteps(fields: RecipeText, homeId: string, userId: string) {
-  const cleared = { instructions: fields.instructions, cookSteps: Prisma.DbNull };
-  // Counted only where there is something to read: a recipe with no steps is answered
-  // without the model, and should neither spend an attempt nor be refused one.
-  if (instructionLines(fields.instructions).length && !(await takeReading(userId)).allowed) {
-    return cleared;
-  }
+async function readForSaving(
+  fields: RecipeText,
+  homeId: string,
+  userId: string,
+  language: HomeLanguage,
+): Promise<Partial<RecipeText> & { cookSteps: Prisma.InputJsonValue | typeof Prisma.DbNull }> {
+  const asWritten = { cookSteps: Prisma.DbNull };
+  // Counted only where there is something to read: a recipe with neither ingredients nor
+  // steps is answered without the model, and should neither spend an attempt nor be
+  // refused one.
+  const anything = ingredientLines(fields.ingredients).length || instructionLines(fields.instructions).length;
+  if (anything && !(await takeReading(userId)).allowed) return asWritten;
 
-  const read = await (await reader())(fields, homeId);
+  const read = await (await reader())(fields, homeId, language);
+  if (!read.ok) return asWritten;
 
-  return read.ok ? { instructions: read.instructions, cookSteps: { v: 1, steps: read.steps } } : cleared;
+  return {
+    title: read.title,
+    ingredients: read.ingredients,
+    instructions: read.instructions,
+    cookSteps: { v: 1, steps: read.steps },
+  };
+}
+
+/**
+ * The language of the home a recipe is filed under, which is what it is read into — not
+ * necessarily the one on screen, since a recipe can be edited from a home somebody is not
+ * reading right now.
+ */
+async function languageOf(homeId: string, user: { homeId: string | null; homeLanguage: HomeLanguage }) {
+  if (homeId === user.homeId) return user.homeLanguage;
+  const home = await prisma.home.findUnique({ where: { id: homeId }, select: { language: true } });
+  return home?.language ?? user.homeLanguage;
 }
 
 /**
@@ -153,7 +182,7 @@ export async function createRecipe(_prev: ActionResult, formData: FormData): Pro
   const recipe = await prisma.recipe.create({
     data: {
       ...form.fields,
-      ...(await withCookSteps(form.fields, user.homeId, user.id)),
+      ...(await readForSaving(form.fields, user.homeId, user.id, user.homeLanguage)),
       photoId: photo.photoId ?? null,
       homeId: user.homeId,
       createdById: user.id,
@@ -178,16 +207,11 @@ export async function updateRecipe(_prev: ActionResult, formData: FormData): Pro
   const photo = await readPhotoChoice(formData, recipe.homeId, user.homeLanguage);
   if (!photo.ok) return fail(photo.error);
 
-  // Read again only where the answer could have changed: the text it was derived from, or
-  // a recipe that has never had one. A title-only edit costs nothing, and — more to the
-  // point — steps left alone are steps that do not drift a little further from the cook's
-  // own words on every unrelated save.
-  const rewrite =
-    form.fields.instructions !== recipe.instructions ||
-    form.fields.ingredients !== recipe.ingredients ||
-    recipe.cookSteps === null;
-
-  const prepared = rewrite ? await withCookSteps(form.fields, recipe.homeId, user.id) : null;
+  // Read on every save, not only when the text changed: this is how a recipe stored before
+  // the one ingredient format existed is brought into it — edit anything and save. A recipe
+  // already in the format reads back as it went in.
+  const language = await languageOf(recipe.homeId, user);
+  const read = await readForSaving(form.fields, recipe.homeId, user.id, language);
 
   // The old pairings go before the new ones are written, in one transaction: a heading
   // that was ticked before and still is would otherwise be written twice, and a recipe
@@ -198,7 +222,7 @@ export async function updateRecipe(_prev: ActionResult, formData: FormData): Pro
       where: { id: recipe.id },
       data: {
         ...form.fields,
-        ...(prepared ?? {}),
+        ...read,
         photoId: photo.photoId,
         categories: { create: filedUnder(categoryIds) },
       },
@@ -215,7 +239,8 @@ export async function updateRecipe(_prev: ActionResult, formData: FormData): Pro
 }
 
 /**
- * Prepares one recipe for action mode on request, rather than as part of a save.
+ * Prepares one recipe for action mode on request, rather than as part of a save — which
+ * also brings its ingredient lines into the one format, exactly as a save would.
  *
  * This is how every recipe written before action mode existed gets its breakdown, and how
  * one saved while the reader was down gets a second chance — pressed from inside action
@@ -237,14 +262,19 @@ export async function prepareRecipeSteps(
   const limit = await takeReading(user.id);
   if (!limit.allowed) return fail(say(RECIPES.prepareRateLimited, { minutes: limit.retryAfterMinutes }));
 
-  const read = await (await reader())(recipe, recipe.homeId);
+  const read = await (await reader())(recipe, recipe.homeId, await languageOf(recipe.homeId, user));
   if (!read.ok) {
     return fail(say(read.reason === "over-limit" ? RECIPES.prepareOverLimit : RECIPES.prepareReaderUnavailable));
   }
 
   await prisma.recipe.update({
     where: { id: recipe.id },
-    data: { instructions: read.instructions, cookSteps: { v: 1, steps: read.steps } },
+    data: {
+      title: read.title,
+      ingredients: read.ingredients,
+      instructions: read.instructions,
+      cookSteps: { v: 1, steps: read.steps },
+    },
   });
 
   revalidatePath(`/recipes/${recipe.id}`);

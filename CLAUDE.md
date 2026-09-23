@@ -215,20 +215,17 @@ and `readDayInZone` take a `Phrase` pattern and a language, because a pattern ca
 `formatDayInZone` stay locale-free on purpose, because what they write is a database key
 (`ClearedWeek.week`, a date input's value) that a locale would stop matching.
 
-**The importer's system prompt owns the prose; `renderNormalized` owns the unit token.**
-`src/lib/recipe-normalize.ts`'s `systemPrompt(language)` tells the model to write the whole
-recipe — title, ingredients, steps, `reviewReason` — in the household's language, translating
-where the source is in the other one, and to **leave every unit word exactly as the source
-wrote it**. Which word a unit is spelled with is decided afterwards, deterministically, by
-`SAME_MEASURE` (`tsp`↔`tsk`, `tbsp`↔`spsk`, and so on) — never inside the prompt, because a
-model guessing at a conversion is the one thing "units are never converted" exists to forbid.
-`cup`, `oz` and `lb` have no Danish word and are **left alone**: mapping them to `dl` or `g`
-would be measurement arithmetic on a model's say-so. `formatAmount` writes the decimal the
-household's own language does — a comma in Danish, a point in English. **`src/lib/cook-steps.ts`
-is never given a language and must never translate**: it runs on text already in the
-household's language, and a recipe somebody typed by hand in another language is that
-household's own words — the pantry's rule again, that an import answers what the source
-assumed, never what a person asked for.
+**The prompt owns the prose; `renderIngredient` owns the unit token.** `languageRules(language)`
+in `src/lib/ingredient-line.ts` — handed to **both** model calls, the importer's and the
+save's — tells the model to write the whole recipe (title, ingredients, steps, `reviewReason`)
+in the household's language, translating where it is in the other one. **That includes a
+recipe typed by hand**: every save is read, so every stored recipe ends up in its home's
+language, however it arrived. Which *word* a unit is spelled with is decided afterwards,
+deterministically, by `SAME_MEASURE` (`tsp`↔`tsk`, `tbsp`↔`spsk`, and so on) — never by the
+model, because a spelling has one right answer. Converting a cup, an ounce or a pound to
+metric is a different question — how a metric kitchen measures *this* ingredient — and that
+one is the reader's, told to it in `ingredientRules`. `formatAmount` writes the decimal the
+household's own language does — a comma in Danish, a point in English.
 
 **Switching changes only what happens next.** Stored recipes, pantry entries, list items and
 tasks are left exactly as they are; nothing is migrated, and nothing is re-read through the
@@ -305,8 +302,8 @@ stops the list and the schema parting company again.
 
 **An ingredient line is a contract, not free text.** `shoppingText`, `pantryKey`,
 `writeRecipesToList` and `staplesOf` all take one apart, so anything writing one honours
-the format `renderNormalized` writes — see *An import is two stages* below and
-[`docs/design/recipes.md`](docs/design/recipes.md). Action mode's breakdown sidesteps it
+the format `renderIngredient` writes — see *Every ingredient line is an amount, a unit and
+the thing bought* below and [`docs/design/recipes.md`](docs/design/recipes.md). Action mode's breakdown sidesteps it
 by storing positions and never a line of its own.
 
 Permission checks live separately in `src/lib/access.ts`; `homeScoped` in
@@ -735,8 +732,9 @@ forward**, as lifting a right-hand page over does.
   `PantryItem.key` is.
 - **A write that changes `ingredients` or `instructions` also writes `cookSteps`** — to a
   fresh mapping, or to `DbNull` when the reader could not answer. Both writers are
-  `createRecipe` and `updateRecipe`; `tests/integration/recipes.test.ts` holds it. A
-  reader that is down never fails a save: the recipe stores, the column clears.
+  `createRecipe` and `updateRecipe`, and **every save is read**, not only one that changed
+  the text (`readForSaving`); `tests/integration/recipes.test.ts` holds it. A reader that is
+  down never fails a save: the recipe stores as written, the column clears.
   **Anything that changes how a save behaves has five call sites to check, not one**:
   `createRecipe` is handed in by `recipes/page.tsx` (to `NewRecipeDialog`) and
   `recipes/new/page.tsx`; `updateRecipe` by `recipes/[id]/edit/page.tsx`,
@@ -750,17 +748,20 @@ forward**, as lifting a right-hand page over does.
   offer to prepare it on the first page. Matching ingredient words against a step to guess
   the mapping would be the pattern-matching `docs/design/recipes.md` records as the wrong
   tool for this question.
-- **`prepareCookSteps` is a second question, not a second reader.** `recipe-normalize.ts`
-  asks "is there a recipe in this text" about text nobody here wrote; this asks "how is
-  this household's own recipe cooked" about lines already stored and numbered. It may
-  rewrite the steps — into `Recipe.instructions`, the one copy both the recipe page and
-  action mode read — and it **never rewrites an ingredient line**, which is the contract
-  `shoppingText` and `pantryKey` read. Its schema carries the same two traps as the
-  importer's: nothing narrows, and every `.describe()` comes before its `.nullish()`.
-- **Because its answer replaces the instructions, it only ever answers for all of them.**
-  Instructions past `MAX_INPUT_CHARS` are not sent — never sliced to fit, which deleted
-  everything after the cut on save — and an answer that stopped at `max_tokens` is
-  refused however well it parsed. `tests/unit/ai-readers.test.ts` holds both.
+- **`prepareCookSteps` is the save's reader, and the gate every stored recipe passes.**
+  `recipe-normalize.ts` asks "is there a recipe in this text" about text nobody here wrote,
+  and its answer is only a draft for the form; this reads what is actually being stored. It
+  rewrites the ingredient lines into the one format (below) **and** the steps, together,
+  because what a line loses — "i tern", "stuetemperatur" — has to land in a step. Its
+  `uses` are positions in its *own* ingredient answer, renumbered by `readAnswer` past any
+  it dropped. Its schema carries the same two traps as the importer's: nothing narrows, and
+  every `.describe()` comes before its `.nullish()`.
+- **Because its answer replaces the ingredients and the instructions, it only ever answers
+  for all of them.** Text past `MAX_INPUT_CHARS` (both blocks counted together) is not sent
+  — never sliced to fit, which deleted everything after the cut on save — an answer that
+  stopped at `max_tokens` is refused however well it parsed, and so is one that returned no
+  steps or no ingredients where the recipe had some. `tests/unit/ai-readers.test.ts` holds
+  all of it.
 - **The surface is portalled to `document.body`**, because `PageTransition` puts a
   `transform` on an ancestor and a transformed ancestor contains a fixed child. It pads
   its own `env(safe-area-inset-*)`, holds a wake lock through `useWakeLock` (shared with
@@ -821,12 +822,10 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
   floor: a floor made of the thing that was getting it wrong is the same two answers to one
   question. **No `ANTHROPIC_API_KEY`, or an API that will not answer, is an honest refusal**
   with the paste box and the plain form beside it — never a quietly worse recipe.
-- **`renderNormalized` writes the lines, and its format is load-bearing.** An ingredient line
-  is read back by `shoppingText`, `pantryKey`, `writeRecipesToList` and `staplesOf`, so:
-  everything discretionary goes **after a comma** (`Salt, efter smag` becomes `Salt` and finds
-  the cupboard's salt; in brackets it finds nothing), **a unit is only ever written behind an
-  amount**, and **a component is never a heading line of its own** — `writeRecipesToList`
-  walks every line, and "Til dressingen:" would become an errand.
+- **`renderIngredient` writes the lines, for the importer and the save alike** — see the
+  next section. **A unit is only ever written behind an amount**, and **a component is never
+  a heading line of its own**: `writeRecipesToList` walks every line, and "Til dressingen:"
+  would become an errand.
 - **The schema asserts only what is worth losing the whole import over.** The SDK converts
   it for the API and drops what that format cannot carry — an enum becomes a plain string,
   `.positive()` becomes a line of description — but it still validates the answer against
@@ -846,7 +845,7 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
   first, because that is what this household's recipes are in. **The recipe is read into
   the home's own language**, translated where the source was in the other one — see "A
   home is read in a language" above for the prompt/render split that does it, and for why
-  a unit word is never the thing translated by the model.
+  a unit word is never the thing respelled by the model.
 - **A page's own machine-readable `totalTime` beats the reader's.** `PT1H30M` is the site
   stating the answer; a number read out of prose is an inference.
 - **The link is fetched from this app's own server, so it is checked the way that has to be:**
@@ -872,6 +871,41 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
   billed, would differ between runs, and would fail whenever somebody else's service did.
 
 **[`docs/design/recipes.md`](docs/design/recipes.md) has the reasoning.**
+
+### Every ingredient line is an amount, a unit and the thing bought
+
+**`100 g kartofler`, `2 æg`, `Salt` — and nothing else, for every recipe in the home**,
+typed by hand, imported from a link or read off a reel. The shopping list uses only the
+ingredient, so anything else on a line is either noise on the list or a second opinion
+about which words to throw away.
+
+- **One description, one writer, two callers.** `src/lib/ingredient-line.ts` holds the rules
+  (`ingredientRules`), the shape the model answers in (`IngredientSchema` — name, amount,
+  unit, group; **no field for preparation or a note**, because a field is a place to put
+  one) and the writer (`renderIngredient`). The importer and the save are both handed all
+  three, word for word; `tests/unit/ai-readers.test.ts` asserts both prompts contain the
+  same rules. Never write a third description of a line.
+- **The save decides what is stored.** Every `createRecipe` and `updateRecipe` goes through
+  `prepareCookSteps`, so an imported draft is read a second time (and comes back as it went
+  in), and a hand-typed recipe gets the same treatment. Recipes stored before this are
+  **not** migrated: editing one and saving brings it into the format, and so does the
+  "prepare" button in action mode.
+- **What leaves a line goes into the steps, never nowhere** — the household's own decisions,
+  each a bullet of `ingredientRules`: a cut (`i tern`) and a state (`stuetemperatur`) become
+  or join a step; a size (`1 stort løg`) is `1 løg` and the step says "det store løg"; `efter
+  smag` is the name alone and a step seasons; an optional or serving item is still a line
+  (`Parmesan`) and a step says "Server med"; an alternative keeps its first option and the
+  step names the other; `Salt og peber` is two lines.
+- **Words that change what is bought stay in the name**: `hakkede tomater`, `græsk yoghurt
+  10%`, `kyllingebryst uden skind`. No comma and no bracket ever does — `renderIngredient`
+  removes them, because `shoppingText` cuts at a comma and the pantry matches nothing in
+  brackets.
+- **A range takes the higher number** and keeps no trace of the range. **A counted thing is
+  its number alone** (`2 æg`, never `2 stk æg` — a `stk` that arrives is dropped).
+  **Units are metric**: the reader converts cups, ounces and pounds, choosing weight or
+  volume for the ingredient; where a source gives two measures, the metric one is kept.
+- **The same ingredient in two components is two lines** (`50 g smør`, `100 g smør`) —
+  never merged across components, always merged within one.
 
 ### Sheets, folds, movement, and how a form submits
 

@@ -140,8 +140,8 @@ export const RECIPES = {
   },
   savingRecipe: { EN: "Saving your recipe…", DA: "Gemmer jeres opskrift…" },
   savingRecipeDetail: {
-    EN: "If there are instructions, the AI is turning them into steps for cooking mode — this can take up to 20 seconds.",
-    DA: "Hvis der er en fremgangsmåde, omdanner AI'en den til trin til madlavningstilstand — det kan tage op til 20 sekunder.",
+    EN: "The AI is tidying the ingredients and turning the instructions into steps for cooking mode — this can take up to 30 seconds.",
+    DA: "AI'en rydder op i ingredienserne og omdanner fremgangsmåden til trin til madlavningstilstand — det kan tage op til 30 sekunder.",
   },
   ingredientsField: { EN: "Ingredients", DA: "Ingredienser" },
   ingredientsPlaceholder: {

@@ -521,12 +521,18 @@ describe("what a save leaves in cookSteps", () => {
     expect((await only()).cookSteps).toBeNull();
   });
 
-  it("leaves it alone where neither block changed", async () => {
+  /*
+   * Every save is read, not only one that changed the text: that is how a recipe stored
+   * before the one ingredient format existed is brought into it — edit anything, save. So
+   * a title-only edit asks the reader too, and with none to answer here it stores the
+   * recipe as written and clears the breakdown, exactly as any other save would.
+   */
+  it("reads a save that changed neither block too", async () => {
     const recipe = await seedPrepared();
 
     await edit(recipe, { title: "Better pancakes", description: "Improved" });
 
-    expect((await only()).cookSteps).toEqual(prepared);
+    expect(await only()).toMatchObject({ title: "Better pancakes", ingredients: "Flour\nMilk", cookSteps: null });
   });
 
   it("saves the recipe anyway when the reader cannot answer", async () => {
@@ -559,8 +565,8 @@ describe("what a save leaves in cookSteps", () => {
 });
 
 /**
- * The two ways into a paid model call besides the importer: a save that changes the text,
- * and the "prepare" button. Both are counted against the person pressing, and both are
+ * The two ways into a paid model call besides the importer: a save, and the "prepare"
+ * button. Both are counted against the person pressing, and both are
  * refused once the home has spent its month — the second of which is asked inside the
  * reader, so these need a key in the environment to get that far. Nothing reaches the
  * network: every case here is turned away before a client is built.

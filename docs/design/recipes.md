@@ -134,7 +134,10 @@ suggestions on it. So `renderNormalized` is written against what those four can 
 - **Everything discretionary goes after a comma.** `shoppingText` cuts a line at its first
   comma, so "Salt, efter smag" becomes "Salt" and finds the cupboard's salt. In brackets it
   would become "Salt (efter smag)" and match nothing — the same line, the same information,
-  and a pantry that has silently stopped working.
+  and a pantry that has silently stopped working. *(Superseded 2026-09-23: nothing
+  discretionary is written on a line at all any more — it goes into the steps. See "One
+  shape for every ingredient line" below. The reasoning about commas and brackets is why a
+  name may now contain neither.)*
 - **A unit is only ever written behind an amount.** `shoppingText` strips a unit word only
   where an amount preceded it, so "knivspids salt" is a thing to buy called knivspids salt.
 - **A component is never a heading line of its own.** "Til dressingen:" would read perfectly
@@ -217,12 +220,17 @@ already resolved, after the model has answered and the recipe is otherwise settl
 `cup`, `oz` and `lb` are left as they are in every language, because a Danish kitchen has
 no word for them — mapping one to `dl` or `g` would be measurement arithmetic on a model's
 say-so, which is the one thing "units are never converted" was written to forbid, and
-remains written to forbid; only who is being told not to convert changed. `formatAmount`
+remains written to forbid; only who is being told not to convert changed. *(Superseded
+2026-09-23: the household decided it wants metric, so the reader now converts cups, ounces
+and pounds — choosing weight or volume for the ingredient, which a table cannot. Respelling
+a unit is still `SAME_MEASURE`'s alone.)* `formatAmount`
 writes the decimal the household's own language does, a comma in Danish and a point in
 English, for the same reason the rest of a stored line reads as that language throughout.
 
-`src/lib/cook-steps.ts`'s prompt is untouched, and that is also on purpose rather than an
-oversight. It runs on a recipe already saved — already in the household's language,
+*(Superseded 2026-09-23 — see "One shape for every ingredient line" below: the save now
+reads every recipe, translates a hand-typed one into the home's language, and rewrites its
+ingredient lines. What follows is what was decided before.)* `src/lib/cook-steps.ts`'s
+prompt is untouched, and that is also on purpose rather than an oversight. It runs on a recipe already saved — already in the household's language,
 whichever way it arrived there — and it must never translate anything: a recipe somebody
 typed by hand in a third language is that household's own words, and this second model
 call exists to break a recipe into hands-free steps, not to hold an opinion about what
@@ -479,7 +487,9 @@ contains. Neither can give the other's answer, so there is nothing for them to d
 about. Two readers of the same text would have been the old `caption-recipe.ts` mistake
 wearing a new hat.
 
-It follows that **the ingredient lines are handed over and never rewritten**. They are the
+*(Superseded 2026-09-23 — the save's reader now rewrites the ingredient lines too; see "One
+shape for every ingredient line" below.)* It followed that **the ingredient lines are
+handed over and never rewritten**. They are the
 contract `shoppingText`, `pantryKey`, `writeRecipesToList` and `staplesOf` all read, and
 the whole point of the answer coming back as numbers is that no new wording of an
 ingredient enters the system. The steps it may rewrite — a run-on instruction covering
@@ -547,3 +557,63 @@ Timers live above the pages rather than on them, so turning to the next step doe
 the one counting down on the last. They are in memory only and do not notify: a timer that
 survived leaving would want the service worker, which is a feature of its own, and the wake
 lock is what keeps the phone showing them meanwhile.
+
+## One shape for every ingredient line
+
+*2026-09-23.* Before this, a recipe's ingredient lines depended on how it arrived. An import
+was split by the reader into amount, unit, name, preparation and note, and written as
+`amount unit name, preparation, note`, with preparation that was an *action* moved into the
+steps and a *state* left after the comma. A recipe typed by hand was stored exactly as typed,
+and nothing ever read its lines, because the save's reader (`prepareCookSteps`) was
+deliberately forbidden to touch them. Recipes already stored were never re-read. So a home
+held three kinds of line, and the shopping list, the pantry and the meal suggestions each
+had to cope with all three.
+
+The household asked for one: **a line is an amount, a unit and the thing bought, and nothing
+else** — "100 g kartofler". Everything else the source said about an ingredient belongs to the
+steps. The decisions were taken one scenario at a time, by the household, and each is now a
+bullet of `ingredientRules` in `src/lib/ingredient-line.ts`:
+
+| The source says | The line | Where the rest goes |
+| --- | --- | --- |
+| `2 kartofler, i tern` | `2 kartofler` | a step dices them (added if none does) |
+| `smør, stuetemperatur` | `smør` | a step: take the butter out in good time |
+| `1 stort løg` | `1 løg` | the step says "det store løg" |
+| `salt, efter smag` | `salt` | a step seasons to taste |
+| `parmesan til servering`, `evt. chili` | `parmesan`, `chili` | "Server med parmesan", "Tilføj evt. chili" |
+| `smør eller olie` | `smør` | "Steg i smør (eller olie)" |
+| `salt og peber` | `salt`, `peber` | — |
+| `2-3 fed hvidløg` | `3 fed hvidløg` | the range is not kept |
+| `2 stk æg` | `2 æg` | — |
+| `1 cup mel` | grams or decilitres, the reader's choice | — |
+| `1 dåse hakkede tomater (400 g)` | `400 g hakkede tomater` | — |
+| `græsk yoghurt 10%`, `kyllingebryst uden skind` | kept whole | these change what is bought |
+| butter in the dough and in the filling | two lines | never merged across components |
+
+**Why the save and not the form.** A rule that only the importer follows leaves every
+hand-typed recipe outside it, and a rule applied in the browser would be a second writer. So
+the save reads every recipe, typed or imported, and the ingredient lines and the steps come
+back from the same call — they have to, because what a line loses has to land in a step, and
+a reader that could touch only one of them could not move anything between the two. That
+undid the older rule that `prepareCookSteps` "never rewrites an ingredient line"; that rule
+existed to stop a *second* opinion about lines, and the answer to that concern is now that
+both model calls are handed the same rules, the same schema and the same writer, word for
+word, and a test holds it. The importer's lines are a draft that the save then confirms.
+
+**Every save is read, not only one that changed the text.** That is how the recipes already
+stored are brought in: the household chose not to have a bulk migration, and to edit and save
+the ones they care about instead. The cost is one model call on a title-only edit.
+
+**The schema lost its `preparation` and `note` fields on purpose.** A field is a place to put
+something, and a place on the ingredient is exactly what this takes away. The model is left
+with nowhere to park "i tern" except a step.
+
+**A reader that is down, or a person or home over their limit, stores the recipe exactly as
+typed** and clears the breakdown, as before. The household preferred that to refusing a save
+— the recipe gets tidied the next time it is saved with the reader up.
+
+**Converting to metric is now the reader's job**, which reverses "units are never converted".
+The earlier rule was right about the question it asked — respelling `tsp` as `tsk` has one
+right answer and belongs in a table — but a cup of flour is not a volume a Danish kitchen
+measures flour in, and the right conversion depends on the ingredient, which is a judgement a
+table cannot make.
