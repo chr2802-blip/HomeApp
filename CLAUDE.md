@@ -885,8 +885,9 @@ regardless, and `npm run build` runs the unit tests. **Pushing to `main` deploys
 failing suite must not reach the remote.**
 
 - Integration and E2E use **separate databases** (`homehub_test`, `homehub_e2e`), created
-  automatically, truncated between tests, and **refused outright if the name lacks the right
-  suffix**.
+  automatically, emptied between tests, and **refused outright if the name lacks the right
+  suffix**. Emptying is a `DELETE` per table ordered by the refusing foreign keys, not a
+  `TRUNCATE` — the latter cost ~55ms a test whether anything was in the table or not.
 - **Both suites run their files at the same time, and a worker owns a whole world.** The
   plain names are **templates**, migrated and never run against; every worker gets a
   `CREATE DATABASE … TEMPLATE` copy.
@@ -899,6 +900,8 @@ failing suite must not reach the remote.**
 - **The key goes before the suffix** (`homehub_w7_test`, never `homehub_test_w7`), because
   the suffix is the whole guard. `tests/unit/test-db-url.test.ts` holds every one of those
   rules without a database.
+- **Playwright hands out tests, not files** (`fullyParallel`), so a browser test must
+  stand alone — it starts from `resetAndSeed` and nothing a neighbour in its file did.
 - Each browser worker gets its own app server. **Do not put `baseURL` in
   `playwright.config.ts`** — it wins over the per-worker value, and every worker then drives
   the first worker's server while seeding its own database, passing while it does it.

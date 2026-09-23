@@ -123,24 +123,94 @@ export async function dropCopies(url, template, { keep } = {}) {
  * Empties every table so a test starts from a known, empty database. The migrations
  * table is left alone: it describes the database rather than living in it.
  *
- * Which tables there are is asked once per client and kept. It cannot change under a
+ * It deletes rather than truncates. `TRUNCATE` gives every table a fresh file on disk
+ * whether it held a row or not, and cost about 55ms a time here — once before every test
+ * in both suites, which came to some thirty seconds of worker time per integration run.
+ * A `DELETE` of the handful of rows a test leaves behind is a few milliseconds.
+ *
+ * The one thing a `DELETE` has to get right that a `TRUNCATE … CASCADE` did not is the
+ * order. Only a foreign key that refuses (`NO ACTION` or `RESTRICT`) cares: a cascading
+ * one takes its rows along whichever table goes first, and a `SET NULL` one lets go of
+ * them. So the tables are ordered by the refusing keys alone, children first — which is
+ * what makes the order possible at all, because the schema *has* a cycle (a home carries
+ * a picture and a picture belongs to a home), just not one made of refusing keys. If one
+ * ever is, no order exists, and this falls back to truncating rather than failing.
+ *
+ * The statement is worked out once per client and kept. The tables cannot change under a
  * run — the database was copied from the template before the first test and is dropped
- * after the last — and asking again would put a catalogue query in front of every test
- * in both suites.
+ * after the last — and asking again would put catalogue queries in front of every test.
  */
-const tableLists = new WeakMap();
+const emptyingStatements = new WeakMap();
 
 export async function truncateAll(client) {
-  let list = tableLists.get(client);
+  let statement = emptyingStatements.get(client);
 
-  if (list === undefined) {
-    const rows = await client.$queryRaw`
-      SELECT tablename FROM pg_tables
-      WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'
-    `;
-    list = rows.map((row) => `"public"."${row.tablename}"`).join(", ");
-    tableLists.set(client, list);
+  if (statement === undefined) {
+    statement = await emptyingStatement(client);
+    emptyingStatements.set(client, statement);
   }
 
-  if (list) await client.$executeRawUnsafe(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE`);
+  if (statement) await client.$executeRawUnsafe(statement);
+}
+
+async function emptyingStatement(client) {
+  const tables = (
+    await client.$queryRaw`
+      SELECT tablename FROM pg_tables
+      WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'
+    `
+  ).map((row) => row.tablename);
+
+  if (tables.length === 0) return "";
+
+  // Which tables a given table must be emptied before: the ones it holds a refusing key
+  // into. A key into itself is left out — one statement deletes every row of the table,
+  // and `NO ACTION` is checked once that statement is over.
+  const refusing = await client.$queryRaw`
+    SELECT child.relname AS child, parent.relname AS parent
+    FROM pg_constraint c
+    JOIN pg_class child ON child.oid = c.conrelid
+    JOIN pg_class parent ON parent.oid = c.confrelid
+    JOIN pg_namespace n ON n.oid = c.connamespace
+    WHERE c.contype = 'f' AND c.confdeltype IN ('a', 'r')
+      AND n.nspname = 'public' AND c.conrelid <> c.confrelid
+  `;
+
+  const name = (table) => `"public"."${quoted(table)}"`;
+  const ordered = childrenFirst(tables, refusing);
+
+  if (!ordered) {
+    return `TRUNCATE TABLE ${tables.map(name).join(", ")} RESTART IDENTITY CASCADE`;
+  }
+
+  // One statement, so one round trip, and atomic: `DELETE`s cannot share a prepared
+  // statement, but a `DO` block runs them as one.
+  return `DO $$ BEGIN ${ordered.map((table) => `DELETE FROM ${name(table)};`).join(" ")} END $$`;
+}
+
+/** Tables ordered so that each comes before every table it refers to; null on a cycle. */
+function childrenFirst(tables, edges) {
+  const waitingOn = new Map(tables.map((table) => [table, 0]));
+  const parentsOf = new Map(tables.map((table) => [table, []]));
+
+  for (const { child, parent } of edges) {
+    if (!waitingOn.has(child) || !waitingOn.has(parent)) continue;
+    // A parent waits until every child pointing into it has been emptied.
+    waitingOn.set(parent, waitingOn.get(parent) + 1);
+    parentsOf.get(child).push(parent);
+  }
+
+  const ready = tables.filter((table) => waitingOn.get(table) === 0);
+  const ordered = [];
+
+  while (ready.length > 0) {
+    const table = ready.shift();
+    ordered.push(table);
+    for (const parent of parentsOf.get(table)) {
+      waitingOn.set(parent, waitingOn.get(parent) - 1);
+      if (waitingOn.get(parent) === 0) ready.push(parent);
+    }
+  }
+
+  return ordered.length === tables.length ? ordered : null;
 }

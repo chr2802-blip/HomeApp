@@ -47,10 +47,13 @@ export default defineConfig({
   testMatch: /.*\.spec\.ts/,
   globalSetup: "./e2e/global-setup.ts",
 
-  // A whole app each — server, port and database — so the files can run at the same
-  // time. Within a file they still run in order, one after another on the same worker.
+  // A whole app each — server, port and database — so tests can run at the same time.
+  // Tests rather than files are what is handed out: every test reseeds its worker's
+  // database before it starts, so none depends on another having run first, and handing
+  // out whole files left the run waiting on its longest one (meals.spec.ts, a third of
+  // the wall clock on its own) while the other workers sat idle.
   workers,
-  fullyParallel: false,
+  fullyParallel: true,
 
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
