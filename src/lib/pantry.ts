@@ -1,7 +1,7 @@
-import type { HomeLanguage } from "@prisma/client";
+import type { HomeLanguage, PantryUnit } from "@prisma/client";
 import { shoppingText } from "./recipes";
 import { sayIn } from "./copy/say";
-import { PANTRY } from "./copy/pantry";
+import { PANTRY, PANTRY_UNIT_LABELS } from "./copy/pantry";
 
 /**
  * What a household keeps in, and what that means for a shopping list.
@@ -33,6 +33,33 @@ import { PANTRY } from "./copy/pantry";
  */
 export function pantryKey(name: string): string {
   return shoppingText(name).toLowerCase();
+}
+
+/**
+ * Every unit a pantry quantity may be counted in, in the order `PANTRY_UNIT_LABELS`
+ * lists them — derived rather than written out again, the same reason `THEMES` is in
+ * `src/lib/theme.ts`.
+ */
+export const PANTRY_UNITS = Object.keys(PANTRY_UNIT_LABELS) as [PantryUnit, ...PantryUnit[]];
+
+/** Nothing a household keeps in needs four digits, and a typo should not become one. */
+export const MAX_PANTRY_QUANTITY = 999;
+
+/**
+ * Brings any value into range, the same way `clampAmount` does for a list item's
+ * amount — except the floor is zero rather than one, because zero is a pantry
+ * quantity's own meaning ("run out"), not out-of-range input to be corrected away from.
+ */
+export function clampPantryQuantity(value: unknown): number {
+  const rounded = Math.round(Number(value));
+  if (!Number.isFinite(rounded)) return 0;
+  return Math.min(MAX_PANTRY_QUANTITY, Math.max(0, rounded));
+}
+
+/** A unit this app actually offers, or nothing — what `setPantryQuantity` holds a
+ *  submitted unit to, the same way a submitted theme is held to `THEMES`. */
+export function isPantryUnit(value: string): value is PantryUnit {
+  return (PANTRY_UNITS as readonly string[]).includes(value);
 }
 
 /**

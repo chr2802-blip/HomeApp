@@ -1,4 +1,22 @@
+import type { PantryUnit } from "@prisma/client";
 import type { Phrase, Plural } from "./say";
+
+/** What each unit a pantry quantity can be counted in is called —
+ *  `Record<PantryUnit, Phrase>`, so a unit added to the schema without a label here
+ *  fails to compile. Kept to the app's other common units: `CAN`/`BAG` are the same
+ *  `dåse`/`pose` `SAME_MEASURE` in `src/lib/ingredient-line.ts` writes for a recipe's
+ *  own units. */
+export const PANTRY_UNIT_LABELS = {
+  G: { EN: "g", DA: "g" },
+  KG: { EN: "kg", DA: "kg" },
+  DL: { EN: "dl", DA: "dl" },
+  L: { EN: "l", DA: "l" },
+  CAN: { EN: "can", DA: "dåse" },
+  BAG: { EN: "bag", DA: "pose" },
+  PACK: { EN: "pack", DA: "pakke" },
+  JAR: { EN: "jar", DA: "glas" },
+  BUNCH: { EN: "bunch", DA: "bundt" },
+} as const satisfies Record<PantryUnit, Phrase>;
 
 /**
  * What the pantry says — the page, the row, and the sentence a recipe or a restock run
@@ -23,9 +41,12 @@ export const PANTRY = {
     EN: "Add the lines your recipes open with — salt, pepper, oil, butter, flour — and they will stop turning up on the shopping.",
     DA: "Tilføj de ting jeres opskrifter altid starter med — salt, peber, olie, smør, mel — så holder de op med at dukke op på indkøbslisten.",
   },
-  isIn: { EN: "{name} is in", DA: "{name} er hjemme" },
-  hasRunOut: { EN: "{name} has run out", DA: "{name} er løbet tør" },
   runOut: { EN: "Run out", DA: "Løbet tør" },
+  quantityAria: { EN: "Quantity of {name}", DA: "Mængde af {name}" },
+  decreaseQuantity: { EN: "Decrease {name}", DA: "Formindsk {name}" },
+  increaseQuantity: { EN: "Increase {name}", DA: "Forøg {name}" },
+  unitAria: { EN: "Unit for {name}", DA: "Enhed for {name}" },
+  noUnit: { EN: "No unit", DA: "Ingen enhed" },
   editAria: { EN: "Edit {name}", DA: "Rediger {name}" },
   removeTitle: { EN: "Remove from pantry", DA: "Fjern fra spisekammer" },
   removeMessage: {

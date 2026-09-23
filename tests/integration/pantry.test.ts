@@ -5,7 +5,7 @@ import {
   createPantryItem,
   deletePantryItem,
   renamePantryItem,
-  setPantryStock,
+  setPantryQuantity,
 } from "@/app/actions/pantry";
 import { addListItem, addMealPlanIngredients, addRecipeIngredients } from "@/app/actions/lists";
 import { planMeal } from "@/app/actions/meals";
@@ -46,11 +46,11 @@ const listFor = (title = "Shopping") =>
 const recipeFor = (options: { title?: string; ingredients?: string }) =>
   createRecipe({ homeId: home.id, createdById: member.id, ...options });
 
-const keepIn = (name: string, inStock = true) =>
+const keepIn = (name: string, quantity = 1) =>
   createPantryItem(undefined, formData({ name })).then(async () => {
-    if (!inStock) {
+    if (quantity !== 1) {
       const item = await prisma.pantryItem.findFirstOrThrow({ where: { homeId: home.id, name } });
-      await setPantryStock(formData({ pantryItemId: item.id, inStock: "false" }));
+      await setPantryQuantity(formData({ pantryItemId: item.id, quantity: String(quantity) }));
     }
   });
 
@@ -66,7 +66,8 @@ describe("keeping the pantry", () => {
     expect(await prisma.pantryItem.findFirstOrThrow()).toMatchObject({
       name: "Salt",
       homeId: home.id,
-      inStock: true,
+      quantity: 1,
+      unit: null,
     });
   });
 
@@ -143,17 +144,30 @@ describe("keeping the pantry", () => {
     );
   });
 
-  it("says whether the household has it, and is told which state to land in", async () => {
+  it("says how much the household has, and is told which quantity to land in", async () => {
     await submit(createPantryItem, { name: "Ris" });
     const item = await prisma.pantryItem.findFirstOrThrow();
 
-    await setPantryStock(formData({ pantryItemId: item.id, inStock: "false" }));
-    expect((await prisma.pantryItem.findFirstOrThrow()).inStock).toBe(false);
+    await setPantryQuantity(formData({ pantryItemId: item.id, quantity: "0" }));
+    expect((await prisma.pantryItem.findFirstOrThrow()).quantity).toBe(0);
 
     // The same press arriving twice — a double tap, a retry — leaves the cupboard
-    // saying what the thumb meant rather than flipped back.
-    await setPantryStock(formData({ pantryItemId: item.id, inStock: "false" }));
-    expect((await prisma.pantryItem.findFirstOrThrow()).inStock).toBe(false);
+    // saying what the thumb meant rather than applied again on top of itself.
+    await setPantryQuantity(formData({ pantryItemId: item.id, quantity: "0" }));
+    expect((await prisma.pantryItem.findFirstOrThrow()).quantity).toBe(0);
+  });
+
+  it("clamps a quantity to the floor of zero, and holds the unit to what it offers", async () => {
+    await submit(createPantryItem, { name: "Ris" });
+    const item = await prisma.pantryItem.findFirstOrThrow();
+
+    await setPantryQuantity(formData({ pantryItemId: item.id, quantity: "-5", unit: "KG" }));
+    expect(await prisma.pantryItem.findFirstOrThrow()).toMatchObject({ quantity: 0, unit: "KG" });
+
+    // A unit outside `PANTRY_UNITS` is dropped to null rather than stored as written,
+    // the same leniency `canonicalUnit` gives a recipe's own unit word.
+    await setPantryQuantity(formData({ pantryItemId: item.id, quantity: "3", unit: "bogus" }));
+    expect(await prisma.pantryItem.findFirstOrThrow()).toMatchObject({ quantity: 3, unit: null });
   });
 
   it("drops an entry the household no longer treats as a basic", async () => {
@@ -175,11 +189,11 @@ describe("keeping the pantry", () => {
       error: "That is no longer in the pantry.",
     });
     await deletePantryItem(formData({ pantryItemId: theirs.id }));
-    await setPantryStock(formData({ pantryItemId: theirs.id, inStock: "false" }));
+    await setPantryQuantity(formData({ pantryItemId: theirs.id, quantity: "0" }));
 
     expect(await prisma.pantryItem.findUniqueOrThrow({ where: { id: theirs.id } })).toMatchObject({
       name: "Salt",
-      inStock: true,
+      quantity: 1,
     });
   });
 
@@ -210,7 +224,7 @@ describe("what the pantry does to a recipe's ingredients", () => {
   it("puts back what the household has run out of", async () => {
     const list = await listFor();
     await keepIn("Salt");
-    await keepIn("Ris", false);
+    await keepIn("Ris", 0);
     const recipe = await recipeFor({ ingredients: "Salt\nRis" });
 
     expect(await addRecipeIngredients(formData({ recipeId: recipe.id, listId: list.id }))).toEqual({
@@ -345,20 +359,20 @@ describe("putting what has run out on a list", () => {
   it("adds everything switched off, and nothing that is still in", async () => {
     const list = await listFor();
     await keepIn("Salt");
-    await keepIn("Ris", false);
-    await keepIn("Mel", false);
+    await keepIn("Ris", 0);
+    await keepIn("Mel", 0);
 
     expect(await addPantryToList(formData({ listId: list.id }))).toEqual({ ok: true });
 
     expect(await textsOnList()).toEqual(["Mel", "Ris"]);
     // A list is a plan, not a receipt: nothing has been bought yet, so the cupboard
     // still says what it said.
-    expect(await prisma.pantryItem.count({ where: { inStock: false } })).toBe(2);
+    expect(await prisma.pantryItem.count({ where: { quantity: 0 } })).toBe(2);
   });
 
   it("brings back a row that was ticked off rather than writing a second one", async () => {
     const list = await listFor();
-    await keepIn("Ris", false);
+    await keepIn("Ris", 0);
     await prisma.listItem.create({ data: { listId: list.id, text: "Ris", done: true, position: 1 } });
 
     expect(await addPantryToList(formData({ listId: list.id }))).toEqual({ ok: true });
@@ -370,8 +384,8 @@ describe("putting what has run out on a list", () => {
 
   it("leaves a row already on the list exactly as it is, and says so", async () => {
     const list = await listFor();
-    await keepIn("Ris", false);
-    await keepIn("Mel", false);
+    await keepIn("Ris", 0);
+    await keepIn("Mel", 0);
     await prisma.listItem.create({ data: { listId: list.id, text: "Ris", amount: 3, position: 1 } });
 
     // Being out of rice is not a reason to buy two of it.
@@ -393,7 +407,7 @@ describe("putting what has run out on a list", () => {
       error: "Nothing in the pantry has run out.",
     });
 
-    await keepIn("Ris", false);
+    await keepIn("Ris", 0);
     await addPantryToList(formData({ listId: list.id }));
 
     expect(await addPantryToList(formData({ listId: list.id }))).toEqual({
@@ -407,7 +421,7 @@ describe("putting what has run out on a list", () => {
     const neighbour = await createHome({ name: "Next Door" });
     const stranger = await createUser({ homeId: neighbour.id });
     const theirs = await seedList({ homeId: neighbour.id, createdById: stranger.id });
-    await keepIn("Ris", false);
+    await keepIn("Ris", 0);
 
     await expectDenied(() => addPantryToList(formData({ listId: theirs.id })));
     expect(await prisma.listItem.count()).toBe(0);

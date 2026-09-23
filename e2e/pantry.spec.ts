@@ -20,8 +20,13 @@ import { CATEGORIES } from "./helpers/database";
  * keep for a week.
  */
 
-/** The row's switch, which is also where its name is read from. */
-const entry = (page: Page, name: string) => page.getByRole("switch", { name, exact: true });
+/** The row's quantity stepper, which is also where its name is read from. */
+const quantityGroup = (page: Page, name: string) =>
+  page.getByRole("group", { name: `Quantity of ${name}`, exact: true });
+
+/** The row's own number box, inside the stepper above. */
+const quantityBox = (page: Page, name: string) =>
+  page.getByRole("spinbutton", { name: `Quantity of ${name}`, exact: true });
 
 /**
  * Presses a control until it takes.
@@ -36,17 +41,19 @@ async function retry(attempt: () => Promise<void>) {
 async function keepIn(page: Page, name: string) {
   await page.getByLabel("Something you keep in").fill(name);
   await page.getByRole("button", { name: "Add to pantry" }).click();
-  await expect(entry(page, name)).toBeVisible();
+  await expect(quantityGroup(page, name)).toBeVisible();
 }
 
 /**
- * Switches something off, which is the household saying it has run out of it.
+ * Brings a new entry's quantity down to zero, which is the household saying it has run
+ * out of it.
  *
- * The switch is optimistic, so it goes off the instant it is pressed and says nothing
- * about whether the write landed — which is exactly what the test above reloads to find
- * out. Returning on the drawn state alone leaves a reload racing the action that is
- * still in flight, and the row comes back on. So this waits for the action's own round
- * trip as well: a server action posts to the page it was called from.
+ * The stepper is optimistic, so it drops to zero the instant it is pressed and says
+ * nothing about whether the write landed — which is exactly what the test above reloads
+ * to find out. Returning on the drawn state alone leaves a reload racing the action that
+ * is still in flight, and the row comes back at one. So this waits for the action's own
+ * round trip as well: a server action posts to the page it was called from. A freshly
+ * kept-in entry starts at one, so a single press is the whole way to zero.
  */
 async function runOut(page: Page, name: string) {
   await retry(async () => {
@@ -54,8 +61,8 @@ async function runOut(page: Page, name: string) {
       (response) => response.request().method() === "POST" && response.url().includes("/pantry"),
       { timeout: 5_000 },
     );
-    await entry(page, name).click();
-    await expect(entry(page, name)).not.toBeChecked({ timeout: 1000 });
+    await page.getByRole("button", { name: `Decrease ${name}`, exact: true }).click();
+    await expect(quantityBox(page, name)).toHaveValue("0", { timeout: 1000 });
     await written;
   });
 }
@@ -98,15 +105,15 @@ test("the pantry is reached from the home's own name, and kept there", async ({ 
   await page.waitForURL("/pantry");
 
   await keepIn(page, "Salt");
-  await expect(entry(page, "Salt")).toBeChecked();
+  await expect(quantityBox(page, "Salt")).toHaveValue("1");
 
-  // Running out is a switch, not a delete — the entry stays, and the line goes back on
-  // the shopping the next time a recipe asks for it.
+  // Running out is a quantity dropping to zero, not a delete — the entry stays, and the
+  // line goes back on the shopping the next time a recipe asks for it.
   await runOut(page, "Salt");
-  // And it is still out after a reload, which is the difference between a switch that
+  // And it is still out after a reload, which is the difference between a quantity that
   // was written and one that was only drawn.
   await page.reload();
-  await expect(entry(page, "Salt")).not.toBeChecked();
+  await expect(quantityBox(page, "Salt")).toHaveValue("0");
   await expect(page.getByText("Run out", { exact: true })).toBeVisible();
 
   // The name is edited by pressing it, the way a list item's is — no menu, no sheet, no
@@ -117,13 +124,44 @@ test("the pantry is reached from the home's own name, and kept there", async ({ 
   });
   await page.getByLabel("Edit Salt").fill("Havsalt");
   await page.getByLabel("Edit Salt").press("Enter");
-  await expect(entry(page, "Havsalt")).toBeVisible();
-  // The rename moved the entry, it did not switch it back on.
-  await expect(entry(page, "Havsalt")).not.toBeChecked();
+  await expect(quantityGroup(page, "Havsalt")).toBeVisible();
+  // The rename moved the entry, it did not bring the quantity back up.
+  await expect(quantityBox(page, "Havsalt")).toHaveValue("0");
 
   await openMenu(page, { label: "Havsalt" });
   await clickAndConfirm(page, "Delete", { confirmLabel: "Remove" });
-  await expect(entry(page, "Havsalt")).toHaveCount(0);
+  await expect(quantityGroup(page, "Havsalt")).toHaveCount(0);
+});
+
+test("a quantity is counted in a unit, chosen from the row and kept on reload", async ({ page }) => {
+  await page.goto("/pantry");
+  await keepIn(page, "Ris");
+
+  await retry(async () => {
+    const written = page.waitForResponse(
+      (response) => response.request().method() === "POST" && response.url().includes("/pantry"),
+      { timeout: 5_000 },
+    );
+    await page.getByRole("button", { name: "Increase Ris", exact: true }).click();
+    await expect(quantityBox(page, "Ris")).toHaveValue("2", { timeout: 1000 });
+    await written;
+  });
+
+  // The select fires its own optimistic write the same way the stepper does, so a
+  // reload straight after it races the request still in flight — wait for the round
+  // trip the same way `runOut` does before trusting what a reload shows.
+  await retry(async () => {
+    const written = page.waitForResponse(
+      (response) => response.request().method() === "POST" && response.url().includes("/pantry"),
+      { timeout: 5_000 },
+    );
+    await page.getByRole("combobox", { name: "Unit for Ris", exact: true }).selectOption("KG");
+    await written;
+  });
+
+  await page.reload();
+  await expect(quantityBox(page, "Ris")).toHaveValue("2");
+  await expect(page.getByRole("combobox", { name: "Unit for Ris", exact: true })).toHaveValue("KG");
 });
 
 test("a name the household already keeps is refused, and the row says what it says", async ({
@@ -141,7 +179,7 @@ test("a name the household already keeps is refused, and the row says what it sa
   await page.getByLabel("Edit Sukker").press("Enter");
 
   await expect(page.getByText("“salt” is already in the pantry.")).toBeVisible();
-  await expect(entry(page, "Sukker")).toBeVisible();
+  await expect(quantityGroup(page, "Sukker")).toBeVisible();
 });
 
 test("a recipe leaves the pantry's own lines off the shopping list", async ({ page }) => {
