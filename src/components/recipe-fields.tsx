@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { HomeLanguage } from "@prisma/client";
 import { Input, Label, Textarea } from "@/components/ui";
 import { PhotoField } from "@/components/photo-field";
+import type { AiWait } from "@/components/ai-overlay";
 import { CATEGORY_FIELD, READING_FIELD } from "@/lib/recipes";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
@@ -32,9 +33,41 @@ export type CategoryOption = { id: string; name: string };
  * request (`readForSaving` in `app/actions/recipes.ts`), which is the one model call
  * this can mean.
  */
-export function recipeSaveOverlay(language: HomeLanguage) {
+export function recipeSaveOverlay(language: HomeLanguage): AiWait {
   const say = sayIn(language);
-  return { title: say(RECIPES.savingRecipe), detail: say(RECIPES.savingRecipeDetail) };
+  return {
+    title: say(RECIPES.savingRecipe),
+    detail: say(RECIPES.savingRecipeDetail),
+    stages: [
+      RECIPES.savingStage1,
+      RECIPES.savingStage2,
+      RECIPES.savingStage3,
+      RECIPES.savingStage4,
+      RECIPES.savingStage5,
+    ].map(say),
+    expectedSeconds: 20,
+  };
+}
+
+/**
+ * The same for reading a link, which `RecipeImportField` shows: a page fetch and one
+ * model call, so it is the same machine at work and wears the same screen.
+ */
+export function recipeImportOverlay(language: HomeLanguage): AiWait {
+  const say = sayIn(language);
+  return {
+    title: say(RECIPES.reading),
+    detail: say(RECIPES.readingHint),
+    stages: [
+      RECIPES.readingStage1,
+      RECIPES.readingStage2,
+      RECIPES.readingStage3,
+      RECIPES.readingStage4,
+      RECIPES.readingStage5,
+      RECIPES.readingStage6,
+    ].map(say),
+    expectedSeconds: 15,
+  };
 }
 
 /**

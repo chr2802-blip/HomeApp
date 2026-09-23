@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AiOverlay } from "@/components/ai-overlay";
+import { AiOverlay, type AiWait } from "@/components/ai-overlay";
 import { Modal, ModalBody, ModalFooter } from "@/components/modal";
 import { Button, IconButton } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
@@ -55,11 +55,11 @@ export function DialogForm({
   onDone: () => void;
   onCancel: () => void;
   /**
-   * Shown over the whole sheet while the action is pending — for the one action behind
+   * Shown over the whole screen while the action is pending — for the one action behind
    * this dialog that spends a model call, so waiting past what the button's own label
    * says reads as the AI working rather than the app hanging. Left out everywhere else.
    */
-  overlay?: { title: string; detail: string };
+  overlay?: AiWait;
   children: React.ReactNode;
 }) {
   const language = useLanguage();
@@ -85,7 +85,7 @@ export function DialogForm({
           </Button>
         </div>
       </ModalFooter>
-      {overlay && <AiOverlay active={pending} title={overlay.title} detail={overlay.detail} />}
+      {overlay && <AiOverlay active={pending} {...overlay} />}
     </form>
   );
 }

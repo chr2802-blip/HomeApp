@@ -21,6 +21,7 @@ npm run dev          # local dev server
 npm run verify       # lint + types + schema check + all tests — what the pre-push hook runs
 npm test             # vitest (unit + integration)
 npm run e2e          # Playwright (builds the app first)
+npm run e2e:build && npx playwright test e2e/x.spec.ts   # one spec: the server serves .next, so build first
 npm run db:studio    # browse the database
 ```
 
@@ -781,6 +782,10 @@ from a link**. Three steps, all inside the one `Modal`.
   seen choosing; the read is raced against `CLIPBOARD_GRACE_MS`, because `readText()` can sit
   unresolved behind a permission decision nobody will make. Choosing "Import from a link" by
   hand always starts blank.
+- **Every AI wait is `AiOverlay`, the whole screen** — the link import and every recipe
+  save alike, so they read as one machine at work. Portalled to `<body>` above the sheet;
+  what it says (title, detail, stage lines, pacing) is `recipeImportOverlay` /
+  `recipeSaveOverlay` in `recipe-fields.tsx`. Never a spinner of its own beside a field.
 - The title, ingredients, instructions, picture and total time come back filled in; the
   categories are the form's own fields either way — **except for a reel**, where the pasted
   link *is* the video and fills `videoUrl`.
