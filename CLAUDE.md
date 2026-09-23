@@ -577,12 +577,18 @@ lines on the shop every time and the three that mattered were somewhere in among
 so the note under each item saying which recipe asked for it was answering a question
 nobody had, about salt.
 
-**A pantry entry is a name and one bit**: `inStock`, which is the whole of what a
-cupboard says. There is rice or there is not. Running out is therefore **switching rice
-off** rather than deleting it, and the next recipe that wants rice puts rice back on the
-list — which is the second half of what the feature is for, and why the boolean is not
-just an absence. Deleting is the different sentence: this household has stopped treating
-it as something it always has in.
+**A pantry entry is a name, a quantity and a unit**: `quantity`, which is the whole of
+what a cupboard says about how much there is, and `unit` — what it is counted in
+(`PANTRY_UNITS` in `src/lib/pantry.ts`: g, kg, dl, l, and the kitchen's own dåse, pose,
+pakke, glas, bundt) or nothing at all for a plain count. Zero is what a boolean
+`inStock: false` used to mean and any amount past that is what `true` did — matching
+against the shopping list still asks only the one question it always has, in or out;
+what the quantity is *of* is for the household reading its own cupboard, never for
+`stripStocked` or `matchedStockedKey`. Running out is therefore **bringing the quantity
+down to zero** rather than deleting the entry, and the next recipe that wants rice puts
+rice back on the list — which is the second half of what the feature is for. Deleting is
+the different sentence: this household has stopped treating it as something it always
+has in.
 
 **What matches is `key`, not `name`.** `pantryKey` in `src/lib/pantry.ts` is
 `shoppingText` again, lower-cased — the same normalisation that decides two recipes'
@@ -647,38 +653,45 @@ The page is ordered by name and never by what has run out: both questions asked 
 ("is the rice in", "we've run out of rice") begin by finding rice, and a list that
 reordered itself under the household's thumb on every tick would answer neither.
 
-**The state is a switch, not a tick, and the name is edited by pressing it.** A checkbox
-says "this one is selected" — something picked out of a list on the way to doing
-something with it, which is exactly what a shopping list's boxes mean and exactly what
-this is not: a pantry entry is a standing fact about the cupboard, on until somebody
-changes it. The switch is optimistic and is told the state to land in rather than "the
-other one", so the second press of a double tap leaves the cupboard saying what the
-thumb meant. The name beside it opens an editor in place, the same way a list item's
-does — a name is the one thing on a row worth changing without a trip to a sheet, and a
-rename costing a menu, a dialog and a Save is a rename nobody makes. A refused rename
-(the household already keeps something under that name) needs no undoing: the optimistic
-name falls back to the stored one when the transition ends, and the row says why
-underneath itself. **Delete keeps the three dots to itself** — a destructive entry is
-the whole reason that menu exists, and it stays at the far end of the row where a thumb
-aiming at "we're out of rice" cannot reach it.
+**The state is a quantity, not a tick, and the name is edited by pressing it.** A
+checkbox says "this one is selected" — something picked out of a list on the way to
+doing something with it, which is exactly what a shopping list's boxes mean and exactly
+what this is not: a pantry entry is a standing fact about the cupboard, a number until
+somebody changes it. `PantryQuantityField` (`src/components/pantry-quantity-field.tsx`)
+is a stepper with a floor of zero rather than one — zero is the pantry's own "run out",
+not out-of-range input to correct away from — beside a `<select>` of `PANTRY_UNITS`,
+where "no unit" is its own choice and not a lesser one: a plain count ("3") is as valid
+an answer as a measured one ("500 g"), the same reason a counted recipe ingredient
+carries no unit either (see `UNIT_WORDS`). It is optimistic and is told the quantity to
+land in rather than "one more/one less", so the same press arriving twice — a double
+tap, a retry — leaves the cupboard saying what the thumb meant rather than applied again
+on top of itself. The name beside it opens an editor in place, the same way a list
+item's does — a name is the one thing on a row worth changing without a trip to a sheet,
+and a rename costing a menu, a dialog and a Save is a rename nobody makes. A refused
+rename (the household already keeps something under that name) needs no undoing: the
+optimistic name falls back to the stored one when the transition ends, and the row says
+why underneath itself. **Delete keeps the three dots to itself** — a destructive entry
+is the whole reason that menu exists, and it stays at the far end of the row where a
+thumb aiming at "we're out of rice" cannot reach it.
 
-**Everything switched off goes onto a list in one press.** The pantry already knows what
-is missing, so asking somebody to type those five lines into the shopping list is asking
+**Everything at zero goes onto a list in one press.** The pantry already knows what is
+missing, so asking somebody to type those five lines into the shopping list is asking
 them to say it twice: `addPantryToList` is the same `AddToListMenu` the recipe page and
-the meal plan use, pointed at the run-out rows. **Nothing is switched back on** — what
-has run out has run out until somebody has been to the shop, and a list is a plan rather
-than a receipt; flipping the cupboard here would have the pantry telling the next recipe
-that the rice is in because somebody wrote rice down. Each line goes through `addItem`,
-so "already there" means what it means everywhere else: a ticked row comes back at one,
-an open row is left alone (being out of rice is not a reason to buy two), and what was
-left alone is named in the note. Row by row rather than in one transaction, unlike a
-recipe's ingredients: every line is independent and the run is idempotent, so a press
-that failed halfway is finished by pressing again — which beats one that undoes the rows
-it managed. The button is drawn whenever the pantry holds anything at all rather than
-only when something is out, because the switches are optimistic and a control that came
-and went with the count would arrive a beat after the thumb that caused it.
+the meal plan use, pointed at the rows sitting at zero. **Nothing is bumped back up** —
+what has run out has run out until somebody has been to the shop, and a list is a plan
+rather than a receipt; touching the quantity here would have the pantry telling the next
+recipe that the rice is in because somebody wrote rice down. Each line goes through
+`addItem`, so "already there" means what it means everywhere else: a ticked row comes
+back at one, an open row is left alone (being out of rice is not a reason to buy two),
+and what was left alone is named in the note. Row by row rather than in one transaction,
+unlike a recipe's ingredients: every line is independent and the run is idempotent, so a
+press that failed halfway is finished by pressing again — which beats one that undoes
+the rows it managed. The button is drawn whenever the pantry holds anything at all
+rather than only when something is out, because the quantities are optimistic and a
+control that came and went with the count would arrive a beat after the thumb that
+caused it.
 
-**An in-stock entry also counts as a staple for the meal suggestions.** `staplesOf`
+**A stocked entry also counts as a staple for the meal suggestions.** `staplesOf`
 exists so a household need not keep a list of its own cupboard for the ranking to be
 worth reading — but a home that keeps one anyway has said something better than any
 inference from its recipes, and an ingredient nobody is buying either way cannot be what

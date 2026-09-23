@@ -89,7 +89,13 @@ export default async function PantryPage() {
       ) : (
         <Card className="mt-3 divide-y divide-slate-100 p-0">
           {items.map((item) => (
-            <PantryRow key={item.id} id={item.id} name={item.name} inStock={item.inStock} />
+            <PantryRow
+              key={item.id}
+              id={item.id}
+              name={item.name}
+              quantity={item.quantity}
+              unit={item.unit}
+            />
           ))}
         </Card>
       )}

@@ -16,7 +16,7 @@ const htmlOf = (page: Page) => page.locator("html");
 async function keepIn(page: Page, name: string) {
   await page.getByLabel("Noget I altid har hjemme").fill(name);
   await page.getByRole("button", { name: "Tilføj til spisekammer" }).click();
-  await expect(page.getByRole("switch", { name, exact: true })).toBeVisible();
+  await expect(page.getByRole("group", { name: `Mængde af ${name}`, exact: true })).toBeVisible();
 }
 
 test("picks the language the whole household is then spoken to in", async ({ page, loginAs }) => {
