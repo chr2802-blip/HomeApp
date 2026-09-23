@@ -2,7 +2,7 @@
 
 - **Date** — 2026-09-23
 - **Branch** — `claude/recipe-ingredient-normalization-tsi5pe`
-- **PR** — not opened yet
+- **PR** — #123
 - **Reached production** — not yet
 
 ## The idea
