@@ -112,6 +112,12 @@ body {
    * `md:hidden` tab bar along with it. `anywhere` rather than `break-word`: it also
    * counts toward a flex or grid child's minimum size, which is what actually lets one
    * of ours shrink instead of forcing the row wider.
+   *
+   * The same rule lowers a *short* flex child's minimum width to one character, since it
+   * too can now "wrap" anywhere — so a heading sharing a `justify-between` row with
+   * something of unpredictable length (a status line, a note) needs `shrink-0` of its
+   * own, or it is the heading that gets squeezed into a single narrow column instead of
+   * the wide sibling wrapping. The recipe page's "Ingredients" heading did not have it.
    */
   overflow-wrap: anywhere;
 }
