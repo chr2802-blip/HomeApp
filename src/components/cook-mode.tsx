@@ -67,10 +67,11 @@ export function CookMode({
   const language = useLanguage();
   const say = sayIn(language);
 
-  // Page 0 is the mise en place, then one page per step, then the finish. The
-  // ingredients are a page rather than a panel on every step because reading them all
-  // through once is what a cook does before starting and never again.
-  const pageCount = steps.length + 2;
+  // Page 0 is the mise en place, then one page per step. The ingredients are a page
+  // rather than a panel on every step because reading them all through once is what a
+  // cook does before starting and never again. There is no page after the last step:
+  // completing it is a close, not a turn.
+  const pageCount = steps.length + 1;
   const [page, setPage] = useState(0);
   const [turn, setTurn] = useState<"next" | "back" | null>(null);
 
@@ -103,15 +104,25 @@ export function CookMode({
       setPage(next);
       // Beside the change rather than after it: feedback about a press must not wait on
       // a render, which is the same reason a list's tick is handled where it is.
-      if (next === pageCount - 1) cheer();
-      else tick();
+      tick();
     },
     [pageCount],
   );
 
-  const forward = useCallback(() => goTo(page + 1, "next"), [goTo, page]);
-  const back = useCallback(() => goTo(page - 1, "back"), [goTo, page]);
   const leave = useCallback(() => router.push(`/recipes/${recipeId}`), [router, recipeId]);
+
+  // The last page turns nowhere — turning past it is finishing, so it closes the mode
+  // instead of moving to one more screen that only exists to say so.
+  const complete = useCallback(() => {
+    cheer();
+    leave();
+  }, [leave]);
+
+  const forward = useCallback(
+    () => (page === pageCount - 1 ? complete() : goTo(page + 1, "next")),
+    [complete, goTo, page, pageCount],
+  );
+  const back = useCallback(() => goTo(page - 1, "back"), [goTo, page]);
 
   // A screen that can only be swiped is a screen a desktop and a keyboard cannot use.
   useEffect(() => {
@@ -180,7 +191,10 @@ export function CookMode({
   if (!mounted || typeof document === "undefined") return null;
 
   const step = page > 0 && page <= steps.length ? steps[page - 1] : null;
-  const done = page === pageCount - 1;
+  const isLastStep = page === pageCount - 1;
+  // A recipe with no steps at all (a reel with nothing written down) has only the mise
+  // en place, so that one page is both the first and the last.
+  const progress = pageCount > 1 ? page / (pageCount - 1) : 1;
 
   return createPortal(
     <div
@@ -197,9 +211,7 @@ export function CookMode({
             <p className="text-xs text-slate-500">
               {page === 0
                 ? say(RECIPES.ingredientsHeading)
-                : done
-                  ? say(RECIPES.finished)
-                  : say(RECIPES.stepOfTotal, { number: page, total: steps.length })}
+                : say(RECIPES.stepOfTotal, { number: page, total: steps.length })}
             </p>
           </div>
           <Link
@@ -224,9 +236,9 @@ export function CookMode({
             that has to be honest, hence `data-progress`. */}
         <div aria-hidden="true" className="h-1 w-full bg-[var(--band)]">
           <div
-            data-progress={page / (pageCount - 1)}
+            data-progress={progress}
             className="h-full bg-[var(--accent)] transition-[width] duration-300"
-            style={{ width: `${(page / (pageCount - 1)) * 100}%` }}
+            style={{ width: `${progress * 100}%` }}
           />
         </div>
       </header>
@@ -289,16 +301,18 @@ export function CookMode({
             language={language}
           />
         )}
-
-        {done && <Finished recipeId={recipeId} language={language} />}
       </main>
 
       <footer className="flex shrink-0 items-center gap-3 border-t border-slate-200 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <Button variant="secondary" onClick={back} disabled={page === 0} className="flex-1">
-          {say(RECIPES.backButton)}
+        <Button variant="secondary" onClick={page === 0 ? leave : back} className="flex-1">
+          {page === 0 ? say(APP.close) : say(RECIPES.backButton)}
         </Button>
-        <Button onClick={forward} disabled={done} className="flex-[2]">
-          {page === 0 ? say(RECIPES.start) : page === steps.length ? say(RECIPES.finish) : say(RECIPES.next)}
+        <Button onClick={forward} className="flex-[2]">
+          {page === 0 && !isLastStep
+            ? say(RECIPES.start)
+            : isLastStep
+              ? say(RECIPES.complete)
+              : say(RECIPES.next)}
         </Button>
       </footer>
     </div>,
@@ -448,27 +462,6 @@ function StepPage({
           </ul>
         </div>
       )}
-    </div>
-  );
-}
-
-/** The way out, which a screen with no chrome on it has to offer explicitly. */
-function Finished({ recipeId, language }: { recipeId: string; language: HomeLanguage }) {
-  const say = sayIn(language);
-
-  return (
-    <div className="mx-auto flex max-w-xl flex-col items-center py-12 text-center">
-      <p className="text-4xl" aria-hidden="true">
-        🍽️
-      </p>
-      <h1 className="mt-4 text-2xl font-semibold tracking-tight">{say(RECIPES.thatIsDinner)}</h1>
-      <p className="mt-2 text-sm text-slate-500">{say(RECIPES.everyStepDone)}</p>
-      <Link
-        href={`/recipes/${recipeId}`}
-        className="pressable mt-8 inline-flex items-center justify-center rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--accent-text)] active:scale-[0.96]"
-      >
-        {say(RECIPES.backToRecipe)}
-      </Link>
     </div>
   );
 }
