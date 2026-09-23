@@ -45,16 +45,19 @@ export function pantryKey(name: string): string {
 const CONJUNCTION = /\s+(?:og|and)\s+|\s*&\s*/i;
 
 /**
- * The stocked key that answers for `key` exactly, or, failing that, the key's own
- * trailing words once whatever comes in front is dropped: "tørret spidskommen" is
- * answered by a pantry that has "spidskommen", "røget paprika" by one that has
- * "paprika". A recipe names the ingredient last and the preparation first ("finely
- * chopped", "smoked", "freshly ground") far more often than the other way round, so
- * only a *leading* run of words is ever dropped.
+ * The stocked key that answers for `key` exactly, or, failing that, the longest run of
+ * the key's own words, in order, that the pantry has an entry for: "tørret
+ * spidskommen" is answered by a pantry that has "spidskommen" (a qualifier dropped from
+ * the front), "hakkede tomater på dåse" by one that has "hakkede tomater" (a qualifier
+ * dropped from the *back* — "på dåse" names the tin, not the tomato). A qualifier can
+ * sit on either side of the ingredient it describes, so both ends are tried; the
+ * longest run that matches wins, so a pantry holding both "tomater" and "hakkede
+ * tomater" answers with the more specific one.
  *
- * Only whole words move, one at a time — never a substring. Danish compounds carry no
- * space of their own ("hvidløg", "rødløg"), so a pantry entry for "løg" is never
- * mistaken for garlic or a red onion; it is still only ever an exact match for "løg".
+ * Only whole words move, and only as a contiguous run — never a substring reaching
+ * inside one. Danish compounds carry no space of their own ("hvidløg", "rødløg"), so a
+ * pantry entry for "løg" is never mistaken for garlic or a red onion; it is still only
+ * ever an exact match for "løg".
  *
  * The caller decides what a non-exact match is worth: `matchLine` below is the one
  * place that reads whether the key returned is `key` itself.
@@ -62,9 +65,11 @@ const CONJUNCTION = /\s+(?:og|and)\s+|\s*&\s*/i;
 function matchedStockedKey(key: string, stocked: Set<string>): string | null {
   if (stocked.has(key)) return key;
   const words = key.split(/\s+/).filter(Boolean);
-  for (let from = 1; from < words.length; from++) {
-    const suffix = words.slice(from).join(" ");
-    if (stocked.has(suffix)) return suffix;
+  for (let length = words.length - 1; length > 0; length--) {
+    for (let start = 0; start + length <= words.length; start++) {
+      const run = words.slice(start, start + length).join(" ");
+      if (stocked.has(run)) return run;
+    }
   }
   return null;
 }
