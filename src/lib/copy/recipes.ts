@@ -27,6 +27,13 @@ export const RECIPES = {
     EN: "The AI is writing it up — this can take up to 20 seconds.",
     DA: "AI'en skriver den ind — det kan tage op til 20 sekunder.",
   },
+  // The stage lines `AiOverlay` walks through while a link is read — `recipeImportOverlay`.
+  readingStage1: { EN: "Fetching the page…", DA: "Henter siden…" },
+  readingStage2: { EN: "Looking for the recipe…", DA: "Leder efter opskriften…" },
+  readingStage3: { EN: "Sorting out the ingredients…", DA: "Sorterer ingredienserne…" },
+  readingStage4: { EN: "Converting to metric…", DA: "Omregner til gram og liter…" },
+  readingStage5: { EN: "Writing up the steps…", DA: "Skriver trinene ind…" },
+  readingStage6: { EN: "Checking it all over…", DA: "Tjekker det hele igennem…" },
   pasteLinkFirst: { EN: "Paste a link to a recipe first.", DA: "Indsæt først et link til en opskrift." },
   pasteCaptionFirst: {
     EN: "Paste the reel's description first.",
@@ -143,6 +150,12 @@ export const RECIPES = {
     EN: "The AI is tidying the ingredients and turning the instructions into steps for cooking mode — this can take up to 30 seconds.",
     DA: "AI'en rydder op i ingredienserne og omdanner fremgangsmåden til trin til madlavningstilstand — det kan tage op til 30 sekunder.",
   },
+  // The stage lines `AiOverlay` walks through while a save is read — `recipeSaveOverlay`.
+  savingStage1: { EN: "Reading your ingredients…", DA: "Læser jeres ingredienser…" },
+  savingStage2: { EN: "Splitting amounts from units…", DA: "Skiller mængder fra enheder…" },
+  savingStage3: { EN: "Matching ingredients to each step…", DA: "Kobler ingredienser til hvert trin…" },
+  savingStage4: { EN: "Timing every step…", DA: "Tager tid på hvert trin…" },
+  savingStage5: { EN: "Getting cooking mode ready…", DA: "Gør madlavningstilstand klar…" },
   ingredientsField: { EN: "Ingredients", DA: "Ingredienser" },
   ingredientsPlaceholder: {
     EN: "One per line\n200 g flour\n2 eggs",

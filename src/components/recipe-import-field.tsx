@@ -5,6 +5,8 @@ import { Button, Input, Label } from "@/components/ui";
 import { importRecipeFromUrl } from "@/app/actions/recipe-import";
 import type { ImportedRecipe } from "@/lib/recipe-import";
 import { useLanguage } from "@/components/language-provider";
+import { AiOverlay } from "@/components/ai-overlay";
+import { recipeImportOverlay } from "@/components/recipe-fields";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
 
@@ -46,7 +48,8 @@ export function RecipeImportField({
   const [url, setUrl] = useState(autoFetchUrl ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const say = sayIn(useLanguage());
+  const language = useLanguage();
+  const say = sayIn(language);
 
   function setFetchError(message: string | null, notARecipe = false) {
     setError(message);
@@ -109,24 +112,11 @@ export function RecipeImportField({
         </div>
         <p className="text-xs text-slate-500">{say(RECIPES.linkHint)}</p>
         {/*
-          A page fetch plus the AI writing the recipe up can run well past what a button's
-          own label reads as "still working" — so this is the one place a spinner shows: it
-          is bigger, worded, and the part of the step that keeps moving for as long as the
-          wait does.
+          A page fetch plus the AI writing the recipe up runs well past what a button's
+          own label reads as "still working", so the wait takes the whole screen — the
+          same one a save wears, since it is the same reader at work.
         */}
-        {pending && (
-          <div
-            role="status"
-            aria-live="polite"
-            className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5"
-          >
-            <Spinner className="h-5 w-5 text-slate-500" />
-            <div>
-              <p className="text-sm font-medium text-slate-900">{say(RECIPES.reading)}</p>
-              <p className="text-xs text-slate-500">{say(RECIPES.readingHint)}</p>
-            </div>
-          </div>
-        )}
+        <AiOverlay active={pending} {...recipeImportOverlay(language)} />
         {error && (
           <p role="alert" className="text-sm text-red-600">
             {error}
@@ -137,17 +127,3 @@ export function RecipeImportField({
   );
 }
 
-function Spinner({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={`animate-spin ${className}`}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      aria-hidden="true"
-    >
-      <path d="M12 3a9 9 0 1 0 9 9" strokeLinecap="round" />
-    </svg>
-  );
-}

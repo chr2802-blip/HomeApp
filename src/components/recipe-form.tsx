@@ -31,7 +31,7 @@ export function RecipeForm({
   const say = sayIn(language);
 
   return (
-    <Card className="relative overflow-hidden">
+    <Card>
       <form onSubmit={handleSubmit} className="space-y-4">
         {recipe?.id && <input type="hidden" name="recipeId" value={recipe.id} />}
         <RecipeFields recipe={recipe} categories={categories} language={language} />
