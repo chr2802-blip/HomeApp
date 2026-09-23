@@ -56,10 +56,13 @@ incomplete**, because it came from a grep shaped like the first two examples fou
 an audit claim ("in a Danish home these still speak English") that read as exhaustive and
 was not. The guard test is what makes the next such list exhaustive.
 
-A third, smaller: **a flake's evidence was destroyed by the first thing done to
-investigate it.** The hook's failing browser run left a trace; re-running the one test
-with `--repeat-each` wrote over `test-results/` before the trace was read. Copy the trace
-out first. It is recorded in the audit as an open question, not as fixed.
+A third: **two browser flakes at push time, and a flake's evidence was destroyed by
+the first thing done to investigate it.** The hook's first failing run left a trace;
+re-running the one test with `--repeat-each` wrote over `test-results/` before the trace
+was read, so that one is recorded as unexplained. The second time the trace was copied
+out first, and it named the race in a minute (`tickOff` retrying a press that had already
+worked). Establishing that `main` does not flake the same way cost two full suite runs in
+a worktree — about ten minutes, and the only way to tell "this change" from "this suite".
 
 ## What CLAUDE.md did not say
 
