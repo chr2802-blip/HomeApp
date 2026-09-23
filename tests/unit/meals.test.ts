@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  LEFTOVERS_LABEL,
   dayAndMonth,
   leftoversChoice,
   leftoversDay,
+  leftoversHeading,
   leftoversLabel,
   weekLabel,
   weekdayName,
@@ -18,29 +18,43 @@ import { weekDays } from "@/lib/time";
 
 describe("weekdayName", () => {
   it("names the day the row is for", () => {
-    expect(weekdayName("2026-06-01")).toBe("Monday");
-    expect(weekdayName("2026-06-07")).toBe("Sunday");
+    expect(weekdayName("2026-06-01", "EN")).toBe("Monday");
+    expect(weekdayName("2026-06-07", "EN")).toBe("Sunday");
+  });
+
+  it("reads in the household's own language", () => {
+    expect(weekdayName("2026-06-01", "DA")).toBe("mandag");
+    expect(weekdayName("2026-06-07", "DA")).toBe("søndag");
   });
 });
 
 describe("dayAndMonth", () => {
   it("leaves the year out, because the week above it has already said which", () => {
-    expect(dayAndMonth("2026-06-01")).toBe("1 Jun");
-    expect(dayAndMonth("2026-12-25")).toBe("25 Dec");
+    expect(dayAndMonth("2026-06-01", "EN")).toBe("1 Jun");
+    expect(dayAndMonth("2026-12-25", "EN")).toBe("25 Dec");
+  });
+
+  it("reads in the household's own language", () => {
+    expect(dayAndMonth("2026-06-01", "DA")).toBe("1. jun.");
+    expect(dayAndMonth("2026-12-25", "DA")).toBe("25. dec.");
   });
 });
 
 describe("weekLabel", () => {
   it("says the month once for a week inside one", () => {
-    expect(weekLabel(weekDays("2026-06-01"))).toBe("1–7 Jun");
+    expect(weekLabel(weekDays("2026-06-01"), "EN")).toBe("1–7 Jun");
   });
 
   it("says both months for a week that straddles them", () => {
-    expect(weekLabel(weekDays("2026-06-29"))).toBe("29 Jun – 5 Jul");
+    expect(weekLabel(weekDays("2026-06-29"), "EN")).toBe("29 Jun – 5 Jul");
   });
 
   it("says both years for the week that straddles those", () => {
-    expect(weekLabel(weekDays("2026-12-28"))).toBe("28 Dec 2026 – 3 Jan 2027");
+    expect(weekLabel(weekDays("2026-12-28"), "EN")).toBe("28 Dec 2026 – 3 Jan 2027");
+  });
+
+  it("reads in the household's own language", () => {
+    expect(weekLabel(weekDays("2026-06-01"), "DA")).toBe("1–7. jun.");
   });
 });
 
@@ -60,7 +74,7 @@ describe("leftovers choices", () => {
 
 describe("leftoversLabel", () => {
   it("names the meal and the day it was cooked", () => {
-    expect(leftoversLabel({ day: "2026-06-02", title: "Lasagne" })).toBe(
+    expect(leftoversLabel({ day: "2026-06-02", title: "Lasagne" }, "EN")).toBe(
       "Leftovers — Tuesday's Lasagne",
     );
   });
@@ -69,6 +83,12 @@ describe("leftoversLabel", () => {
     // The pointer reaching nothing — the day cleared, or cooked in a week not on screen
     // — leaves the household eating leftovers of something, which is the half the row
     // still knows and the half that matters at six o'clock.
-    expect(leftoversLabel(null)).toBe(LEFTOVERS_LABEL);
+    expect(leftoversLabel(null, "EN")).toBe(leftoversHeading("EN"));
+  });
+
+  it("reads in the household's own language, with a genitive and no apostrophe", () => {
+    expect(leftoversLabel({ day: "2026-06-02", title: "Lasagne" }, "DA")).toBe(
+      "Rester — tirsdags Lasagne",
+    );
   });
 });

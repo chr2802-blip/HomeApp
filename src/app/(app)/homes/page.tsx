@@ -3,6 +3,8 @@ import { switchHome } from "@/app/actions/admin";
 import { Badge, Button, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 import { PhotoAvatar } from "@/components/photo";
 import { HomeDot } from "@/components/home-dot";
+import { sayIn } from "@/lib/copy/say";
+import { HOMES } from "@/lib/copy/homes";
 
 /**
  * Every home this person belongs to, and the way between them.
@@ -13,16 +15,17 @@ import { HomeDot } from "@/components/home-dot";
  */
 export default async function HomesPage() {
   const user = await requireUser();
+  const say = sayIn(user.homeLanguage);
 
   return (
     <>
       <PageHeader
-        title="Your homes"
-        description="Everywhere you are a member. Switch into one to read and write in it."
+        title={say(HOMES.yourHomes)}
+        description={say(HOMES.everywhereYouAreAMember)}
         action={
           user.role === "SUPER_ADMIN" ? (
             <ButtonLink href="/admin/homes" variant="secondary">
-              All homes
+              {say(HOMES.allHomes)}
             </ButtonLink>
           ) : undefined
         }
@@ -30,7 +33,7 @@ export default async function HomesPage() {
 
       {user.homes.length === 0 ? (
         <EmptyState icon="🏠">
-          <p>You are not in a home yet. Somebody in one can invite you by email.</p>
+          <p>{say(HOMES.notInAHomeYet)}</p>
         </EmptyState>
       ) : (
         <div className="space-y-3">
@@ -42,16 +45,16 @@ export default async function HomesPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <HomeDot theme={home.theme} />
                   <p className="font-medium">{home.name}</p>
-                  {home.id === user.homeId && <Badge tone="green">Active</Badge>}
+                  {home.id === user.homeId && <Badge tone="green">{say(HOMES.active)}</Badge>}
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
-                  {home.role === "ADMIN" ? "You run this home" : "Member"}
+                  {home.role === "ADMIN" ? say(HOMES.youRunThisHome) : say(HOMES.member)}
                 </p>
               </div>
               {home.id !== user.homeId && (
                 <form action={switchHome}>
                   <input type="hidden" name="homeId" value={home.id} />
-                  <Button variant="secondary">Switch to</Button>
+                  <Button variant="secondary">{say(HOMES.switchTo)}</Button>
                 </form>
               )}
             </Card>

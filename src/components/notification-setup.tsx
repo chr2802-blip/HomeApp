@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { saveSubscription, sendTestPush } from "@/app/actions/push";
 import { Button, Card } from "@/components/ui";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { DASHBOARD } from "@/lib/copy/dashboard";
 
 function urlBase64ToUint8Array(base64: string) {
   const padded = (base64 + "=".repeat((4 - (base64.length % 4)) % 4))
@@ -23,6 +26,7 @@ type Status = "loading" | "unsupported" | "unconfigured" | "off" | "on" | "block
 export function NotificationSetup({ showEnabled = false }: { showEnabled?: boolean }) {
   const [status, setStatus] = useState<Status>("loading");
   const [busy, setBusy] = useState(false);
+  const say = sayIn(useLanguage());
 
   useEffect(() => {
     const vapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -78,10 +82,8 @@ export function NotificationSetup({ showEnabled = false }: { showEnabled?: boole
     if (!showEnabled) return null;
     return (
       <Card className="border-slate-300 bg-slate-100">
-        <p className="font-medium">Task reminders</p>
-        <p className="text-sm text-slate-600">
-          Reminders are on in this browser. Each browser and phone is asked separately.
-        </p>
+        <p className="font-medium">{say(DASHBOARD.taskReminders)}</p>
+        <p className="text-sm text-slate-600">{say(DASHBOARD.remindersOn)}</p>
       </Card>
     );
   }
@@ -89,18 +91,18 @@ export function NotificationSetup({ showEnabled = false }: { showEnabled?: boole
   return (
     <Card className="flex flex-wrap items-center justify-between gap-3 border-slate-300 bg-slate-100">
       <div>
-        <p className="font-medium">Task reminders</p>
+        <p className="font-medium">{say(DASHBOARD.taskReminders)}</p>
         <p className="text-sm text-slate-600">
           {status === "blocked"
-            ? "Notifications are blocked for this site — enable them in your browser settings."
+            ? say(DASHBOARD.notificationsBlocked)
             : status === "unsupported"
-              ? "This browser can't show push notifications."
-              : "Turn on notifications to be reminded when a recurring task is due."}
+              ? say(DASHBOARD.pushUnsupported)
+              : say(DASHBOARD.turnOnNotifications)}
         </p>
       </div>
       {status === "off" && (
         <Button onClick={enable} disabled={busy}>
-          {busy ? "Enabling…" : "Enable notifications"}
+          {busy ? say(DASHBOARD.enabling) : say(DASHBOARD.enableNotifications)}
         </Button>
       )}
     </Card>
@@ -109,6 +111,7 @@ export function NotificationSetup({ showEnabled = false }: { showEnabled?: boole
 
 export function TestPushButton() {
   const [result, setResult] = useState<string | null>(null);
+  const say = sayIn(useLanguage());
 
   return (
     <div className="flex items-center gap-3">
@@ -116,10 +119,10 @@ export function TestPushButton() {
         variant="secondary"
         onClick={async () => {
           const delivered = await sendTestPush();
-          setResult(delivered > 0 ? "Sent." : "No active subscription on this account.");
+          setResult(delivered > 0 ? say(DASHBOARD.testSent) : say(DASHBOARD.noActiveSubscription));
         }}
       >
-        Send test notification
+        {say(DASHBOARD.sendTestNotification)}
       </Button>
       {result && <span className="text-sm text-slate-500">{result}</span>}
     </div>

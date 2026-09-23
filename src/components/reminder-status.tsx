@@ -3,6 +3,8 @@ import { getHomeReminderStatus } from "@/lib/system-stats";
 import { readInZone } from "@/lib/time";
 import { DATE } from "@/lib/copy/dates";
 import { Badge, Card } from "@/components/ui";
+import { sayIn } from "@/lib/copy/say";
+import { REMINDERS } from "@/lib/copy/admin";
 
 /**
  * A home admin's answer to "are reminders actually working for us?", built only from
@@ -12,6 +14,7 @@ import { Badge, Card } from "@/components/ui";
 export async function ReminderStatus({ homeId, language }: { homeId: string; language: HomeLanguage }) {
   const now = new Date();
   const status = await getHomeReminderStatus(homeId, now);
+  const say = sayIn(language);
 
   const nobodySubscribed = status.subscriptions === 0;
 
@@ -19,41 +22,41 @@ export async function ReminderStatus({ homeId, language }: { homeId: string; lan
     <Card className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={nobodySubscribed ? "amber" : "green"}>
-          {nobodySubscribed ? "no one will be notified" : "notifications on"}
+          {nobodySubscribed ? say(REMINDERS.noOneNotified) : say(REMINDERS.notificationsOn)}
         </Badge>
         <p className="text-sm text-slate-600">
-          {status.subscriptions} of {status.memberCount}{" "}
-          {status.memberCount === 1 ? "person has" : "people have"} turned reminders on.
+          {say(REMINDERS.subscribedCount, {
+            count: status.memberCount,
+            subscriptions: status.subscriptions,
+            members: status.memberCount,
+          })}
         </p>
       </div>
 
-      {nobodySubscribed && (
-        <p className="text-sm text-slate-600">
-          Tasks will still come due, but nobody gets a reminder until someone enables
-          notifications from the dashboard.
-        </p>
-      )}
+      {nobodySubscribed && <p className="text-sm text-slate-600">{say(REMINDERS.nobodySubscribed)}</p>}
 
       <div className="grid gap-1 text-sm text-slate-600 sm:grid-cols-2">
         <p>
-          Last reminder sent:{" "}
+          {say(REMINDERS.lastReminderSent)}{" "}
           <span className="font-medium text-slate-900">
             {status.lastNotifiedAt
               ? readInZone(status.lastNotifiedAt, DATE.dayAndTime, language)
-              : "never"}
+              : say(REMINDERS.never)}
           </span>
         </p>
         <p>
-          Next task due:{" "}
+          {say(REMINDERS.nextTaskDue)}{" "}
           <span className="font-medium text-slate-900">
-            {status.nextDue ? readInZone(status.nextDue.nextDueAt, DATE.dayMonth, language) : "nothing scheduled"}
+            {status.nextDue
+              ? readInZone(status.nextDue.nextDueAt, DATE.dayMonth, language)
+              : say(REMINDERS.nothingScheduled)}
           </span>
         </p>
       </div>
 
       {status.overdue > 0 && (
         <p className="text-sm text-amber-700">
-          {status.overdue} {status.overdue === 1 ? "task is" : "tasks are"} overdue in this home.
+          {say(REMINDERS.overdueCount, { count: status.overdue })}
         </p>
       )}
     </Card>

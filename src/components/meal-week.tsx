@@ -7,6 +7,10 @@ import { DialogSubmitButton } from "@/components/form-dialog";
 import { MealPicker, type PlanGroup } from "@/components/meal-picker";
 import { PLAN_FIELD, PLAN_NOTHING, PLAN_OUT, leftoversDay } from "@/lib/meals";
 import type { ActionResult, FormAction } from "@/lib/action-result";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { MEALS } from "@/lib/copy/meals";
+import { APP } from "@/lib/copy/app";
 
 /** One day of the week, exactly as its row and its sheet need it. */
 export type MealDayInfo = {
@@ -56,6 +60,7 @@ function recipeIdOf(selected: string): string | null {
  */
 export function MealWeek({ days, action }: { days: MealDayInfo[]; action: FormAction }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const say = sayIn(useLanguage());
   const day = openIndex !== null ? days[openIndex] : null;
 
   // The sheet's own content stays on the last day shown while it closes: `day` goes
@@ -212,7 +217,7 @@ export function MealWeek({ days, action }: { days: MealDayInfo[]; action: FormAc
                       variant="info"
                       className="mr-3 shrink-0 px-2.5 py-1.5 text-xs"
                     >
-                      Go to recipe
+                      {say(MEALS.goToRecipe)}
                     </ButtonLink>
                   )}
                 </div>
@@ -260,9 +265,9 @@ export function MealWeek({ days, action }: { days: MealDayInfo[]; action: FormAc
                 </p>
               )}
               <div className="flex gap-2">
-                <DialogSubmitButton label="Save" pending={pending} />
+                <DialogSubmitButton label={say(APP.save)} pending={pending} />
                 <Button type="button" variant="secondary" onClick={close}>
-                  Cancel
+                  {say(APP.cancel)}
                 </Button>
               </div>
             </ModalFooter>

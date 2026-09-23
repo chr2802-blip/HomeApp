@@ -1,8 +1,11 @@
 "use client";
 
+import type { HomeLanguage } from "@prisma/client";
 import { useActionState } from "react";
 import { acceptInvite } from "@/app/actions/auth";
 import { Button, Card, Input, Label } from "@/components/ui";
+import { sayIn } from "@/lib/copy/say";
+import { AUTH } from "@/lib/copy/auth";
 
 /**
  * One form for two arrivals: somebody brand new, and somebody who already has an account
@@ -14,17 +17,20 @@ import { Button, Card, Input, Label } from "@/components/ui";
  */
 export function AcceptInviteForm({
   account,
+  language,
 }: {
   /** The signed-in person, or null for a visitor with no account yet. */
   account: { email: string; name: string } | null;
+  language: HomeLanguage;
 }) {
   const [state, formAction, pending] = useActionState(acceptInvite, undefined);
+  const say = sayIn(language);
 
   return (
     <Card>
       <form action={formAction} className="space-y-4">
         <div className="space-y-1">
-          <Label htmlFor="email">Invited email</Label>
+          <Label htmlFor="email">{say(AUTH.invitedEmail)}</Label>
           <Input
             id="email"
             name="email"
@@ -35,10 +41,11 @@ export function AcceptInviteForm({
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="code">Invitation code</Label>
+          <Label htmlFor="code">{say(AUTH.invitationCode)}</Label>
           <Input
             id="code"
             name="code"
+            // eslint-disable-next-line no-restricted-syntax -- a format example, not prose
             placeholder="XXXX-XXXX"
             autoComplete="one-time-code"
             required
@@ -49,12 +56,12 @@ export function AcceptInviteForm({
           <input type="hidden" name="name" value={account.name} />
         ) : (
           <div className="space-y-1">
-            <Label htmlFor="name">Your name</Label>
+            <Label htmlFor="name">{say(AUTH.yourName)}</Label>
             <Input id="name" name="name" required />
           </div>
         )}
         <div className="space-y-1">
-          <Label htmlFor="password">{account ? "Your password" : "Choose a password"}</Label>
+          <Label htmlFor="password">{account ? say(AUTH.yourPassword) : say(AUTH.choosePassword)}</Label>
           <Input
             id="password"
             name="password"
@@ -64,14 +71,12 @@ export function AcceptInviteForm({
             required
           />
           <p className="text-xs text-slate-500">
-            {account
-              ? "The password on your account, so nobody else can join a home as you."
-              : "At least 8 characters. If that email already has an account, give its password instead and the home is added to it."}
+            {account ? say(AUTH.passwordOnAccountHint) : say(AUTH.newPasswordHint)}
           </p>
         </div>
         {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
         <Button type="submit" disabled={pending} className="w-full">
-          {pending ? "Joining…" : account ? "Join home" : "Create account"}
+          {pending ? say(AUTH.joining) : account ? say(AUTH.joinHome) : say(AUTH.createAccount)}
         </Button>
       </form>
     </Card>

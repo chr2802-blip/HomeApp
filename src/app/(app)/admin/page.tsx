@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { requireSuperAdmin } from "@/lib/auth";
 import { Card, PageHeader } from "@/components/ui";
+import { sayIn } from "@/lib/copy/say";
+import { ADMIN_INDEX, SYSTEM } from "@/lib/copy/admin";
+import { HOMES } from "@/lib/copy/homes";
 
 /**
  * The installation, which is the super admin's business and nobody else's: every home
@@ -14,25 +17,23 @@ import { Card, PageHeader } from "@/components/ui";
  * dashboard of its own: anything worth showing here is already on the page it links to.
  */
 export default async function AdminPage() {
-  await requireSuperAdmin();
+  const user = await requireSuperAdmin();
+  const say = sayIn(user.homeLanguage);
 
   return (
     <>
-      <PageHeader
-        title="Admin"
-        description="This installation, rather than any one household."
-      />
+      <PageHeader title={say(ADMIN_INDEX.title)} description={say(ADMIN_INDEX.description)} />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Entry
           href="/admin/system"
-          title="System"
-          description="Database health, the reminder job's recent runs, what is stored and the slowest queries of the last day."
+          title={say(SYSTEM.title)}
+          description={say(ADMIN_INDEX.systemDescription)}
         />
         <Entry
           href="/admin/homes"
-          title="Homes"
-          description="Every home on this installation. Create one, switch into one to administer it, or delete one."
+          title={say(HOMES.homes)}
+          description={say(ADMIN_INDEX.homesDescription)}
         />
       </div>
     </>

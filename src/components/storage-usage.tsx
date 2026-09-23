@@ -1,6 +1,6 @@
+import type { HomeLanguage } from "@prisma/client";
 import {
   STORAGE_KINDS,
-  STORAGE_LABELS,
   formatBytes,
   formatShare,
   getHomeStorage,
@@ -10,6 +10,9 @@ import {
 import { Card } from "@/components/ui";
 import { DonutChart, type DonutSlice } from "@/components/donut-chart";
 import { HomeDot } from "@/components/home-dot";
+import { sayIn } from "@/lib/copy/say";
+import { STORAGE } from "@/lib/copy/admin";
+import { STORAGE_KIND_LABELS } from "@/lib/copy/settings";
 
 /**
  * What the household is using the database for, and what the installation as a whole is.
@@ -127,40 +130,48 @@ function Chart({
  * Worth saying because the number will not match anything a hosting dashboard reports:
  * this is what the rows themselves hold, and a database is always larger than its rows.
  */
-function Footnote({ children }: { children?: React.ReactNode }) {
+function Footnote({
+  children,
+  language,
+}: {
+  children?: React.ReactNode;
+  language: HomeLanguage;
+}) {
+  const say = sayIn(language);
   return (
     <p className="mt-4 text-xs text-slate-500">
-      Measured as Postgres stores it, after compression. Indexes and the database&rsquo;s own
-      overhead are not counted, so the whole database is always somewhat larger than this.
+      {say(STORAGE.footnote)}
       {children ? " " : ""}
       {children}
     </p>
   );
 }
 
-function kindSlices(kinds: Record<StorageKind, number>) {
+function kindSlices(kinds: Record<StorageKind, number>, language: HomeLanguage) {
+  const say = sayIn(language);
   return STORAGE_KINDS.map((kind) => ({
     key: kind,
-    label: STORAGE_LABELS[kind],
+    label: say(STORAGE_KIND_LABELS[kind]),
     value: kinds[kind],
     color: KIND_COLOR[kind],
   }));
 }
 
 /** One household's own footprint, on its Settings page. */
-export async function StorageUsage({ homeId }: { homeId: string }) {
+export async function StorageUsage({ homeId, language }: { homeId: string; language: HomeLanguage }) {
   const storage = await getHomeStorage(homeId);
+  const say = sayIn(language);
 
   return (
     <Card>
       <Chart
-        title="What it is"
+        title={say(STORAGE.whatItIs)}
         value={formatBytes(storage.total)}
-        unit="in this home"
-        slices={kindSlices(storage.kinds)}
+        unit={say(STORAGE.inThisHome)}
+        slices={kindSlices(storage.kinds, language)}
         total={storage.total}
       />
-      <Footnote>A picture counts towards whatever is showing it.</Footnote>
+      <Footnote language={language}>{say(STORAGE.pictureCountsToward)}</Footnote>
     </Card>
   );
 }
@@ -176,8 +187,9 @@ export async function StorageUsage({ homeId }: { homeId: string }) {
  * here as everywhere else. Two homes that picked the same one are told apart by the gap
  * between the slices and by their names in the list, as they are in that menu.
  */
-export async function StorageAcrossHomes() {
+export async function StorageAcrossHomes({ language }: { language: HomeLanguage }) {
   const storage = await getInstallationStorage();
+  const say = sayIn(language);
 
   const named = storage.homes.slice(0, NAMED_HOMES).filter((home) => home.bytes > 0);
   const tail = storage.homes.slice(named.length);
@@ -195,7 +207,7 @@ export async function StorageAcrossHomes() {
   if (tailBytes > 0) {
     homeSlices.push({
       key: "other-homes",
-      label: `${tail.length} smaller ${tail.length === 1 ? "home" : "homes"}`,
+      label: say(STORAGE.smallerHomes, { count: tail.length }),
       value: tailBytes,
       color: "var(--chart-rest)",
     });
@@ -211,24 +223,24 @@ export async function StorageAcrossHomes() {
             like the same chart drawn twice. */}
         <Card>
           <Chart
-            title="Across homes"
+            title={say(STORAGE.acrossHomes)}
             value={total}
-            unit={`in ${storage.homes.length} ${storage.homes.length === 1 ? "home" : "homes"}`}
+            unit={say(STORAGE.inHomes, { count: storage.homes.length })}
             slices={homeSlices}
             total={storage.total}
           />
         </Card>
         <Card>
           <Chart
-            title="What it is"
+            title={say(STORAGE.whatItIs)}
             value={total}
-            unit="of content"
-            slices={kindSlices(storage.kinds)}
+            unit={say(STORAGE.ofContent)}
+            slices={kindSlices(storage.kinds, language)}
             total={storage.total}
           />
         </Card>
       </div>
-      <Footnote>A picture counts towards whatever is showing it.</Footnote>
+      <Footnote language={language}>{say(STORAGE.pictureCountsToward)}</Footnote>
     </>
   );
 }

@@ -4,9 +4,12 @@ import { createHome, deleteHome, switchHome } from "@/app/actions/admin";
 import { Badge, Button, Card, EmptyState, Input, Label, PageHeader } from "@/components/ui";
 import { ItemMenu } from "@/components/item-menu";
 import { ActionForm } from "@/components/action-form";
+import { sayIn } from "@/lib/copy/say";
+import { HOMES } from "@/lib/copy/homes";
 
 export default async function HomesPage() {
   const user = await requireSuperAdmin();
+  const say = sayIn(user.homeLanguage);
 
   const homes = await prisma.home.findMany({
     orderBy: { createdAt: "asc" },
@@ -17,31 +20,28 @@ export default async function HomesPage() {
 
   return (
     <>
-      <PageHeader
-        title="Homes"
-        description="Every home on this installation. Switch into one to administer it."
-      />
+      <PageHeader title={say(HOMES.homes)} description={say(HOMES.everyHomeSwitchToAdminister)} />
 
       <Card className="mb-6">
         <ActionForm
           action={createHome}
-          submitLabel="Create home"
-          successLabel="Home created."
+          submitLabel={say(HOMES.createHome)}
+          successLabel={say(HOMES.homeCreated)}
           className="grid gap-4 sm:grid-cols-2"
         >
           <div className="space-y-1">
-            <Label htmlFor="home-name">New home name</Label>
+            <Label htmlFor="home-name">{say(HOMES.newHomeName)}</Label>
             <Input id="home-name" name="name" required />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="home-address">Address (optional)</Label>
+            <Label htmlFor="home-address">{say(HOMES.address)}</Label>
             <Input id="home-address" name="address" />
           </div>
         </ActionForm>
       </Card>
 
       {homes.length === 0 ? (
-        <EmptyState>No homes yet — create the first one above.</EmptyState>
+        <EmptyState>{say(HOMES.noHomesCreateFirst)}</EmptyState>
       ) : (
         <div className="space-y-3">
           {homes.map((home) => (
@@ -49,18 +49,22 @@ export default async function HomesPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-medium">{home.name}</p>
-                  {home.id === user.homeId && <Badge tone="green">Active</Badge>}
+                  {home.id === user.homeId && <Badge tone="green">{say(HOMES.active)}</Badge>}
                 </div>
                 {home.address && <p className="text-xs text-slate-500">{home.address}</p>}
                 <p className="mt-1 text-xs text-slate-500">
-                  {home._count.members} members · {home._count.lists} lists ·{" "}
-                  {home._count.tasks} tasks · {home._count.recipes} recipes
+                  {say(HOMES.homeStats, {
+                    members: home._count.members,
+                    lists: home._count.lists,
+                    tasks: home._count.tasks,
+                    recipes: home._count.recipes,
+                  })}
                 </p>
               </div>
               {home.id !== user.homeId && (
                 <form action={switchHome}>
                   <input type="hidden" name="homeId" value={home.id} />
-                  <Button variant="secondary">Switch to</Button>
+                  <Button variant="secondary">{say(HOMES.switchTo)}</Button>
                 </form>
               )}
               {/* No Edit: a home is renamed from inside it, under its own Settings. */}
@@ -69,8 +73,14 @@ export default async function HomesPage() {
                 id={home.id}
                 label={home.name}
                 deleteAction={deleteHome}
-                deleteTitle="Delete home"
-                deleteMessage={`Permanently delete "${home.name}"? Its ${home._count.lists} lists, ${home._count.tasks} tasks and ${home._count.recipes} recipes go with it, and its ${home._count.members} members lose this home. This cannot be undone.`}
+                deleteTitle={say(HOMES.deleteHome)}
+                deleteMessage={say(HOMES.deleteHomeMessage, {
+                  name: home.name,
+                  lists: home._count.lists,
+                  tasks: home._count.tasks,
+                  recipes: home._count.recipes,
+                  members: home._count.members,
+                })}
                 className="-mr-2"
               />
             </Card>
@@ -78,10 +88,7 @@ export default async function HomesPage() {
         </div>
       )}
 
-      <p className="mt-6 text-xs text-slate-500">
-        Deleting a home permanently removes its lists, tasks and recipes. Its members keep
-        their accounts and whatever other homes they are in.
-      </p>
+      <p className="mt-6 text-xs text-slate-500">{say(HOMES.deletingRemovesContent)}</p>
     </>
   );
 }

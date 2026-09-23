@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 import { Input } from "@/components/ui";
 import { PhotoThumb } from "@/components/photo";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { MEALS } from "@/lib/copy/meals";
+import { RECIPES } from "@/lib/copy/recipes";
 
 /** One thing a day can be set to, drawn as a row and submitted as one value. */
 export type PlanOption = {
@@ -60,6 +64,7 @@ export function MealPicker({
   onSelect: (value: string) => void;
 }) {
   const [query, setQuery] = useState("");
+  const say = sayIn(useLanguage());
   const needle = query.trim().toLowerCase();
 
   const { shown, hits } = useMemo(() => {
@@ -96,7 +101,7 @@ export function MealPicker({
 
   return (
     <fieldset className="min-w-0 space-y-2">
-      <legend className="mb-1 text-sm font-medium">Eating</legend>
+      <legend className="mb-1 text-sm font-medium">{say(MEALS.eatingLegend)}</legend>
 
       {/* No autofocus: on a phone the sheet is the whole screen, and a keyboard opening
           with it would bury the list somebody has just asked to see. */}
@@ -104,8 +109,8 @@ export function MealPicker({
         type="search"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        placeholder="Search recipes and ingredients"
-        aria-label="Search recipes"
+        placeholder={say(RECIPES.searchRecipes)}
+        aria-label={say(RECIPES.searchRecipesAria)}
         className="w-full"
       />
 
@@ -146,6 +151,7 @@ export function MealPicker({
                     />
 
                     {option.photoId !== undefined && (
+                      // eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a PhotoKind glyph, not copy.
                       <PhotoThumb photoId={option.photoId} alt="" className="h-9 w-9" placeholder="recipe" />
                     )}
 
@@ -167,14 +173,14 @@ export function MealPicker({
             found nothing, and saying so is the difference between a search that failed
             and a search that quietly returned the answer already given. */}
         {needle !== "" && hits === 0 && (
-          <p className="py-2 text-sm text-slate-500">Nothing here matches “{query.trim()}”.</p>
+          <p className="py-2 text-sm text-slate-500">
+            {say(MEALS.noMatch, { query: query.trim() })}
+          </p>
         )}
       </div>
 
       {!hasChoices && (
-        <p className="text-xs text-slate-500">
-          No recipes saved yet — add some on the Recipes tab, or say you are eating out.
-        </p>
+        <p className="text-xs text-slate-500">{say(MEALS.noSavedRecipes)}</p>
       )}
     </fieldset>
   );

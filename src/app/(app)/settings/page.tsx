@@ -50,9 +50,9 @@ export default async function SettingsPage() {
       <>
         <PageHeader title={say(SETTINGS.title)} />
         <EmptyState>
-          <p>Select a home first.</p>
+          <p>{say(SETTINGS.selectAHomeFirst)}</p>
           <ButtonLink href="/admin/homes" className="mt-4">
-            Manage homes
+            {say(SETTINGS.manageHomes)}
           </ButtonLink>
         </EmptyState>
       </>
@@ -77,7 +77,7 @@ export default async function SettingsPage() {
     db.invite.findMany({ where: { acceptedAt: null }, orderBy: { createdAt: "desc" } }),
   ]);
 
-  if (!home) return <EmptyState>Home not found.</EmptyState>;
+  if (!home) return <EmptyState>{say(SETTINGS.homeNotFound)}</EmptyState>;
 
   return (
     <>
@@ -123,7 +123,9 @@ export default async function SettingsPage() {
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Reminders</h2>
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
+          {say(SETTINGS.remindersHeading)}
+        </h2>
         <ReminderStatus homeId={home.id} language={user.homeLanguage} />
       </section>
 
@@ -132,19 +134,25 @@ export default async function SettingsPage() {
           there is nothing on it to change, only something to notice — usually that the
           recipes somebody photographed are most of the home. */}
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Storage</h2>
-        <StorageUsage homeId={home.id} />
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
+          {say(SETTINGS.storageHeading)}
+        </h2>
+        <StorageUsage homeId={home.id} language={user.homeLanguage} />
       </section>
 
       {/* Also a reading rather than a setting, beside Storage for the same reason: how
           much of this month's 5 USD the household's imports have spent so far. */}
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">AI spending</h2>
-        <AiSpendUsage homeId={home.id} />
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
+          {say(SETTINGS.aiSpendingHeading)}
+        </h2>
+        <AiSpendUsage homeId={home.id} language={user.homeLanguage} />
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Members</h2>
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
+          {say(SETTINGS.membersHeading)}
+        </h2>
         <Card className="divide-y divide-slate-100 p-0">
           {members.map(({ user: member, role }) => (
             <div key={member.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
@@ -153,7 +161,7 @@ export default async function SettingsPage() {
               <div className="min-w-0 flex-1">
                 <p className="font-medium">
                   {member.name}
-                  {member.id === user.id && <span className="text-slate-400"> (you)</span>}
+                  {member.id === user.id && <span className="text-slate-400"> {say(SETTINGS.you)}</span>}
                 </p>
                 <p className="text-xs text-slate-500">{member.email}</p>
               </div>
@@ -162,7 +170,11 @@ export default async function SettingsPage() {
                   rather than offered as something to change. */}
               {member.role === "SUPER_ADMIN" || member.id === user.id ? (
                 <Badge tone={member.role === "SUPER_ADMIN" ? "green" : "neutral"}>
-                  {member.role === "SUPER_ADMIN" ? "super admin" : role.toLowerCase()}
+                  {member.role === "SUPER_ADMIN"
+                    ? say(SETTINGS.superAdminRole)
+                    : role === "ADMIN"
+                      ? say(SETTINGS.adminRole)
+                      : say(SETTINGS.userRole)}
                 </Badge>
               ) : (
                 <>
@@ -170,10 +182,10 @@ export default async function SettingsPage() {
                     <input type="hidden" name="userId" value={member.id} />
                     <input type="hidden" name="homeId" value={home.id} />
                     <Select name="role" defaultValue={role}>
-                      <option value="USER">User</option>
-                      <option value="ADMIN">Admin</option>
+                      <option value="USER">{say(SETTINGS.userRole)}</option>
+                      <option value="ADMIN">{say(SETTINGS.adminRole)}</option>
                     </Select>
-                    <Button variant="secondary">Save</Button>
+                    <Button variant="secondary">{say(SETTINGS.save)}</Button>
                   </form>
                   {/* The role is changed in place beside this; the menu holds only
                       what cannot be undone. */}
@@ -182,10 +194,10 @@ export default async function SettingsPage() {
                     id={member.id}
                     label={member.name}
                     deleteAction={removeMember}
-                    deleteTitle="Remove member"
-                    deleteLabel="Remove"
-                    deleteConfirmLabel="Remove"
-                    deleteMessage={`Remove ${member.name} from this home? They keep their account and any other homes they are in, and what they have written here stays.`}
+                    deleteTitle={say(SETTINGS.removeMemberTitle)}
+                    deleteLabel={say(SETTINGS.remove)}
+                    deleteConfirmLabel={say(SETTINGS.remove)}
+                    deleteMessage={say(SETTINGS.removeMemberMessage, { name: member.name })}
                     extraFields={<input type="hidden" name="homeId" value={home.id} />}
                     className="-mr-2"
                   />
@@ -197,7 +209,9 @@ export default async function SettingsPage() {
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Invite someone</h2>
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
+          {say(SETTINGS.inviteSomeoneHeading)}
+        </h2>
         <InviteForm homeId={home.id} />
 
         {invites.length > 0 && (
@@ -207,13 +221,15 @@ export default async function SettingsPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{invite.email}</p>
                   <p className="text-xs text-slate-500">
-                    {invite.role.toLowerCase()} · expires{" "}
-                    {readInZone(invite.expiresAt, DATE.dayMonthYear, user.homeLanguage)}
+                    {invite.role === "ADMIN" ? say(SETTINGS.adminRole) : say(SETTINGS.userRole)} ·{" "}
+                    {say(SETTINGS.expires, {
+                      date: readInZone(invite.expiresAt, DATE.dayMonthYear, user.homeLanguage),
+                    })}
                   </p>
                 </div>
                 <form action={revokeInvite}>
                   <input type="hidden" name="inviteId" value={invite.id} />
-                  <Button variant="danger">Revoke</Button>
+                  <Button variant="danger">{say(SETTINGS.revoke)}</Button>
                 </form>
               </div>
             ))}

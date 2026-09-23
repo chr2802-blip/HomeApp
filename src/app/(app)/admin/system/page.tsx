@@ -6,15 +6,21 @@ import { DATE } from "@/lib/copy/dates";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 import { StorageAcrossHomes } from "@/components/storage-usage";
 import { AiSpendAcrossHomes } from "@/components/ai-spend";
+import { sayIn, type Say } from "@/lib/copy/say";
+import { SYSTEM } from "@/lib/copy/admin";
+import { SETTINGS } from "@/lib/copy/settings";
 
 export const dynamic = "force-dynamic";
 
 const TONE = { ok: "green", degraded: "amber", down: "red" } as const;
-const VERDICT = {
-  ok: "Everything looks healthy",
-  degraded: "Running, but something needs attention",
-  down: "The database cannot be reached",
-} as const;
+
+function verdictFor(say: Say) {
+  return {
+    ok: say(SYSTEM.verdictOk),
+    degraded: say(SYSTEM.verdictDegraded),
+    down: say(SYSTEM.verdictDown),
+  } as const;
+}
 
 function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
@@ -30,6 +36,8 @@ export default async function SystemPage() {
   // The installation's own page reads in the super admin's own home's language, the
   // same reading `homeTheme` already gets from the session for the frame around it.
   const user = await requireSuperAdmin();
+  const say = sayIn(user.homeLanguage);
+  const VERDICT = verdictFor(say);
 
   const now = new Date();
   const [health, stats] = await Promise.all([getHealth(now), getSystemStats(now)]);
@@ -38,11 +46,11 @@ export default async function SystemPage() {
   return (
     <>
       <PageHeader
-        title="System"
-        description="How the installation itself is doing."
+        title={say(SYSTEM.title)}
+        description={say(SYSTEM.description)}
         action={
           <ButtonLink href="/admin" variant="secondary">
-            Back to admin
+            {say(SYSTEM.backToAdmin)}
           </ButtonLink>
         }
       />
@@ -54,10 +62,10 @@ export default async function SystemPage() {
             <p className="font-medium">{VERDICT[health.status]}</p>
           </div>
           <p className="mt-1 text-xs text-slate-500">
-            {health.environment} · database{" "}
+            {health.environment} · {say(SYSTEM.database)}{" "}
             {health.database.reachable
-              ? `reachable in ${health.database.latencyMs} ms`
-              : "unreachable"}
+              ? say(SYSTEM.reachableIn, { ms: health.database.latencyMs ?? 0 })
+              : say(SYSTEM.unreachable)}
           </p>
         </div>
       </Card>
@@ -66,9 +74,9 @@ export default async function SystemPage() {
           there is no deployment, and an empty card saying so would be furniture. */}
       {health.deployment.version && (
         <Card className="mb-8">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase">Deployed</h2>
+          <h2 className="text-sm font-semibold text-slate-500 uppercase">{say(SYSTEM.deployed)}</h2>
           <p className="mt-2 font-medium break-words">
-            {health.deployment.message ?? "No commit message recorded."}
+            {health.deployment.message ?? say(SYSTEM.noCommitMessage)}
           </p>
           <p className="mt-1 text-xs text-slate-500">
             {health.deployment.url ? (
@@ -88,40 +96,43 @@ export default async function SystemPage() {
           {/* Only main deploys — vercel.json disables every other branch — so a build
               from anywhere else is worth seeing rather than reading past. */}
           {health.deployment.ref && health.deployment.ref !== "main" && (
-            <p className="mt-2 text-xs text-amber-700">
-              This build did not come from main.
-            </p>
+            <p className="mt-2 text-xs text-amber-700">{say(SYSTEM.notFromMain)}</p>
           )}
         </Card>
       )}
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Reminders</h2>
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
+          {say(SYSTEM.remindersHeading)}
+        </h2>
 
         {health.reminders.lastRunAt === null ? (
-          <EmptyState>
-            The reminder job has not run yet. It runs once each morning; if nothing appears here
-            tomorrow, the schedule is not reaching the app.
-          </EmptyState>
+          <EmptyState>{say(SYSTEM.jobNotRun)}</EmptyState>
         ) : (
           <Card className="mb-3">
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone={health.reminders.stale ? "red" : health.reminders.ok ? "green" : "amber"}>
-                {health.reminders.stale ? "overdue" : health.reminders.ok ? "on schedule" : "failed"}
+                {health.reminders.stale
+                  ? say(SYSTEM.overdue)
+                  : health.reminders.ok
+                    ? say(SYSTEM.onSchedule)
+                    : say(SYSTEM.failed)}
               </Badge>
               <p className="font-medium">
-                Last run {readInZone(health.reminders.lastRunAt, DATE.dayAndTime, user.homeLanguage)}
+                {say(SYSTEM.lastRun, {
+                  when: readInZone(health.reminders.lastRunAt, DATE.dayAndTime, user.homeLanguage),
+                })}
               </p>
             </div>
             <p className="mt-1 text-sm text-slate-600">
-              {health.reminders.ageHours} hours ago.{" "}
+              {say(SYSTEM.hoursAgo, { hours: health.reminders.ageHours ?? 0 })}{" "}
               {health.reminders.stale
-                ? `Expected at least once every ${REMINDER_STALE_AFTER_HOURS} hours — reminders are probably not going out.`
-                : "Reminders are going out as scheduled."}
+                ? say(SYSTEM.expectedFrequency, { hours: REMINDER_STALE_AFTER_HOURS })
+                : say(SYSTEM.goingOutAsScheduled)}
             </p>
             {health.reminders.error && (
               <p className="mt-2 text-sm text-red-600">
-                Last error: {health.reminders.error}
+                {say(SYSTEM.lastError, { error: health.reminders.error })}
               </p>
             )}
           </Card>
@@ -135,10 +146,10 @@ export default async function SystemPage() {
                   {readInZone(run.startedAt, DATE.dayTime, user.homeLanguage)}
                 </span>
                 <Badge tone={run.finishedAt === null ? "amber" : run.ok ? "green" : "red"}>
-                  {run.finishedAt === null ? "did not finish" : run.ok ? "ok" : "failed"}
+                  {run.finishedAt === null ? say(SYSTEM.didNotFinish) : run.ok ? say(SYSTEM.ok) : say(SYSTEM.failed)}
                 </Badge>
                 <span className="text-slate-600">
-                  {run.tasksDue} due · {run.notificationsSent} sent
+                  {say(SYSTEM.dueAndSent, { due: run.tasksDue, sent: run.notificationsSent })}
                 </span>
                 {run.error && <span className="text-red-600">{run.error}</span>}
               </div>
@@ -148,18 +159,24 @@ export default async function SystemPage() {
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Content</h2>
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
+          {say(SYSTEM.contentHeading)}
+        </h2>
         <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          <Stat label="Homes" value={totals.homes} />
-          <Stat label="People" value={totals.users} />
+          <Stat label={say(SYSTEM.homes)} value={totals.homes} />
+          <Stat label={say(SYSTEM.people)} value={totals.users} />
           <Stat
-            label="Notifications on"
+            label={say(SYSTEM.notificationsOnStat)}
             value={totals.subscriptions}
-            hint={`across ${totals.users} ${totals.users === 1 ? "person" : "people"}`}
+            hint={say(SYSTEM.acrossPeople, { count: totals.users })}
           />
-          <Stat label="Tasks overdue" value={totals.overdue} hint={`of ${totals.tasks} tasks`} />
-          <Stat label="Lists" value={totals.lists} />
-          <Stat label="Recipes" value={totals.recipes} />
+          <Stat
+            label={say(SYSTEM.tasksOverdue)}
+            value={totals.overdue}
+            hint={say(SYSTEM.ofTasks, { count: totals.tasks })}
+          />
+          <Stat label={say(SYSTEM.lists)} value={totals.lists} />
+          <Stat label={say(SYSTEM.recipes)} value={totals.recipes} />
         </div>
       </section>
 
@@ -168,8 +185,10 @@ export default async function SystemPage() {
           Split by home as well as by kind, because "the database has grown" is only
           actionable once it says which household it grew in. */}
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Storage</h2>
-        <StorageAcrossHomes />
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
+          {say(SETTINGS.storageHeading)}
+        </h2>
+        <StorageAcrossHomes language={user.homeLanguage} />
       </section>
 
       {/* What reading an imported recipe is costing, home by home, against the 5 USD a
@@ -177,16 +196,18 @@ export default async function SystemPage() {
           "what is this household using" and this one is measured in money rather than
           bytes or rows. */}
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">AI spending</h2>
-        <AiSpendAcrossHomes />
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
+          {say(SETTINGS.aiSpendingHeading)}
+        </h2>
+        <AiSpendAcrossHomes language={user.homeLanguage} />
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Slowest database calls</h2>
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
+          {say(SYSTEM.slowestCalls)}
+        </h2>
         {slowQueries.length === 0 ? (
-          <EmptyState>
-            Nothing took longer than {slowQueryThresholdMs} ms in the last day.
-          </EmptyState>
+          <EmptyState>{say(SYSTEM.nothingSlow, { ms: slowQueryThresholdMs })}</EmptyState>
         ) : (
           <Card className="divide-y divide-slate-100 p-0">
             {slowQueries.map((entry) => (
@@ -195,19 +216,18 @@ export default async function SystemPage() {
                 className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm"
               >
                 <span className="min-w-0 flex-1 font-medium">
-                  {entry.model ?? "raw"}.{entry.operation}
+                  {entry.model ?? say(SYSTEM.raw)}.{entry.operation}
                 </span>
                 <span className="text-slate-500">{entry._count._all}×</span>
                 <Badge tone={(entry._max.durationMs ?? 0) > slowQueryThresholdMs * 4 ? "red" : "amber"}>
-                  {entry._max.durationMs} ms worst
+                  {say(SYSTEM.worstMs, { ms: entry._max.durationMs ?? 0 })}
                 </Badge>
               </div>
             ))}
           </Card>
         )}
         <p className="mt-3 text-xs text-slate-500">
-          Calls over {slowQueryThresholdMs} ms are recorded and kept for {METRIC_RETENTION_DAYS} days.
-          Failed requests are written to the platform logs rather than stored here.
+          {say(SYSTEM.recordedFor, { ms: slowQueryThresholdMs, days: METRIC_RETENTION_DAYS })}
         </p>
       </section>
 
@@ -216,14 +236,11 @@ export default async function SystemPage() {
           because this is where the deployment is inspected — and it goes when the
           readout does. */}
       <section className="mt-10">
-        <h2 className="mb-3 text-lg font-semibold">This device</h2>
+        <h2 className="mb-3 text-lg font-semibold">{say(SYSTEM.thisDevice)}</h2>
         <Card>
-          <p className="text-sm text-slate-500">
-            What the phone reports about the frame — whether the app is drawn under the
-            status bar, and what colour it was told to paint.
-          </p>
+          <p className="text-sm text-slate-500">{say(SYSTEM.thisDeviceHint)}</p>
           <ButtonLink href="/bars" variant="secondary" className="mt-3">
-            Bars
+            {say(SYSTEM.bars)}
           </ButtonLink>
         </Card>
       </section>

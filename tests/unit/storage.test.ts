@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { STORAGE_KINDS, STORAGE_LABELS, formatBytes, formatShare } from "@/lib/storage";
+import { STORAGE_KINDS, formatBytes, formatShare } from "@/lib/storage";
+import { STORAGE_KIND_LABELS } from "@/lib/copy/settings";
 
 const stylesheet = readFileSync(path.join(process.cwd(), "src/app/globals.css"), "utf8");
 
@@ -56,10 +57,13 @@ describe("the chart palette", () => {
     );
   });
 
-  it("names every kind it draws", () => {
-    // STORAGE_LABELS is a Record over the kinds, so a missing one fails to compile;
-    // this is only that none of them is an empty string.
-    for (const kind of STORAGE_KINDS) expect(STORAGE_LABELS[kind]).toBeTruthy();
+  it("names every kind it draws, in both languages", () => {
+    // STORAGE_KIND_LABELS is a Record over the kinds, so a missing one fails to
+    // compile; this is only that neither language's name is an empty string.
+    for (const kind of STORAGE_KINDS) {
+      expect(STORAGE_KIND_LABELS[kind].EN).toBeTruthy();
+      expect(STORAGE_KIND_LABELS[kind].DA).toBeTruthy();
+    }
   });
 
   it("keeps the colours that already mean something out of it", () => {
