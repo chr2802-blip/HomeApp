@@ -22,22 +22,16 @@ export const STORAGE_KINDS = ["recipes", "lists", "tasks", "rest"] as const;
 export type StorageKind = (typeof STORAGE_KINDS)[number];
 
 /**
- * What each kind is called, and what it is.
+ * What each kind is, in one sentence: a picture counts towards the thing holding it, so
+ * a recipe's photo is part of that recipe — "how much does a recipe cost us" answered
+ * without its picture is off by a factor of a hundred and tells nobody anything. `rest`
+ * is what is left — the home record, who is in it, who is invited, what it keeps in the
+ * pantry, the home's own picture, the members' own pictures that happen to be filed
+ * here, and uploads nothing points at yet.
  *
- * A picture counts towards the thing holding it: a recipe's photo is part of that
- * recipe, because "how much does a recipe cost us" answered without its picture is off
- * by a factor of a hundred and tells nobody anything. `rest` is what is left — the home
- * record, who is in it, who is invited, what it keeps in the pantry, the home's own
- * picture, the members' own pictures that happen to be filed here, and uploads nothing
- * points at yet.
+ * What each kind is *called* is `STORAGE_KIND_LABELS` in `src/lib/copy/settings.ts`,
+ * one per language rather than here.
  */
-export const STORAGE_LABELS: Record<StorageKind, string> = {
-  recipes: "Recipes",
-  lists: "Lists",
-  tasks: "Tasks",
-  rest: "Everything else",
-};
-
 export type KindTotals = Record<StorageKind, number>;
 
 export type HomeStorage = {

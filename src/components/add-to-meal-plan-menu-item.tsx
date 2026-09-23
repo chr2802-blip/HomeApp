@@ -4,6 +4,9 @@ import { useTransition } from "react";
 import { MenuItem } from "@/components/context-menu";
 import { addRecipeToNextOpenDay } from "@/app/actions/meals";
 import { tick } from "@/lib/haptics";
+import { useLanguage } from "@/components/language-provider";
+import { sayIn } from "@/lib/copy/say";
+import { MEALS } from "@/lib/copy/meals";
 
 /**
  * "Add to meal plan" inside a recipe's own three-dot menu: it books the recipe onto the
@@ -18,6 +21,7 @@ import { tick } from "@/lib/haptics";
  */
 export function AddToMealPlanMenuItem({ recipeId }: { recipeId: string }) {
   const [, startTransition] = useTransition();
+  const say = sayIn(useLanguage());
 
   return (
     <MenuItem
@@ -31,7 +35,7 @@ export function AddToMealPlanMenuItem({ recipeId }: { recipeId: string }) {
         });
       }}
     >
-      Add to meal plan
+      {say(MEALS.addToMealPlan)}
     </MenuItem>
   );
 }

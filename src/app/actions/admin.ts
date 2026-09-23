@@ -23,10 +23,12 @@ import { LANGUAGES, LANGUAGE_FIELD } from "@/lib/language";
 import { sayIn, type Say } from "@/lib/copy/say";
 import { SETTINGS } from "@/lib/copy/settings";
 
-const homeSchema = z.object({
-  name: requiredText("Give the home a name."),
-  address: optionalText,
-});
+function homeSchema(say: Say) {
+  return z.object({
+    name: requiredText(say(SETTINGS.homeNameRequired)),
+    address: optionalText,
+  });
+}
 
 /**
  * What a home already has, plus the colour it is dressed in and the language it is
@@ -52,31 +54,33 @@ const homeSchema = z.object({
  * already had; those convert in PR 2, with the screens that read them.
  */
 function editHomeSchema(say: Say) {
-  return homeSchema.extend({
-    [THEME_FIELD]: z.enum(THEMES, { error: "Pick one of the colours offered." }).optional(),
+  return homeSchema(say).extend({
+    [THEME_FIELD]: z.enum(THEMES, { error: say(SETTINGS.pickAColor) }).optional(),
     [LANGUAGE_FIELD]: z.enum(LANGUAGES, { error: say(SETTINGS.language.invalid) }).optional(),
   });
 }
 
-const profileSchema = z.object({
-  name: requiredText("Your name cannot be blank."),
-  // Blank means "keep the current password", so the length only applies to a new one.
-  password: z
-    .string()
-    .optional()
-    .refine((value) => !value || value.length >= 8, {
-      error: "A new password must be at least 8 characters.",
-    }),
-  /**
-   * The one they sign in with now, asked for only when they are setting a new one.
-   *
-   * A session cookie is a bearer token, so without this whoever has one can take the
-   * account outright — and the owner, who still knows the password, is the one person
-   * who then cannot get back in. Knowing the current password is the thing a borrowed
-   * cookie does not carry.
-   */
-  currentPassword: z.string().optional(),
-});
+function profileSchema(say: Say) {
+  return z.object({
+    name: requiredText(say(SETTINGS.nameCannotBeBlank)),
+    // Blank means "keep the current password", so the length only applies to a new one.
+    password: z
+      .string()
+      .optional()
+      .refine((value) => !value || value.length >= 8, {
+        error: say(SETTINGS.passwordTooShort),
+      }),
+    /**
+     * The one they sign in with now, asked for only when they are setting a new one.
+     *
+     * A session cookie is a bearer token, so without this whoever has one can take the
+     * account outright — and the owner, who still knows the password, is the one person
+     * who then cannot get back in. Knowing the current password is the thing a borrowed
+     * cookie does not carry.
+     */
+    currentPassword: z.string().optional(),
+  });
+}
 
 const INVITE_TTL_DAYS = 14;
 
@@ -87,15 +91,17 @@ export type InviteState =
 
 export async function createInvite(_prev: InviteState, formData: FormData): Promise<InviteState> {
   const user = await requireAdmin();
+  const say = sayIn(user.homeLanguage);
   const homeId = String(formData.get("homeId") ?? "");
-  if (!canAdministerHome(user, homeId)) return { ok: false, error: "Not allowed." };
+  if (!canAdministerHome(user, homeId)) return { ok: false, error: say(SETTINGS.notAllowed) };
 
   const form = readForm(
     z.object({
-      email: z.string().email("Enter a valid email address."),
-      role: z.enum(["ADMIN", "USER"], { error: "Enter a valid email address." }),
+      email: z.string().email(say(SETTINGS.invalidEmail)),
+      role: z.enum(["ADMIN", "USER"], { error: say(SETTINGS.invalidEmail) }),
     }),
     formData,
+    user.homeLanguage,
   );
   if (!form.ok) return { ok: false, error: form.error };
 
@@ -108,7 +114,7 @@ export async function createInvite(_prev: InviteState, formData: FormData): Prom
     select: { memberships: { where: { homeId }, select: { homeId: true } } },
   });
   if (existing && existing.memberships.length > 0) {
-    return { ok: false, error: "They are already in this home." };
+    return { ok: false, error: say(SETTINGS.alreadyInHome) };
   }
 
   const code = generateInviteCode();
@@ -229,8 +235,9 @@ export async function removeMember(formData: FormData) {
 }
 
 export async function createHome(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireSuperAdmin();
-  const form = readForm(homeSchema, formData);
+  const user = await requireSuperAdmin();
+  const say = sayIn(user.homeLanguage);
+  const form = readForm(homeSchema(say), formData, user.homeLanguage);
   if (!form.ok) return fail(form.error);
 
   await prisma.home.create({ data: form.fields });
@@ -277,9 +284,10 @@ export async function updateOwnProfile(
   formData: FormData,
 ): Promise<ActionResult> {
   const user = await requireUser();
+  const say = sayIn(user.homeLanguage);
   // Both fields are checked before anything is written, so a rejected password never
   // also loses the name the person typed alongside it.
-  const form = readForm(profileSchema, formData);
+  const form = readForm(profileSchema(say), formData, user.homeLanguage);
   if (!form.ok) return fail(form.error);
 
   // A picture is filed under a home, and the home on screen is the only one an upload
@@ -309,7 +317,7 @@ export async function updateOwnProfile(
       select: { passwordHash: true },
     });
     if (!stored || !currentPassword || !(await verifyPassword(currentPassword, stored.passwordHash))) {
-      return fail("That is not your current password.");
+      return fail(say(SETTINGS.notYourPassword));
     }
   }
 

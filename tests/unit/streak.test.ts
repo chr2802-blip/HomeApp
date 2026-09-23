@@ -11,16 +11,16 @@ import { streakLine } from "@/lib/streak";
  */
 describe("streakLine", () => {
   it("does not call a single week a run", () => {
-    expect(streakLine({ weeks: 1, thisWeek: 1 })).toBe(
+    expect(streakLine({ weeks: 1, thisWeek: 1 }, "EN")).toBe(
       "🔥 A list cleared · 1 list cleared this week",
     );
-    expect(streakLine({ weeks: 1, thisWeek: 0 })).toBe(
+    expect(streakLine({ weeks: 1, thisWeek: 0 }, "EN")).toBe(
       "🔥 A list cleared last week",
     );
   });
 
   it("counts the weeks once there is a run of them", () => {
-    expect(streakLine({ weeks: 4, thisWeek: 2 })).toBe(
+    expect(streakLine({ weeks: 4, thisWeek: 2 }, "EN")).toBe(
       "🔥 4 weeks running · 2 lists cleared this week",
     );
   });
@@ -28,8 +28,17 @@ describe("streakLine", () => {
   it("says when a live run has nothing in the week yet", () => {
     // The part of a streak that is actually at stake: the week is not over, and this
     // is the only place the page says so.
-    expect(streakLine({ weeks: 3, thisWeek: 0 })).toBe(
+    expect(streakLine({ weeks: 3, thisWeek: 0 }, "EN")).toBe(
       "🔥 3 weeks running · nothing cleared yet this week",
+    );
+  });
+
+  it("reads in the household's own language", () => {
+    expect(streakLine({ weeks: 1, thisWeek: 1 }, "DA")).toBe(
+      "🔥 En liste klaret · 1 liste klaret denne uge",
+    );
+    expect(streakLine({ weeks: 4, thisWeek: 2 }, "DA")).toBe(
+      "🔥 4 uger i træk · 2 lister klaret denne uge",
     );
   });
 });

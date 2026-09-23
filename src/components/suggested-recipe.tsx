@@ -1,9 +1,12 @@
+import type { HomeLanguage } from "@prisma/client";
 import Link from "next/link";
 import { findNewSuggestedRecipe } from "@/app/actions/recipe-suggestion";
 import { tonightsDinner } from "@/lib/recipe-suggestion";
 import { Card } from "@/components/ui";
 import { PhotoThumb } from "@/components/photo";
 import { SubmitButton } from "@/components/submit-button";
+import { sayIn } from "@/lib/copy/say";
+import { DASHBOARD } from "@/lib/copy/dashboard";
 
 /**
  * Tonight's dinner, read from the day's own entry on `/meals` rather than a pick kept
@@ -30,13 +33,21 @@ import { SubmitButton } from "@/components/submit-button";
  * `/meals` — is a suggestion, and the button replaces it. Leftovers are a decision
  * already made, so the row says what they are the leftovers of and stops there.
  */
-export async function SuggestedRecipe({ homeId }: { homeId: string }) {
-  const dinner = await tonightsDinner(homeId);
+export async function SuggestedRecipe({
+  homeId,
+  language,
+}: {
+  homeId: string;
+  language: HomeLanguage;
+}) {
+  const say = sayIn(language);
+  const dinner = await tonightsDinner(homeId, language);
   if (!dinner) return null;
 
   const face = (
     <>
       {/* Decorative: the title is right beside it. */}
+      {/* eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a PhotoKind glyph, not copy. */}
       <PhotoThumb photoId={dinner.photoId} alt="" className="h-12 w-12" placeholder="recipe" />
       <div className="min-w-0 flex-1">
         <p className="font-medium">{dinner.title}</p>
@@ -49,7 +60,9 @@ export async function SuggestedRecipe({ homeId }: { homeId: string }) {
 
   return (
     <section className="mt-6">
-      <h2 className="mb-2 text-sm font-semibold text-slate-500 uppercase">Tonight&apos;s dinner</h2>
+      <h2 className="mb-2 text-sm font-semibold text-slate-500 uppercase">
+        {say(DASHBOARD.tonightsDinner)}
+      </h2>
       {/* `padded={false}` and the padding here: both are padding utilities, and which
           one wins is decided by their order in the stylesheet rather than in the class
           attribute — see `Card`. */}
@@ -70,8 +83,8 @@ export async function SuggestedRecipe({ homeId }: { homeId: string }) {
           // Outside the link, as the star and the three dots are on a list card: a
           // button inside a link is neither valid nor pressable without following it.
           <form action={findNewSuggestedRecipe} className="shrink-0">
-            <SubmitButton variant="ghost" pendingLabel="Finding…" className="text-xs">
-              Find new
+            <SubmitButton variant="ghost" pendingLabel={say(DASHBOARD.finding)} className="text-xs">
+              {say(DASHBOARD.findNew)}
             </SubmitButton>
           </form>
         )}

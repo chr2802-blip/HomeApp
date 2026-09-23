@@ -1,5 +1,8 @@
+import type { HomeLanguage } from "@prisma/client";
 import { homeDb } from "./home-db";
 import { previousWeekStart, weekStartInZone } from "./time";
+import { sayIn } from "./copy/say";
+import { STREAK } from "./copy/dashboard";
 
 /**
  * How many weeks running this household has cleared a list, and how many it has
@@ -92,13 +95,15 @@ export async function homeStreak(homeId: string): Promise<Streak> {
  * part that is actually live: a run that has nothing in the current week is a run with
  * a few days left to save it, and saying so is the whole of what a streak is for.
  */
-export function streakLine({ weeks, thisWeek }: Streak) {
-  const run = weeks === 1 ? "🔥 A list cleared" : `🔥 ${weeks} weeks running`;
+export function streakLine({ weeks, thisWeek }: Streak, language: HomeLanguage) {
+  const say = sayIn(language);
+  const lists = say(STREAK.listsCleared, { count: thisWeek });
 
-  if (thisWeek > 0) {
-    const lists = thisWeek === 1 ? "1 list" : `${thisWeek} lists`;
-    return `${run} · ${lists} cleared this week`;
+  if (weeks === 1) {
+    return thisWeek > 0 ? say(STREAK.oneWeekWithClears, { lists }) : say(STREAK.oneWeekNoClearsYet);
   }
 
-  return weeks === 1 ? `${run} last week` : `${run} · nothing cleared yet this week`;
+  return thisWeek > 0
+    ? say(STREAK.runningWithClears, { weeks, lists })
+    : say(STREAK.runningNoClearsYet, { weeks });
 }

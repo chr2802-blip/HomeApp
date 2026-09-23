@@ -5,6 +5,9 @@ import { ActionForm } from "@/components/action-form";
 import { PhotoAvatar } from "@/components/photo";
 import { PhotoField } from "@/components/photo-field";
 import { NotificationSetup, TestPushButton } from "@/components/notification-setup";
+import { sayIn } from "@/lib/copy/say";
+import { PROFILE } from "@/lib/copy/profile";
+import { HOMES } from "@/lib/copy/homes";
 
 /**
  * You, rather than any of your homes: your name, your password, your picture and
@@ -17,31 +20,34 @@ import { NotificationSetup, TestPushButton } from "@/components/notification-set
  */
 export default async function ProfilePage() {
   const user = await requireUser();
+  const say = sayIn(user.homeLanguage);
 
   return (
     <>
-      <PageHeader title="Profile" description="You, wherever this app names you." />
+      <PageHeader title={say(PROFILE.title)} description={say(PROFILE.description)} />
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Your details</h2>
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
+          {say(PROFILE.yourDetailsHeading)}
+        </h2>
         <Card>
           <ActionForm
             action={updateOwnProfile}
-            submitLabel="Save profile"
+            submitLabel={say(PROFILE.saveProfile)}
             className="grid gap-4 sm:grid-cols-2"
           >
             <div className="space-y-1">
-              <Label htmlFor="profile-name">Name</Label>
+              <Label htmlFor="profile-name">{say(PROFILE.name)}</Label>
               <Input id="profile-name" name="name" defaultValue={user.name} required />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="profile-password">New password</Label>
+              <Label htmlFor="profile-password">{say(PROFILE.newPassword)}</Label>
               <Input
                 id="profile-password"
                 name="password"
                 type="password"
                 autoComplete="new-password"
-                placeholder="Leave blank to keep"
+                placeholder={say(PROFILE.leaveBlankToKeep)}
                 minLength={8}
               />
             </div>
@@ -51,20 +57,18 @@ export default async function ProfilePage() {
                 merely has the browser does not also have — and without it, changing a
                 name and taking the account over are the same form. */}
             <div className="space-y-1 sm:col-span-2">
-              <Label htmlFor="profile-current-password">Current password</Label>
+              <Label htmlFor="profile-current-password">{say(PROFILE.currentPassword)}</Label>
               <Input
                 id="profile-current-password"
                 name="currentPassword"
                 type="password"
                 autoComplete="current-password"
-                placeholder="Only needed to set a new password"
+                placeholder={say(PROFILE.onlyNeededForNewPassword)}
               />
-              <p className="text-xs text-slate-500">
-                Changing your password signs out any other device still using the old one.
-              </p>
+              <p className="text-xs text-slate-500">{say(PROFILE.changingPasswordSignsOut)}</p>
             </div>
             <div className="space-y-1 sm:col-span-2">
-              <Label>Email</Label>
+              <Label>{say(PROFILE.email)}</Label>
               {/* Shown, not edited: it is what an invitation was sent to and what you
                   sign in with, and changing it is somebody else's job. */}
               <p className="text-sm text-slate-500">{user.email}</p>
@@ -76,8 +80,8 @@ export default async function ProfilePage() {
               <div className="sm:col-span-2">
                 <PhotoField
                   defaultPhotoId={user.photoId}
-                  label="Your picture"
-                  hint="Shown beside your name to the people you share a home with."
+                  label={say(PROFILE.yourPicture)}
+                  hint={say(PROFILE.yourPictureHint)}
                 />
               </div>
             )}
@@ -86,14 +90,13 @@ export default async function ProfilePage() {
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Notifications</h2>
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
+          {say(PROFILE.notificationsHeading)}
+        </h2>
         <div className="space-y-3">
           <NotificationSetup showEnabled />
           <Card>
-            <p className="mb-3 text-sm text-slate-500">
-              Reminders are sent when a task in one of your homes falls due. Send one now to
-              check this browser is receiving them.
-            </p>
+            <p className="mb-3 text-sm text-slate-500">{say(PROFILE.remindersSentHint)}</p>
             <TestPushButton />
           </Card>
         </div>
@@ -101,7 +104,9 @@ export default async function ProfilePage() {
 
       {user.homes.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">Your homes</h2>
+          <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
+            {say(PROFILE.yourHomesHeading)}
+          </h2>
           <Card className="divide-y divide-slate-100 p-0">
             {user.homes.map((home) => (
               <div key={home.id} className="flex items-center gap-3 px-4 py-3">
@@ -110,7 +115,7 @@ export default async function ProfilePage() {
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{home.name}</p>
                   <p className="text-xs text-slate-500">
-                    {home.role === "ADMIN" ? "You run this home" : "Member"}
+                    {say(home.role === "ADMIN" ? HOMES.youRunThisHome : HOMES.member)}
                   </p>
                 </div>
               </div>

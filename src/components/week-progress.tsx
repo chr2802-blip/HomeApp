@@ -1,7 +1,10 @@
+import type { HomeLanguage } from "@prisma/client";
 import { Card } from "@/components/ui";
 import { ProgressBar } from "@/components/progress-bar";
 import { streakLine, type Streak } from "@/lib/streak";
 import type { WeekWork } from "@/lib/week";
+import { sayIn } from "@/lib/copy/say";
+import { DASHBOARD } from "@/lib/copy/dashboard";
 
 /**
  * How the household's week is going: the jobs it has got through, and how long it has
@@ -21,7 +24,16 @@ import type { WeekWork } from "@/lib/week";
  * streak makes and the reason neither says who. A weekly score with names on it turns
  * the washing-up into a thing worth being seen to do.
  */
-export function WeekProgress({ week, streak }: { week: WeekWork; streak: Streak }) {
+export function WeekProgress({
+  week,
+  streak,
+  language,
+}: {
+  week: WeekWork;
+  streak: Streak;
+  language: HomeLanguage;
+}) {
+  const say = sayIn(language);
   const { done, outstanding } = week;
   const total = done + outstanding;
 
@@ -36,8 +48,8 @@ export function WeekProgress({ week, streak }: { week: WeekWork; streak: Streak 
           <div className="flex items-baseline justify-between gap-3 text-xs">
             <span className="font-medium text-slate-600">
               {outstanding === 0
-                ? `This week · all ${done} done`
-                : `This week · ${done} of ${total} jobs done`}
+                ? say(DASHBOARD.weekAllDone, { done })
+                : say(DASHBOARD.weekOfTotalDone, { done, total })}
             </span>
             <span className="tabular-nums text-slate-400">
               {Math.round((done / total) * 100)}%
@@ -47,7 +59,9 @@ export function WeekProgress({ week, streak }: { week: WeekWork; streak: Streak 
         </div>
       )}
 
-      {streak.weeks > 0 && <p className="text-xs text-slate-500">{streakLine(streak)}</p>}
+      {streak.weeks > 0 && (
+        <p className="text-xs text-slate-500">{streakLine(streak, language)}</p>
+      )}
     </Card>
   );
 }
