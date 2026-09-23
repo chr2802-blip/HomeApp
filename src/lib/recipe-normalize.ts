@@ -45,10 +45,14 @@ import { overMonthlyLimit, recordAiUsage } from "./ai-usage";
  * The model that reads a recipe, and how hard it is asked to think about it.
  *
  * Sonnet for a job that is mechanical once the language is understood — this is tidying a
- * caption, not inventing a dish — and `low` effort for the same reason. The cost lands on a
- * household that imports a handful of recipes a week, and a failure here is visible
- * immediately: the form opens pre-filled and wrong in front of the person who pasted the
- * link, rather than going quietly into a database.
+ * caption, not inventing a dish. `medium` effort, not `low`: checking every ingredient's
+ * `preparation` against every step is a cross-reference over the whole recipe, not a
+ * per-line split, and `low` was missing matches it should have caught — including a step
+ * that named the very word an ingredient carried, just inflected differently ("lunkne"
+ * beside "lunkent" — the recipe's own agreement of the same adjective, not two different
+ * facts). The cost still lands on a household that imports a handful of recipes a week, and
+ * a failure here is visible immediately: the form opens pre-filled and wrong in front of the
+ * person who pasted the link, rather than going quietly into a database.
  */
 const MODEL = "claude-sonnet-5";
 
@@ -274,7 +278,7 @@ ${languageSection(language)}
 
 ### Ingredients
 - Split every line into name, amount, unit and preparation. \`name\` is the ingredient alone: "løg", not "1 stort finthakket løg". The cut or state goes in \`preparation\`.
-- **A preparation belongs in the steps, not just on the ingredient — write the step yourself if the source never did.** "2 kartofler, i tern" needs the cut said once, as something the cook does. If a step already reads "Skær kartoflerne i tern", leave \`preparation\` null. If no step mentions it, add one that does — placed where the recipe would actually make that cut, generally just before the ingredient is first used, carrying the same \`component\` as the ingredient where it has one — and then leave \`preparation\` null yourself, exactly as if the source had written that step. Keep \`preparation\` only for something true before any step touches the ingredient, and that is a state rather than an action nobody performs on the page ("stuetemperatur", "smeltet" where nothing melts it).
+- **A preparation belongs in the steps, not just on the ingredient — write the step yourself if the source never did.** "2 kartofler, i tern" needs the cut said once, as something the cook does. Check every ingredient with a \`preparation\` against every step, not just the ones that look alike at a glance: a step counts as already saying it even where the wording is not identical — a different grammatical form of the same word ("lunkne" in a step beside "lunkent" on the ingredient — the same Danish adjective, agreeing with a different noun form, not two different facts), a synonym, or the same action described in different words. If a step already covers it, leave \`preparation\` null. If no step covers it, add one that does — placed where the recipe would actually make that cut, generally just before the ingredient is first used, carrying the same \`component\` as the ingredient where it has one — and then leave \`preparation\` null yourself, exactly as if the source had written that step. Keep \`preparation\` only for something true before any step touches the ingredient, and that is a state rather than an action nobody performs on the page ("stuetemperatur", "smeltet" where nothing melts it).
 - Amounts are decimals: "1 1/2" and "1½" are both 1.5. A range ("2-3 fed hvidløg") takes the lower number, with the range itself in \`note\`.
 - Units come only from the allowed list, and are **never converted**. Danish recipes use tsk, spsk, dl, g, stk, fed — leave them as they are. Do not turn dl into ml or spsk into tbsp.
 - Where there is no measurement ("salt efter smag", "friskkværnet peber"), \`amount\` and \`unit\` are null and the phrase goes in \`note\`.
@@ -364,7 +368,7 @@ export async function normalizeRecipe(
         max_tokens: MAX_TOKENS,
         system: systemPrompt(language),
         thinking: { type: "adaptive" },
-        output_config: { format: zodOutputFormat(NormalizedRecipeSchema), effort: "low" },
+        output_config: { format: zodOutputFormat(NormalizedRecipeSchema), effort: "medium" },
         messages: [{ role: "user", content: userMessage(raw) }],
       },
       { timeout: NORMALIZE_TIMEOUT_MS },
