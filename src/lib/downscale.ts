@@ -12,6 +12,10 @@
  * trust the result: `lib/photo-file.ts` measures whatever actually arrives.
  */
 
+import type { HomeLanguage } from "@prisma/client";
+import { PHOTOS } from "./copy/photos";
+import { sayIn, type Say } from "./copy/say";
+
 /** Longest edge of the stored picture. Wide enough to fill a phone screen twice over. */
 export const MAX_EDGE = 1600;
 
@@ -36,15 +40,16 @@ export type PreparedPhoto = { full: Blob; thumb: Blob; width: number; height: nu
 /** Thrown with wording meant for the person who picked the file. */
 export class PhotoError extends Error {}
 
-export async function preparePhoto(file: File): Promise<PreparedPhoto> {
-  if (!file.type.startsWith("image/")) throw new PhotoError("That file is not an image.");
-  if (file.size > MAX_SOURCE_BYTES) throw new PhotoError("That image is too large to read.");
+export async function preparePhoto(file: File, language: HomeLanguage): Promise<PreparedPhoto> {
+  const say = sayIn(language);
+  if (!file.type.startsWith("image/")) throw new PhotoError(say(PHOTOS.notAnImage));
+  if (file.size > MAX_SOURCE_BYTES) throw new PhotoError(say(PHOTOS.tooLargeToRead));
 
-  const source = await decode(file);
+  const source = await decode(file, say);
 
   try {
-    const full = await draw(source, MAX_EDGE, QUALITY);
-    const thumb = await draw(source, THUMB_EDGE, THUMB_QUALITY);
+    const full = await draw(source, MAX_EDGE, QUALITY, say);
+    const thumb = await draw(source, THUMB_EDGE, THUMB_QUALITY, say);
     return { full: full.blob, thumb: thumb.blob, width: full.width, height: full.height };
   } finally {
     if ("close" in source) source.close();
@@ -63,7 +68,7 @@ type Source = (ImageBitmap | HTMLImageElement) & { width: number; height: number
  * decoder to apply it; the `<img>` fallback, for browsers without `createImageBitmap`,
  * applies it as part of rendering.
  */
-async function decode(file: File): Promise<Source> {
+async function decode(file: File, say: Say): Promise<Source> {
   if (typeof createImageBitmap === "function") {
     try {
       return await createImageBitmap(file, { imageOrientation: "from-image" });
@@ -79,7 +84,7 @@ async function decode(file: File): Promise<Source> {
     await element.decode();
     return element;
   } catch {
-    throw new PhotoError("That image could not be read — try a JPEG or a PNG.");
+    throw new PhotoError(say(PHOTOS.unreadableTryJpeg));
   } finally {
     // Safe here: the bitmap is decoded and held in memory, so drawing it later no
     // longer needs the URL.
@@ -96,10 +101,10 @@ async function decode(file: File): Promise<Source> {
  * white background matters for the exception — a PNG with transparent corners drawn
  * onto an empty canvas turns those corners black.
  */
-async function draw(source: Source, edge: number, quality: number) {
+async function draw(source: Source, edge: number, quality: number, say: Say) {
   const width = source.width;
   const height = source.height;
-  if (!width || !height) throw new PhotoError("That image could not be read.");
+  if (!width || !height) throw new PhotoError(say(PHOTOS.unreadable));
 
   const scale = Math.min(1, edge / Math.max(width, height));
   const target = {
@@ -112,7 +117,7 @@ async function draw(source: Source, edge: number, quality: number) {
   canvas.height = target.height;
 
   const context = canvas.getContext("2d");
-  if (!context) throw new PhotoError("This browser cannot resize images.");
+  if (!context) throw new PhotoError(say(PHOTOS.cannotResize));
 
   context.fillStyle = "#ffffff";
   context.fillRect(0, 0, target.width, target.height);
@@ -122,7 +127,7 @@ async function draw(source: Source, edge: number, quality: number) {
   const blob = await new Promise<Blob | null>((resolve) =>
     canvas.toBlob(resolve, "image/jpeg", quality),
   );
-  if (!blob) throw new PhotoError("This browser could not resize that image.");
+  if (!blob) throw new PhotoError(say(PHOTOS.couldNotResize));
 
   return { blob, ...target };
 }

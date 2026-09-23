@@ -48,7 +48,7 @@ describe("storePhoto", () => {
     const home = await createHome();
     const { full, thumb } = upload();
 
-    const stored = await storePhoto(home.id, full, thumb);
+    const stored = await storePhoto(home.id, full, thumb, "EN");
     expect(stored.ok).toBe(true);
     if (!stored.ok) return;
 
@@ -68,7 +68,7 @@ describe("storePhoto", () => {
     const home = await createHome();
     const notAPicture = Buffer.from("<script>alert(1)</script>", "ascii");
 
-    const stored = await storePhoto(home.id, notAPicture, pngBytes(40, 30));
+    const stored = await storePhoto(home.id, notAPicture, pngBytes(40, 30), "EN");
 
     expect(stored).toEqual({ ok: false, error: "That file is not a JPEG, PNG or WebP image." });
     expect(await prisma.photo.count()).toBe(0);
@@ -81,7 +81,7 @@ describe("storePhoto", () => {
   it("refuses one past the longest edge it stores", async () => {
     const home = await createHome();
 
-    const stored = await storePhoto(home.id, pngBytes(MAX_PHOTO_EDGE + 1, 10), pngBytes(40, 30));
+    const stored = await storePhoto(home.id, pngBytes(MAX_PHOTO_EDGE + 1, 10), pngBytes(40, 30), "EN");
 
     expect(stored.ok).toBe(false);
     expect(await prisma.photo.count()).toBe(0);
@@ -90,7 +90,7 @@ describe("storePhoto", () => {
   it("refuses an oversized thumbnail even when the full size passes", async () => {
     const home = await createHome();
 
-    const stored = await storePhoto(home.id, pngBytes(800, 600), pngBytes(MAX_PHOTO_EDGE + 1, 10));
+    const stored = await storePhoto(home.id, pngBytes(800, 600), pngBytes(MAX_PHOTO_EDGE + 1, 10), "EN");
 
     expect(stored.ok).toBe(false);
     expect(await prisma.photo.count()).toBe(0);
@@ -328,15 +328,15 @@ describe("attaching a picture", () => {
     const photo = await createPhoto({ homeId: home.id });
     await signIn(member);
 
-    expect(await readPhotoChoice(formData({}), home.id)).toEqual({
+    expect(await readPhotoChoice(formData({}), home.id, "EN")).toEqual({
       ok: true,
       photoId: undefined,
     });
-    expect(await readPhotoChoice(formData({ photoId: "" }), home.id)).toEqual({
+    expect(await readPhotoChoice(formData({ photoId: "" }), home.id, "EN")).toEqual({
       ok: true,
       photoId: null,
     });
-    expect(await readPhotoChoice(formData({ photoId: photo.id }), home.id)).toEqual({
+    expect(await readPhotoChoice(formData({ photoId: photo.id }), home.id, "EN")).toEqual({
       ok: true,
       photoId: photo.id,
     });

@@ -267,6 +267,26 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
     });
     expect(await prisma.photo.count()).toBe(0);
   });
+
+  /*
+   * Not `notARecipe`: that is what offers the paste box, and the paste box goes to this
+   * same reader, which would turn the pasted text away for the same reason.
+   */
+  it("says a home past its month's allowance is, and offers no paste box", async () => {
+    const home = await createHome();
+    normalizeRecipe.mockResolvedValue({ ok: false, reason: "over-limit" });
+    stubFetch({
+      "https://example.com/recipe": htmlResponse(
+        pageWithImage("https://example.com/pancakes.png"),
+        "https://example.com/recipe",
+      ),
+    });
+
+    const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id, home.language);
+
+    expect(result).toEqual({ ok: false, error: expect.stringContaining("this month's allowance") });
+    expect(await prisma.photo.count()).toBe(0);
+  });
 });
 
 /*

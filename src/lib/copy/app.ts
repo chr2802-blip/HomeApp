@@ -26,6 +26,38 @@ export const APP = {
    *  home the task belongs to rather than whoever happens to be looking at a screen. */
   push: {
     taskDue: { EN: "Task due", DA: "Opgave forfalder" },
+    testBody: { EN: "Notifications are working.", DA: "Notifikationerne virker." },
+  },
+
+  /** The two screens a page falls back to — something thrown, or nothing there. */
+  error: {
+    notYourHome: { EN: "Not your home", DA: "Ikke dit hjem" },
+    notYourHomeBody: {
+      EN: "That belongs to a different home, so it cannot be opened from here.",
+      DA: "Det hører til et andet hjem, så det kan ikke åbnes herfra.",
+    },
+    somethingWrong: { EN: "Something went wrong", DA: "Noget gik galt" },
+    somethingWrongBody: {
+      EN: "The page could not be loaded. Trying again often clears it.",
+      DA: "Siden kunne ikke indlæses. Ofte hjælper det at prøve igen.",
+    },
+    tryAgain: { EN: "Try again", DA: "Prøv igen" },
+    backToDashboard: { EN: "Back to the dashboard", DA: "Tilbage til forsiden" },
+    notFound: { EN: "Not found", DA: "Ikke fundet" },
+    notFoundBody: {
+      EN: "This page does not exist, or it belongs to a different home.",
+      DA: "Siden findes ikke, eller den hører til et andet hjem.",
+    },
+  },
+
+  /** The recipe page's toggle that keeps the phone awake while somebody cooks. */
+  keepScreenOn: {
+    label: { EN: "Keep screen on", DA: "Hold skærmen tændt" },
+    whileOn: {
+      EN: "Screen will stay on — tap to allow it to sleep",
+      DA: "Skærmen forbliver tændt — tryk for at lade den slukke",
+    },
+    whileOff: { EN: "Keep screen on while cooking", DA: "Hold skærmen tændt under madlavningen" },
   },
 
   /** The header's home menu — pantry, settings, profile, and the other homes. */

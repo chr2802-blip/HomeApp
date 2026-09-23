@@ -105,7 +105,7 @@ export async function createTask(_prev: ActionResult, formData: FormData): Promi
   const assignee = await readAssignee(formData, user.homeId);
   if (!assignee.ok) return fail(say(TASKS.notAMember));
 
-  const photo = await readPhotoChoice(formData, user.homeId);
+  const photo = await readPhotoChoice(formData, user.homeId, user.homeLanguage);
   if (!photo.ok) return fail(photo.error);
 
   await prisma.task.create({
@@ -140,7 +140,7 @@ export async function updateTask(_prev: ActionResult, formData: FormData): Promi
   const assignee = await readAssignee(formData, task.homeId);
   if (!assignee.ok) return fail(say(TASKS.notAMember));
 
-  const photo = await readPhotoChoice(formData, task.homeId);
+  const photo = await readPhotoChoice(formData, task.homeId, user.homeLanguage);
   if (!photo.ok) return fail(photo.error);
 
   await prisma.task.update({
