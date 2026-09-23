@@ -710,6 +710,11 @@ forward**, as lifting a right-hand page over does.
   fresh mapping, or to `DbNull` when the reader could not answer. Both writers are
   `createRecipe` and `updateRecipe`; `tests/integration/recipes.test.ts` holds it. A
   reader that is down never fails a save: the recipe stores, the column clears.
+  **Anything that changes how a save behaves has five call sites to check, not one**:
+  `createRecipe` is handed in by `recipes/page.tsx` (to `NewRecipeDialog`) and
+  `recipes/new/page.tsx`; `updateRecipe` by `recipes/[id]/edit/page.tsx`,
+  `recipes/[id]/page.tsx` and `recipe-directory.tsx` (both through `ItemMenu`).
+  `grep -rn "createRecipe\|updateRecipe" src --include=*.tsx` lists them.
 - **The count is the guard, not the mechanism.** `cookSteps` in `src/lib/cook.ts` ignores
   a stored breakdown *whole* unless its length matches the instruction lines — there is no
   telling which of its entries still line up, and a plausible wrong ingredient at the hob
