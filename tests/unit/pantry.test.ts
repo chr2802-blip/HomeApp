@@ -136,6 +136,16 @@ describe("stripStocked", () => {
     expect(covered).toEqual(["Salt og friskkværnet peber"]);
   });
 
+  // A qualifier can trail the ingredient too — "på dåse" names the tin, not the
+  // tomato — so the match is not only ever found by dropping words off the front.
+  it("defaults to leaving a line off the list where the qualifier trails the ingredient", () => {
+    const wanted = new Map([["hakkede tomater på dåse", "Hakkede tomater på dåse"]]);
+    const { keep, covered } = stripStocked(wanted, new Set(["hakkede tomater"]));
+
+    expect(keep.size).toBe(0);
+    expect(covered).toEqual(["Hakkede tomater på dåse"]);
+  });
+
   // A Danish compound carries no space of its own, so dropping a leading word must never
   // reach inside one: "hvidløg" (garlic) is not "løg" (onion) wearing a modifier.
   it("never turns a compound word into a match for one of its parts", () => {
@@ -176,6 +186,24 @@ describe("ambiguousLines", () => {
 
     expect(ambiguousLines(wanted, new Set(["salt"]))).toEqual([
       { key: "salt og friskkværnet peber", text: "Salt og friskkværnet peber", matched: ["Salt"] },
+    ]);
+  });
+
+  // A qualifier can trail the ingredient too — "på dåse" names the tin, not the
+  // tomato — so the match cannot only ever be found by dropping words off the front.
+  it("asks about a line qualified by something that trails the ingredient", () => {
+    const wanted = new Map([["hakkede tomater på dåse", "Hakkede tomater på dåse"]]);
+
+    expect(ambiguousLines(wanted, new Set(["hakkede tomater"]))).toEqual([
+      { key: "hakkede tomater på dåse", text: "Hakkede tomater på dåse", matched: ["Hakkede tomater"] },
+    ]);
+  });
+
+  it("prefers the more specific of two stocked entries a line could be matched by", () => {
+    const wanted = new Map([["hakkede tomater på dåse", "Hakkede tomater på dåse"]]);
+
+    expect(ambiguousLines(wanted, new Set(["tomater", "hakkede tomater"]))).toEqual([
+      { key: "hakkede tomater på dåse", text: "Hakkede tomater på dåse", matched: ["Hakkede tomater"] },
     ]);
   });
 

@@ -419,7 +419,7 @@ describe("adding something already on the list", () => {
 
     const result = await addListItem(undefined, formData({ listId: list.id, text: "milk" }));
 
-    expect(result).toEqual({ ok: false, error: '"Milk" is already on the list.' });
+    expect(result).toEqual({ ok: false, error: "“Milk” is already on the list." });
     expect(await prisma.listItem.count()).toBe(1);
   });
 

@@ -6,6 +6,9 @@ import { Modal, ModalBody, ModalFooter } from "@/components/modal";
 import { Button, IconButton } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
 import type { FormAction } from "@/lib/action-result";
+import { useLanguage } from "@/components/language-provider";
+import { APP } from "@/lib/copy/app";
+import { sayIn } from "@/lib/copy/say";
 
 export function DialogSubmitButton({ label, pending }: { label: string; pending: boolean }) {
   return (
@@ -59,6 +62,7 @@ export function DialogForm({
   overlay?: { title: string; detail: string };
   children: React.ReactNode;
 }) {
+  const language = useLanguage();
   // Close only once the action reports success. A rejected submission leaves the
   // dialog open, with the reason and everything already typed still in place.
   const { state, pending, handleSubmit } = useFormAction(action, { onSuccess: onDone });
@@ -77,7 +81,7 @@ export function DialogForm({
         <div className="flex gap-2">
           <DialogSubmitButton label={submitLabel} pending={pending} />
           <Button type="button" variant="secondary" onClick={onCancel}>
-            Cancel
+            {sayIn(language)(APP.cancel)}
           </Button>
         </div>
       </ModalFooter>

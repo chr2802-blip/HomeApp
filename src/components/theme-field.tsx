@@ -1,5 +1,7 @@
-import type { HomeTheme } from "@prisma/client";
-import { THEMES, THEME_FIELD, THEME_LABELS } from "@/lib/theme";
+import type { HomeLanguage, HomeTheme } from "@prisma/client";
+import { THEMES, THEME_FIELD } from "@/lib/theme";
+import { sayIn } from "@/lib/copy/say";
+import { SETTINGS } from "@/lib/copy/settings";
 
 /**
  * The colour a home is dressed in, as a row of swatches in the home's own settings.
@@ -19,16 +21,21 @@ import { THEMES, THEME_FIELD, THEME_LABELS } from "@/lib/theme";
  * its dot — and the dot is the colour, which is the thing being chosen.
  *
  * No JavaScript: it is `peer-checked` doing the work, so the picker is as usable before
- * the page hydrates as after.
+ * the page hydrates as after — and so no `useLanguage()` either: the language is a prop,
+ * as it is for every component with no boundary of its own.
  */
-export function ThemeField({ defaultTheme }: { defaultTheme: HomeTheme }) {
+export function ThemeField({
+  defaultTheme,
+  language,
+}: {
+  defaultTheme: HomeTheme;
+  language: HomeLanguage;
+}) {
+  const say = sayIn(language);
   return (
     <fieldset>
-      <legend className="block text-sm font-medium text-slate-700">Colour</legend>
-      <p className="mt-1 text-xs text-slate-500">
-        Worn by everyone in this home, so the household on screen can be told at a glance
-        from the others you are in.
-      </p>
+      <legend className="block text-sm font-medium text-slate-700">{say(SETTINGS.colour.legend)}</legend>
+      <p className="mt-1 text-xs text-slate-500">{say(SETTINGS.colour.hint)}</p>
 
       <div className="mt-3 flex flex-wrap gap-2">
         {THEMES.map((theme) => (
@@ -54,7 +61,7 @@ export function ThemeField({ defaultTheme }: { defaultTheme: HomeTheme }) {
                 aria-hidden
                 className="h-4 w-4 rounded-full bg-[var(--accent)] ring-1 ring-slate-900/10"
               />
-              {THEME_LABELS[theme]}
+              {say(SETTINGS.colour.names[theme])}
             </span>
           </label>
         ))}

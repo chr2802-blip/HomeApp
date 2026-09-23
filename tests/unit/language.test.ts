@@ -6,7 +6,7 @@ import { DATE_LOCALES, DEFAULT_LANGUAGE, HTML_LANG, LANGUAGE_LABELS, LANGUAGES }
  * The guard on the catalogue `sayIn` reads from.
  *
  * Every phrase in `src/lib/copy/` is written as one literal with both languages inside
- * it, so a missing language fails to compile — the same reason `THEME_LABELS` is a
+ * it, so a missing language fails to compile — the same reason `THEME_NAMES` is a
  * `Record` over the enum rather than a list. What the type system cannot see is
  * *inside* a phrase that does compile: an empty Danish half, a slot the Danish half
  * dropped, or English quietly pasted into the Danish slot to make the whole thing

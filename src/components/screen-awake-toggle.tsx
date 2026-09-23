@@ -3,6 +3,9 @@
 import { useState } from "react";
 
 import { useWakeLock } from "./use-wake-lock";
+import { useLanguage } from "@/components/language-provider";
+import { APP } from "@/lib/copy/app";
+import { sayIn } from "@/lib/copy/say";
 
 /**
  * Keeps the phone's screen on while a recipe is open — the one page in the app read
@@ -18,6 +21,7 @@ import { useWakeLock } from "./use-wake-lock";
 export function ScreenAwakeToggle({ className = "" }: { className?: string }) {
   const [on, setOn] = useState(false);
   const { supported } = useWakeLock(on);
+  const say = sayIn(useLanguage());
 
   if (!supported) return null;
 
@@ -26,8 +30,8 @@ export function ScreenAwakeToggle({ className = "" }: { className?: string }) {
       type="button"
       onClick={() => setOn((value) => !value)}
       aria-pressed={on}
-      aria-label="Keep screen on"
-      title={on ? "Screen will stay on — tap to allow it to sleep" : "Keep screen on while cooking"}
+      aria-label={say(APP.keepScreenOn.label)}
+      title={say(on ? APP.keepScreenOn.whileOn : APP.keepScreenOn.whileOff)}
       className={`pressable shrink-0 rounded-lg p-2 active:scale-90 ${
         on ? "text-[var(--accent)]" : "text-slate-400 hover:bg-slate-100 hover:text-slate-900"
       } ${className}`}

@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 
-import { recordAiUsage } from "./ai-usage";
+import { overMonthlyLimit, recordAiUsage } from "./ai-usage";
 import type { StoredStep } from "./cook";
 import { ingredientLines, instructionLines } from "./recipes";
 
@@ -45,8 +45,17 @@ const PREPARE_TIMEOUT_MS = 20_000;
 
 const MAX_TOKENS = 4_000;
 
-/** A recipe longer than this is one this is not going to improve anyway. */
-const MAX_INPUT_CHARS = 12_000;
+/**
+ * Instructions longer than this are not sent at all, and the recipe stays unprepared.
+ *
+ * **Never sliced to fit.** The answer is written back over `Recipe.instructions`, so a
+ * model shown the first 12,000 characters answers for those alone and everything after
+ * them is deleted on save — silently, since the steps and the breakdown then agree with
+ * each other perfectly and `lib/cook.ts`'s count guard has nothing to catch. The form
+ * accepts up to `MAX_BODY`, well past this. A recipe that long is not one this is going
+ * to improve anyway, and plain steps in action mode are its own words intact.
+ */
+export const MAX_INPUT_CHARS = 12_000;
 
 /**
  * What comes back. The two rules from `recipe-normalize.ts` apply here unchanged, and
@@ -142,7 +151,7 @@ function userMessage(recipe: { title: string; ingredients: string; instructions:
     "--- END INGREDIENTS ---",
     "",
     "--- INSTRUCTIONS AS WRITTEN ---",
-    recipe.instructions.slice(0, MAX_INPUT_CHARS),
+    recipe.instructions,
     "--- END INSTRUCTIONS ---",
   ].join("\n");
 }
@@ -186,15 +195,17 @@ function minutesOrNull(minutes: number | null | undefined): number | null {
 
 export type PrepareOutcome =
   | { ok: true; instructions: string; steps: StoredStep[] }
-  | { ok: false; reason: "unavailable" };
+  | { ok: false; reason: "unavailable" | "over-limit" };
 
 /**
  * Prepares one stored recipe for action mode, or says it could not.
  *
- * There is one failure — `unavailable` — because unlike the importer there is no verdict
- * to give: the text is known to be a recipe, it is this household's own. No key, a
- * timeout and an unparseable answer all mean the same thing to the cook, which is that
- * the steps stay as they were and action mode shows them plainly.
+ * There is no verdict to give, unlike the importer: the text is known to be a recipe, it
+ * is this household's own. No key, a timeout, an unparseable answer and a recipe too long
+ * to send whole all mean the same thing to the cook — `unavailable`: the steps stay as
+ * they were and action mode shows them plainly. `over-limit` means the same to a save;
+ * it is told apart only so the "prepare" button can say that trying again in a moment
+ * will not help.
  *
  * The client is built here rather than at module scope, as in `recipe-normalize.ts`:
  * constructing one with no credential in the environment throws, and this module is
@@ -210,12 +221,18 @@ export async function prepareCookSteps(
   if (!instructionLines(recipe.instructions).length) {
     return { ok: true, instructions: "", steps: [] };
   }
+  if (recipe.instructions.length > MAX_INPUT_CHARS) {
+    logUnavailable("too_long", `${recipe.instructions.length} characters of instructions`);
+    return { ok: false, reason: "unavailable" };
+  }
   if (!process.env.ANTHROPIC_API_KEY) {
     logUnavailable("no_api_key", "ANTHROPIC_API_KEY is not set");
     return { ok: false, reason: "unavailable" };
   }
+  if (await overMonthlyLimit(homeId)) return { ok: false, reason: "over-limit" };
 
   let parsed: PreparedSteps | null;
+  let cutShort = false;
   try {
     const client = new Anthropic({ maxRetries: 1 });
     const response = await client.messages.parse(
@@ -229,6 +246,7 @@ export async function prepareCookSteps(
       { timeout: PREPARE_TIMEOUT_MS },
     );
     parsed = response.parsed_output;
+    cutShort = response.stop_reason === "max_tokens";
     await recordAiUsage(
       homeId,
       "cook_steps",
@@ -252,6 +270,14 @@ export async function prepareCookSteps(
 
   if (!parsed) {
     logUnavailable("unparseable", "the model returned no parseable output");
+    return { ok: false, reason: "unavailable" };
+  }
+
+  // The input guard's other half. An answer that ran out of room describes only the
+  // steps it reached, and written back it would delete the rest just as a sliced input
+  // would — so it is not an answer, however well it parsed.
+  if (cutShort) {
+    logUnavailable("cut_short", `the answer reached max_tokens (${MAX_TOKENS})`);
     return { ok: false, reason: "unavailable" };
   }
 

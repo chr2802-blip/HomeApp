@@ -52,6 +52,19 @@ describe("length limits", () => {
     expect(result).toEqual({ ok: false, error: `That is too long — keep it under ${MAX_NAME} characters.` });
   });
 
+  /*
+   * The ceilings live in helpers built once at module scope, where there is no household
+   * to ask, so "too long" is said by `readForm` rather than by the `.max()` — and a Danish
+   * home used to read it in English on every form in the app.
+   */
+  it("says how long is too long in the household's own language", () => {
+    const schema = z.object({ note: optionalText });
+
+    const result = readForm(schema, form([["note", times(MAX_NOTE + 1)]]), "DA");
+
+    expect(result).toEqual({ ok: false, error: `Det er for langt — hold det under ${MAX_NOTE} tegn.` });
+  });
+
   it("measures a name after trimming, so trailing spaces cannot push it over", () => {
     const schema = z.object({ title: requiredText("Give it a title.") });
 

@@ -255,6 +255,12 @@ single word like "OK". A phrase that still coincides with more than one real wor
 (`"Under {min} min"`, since "under" and "min" both happen to spell the same in Danish) is
 not a bug in the test: reword the Danish until it says something a Dane would not mistake
 for the English, the way `underMin` became "Op til {min} min" rather than "Under {min} min".
+`tests/unit/untranslated.test.ts` is the other half: it walks `src/app` and
+`src/components` for a sentence written outside the catalogue — a quoted string of two
+words or more, or a JSX text node — and an exception is an entry in its `ALLOWED`, with
+the reason beside it. **"Too long" is said by `readForm`**, from the zod issue's own
+`maximum`, and never by a `.max()`: the ceilings live in helpers built at module scope,
+where there is no household to ask.
 **[`docs/design/language.md`](docs/design/language.md) has the reasoning.**
 
 ### Home-scoped data goes through `homeDb`
@@ -586,20 +592,23 @@ and "salt" are not two basic goods. A name that normalises to nothing at all ("`
 refused rather than stored — it would match no ingredient line ever written, and then
 claim the next such entry was a duplicate of it.
 
-**Only an exact key is answered for without asking; a key matched by its trailing words
-is asked about instead.** `matchedStockedKey` in `src/lib/pantry.ts` tries the key as
-written first, then, word by word from the front, its own shrinking tail — so "tørret
-spidskommen" is *matched* by a pantry that has "spidskommen", and "røget paprika" by one
-that has "paprika": a recipe names the ingredient last far more often than the other way
-round. But a modifier the household never typed into the pantry is not assumed to mean
-the same shelf, so `matchLine` keeps the two apart — `fullyExact` is true only where
-every part of the line matched *as written* — and `stripStocked` silently drops a line
-off the shop only on `fullyExact`. Anything matched only by dropping a modifier is
-routed through `ambiguousLines` exactly like a combined line the pantry only partly
-answers for, and the household is asked. Only whole words move, never a substring,
-because Danish compounds carry no space of their own ("hvidløg", "rødløg") — a pantry
-entry for "løg" stays an exact match for "løg" and is never mistaken for garlic, and
-never even reaches the question. A line naming more than one thing ("Salt og
+**Only an exact key is answered for without asking; a key matched by a run of its own
+words is asked about instead.** `matchedStockedKey` in `src/lib/pantry.ts` tries the key
+as written first, then the longest contiguous run of its own words that the pantry has
+an entry for, from any position — a qualifier sits in front of the ingredient it
+describes ("tørret spidskommen" is *matched* by a pantry that has "spidskommen", "røget
+paprika" by one that has "paprika") as often as it trails it ("hakkede tomater på dåse"
+is matched by one that has "hakkede tomater" — "på dåse" names the tin, not the tomato).
+But a qualifier the household never typed into the pantry is not assumed to mean the
+same shelf, so `matchLine` keeps the two apart — `fullyExact` is true only where every
+part of the line matched *as written* — and `stripStocked` silently drops a line off the
+shop only on `fullyExact`. Anything matched only by dropping a qualifier is routed
+through `ambiguousLines` exactly like a combined line the pantry only partly answers
+for, and the household is asked. Only whole words move, and only as a contiguous run,
+never a substring reaching inside one — Danish compounds carry no space of their own
+("hvidløg", "rødløg") — a pantry entry for "løg" stays an exact match for "løg" and is
+never mistaken for garlic, and never even reaches the question. A line naming more than
+one thing ("Salt og
 friskkværnet peber") is split on "og"/"and"/"&" first, and each half is checked the same
 way — so a cupboard with salt and pepper, spelled however the recipe qualified the
 pepper, still asks rather than silently deciding the pepper qualifies too.
@@ -728,6 +737,11 @@ forward**, as lifting a right-hand page over does.
   fresh mapping, or to `DbNull` when the reader could not answer. Both writers are
   `createRecipe` and `updateRecipe`; `tests/integration/recipes.test.ts` holds it. A
   reader that is down never fails a save: the recipe stores, the column clears.
+  **Anything that changes how a save behaves has five call sites to check, not one**:
+  `createRecipe` is handed in by `recipes/page.tsx` (to `NewRecipeDialog`) and
+  `recipes/new/page.tsx`; `updateRecipe` by `recipes/[id]/edit/page.tsx`,
+  `recipes/[id]/page.tsx` and `recipe-directory.tsx` (both through `ItemMenu`).
+  `grep -rn "createRecipe\|updateRecipe" src --include=*.tsx` lists them.
 - **The count is the guard, not the mechanism.** `cookSteps` in `src/lib/cook.ts` ignores
   a stored breakdown *whole* unless its length matches the instruction lines — there is no
   telling which of its entries still line up, and a plausible wrong ingredient at the hob
@@ -743,6 +757,10 @@ forward**, as lifting a right-hand page over does.
   action mode read — and it **never rewrites an ingredient line**, which is the contract
   `shoppingText` and `pantryKey` read. Its schema carries the same two traps as the
   importer's: nothing narrows, and every `.describe()` comes before its `.nullish()`.
+- **Because its answer replaces the instructions, it only ever answers for all of them.**
+  Instructions past `MAX_INPUT_CHARS` are not sent — never sliced to fit, which deleted
+  everything after the cut on save — and an answer that stopped at `max_tokens` is
+  refused however well it parsed. `tests/unit/ai-readers.test.ts` holds both.
 - **The surface is portalled to `document.body`**, because `PageTransition` puts a
   `transform` on an ancestor and a transformed ancestor contains a fixed child. It pads
   its own `env(safe-area-inset-*)`, holds a wake lock through `useWakeLock` (shared with
@@ -840,8 +858,12 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
 - **The content is data, never instructions.** It comes from a page whoever pasted the link
   did not write; the system prompt says so, and a page addressing the reader is a page with no
   recipe on it.
-- **The importer is rate limited** (`checkRateLimit("import", …)`), because each import spends
-  an outbound fetch and a model call on somebody else's say-so.
+- **Every paid model call is bounded twice.** Per person: `checkRateLimit("import", …)` for
+  an import, and `"prepare"` for a save that re-reads the steps or the prepare button — a
+  save over it still saves, and clears `cookSteps` as a reader that is down would. Per
+  home: `overMonthlyLimit` is asked **inside** both readers rather than at each action, so
+  no way into the model can forget it; past it, an import says so without offering the
+  paste box, which goes to the same reader.
 - **The paste box is the load-bearing half**, offered on any `notARecipe` failure and from a
   button under the link field. It goes to the very same reader, and nothing on Meta's side can
   block it.

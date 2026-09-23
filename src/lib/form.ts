@@ -12,11 +12,12 @@ import { FORMS } from "./copy/forms";
  * Every action validates this way, so the wording a person sees lives beside the field
  * it belongs to rather than in a chain of hand-written checks.
  *
- * `language` is optional and defaults to English: it only reaches this function's own
- * fallback line, since every schema's own messages are still whatever string the
- * caller built them from. An action that already has `say` in scope passes its
- * language along; the rest convert in PR 2, alongside the schemas that name their
- * messages in English today.
+ * `language` is optional and defaults to English, and every action passes its own. It
+ * reaches two lines here: the fallback, and the one message no schema writes itself —
+ * a text over its ceiling. That is said here, from the issue's own `maximum`, rather
+ * than by every `.max()` in the app being handed a language: the ceilings live in
+ * shared helpers (`requiredText`, `optionalText`, `bodyText`) that are built once at
+ * module scope, where there is no household to ask.
  */
 export function readForm<S extends z.ZodType>(
   schema: S,
@@ -27,10 +28,15 @@ export function readForm<S extends z.ZodType>(
 
   if (result.success) return parsed(result.data);
 
+  const issue = result.error.issues[0];
+  if (issue?.code === "too_big" && issue.origin === "string") {
+    return invalid(sayIn(language)(FORMS.tooLong, { limit: Number(issue.maximum) }));
+  }
+
   // `||` rather than `??`: an issue carrying an empty message is still an issue with
   // nothing to show, and a refusal that says nothing is the bare `return` this type
   // exists to rule out.
-  return invalid(result.error.issues[0]?.message || sayIn(language)(FORMS.checkAndTryAgain));
+  return invalid(issue?.message || sayIn(language)(FORMS.checkAndTryAgain));
 }
 
 /**
@@ -57,18 +63,19 @@ export const MAX_NOTE = 2_000;
  */
 export const MAX_BODY = 20_000;
 
-/** Said the same way wherever it happens, because it is the same thing happening. */
-export const tooLong = (limit: number) => `That is too long — keep it under ${limit} characters.`;
-
-/** A required line of text, trimmed, with its own message when left blank. */
+/**
+ * A required line of text, trimmed, with its own message when left blank. Past its
+ * ceiling it says nothing of its own: `readForm` says "too long" in the household's
+ * language, the same way wherever it happens, because it is the same thing happening.
+ */
 export const requiredText = (message: string, max: number = MAX_NAME) =>
-  z.string({ error: message }).trim().min(1, message).max(max, tooLong(max));
+  z.string({ error: message }).trim().min(1, message).max(max);
 
 /** Optional text that is stored as null rather than an empty string. */
 export const optionalText = z
   .string()
   .trim()
-  .max(MAX_NOTE, tooLong(MAX_NOTE))
+  .max(MAX_NOTE)
   .optional()
   .transform((value) => value || null);
 
@@ -76,6 +83,6 @@ export const optionalText = z
 export const bodyText = z
   .string()
   .trim()
-  .max(MAX_BODY, tooLong(MAX_BODY))
+  .max(MAX_BODY)
   .optional()
   .transform((value) => value ?? "");

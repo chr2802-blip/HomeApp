@@ -327,7 +327,7 @@ export default async function MealsPage({
         heading: say(MEALS.suggested),
         options: take(
           suggested.map((suggestion) =>
-            recipeOption(byId.get(suggestion.recipeId)!, suggestionReason(suggestion)),
+            recipeOption(byId.get(suggestion.recipeId)!, suggestionReason(suggestion, user.homeLanguage)),
           ),
         ),
       },
