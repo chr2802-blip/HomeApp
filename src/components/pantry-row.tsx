@@ -96,7 +96,7 @@ export function PantryRow({
 
   return (
     <div className="px-4 py-2">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1">
         <PantryQuantityField
           quantity={stock.quantity}
           unit={stock.unit}
