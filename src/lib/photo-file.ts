@@ -13,6 +13,10 @@
  * state them, which is how anything else is refused.
  */
 
+import type { HomeLanguage } from "@prisma/client";
+import { PHOTOS } from "./copy/photos";
+import { sayIn } from "./copy/say";
+
 /** The form field every picture-carrying form posts its chosen picture under. */
 export const PHOTO_FIELD = "photoId";
 
@@ -151,21 +155,18 @@ function readWebp(bytes: Uint8Array): PhotoMeta | null {
 
 export type PhotoCheck = { ok: true; meta: PhotoMeta } | { ok: false; error: string };
 
-const UNREADABLE = "That file is not a JPEG, PNG or WebP image.";
-
-/** Measures one of the two sizes an upload arrives as. */
-export function checkPhotoBytes(bytes: Uint8Array, maxBytes: number): PhotoCheck {
-  if (bytes.length === 0) return { ok: false, error: "That image is empty." };
-  if (bytes.length > maxBytes) {
-    return { ok: false, error: "That image is too large to store — try a smaller one." };
-  }
+/** Measures one of the two sizes an upload arrives as, refusing in the household's own words. */
+export function checkPhotoBytes(bytes: Uint8Array, maxBytes: number, language: HomeLanguage): PhotoCheck {
+  const say = sayIn(language);
+  if (bytes.length === 0) return { ok: false, error: say(PHOTOS.empty) };
+  if (bytes.length > maxBytes) return { ok: false, error: say(PHOTOS.tooLargeToStore) };
 
   const meta = readPhotoMeta(bytes);
-  if (!meta) return { ok: false, error: UNREADABLE };
+  if (!meta) return { ok: false, error: say(PHOTOS.wrongFormat) };
 
-  if (meta.width < 1 || meta.height < 1) return { ok: false, error: UNREADABLE };
+  if (meta.width < 1 || meta.height < 1) return { ok: false, error: say(PHOTOS.wrongFormat) };
   if (meta.width > MAX_PHOTO_EDGE || meta.height > MAX_PHOTO_EDGE) {
-    return { ok: false, error: "That image is larger than this app stores — scale it down first." };
+    return { ok: false, error: say(PHOTOS.tooManyPixels) };
   }
 
   return { ok: true, meta };

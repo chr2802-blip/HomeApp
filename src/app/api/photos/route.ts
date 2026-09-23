@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { MAX_PHOTO_BYTES, MAX_THUMB_BYTES } from "@/lib/photo-file";
 import { storePhoto, sweepUnclaimedPhotos } from "@/lib/photos";
+import { PHOTOS } from "@/lib/copy/photos";
+import { sayIn } from "@/lib/copy/say";
+import { DEFAULT_LANGUAGE } from "@/lib/language";
 
 export const dynamic = "force-dynamic";
 
@@ -20,20 +23,21 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(request: Request) {
   const user = await getCurrentUser();
-  if (!user?.homeId) return refuse("Sign in to add a picture.", 401);
+  const say = sayIn(user?.homeLanguage ?? DEFAULT_LANGUAGE);
+  if (!user?.homeId) return refuse(say(PHOTOS.signInFirst), 401);
 
   let form: FormData;
   try {
     form = await request.formData();
   } catch {
-    return refuse("That upload could not be read.", 400);
+    return refuse(say(PHOTOS.uploadUnreadable), 400);
   }
 
   const full = await readPart(form.get("photo"), MAX_PHOTO_BYTES);
   const thumb = await readPart(form.get("thumb"), MAX_THUMB_BYTES);
-  if (!full || !thumb) return refuse("That upload did not include an image.", 400);
+  if (!full || !thumb) return refuse(say(PHOTOS.uploadWithoutImage), 400);
 
-  const stored = await storePhoto(user.homeId, full, thumb);
+  const stored = await storePhoto(user.homeId, full, thumb, user.homeLanguage);
   if (!stored.ok) return refuse(stored.error, 400);
 
   // After the picture is safely stored, never before: a sweep that failed must not

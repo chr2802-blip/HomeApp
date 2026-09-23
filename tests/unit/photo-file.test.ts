@@ -67,7 +67,7 @@ describe("readPhotoMeta", () => {
 
 describe("checkPhotoBytes", () => {
   it("accepts a picture inside both limits", () => {
-    const result = checkPhotoBytes(pngBytes(120, 90), MAX_PHOTO_BYTES);
+    const result = checkPhotoBytes(pngBytes(120, 90), MAX_PHOTO_BYTES, "EN");
     expect(result).toEqual({
       ok: true,
       meta: { contentType: "image/png", width: 120, height: 90 },
@@ -75,14 +75,21 @@ describe("checkPhotoBytes", () => {
   });
 
   it("refuses an empty upload", () => {
-    expect(checkPhotoBytes(Buffer.alloc(0), MAX_PHOTO_BYTES)).toEqual({
+    expect(checkPhotoBytes(Buffer.alloc(0), MAX_PHOTO_BYTES, "EN")).toEqual({
       ok: false,
       error: "That image is empty.",
     });
   });
 
+  it("refuses in the household's own language", () => {
+    expect(checkPhotoBytes(Buffer.from("just some text", "ascii"), MAX_PHOTO_BYTES, "DA")).toEqual({
+      ok: false,
+      error: "Filen er hverken et JPEG-, PNG- eller WebP-billede.",
+    });
+  });
+
   it("refuses one heavier than the limit", () => {
-    const result = checkPhotoBytes(pngBytes(200, 200, { noisy: true }), 500);
+    const result = checkPhotoBytes(pngBytes(200, 200, { noisy: true }), 500, "EN");
     expect(result.ok).toBe(false);
   });
 
@@ -93,18 +100,18 @@ describe("checkPhotoBytes", () => {
    */
   it("refuses one larger than the longest edge stored", () => {
     const tooBig = pngBytes(MAX_PHOTO_EDGE + 1, 10);
-    expect(checkPhotoBytes(tooBig, MAX_PHOTO_BYTES)).toEqual({
+    expect(checkPhotoBytes(tooBig, MAX_PHOTO_BYTES, "EN")).toEqual({
       ok: false,
       error: "That image is larger than this app stores — scale it down first.",
     });
   });
 
   it("accepts one exactly on the edge", () => {
-    expect(checkPhotoBytes(pngBytes(MAX_PHOTO_EDGE, 10), MAX_PHOTO_BYTES).ok).toBe(true);
+    expect(checkPhotoBytes(pngBytes(MAX_PHOTO_EDGE, 10), MAX_PHOTO_BYTES, "EN").ok).toBe(true);
   });
 
   it("refuses a file that is not a picture at all", () => {
-    expect(checkPhotoBytes(Buffer.from("just some text", "ascii"), MAX_PHOTO_BYTES)).toEqual({
+    expect(checkPhotoBytes(Buffer.from("just some text", "ascii"), MAX_PHOTO_BYTES, "EN")).toEqual({
       ok: false,
       error: "That file is not a JPEG, PNG or WebP image.",
     });

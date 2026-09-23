@@ -3,6 +3,9 @@
 import { useEffect } from "react";
 import { Button, ButtonLink, Card, PageHeader } from "@/components/ui";
 import { isNotAllowed } from "@/lib/not-allowed";
+import { useLanguage } from "@/components/language-provider";
+import { APP } from "@/lib/copy/app";
+import { sayIn } from "@/lib/copy/say";
 
 /**
  * Catches anything a page or server action throws inside the app shell — most often a
@@ -29,21 +32,19 @@ export default function AppError({
   }, [error]);
 
   const denied = isNotAllowed(error);
+  // Inside the app's own layout, so the household's provider is above this boundary.
+  const say = sayIn(useLanguage());
 
   return (
     <>
       <PageHeader
-        title={denied ? "Not your home" : "Something went wrong"}
-        description={
-          denied
-            ? "That belongs to a different home, so it cannot be opened from here."
-            : "The page could not be loaded. Trying again often clears it."
-        }
+        title={say(denied ? APP.error.notYourHome : APP.error.somethingWrong)}
+        description={say(denied ? APP.error.notYourHomeBody : APP.error.somethingWrongBody)}
       />
       <Card className="flex flex-wrap gap-2">
-        {!denied && <Button onClick={reset}>Try again</Button>}
+        {!denied && <Button onClick={reset}>{say(APP.error.tryAgain)}</Button>}
         <ButtonLink href="/dashboard" variant={denied ? "primary" : "secondary"}>
-          Back to the dashboard
+          {say(APP.error.backToDashboard)}
         </ButtonLink>
       </Card>
     </>

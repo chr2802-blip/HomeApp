@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { USD_TO_DKK, getHomeAiSpend, getInstallationAiSpend, recordAiUsage } from "@/lib/ai-usage";
+import {
+  MONTHLY_LIMIT_USD,
+  USD_TO_DKK,
+  getHomeAiSpend,
+  getInstallationAiSpend,
+  overMonthlyLimit,
+  recordAiUsage,
+} from "@/lib/ai-usage";
 import { createHome, createUser } from "../helpers/factories";
 
 async function homeWithOwner() {
@@ -108,5 +115,38 @@ describe("the installation's AI spend", () => {
     const all = await getInstallationAiSpend();
     const ids = all.homes.map((home) => home.id);
     expect(ids.indexOf(large.home.id)).toBeLessThan(ids.indexOf(small.home.id));
+  });
+});
+
+describe("a home's monthly allowance", () => {
+  const spend = (homeId: string, costMicros: number, createdAt?: Date) =>
+    prisma.aiUsage.create({
+      data: { homeId, feature: "cook_steps", model: "claude-sonnet-5", inputTokens: 0, outputTokens: 0, costMicros, createdAt },
+    });
+  const limit = MONTHLY_LIMIT_USD * 1_000_000;
+
+  it("is not spent a micro-dollar short of the limit", async () => {
+    const { home } = await homeWithOwner();
+    await spend(home.id, limit - 1);
+    expect(await overMonthlyLimit(home.id)).toBe(false);
+  });
+
+  it("is spent at the limit exactly", async () => {
+    const { home } = await homeWithOwner();
+    await spend(home.id, limit);
+    expect(await overMonthlyLimit(home.id)).toBe(true);
+  });
+
+  it("is one home's, not the installation's", async () => {
+    const { home } = await homeWithOwner();
+    const { home: other } = await homeWithOwner();
+    await spend(other.id, limit * 2);
+    expect(await overMonthlyLimit(home.id)).toBe(false);
+  });
+
+  it("comes back with the new month", async () => {
+    const { home } = await homeWithOwner();
+    await spend(home.id, limit, new Date("2026-05-20T12:00:00Z"));
+    expect(await overMonthlyLimit(home.id, new Date("2026-06-02T12:00:00Z"))).toBe(false);
   });
 });

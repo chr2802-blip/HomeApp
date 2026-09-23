@@ -5,6 +5,9 @@ import { Button, Label } from "@/components/ui";
 import { photoUrl } from "@/components/photo";
 import { PhotoError, preparePhoto } from "@/lib/downscale";
 import { PHOTO_FIELD } from "@/lib/photo-file";
+import { useLanguage } from "@/components/language-provider";
+import { PHOTOS } from "@/lib/copy/photos";
+import { sayIn } from "@/lib/copy/say";
 
 /**
  * Picking a picture for whatever the surrounding form is about.
@@ -22,13 +25,15 @@ import { PHOTO_FIELD } from "@/lib/photo-file";
  */
 export function PhotoField({
   defaultPhotoId = null,
-  label = "Photo",
-  hint = "Straight off your phone is fine — it is shrunk before it leaves the browser.",
+  label,
+  hint,
 }: {
   defaultPhotoId?: string | null;
   label?: string;
   hint?: string;
 }) {
+  const language = useLanguage();
+  const say = sayIn(language);
   const [photoId, setPhotoId] = useState<string | null>(defaultPhotoId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +46,7 @@ export function PhotoField({
     setBusy(true);
     setError(null);
     try {
-      const prepared = await preparePhoto(file);
+      const prepared = await preparePhoto(file, language);
 
       const upload = new FormData();
       upload.set("photo", prepared.full, "photo.jpg");
@@ -50,13 +55,13 @@ export function PhotoField({
       const response = await fetch("/api/photos", { method: "POST", body: upload });
       const body = await response.json().catch(() => ({}));
 
-      if (!response.ok) throw new PhotoError(body.error ?? "That picture could not be saved.");
+      if (!response.ok) throw new PhotoError(body.error ?? say(PHOTOS.couldNotSave));
       setPhotoId(String(body.id));
     } catch (cause) {
       // Anything that is not the library's own wording is a failed request rather than
       // a bad file, and saying so is more use than repeating a network error.
       setError(
-        cause instanceof PhotoError ? cause.message : "That picture could not be uploaded.",
+        cause instanceof PhotoError ? cause.message : say(PHOTOS.couldNotUpload),
       );
     } finally {
       setBusy(false);
@@ -67,7 +72,7 @@ export function PhotoField({
 
   return (
     <div className="space-y-2">
-      <Label htmlFor={inputId}>{label}</Label>
+      <Label htmlFor={inputId}>{label ?? say(PHOTOS.label)}</Label>
 
       <input type="hidden" name={PHOTO_FIELD} value={photoId ?? ""} />
 
@@ -79,7 +84,7 @@ export function PhotoField({
               session-checked route, so Next's optimiser cannot fetch it. */}
           <img
             src={photoUrl(photoId, "thumb")}
-            alt="The picture you chose"
+            alt={say(PHOTOS.chosenAlt)}
             className="aspect-[16/9] w-full object-cover"
           />
         </div>
@@ -101,17 +106,17 @@ export function PhotoField({
           disabled={busy}
           onClick={() => input.current?.click()}
         >
-          {photoId ? "Change picture" : "Add a picture"}
+          {photoId ? say(PHOTOS.change) : say(PHOTOS.add)}
         </Button>
         {photoId && !busy && (
           <Button type="button" variant="ghost" onClick={() => setPhotoId(null)}>
-            Remove
+            {say(PHOTOS.remove)}
           </Button>
         )}
         {/* Announced rather than only drawn: on a slow phone this is the only sign
             that anything is happening. */}
         <p aria-live="polite" className="text-xs text-slate-500">
-          {busy ? "Shrinking and uploading…" : ""}
+          {busy ? say(PHOTOS.uploading) : ""}
         </p>
       </div>
 
@@ -120,7 +125,7 @@ export function PhotoField({
           {error}
         </p>
       ) : (
-        <p className="text-xs text-slate-500">{hint}</p>
+        <p className="text-xs text-slate-500">{hint ?? say(PHOTOS.hint)}</p>
       )}
     </div>
   );

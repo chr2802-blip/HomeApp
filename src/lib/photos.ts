@@ -1,8 +1,9 @@
+import type { HomeLanguage } from "@prisma/client";
 import { prisma } from "./prisma";
 import { homeDb } from "./home-db";
 import { MAX_PHOTO_BYTES, MAX_THUMB_BYTES, PHOTO_FIELD, checkPhotoBytes } from "./photo-file";
-
-const NOT_IN_HOME = "That picture is no longer available — add it again.";
+import { PHOTOS } from "./copy/photos";
+import { sayIn } from "./copy/say";
 
 /**
  * How long an uploaded picture is kept before it counts as abandoned.
@@ -31,11 +32,12 @@ export async function storePhoto(
   homeId: string,
   full: Uint8Array,
   thumb: Uint8Array,
+  language: HomeLanguage,
 ): Promise<PhotoResult> {
-  const checkedFull = checkPhotoBytes(full, MAX_PHOTO_BYTES);
+  const checkedFull = checkPhotoBytes(full, MAX_PHOTO_BYTES, language);
   if (!checkedFull.ok) return checkedFull;
 
-  const checkedThumb = checkPhotoBytes(thumb, MAX_THUMB_BYTES);
+  const checkedThumb = checkPhotoBytes(thumb, MAX_THUMB_BYTES, language);
   if (!checkedThumb.ok) return checkedThumb;
 
   const photo = await prisma.photo.create({
@@ -68,7 +70,11 @@ export type PhotoChoice =
  * field means the picture was taken off, which is different from a field that was never
  * on the form at all.
  */
-export async function readPhotoChoice(formData: FormData, homeId: string): Promise<PhotoChoice> {
+export async function readPhotoChoice(
+  formData: FormData,
+  homeId: string,
+  language: HomeLanguage,
+): Promise<PhotoChoice> {
   const raw = formData.get(PHOTO_FIELD);
   if (raw === null) return { ok: true, photoId: undefined };
 
@@ -76,7 +82,7 @@ export async function readPhotoChoice(formData: FormData, homeId: string): Promi
   if (!id) return { ok: true, photoId: null };
 
   const photo = await homeDb(homeId).photo.findUnique({ where: { id }, select: { id: true } });
-  return photo ? { ok: true, photoId: photo.id } : { ok: false, error: NOT_IN_HOME };
+  return photo ? { ok: true, photoId: photo.id } : { ok: false, error: sayIn(language)(PHOTOS.noLongerAvailable) };
 }
 
 /**

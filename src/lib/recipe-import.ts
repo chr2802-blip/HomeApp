@@ -13,6 +13,7 @@ import {
   type ReelCaption,
 } from "./reel-import";
 import { sayIn } from "./copy/say";
+import { DEFAULT_LANGUAGE } from "./language";
 import { RECIPES } from "./copy/recipes";
 
 /**
@@ -352,6 +353,10 @@ async function finish(
   options: { notARecipe: string; videoUrl?: string | null; photoId?: string | null },
 ): Promise<ImportOutcome> {
   const read = await normalizeRecipe(raw, homeId, language);
+  // No paste box: it goes to this same reader, which would refuse it the same way.
+  if (!read.ok && read.reason === "over-limit") {
+    return { ok: false, error: sayIn(language)(RECIPES.aiLimitReached) };
+  }
   if (!read.ok) {
     return {
       ok: false,
@@ -573,7 +578,9 @@ async function importRecipeImage(
 
   try {
     const { full, thumb } = await downscaleForStorage(bytes);
-    const stored = await storePhoto(homeId, full, thumb);
+    // The refusal's wording is never shown — a picture that will not store is left out
+    // quietly — so which language it would have been said in does not matter.
+    const stored = await storePhoto(homeId, full, thumb, DEFAULT_LANGUAGE);
     return stored.ok ? stored.id : null;
   } catch {
     // A file that claims to be a picture but is not one sharp can decode, say — this
