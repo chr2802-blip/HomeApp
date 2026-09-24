@@ -69,6 +69,15 @@ came back**: a call that times out never gets a response, so never gets a row. T
 themselves are still only in the `*_unavailable` log lines, and a slow tail in this column
 will always look shorter than the truth.
 
+Then, on the user's call, both readers moved to **Haiku 4.5 with no thinking**, and the
+timings went onto **Admin → System** (median and slowest over 30 days, split by task *and*
+model so Sonnet's rows and Haiku's sit side by side as a before and after). Two things the
+switch needed that were easy to miss: Haiku 4.5 rejects `output_config.effort` with a 400,
+so `effort` had to go along with `thinking` — exactly the request-shape trap the caching
+incident was — and `PRICE_PER_MTOK_USD` had no Haiku entry, and an unpriced model is billed
+at zero, which would have quietly switched off every home's monthly limit.
+`tests/unit/ai-readers.test.ts` now fails on either.
+
 ## Where the time went
 
 | Stage | Roughly | Notes |
@@ -116,3 +125,10 @@ ever wants to close that last gap, the confirming test is cheap: two identical c
 seconds apart, same language, and check `usage.cache_read_input_tokens` on the second — this
 note predicts it will be non-zero at, say, 30 seconds apart and never at 6 minutes apart. That
 would turn "matches the documented mechanism" into "measured."
+
+**The Haiku switch is verified against the API reference and the stub, not the real API.**
+The reference says Haiku 4.5 takes structured outputs and rejects `effort`; nothing in this
+sandbox can send it a real request. And its *quality* is unmeasured: Sonnet at `low` effort
+already missed preparation-into-step matches (PR #119), and Haiku without thinking is further
+down that road. The first real imports after deploy are the check — watch for a preparation
+("i tern", "stuetemperatur") that vanished from both the ingredient line and the steps.

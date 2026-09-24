@@ -835,7 +835,9 @@ and never markup: `isReelUrl` routes those links there before anything is fetche
 stay apart). All three routes — page, reel, pasted description — produce one `RawExtract`.
 
 **Stage two is `recipe-normalize.ts`, and it is the only thing in this app that reads text as
-a recipe.** One model call (`claude-sonnet-5`), one zod-constrained answer, deduplicating
+a recipe.** One model call (`claude-haiku-4-5`, no thinking — chosen for speed in 2026-09,
+over Sonnet at `medium` effort; both readers' `MODEL` comments say what that gave up, and
+**Admin → System → AI call times** says what it bought), one zod-constrained answer, deduplicating
 lines, splitting each amount from its unit and its ingredient, and throwing away the hashtags
 and the "follow for more". It is also allowed to refuse: `isRecipe: false` is the answer for
 a shop page or somebody's lunch, and that refusal is what makes stage one's fall back to
@@ -1055,8 +1057,16 @@ those still wants trying against a copy of production first.
 
 **Admin → System** (super admin) shows database health, the reminder job's recent runs,
 content totals, how the stored bytes divide between the homes and between the kinds of
-thing in them, and the slowest queries of the last day. Home admins see whether reminders
-are reaching their own household, and what their own home is storing.
+thing in them, the slowest queries of the last day, and how long each AI reader keeps a
+household waiting — median and slowest over 30 days from `AiUsage.durationMs`, **split by
+model**, so a model or effort change is judged by what it did to the wait. Calls that time
+out never get a row, so the slowest real wait can be longer than shown. Home admins see
+whether reminders are reaching their own household, and what their own home is storing.
+
+**A model change is a price change too.** `PRICE_PER_MTOK_USD` in `src/lib/ai-usage.ts`
+prices a model it has never heard of at **zero**, which quietly switches off the monthly
+limit. `tests/unit/ai-readers.test.ts` fails if either reader sends an unpriced model, or
+sends `thinking` or `effort` (Haiku 4.5 answers `effort` with a 400).
 
 The reminder job writes a row before it starts work, because a schedule that silently
 stops looks exactly like a week with nothing due. `/api/health` gives an uptime monitor a

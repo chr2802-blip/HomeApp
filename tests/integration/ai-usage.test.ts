@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   MONTHLY_LIMIT_USD,
   USD_TO_DKK,
+  getAiCallTimings,
   getHomeAiSpend,
   getInstallationAiSpend,
   overMonthlyLimit,
@@ -149,5 +150,36 @@ describe("a home's monthly allowance", () => {
     const { home } = await homeWithOwner();
     await spend(home.id, limit, new Date("2026-05-20T12:00:00Z"));
     expect(await overMonthlyLimit(home.id, new Date("2026-06-02T12:00:00Z"))).toBe(false);
+  });
+});
+
+describe("the System page's AI call times", () => {
+  const call = (homeId: string, model: string, durationMs: number | null, createdAt?: Date) =>
+    prisma.aiUsage.create({
+      data: { homeId, feature: "recipe_import", model, inputTokens: 0, outputTokens: 0, costMicros: 0, durationMs, createdAt },
+    });
+  const now = new Date("2026-09-24T12:00:00Z");
+
+  it("gives each model its own median and slowest, so a switch reads as before and after", async () => {
+    const { home } = await homeWithOwner();
+    // One pathological page among quick ones: it is the slowest, never the typical wait.
+    for (const ms of [8_000, 9_000, 10_000, 40_000]) await call(home.id, "claude-sonnet-5", ms, now);
+    for (const ms of [3_000, 4_000, 5_000]) await call(home.id, "claude-haiku-4-5", ms, now);
+
+    expect(await getAiCallTimings(now)).toEqual([
+      { feature: "recipe_import", model: "claude-haiku-4-5", calls: 3, typicalMs: 4_000, slowestMs: 5_000 },
+      { feature: "recipe_import", model: "claude-sonnet-5", calls: 4, typicalMs: 9_500, slowestMs: 40_000 },
+    ]);
+  });
+
+  it("leaves out rows stored before calls were timed, and calls older than the window", async () => {
+    const { home } = await homeWithOwner();
+    await call(home.id, "claude-haiku-4-5", null, now);
+    await call(home.id, "claude-haiku-4-5", 99_000, new Date("2026-08-01T12:00:00Z"));
+    await call(home.id, "claude-haiku-4-5", 2_000, now);
+
+    expect(await getAiCallTimings(now)).toEqual([
+      { feature: "recipe_import", model: "claude-haiku-4-5", calls: 1, typicalMs: 2_000, slowestMs: 2_000 },
+    ]);
   });
 });

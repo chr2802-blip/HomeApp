@@ -180,3 +180,31 @@ describe("a home past its month's allowance", () => {
     expect(parse).not.toHaveBeenCalled();
   });
 });
+
+/*
+ * What goes on the wire, for the one thing the e2e stub can never tell us: whether the
+ * real API accepts it. Haiku 4.5 answers `output_config.effort` with a 400 and has no
+ * adaptive thinking, so both readers must send neither. And a model this app has never
+ * priced is billed at nothing, which would quietly switch off the monthly limit.
+ */
+describe("the request both readers send", () => {
+  it("names a priced model, and carries no thinking and no effort", async () => {
+    const { costMicros } = await vi.importActual<typeof import("@/lib/ai-usage")>("@/lib/ai-usage");
+
+    parse.mockResolvedValue(answer("end_turn"));
+    await prepareCookSteps(recipe("Ælt."), "home", "DA");
+    parse.mockResolvedValue({ ...answer("end_turn"), parsed_output: null });
+    await normalizeRecipe(
+      { kind: "pasted", sourceUrl: null, rawTitle: null, rawContent: "Mel", imageUrl: null, timeHintMinutes: null },
+      "home",
+      "DA",
+    );
+
+    expect(parse).toHaveBeenCalledTimes(2);
+    for (const [request] of parse.mock.calls) {
+      expect(costMicros(request.model, 1_000_000, 0)).toBeGreaterThan(0);
+      expect(request.thinking).toBeUndefined();
+      expect(request.output_config.effort).toBeUndefined();
+    }
+  });
+});

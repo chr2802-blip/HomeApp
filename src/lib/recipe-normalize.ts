@@ -46,17 +46,21 @@ import { overMonthlyLimit, recordAiUsage } from "./ai-usage";
 /**
  * The model that reads a recipe, and how hard it is asked to think about it.
  *
- * Sonnet for a job that is mechanical once the language is understood — this is tidying a
- * caption, not inventing a dish. `medium` effort, not `low`: moving every ingredient's
- * preparation into the steps is a cross-reference over the whole recipe, not a per-line
- * split, and `low` was missing matches it should have caught — including a step
- * that named the very word an ingredient carried, just inflected differently ("lunkne"
- * beside "lunkent" — the recipe's own agreement of the same adjective, not two different
- * facts). The cost still lands on a household that imports a handful of recipes a week, and
- * a failure here is visible immediately: the form opens pre-filled and wrong in front of the
- * person who pasted the link, rather than going quietly into a database.
+ * Haiku with no thinking, chosen in 2026-09 for speed: Sonnet at `medium` effort with
+ * adaptive thinking sat close enough to `NORMALIZE_TIMEOUT_MS` that the household waited
+ * the better part of half a minute, and timed out outright when anything added to it.
+ *
+ * What that gave up is known, and worth watching for. Moving every ingredient's preparation
+ * into the steps is a cross-reference over the whole recipe, and even Sonnet at `low` effort
+ * missed matches — a step naming the very word an ingredient carried, just inflected
+ * differently ("lunkne" beside "lunkent"). Haiku without thinking is further down the same
+ * road. A failure here is at least visible immediately: the form opens pre-filled and wrong
+ * in front of the person who pasted the link, rather than going quietly into a database.
+ *
+ * Haiku 4.5 takes no `effort` (it is a 400 there) and has no adaptive thinking; leaving
+ * `thinking` out is what turns it off.
  */
-const MODEL = "claude-sonnet-5";
+const MODEL = "claude-haiku-4-5";
 
 /**
  * How long a read may take before it is given up on. The cook is watching a spinner, and
@@ -242,8 +246,7 @@ export async function normalizeRecipe(
         model: MODEL,
         max_tokens: MAX_TOKENS,
         system: systemPrompt(language),
-        thinking: { type: "adaptive" },
-        output_config: { format: zodOutputFormat(NormalizedRecipeSchema), effort: "medium" },
+        output_config: { format: zodOutputFormat(NormalizedRecipeSchema) },
         messages: [{ role: "user", content: userMessage(raw) }],
       },
       { timeout: NORMALIZE_TIMEOUT_MS },
