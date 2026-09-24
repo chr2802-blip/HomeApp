@@ -62,6 +62,13 @@ any unrelated cause. **This is a documented mechanism, not a production measurem
 saw `cache_creation_input_tokens` on a real request, because there was no way to. The
 confidence here comes from the guidance matching the failure exactly, not from telemetry.
 
+Asked "so how do we make it faster", the answer was to measure first rather than guess a
+second time: `AiUsage.durationMs` (nullable — every existing row predates it) now records
+each call's wall-clock time, retries included, from both readers. **It only sees calls that
+came back**: a call that times out never gets a response, so never gets a row. The timeouts
+themselves are still only in the `*_unavailable` log lines, and a slow tail in this column
+will always look shorter than the truth.
+
 ## Where the time went
 
 | Stage | Roughly | Notes |

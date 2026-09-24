@@ -20,17 +20,18 @@ describe("recordAiUsage", () => {
   it("prices and files a call under the home that asked for it", async () => {
     const { home } = await homeWithOwner();
 
-    await recordAiUsage(home.id, "recipe_import", "claude-sonnet-5", 1_000_000, 100_000);
+    await recordAiUsage(home.id, "recipe_import", "claude-sonnet-5", 1_000_000, 100_000, 12_345.6);
 
     const rows = await prisma.aiUsage.findMany({ where: { homeId: home.id } });
     expect(rows).toHaveLength(1);
     // $2/MTok in, $10/MTok out: a million in plus a tenth of a million out is $3.
     expect(rows[0]!.costMicros).toBe(3_000_000);
+    expect(rows[0]!.durationMs).toBe(12_346);
   });
 
   it("never throws, so a metering failure cannot cost the recipe it is measuring", async () => {
     await expect(
-      recordAiUsage("not-a-real-home", "recipe_import", "claude-sonnet-5", 100, 100),
+      recordAiUsage("not-a-real-home", "recipe_import", "claude-sonnet-5", 100, 100, 1_000),
     ).resolves.toBeUndefined();
   });
 });
@@ -43,8 +44,8 @@ describe("a home's AI spend", () => {
 
   it("adds up every call this calendar month, in DKK at the fixed rate", async () => {
     const { home } = await homeWithOwner();
-    await recordAiUsage(home.id, "recipe_import", "claude-sonnet-5", 1_000_000, 0); // $2
-    await recordAiUsage(home.id, "recipe_import", "claude-sonnet-5", 500_000, 0); // $1
+    await recordAiUsage(home.id, "recipe_import", "claude-sonnet-5", 1_000_000, 0, 1_000); // $2
+    await recordAiUsage(home.id, "recipe_import", "claude-sonnet-5", 500_000, 0, 1_000); // $1
 
     const spend = await getHomeAiSpend(home.id);
     expect(spend.costUsd).toBeCloseTo(3, 6);
@@ -73,7 +74,7 @@ describe("a home's AI spend", () => {
 
   it("never counts another household's calls", async () => {
     const theirs = await homeWithOwner();
-    await recordAiUsage(theirs.home.id, "recipe_import", "claude-sonnet-5", 1_000_000, 0);
+    await recordAiUsage(theirs.home.id, "recipe_import", "claude-sonnet-5", 1_000_000, 0, 1_000);
 
     const { home } = await homeWithOwner();
     expect((await getHomeAiSpend(home.id)).costMicros).toBe(0);
@@ -84,8 +85,8 @@ describe("the installation's AI spend", () => {
   it("is every home's own figure, added up", async () => {
     const first = await homeWithOwner();
     const second = await homeWithOwner();
-    await recordAiUsage(first.home.id, "recipe_import", "claude-sonnet-5", 1_000_000, 0);
-    await recordAiUsage(second.home.id, "recipe_import", "claude-sonnet-5", 500_000, 0);
+    await recordAiUsage(first.home.id, "recipe_import", "claude-sonnet-5", 1_000_000, 0, 1_000);
+    await recordAiUsage(second.home.id, "recipe_import", "claude-sonnet-5", 500_000, 0, 1_000);
 
     const [all, one, two] = await Promise.all([
       getInstallationAiSpend(),
@@ -109,8 +110,8 @@ describe("the installation's AI spend", () => {
   it("lists the biggest spender first", async () => {
     const small = await homeWithOwner();
     const large = await homeWithOwner();
-    await recordAiUsage(small.home.id, "recipe_import", "claude-sonnet-5", 10_000, 0);
-    await recordAiUsage(large.home.id, "recipe_import", "claude-sonnet-5", 5_000_000, 0);
+    await recordAiUsage(small.home.id, "recipe_import", "claude-sonnet-5", 10_000, 0, 1_000);
+    await recordAiUsage(large.home.id, "recipe_import", "claude-sonnet-5", 5_000_000, 0, 1_000);
 
     const all = await getInstallationAiSpend();
     const ids = all.homes.map((home) => home.id);

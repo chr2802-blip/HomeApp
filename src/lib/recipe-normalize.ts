@@ -236,6 +236,7 @@ export async function normalizeRecipe(
   let parsed: NormalizedRecipe | null;
   try {
     const client = new Anthropic({ maxRetries: 1 });
+    const started = performance.now();
     const response = await client.messages.parse(
       {
         model: MODEL,
@@ -254,6 +255,7 @@ export async function normalizeRecipe(
       MODEL,
       response.usage.input_tokens,
       response.usage.output_tokens,
+      performance.now() - started,
     );
   } catch (error) {
     // Worth telling apart in the log, because they want different things doing about them.

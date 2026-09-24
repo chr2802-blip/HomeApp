@@ -306,6 +306,7 @@ export async function prepareCookSteps(
   let cutShort = false;
   try {
     const client = new Anthropic({ maxRetries: 1 });
+    const started = performance.now();
     const response = await client.messages.parse(
       {
         model: MODEL,
@@ -325,6 +326,7 @@ export async function prepareCookSteps(
       MODEL,
       response.usage.input_tokens,
       response.usage.output_tokens,
+      performance.now() - started,
     );
   } catch (error) {
     // Told apart the same way the importer tells them apart: the far end failing passes,

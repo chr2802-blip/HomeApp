@@ -76,6 +76,7 @@ export async function recordAiUsage(
   model: string,
   inputTokens: number,
   outputTokens: number,
+  durationMs: number,
 ): Promise<void> {
   try {
     await prisma.aiUsage.create({
@@ -86,6 +87,7 @@ export async function recordAiUsage(
         inputTokens,
         outputTokens,
         costMicros: costMicros(model, inputTokens, outputTokens),
+        durationMs: Math.round(durationMs),
       },
     });
   } catch (error) {
