@@ -659,16 +659,23 @@ doing something with it, which is exactly what a shopping list's boxes mean and 
 what this is not: a pantry entry is a standing fact about the cupboard, a number until
 somebody changes it. `PantryQuantityField` (`src/components/pantry-quantity-field.tsx`)
 is a stepper with a floor of zero rather than one — zero is the pantry's own "run out",
-not out-of-range input to correct away from — beside a `<select>` of `PANTRY_UNITS`,
-where "no unit" is its own choice and not a lesser one: a plain count ("3") is as valid
-an answer as a measured one ("500 g"), the same reason a counted recipe ingredient
-carries no unit either (see `UNIT_WORDS`). It is optimistic and is told the quantity to
-land in rather than "one more/one less", so the same press arriving twice — a double
-tap, a retry — leaves the cupboard saying what the thumb meant rather than applied again
-on top of itself. The name beside it opens an editor in place, the same way a list
-item's does — a name is the one thing on a row worth changing without a trip to a sheet,
-and a rename costing a menu, a dialog and a Save is a rename nobody makes. A refused
-rename (the household already keeps something under that name) needs no undoing: the
+not out-of-range input to correct away from — beside a unit picker offering
+`PANTRY_UNITS`, where "no unit" is its own choice and not a lesser one: a plain count
+("3") is as valid an answer as a measured one ("500 g"), the same reason a counted
+recipe ingredient carries no unit either (see `UNIT_WORDS`). **The unit picker is
+`ContextMenu`, never a bare `<select>`**: a native select sizes its closed box to its
+*widest possible option* rather than what it is showing, so offering "Bunch" made every
+row's box that wide even while showing "g" — which left no room for the name beside it.
+`ContextMenu`'s trigger instead sizes to exactly the unit *that row* shows (a bare dash
+for "no unit", the common state on a fresh entry), and carries the real value in its
+`triggerLabel` — "Unit for Rice: kg" — since a screen reader has no use for a visually
+compact placeholder. It is optimistic and is told the quantity to land in
+rather than "one more/one less", so the same press arriving twice — a double tap, a
+retry — leaves the cupboard saying what the thumb meant rather than applied again on top
+of itself. The name beside it opens an editor in place, the same way a list item's does
+— a name is the one thing on a row worth changing without a trip to a sheet, and a
+rename costing a menu, a dialog and a Save is a rename nobody makes. A refused rename
+(the household already keeps something under that name) needs no undoing: the
 optimistic name falls back to the stored one when the transition ends, and the row says
 why underneath itself. **Delete keeps the three dots to itself** — a destructive entry
 is the whole reason that menu exists, and it stays at the far end of the row where a
