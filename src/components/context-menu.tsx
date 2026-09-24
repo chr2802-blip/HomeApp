@@ -40,6 +40,7 @@ const EDGE = 8;
 export function ContextMenu({
   label,
   trigger,
+  triggerLabel,
   className = "",
   children,
 }: {
@@ -57,6 +58,13 @@ export function ContextMenu({
    * its own face styles it too — the dots' padding and colours belong to the dots.
    */
   trigger?: React.ReactNode;
+  /**
+   * An explicit name for the trigger button, for a `trigger` whose own visible words
+   * would not say which row it belongs to — the pantry's unit picker shows only "g",
+   * and several of those on one page need "Unit for Rice" to tell them apart. Left out,
+   * a `trigger` names itself from its own visible content, the way "Add to list" does.
+   */
+  triggerLabel?: string;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -145,7 +153,7 @@ export function ContextMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         data-ready={ready ? "true" : undefined}
-        aria-label={trigger ? undefined : say(APP.actionsFor, { name: label })}
+        aria-label={triggerLabel ?? (trigger ? undefined : say(APP.actionsFor, { name: label }))}
         onClick={() => {
           if (open) {
             setOpen(false);

@@ -28,6 +28,11 @@ const quantityGroup = (page: Page, name: string) =>
 const quantityBox = (page: Page, name: string) =>
   page.getByRole("spinbutton", { name: `Quantity of ${name}`, exact: true });
 
+/** The row's unit button, named for the row and folding in the unit currently chosen —
+ *  "Unit for Ris: No unit" — so a regex rather than an exact match finds it either way. */
+const unitButton = (page: Page, name: string) =>
+  page.getByRole("button", { name: new RegExp(`^Unit for ${name}:`) });
+
 /**
  * Presses a control until it takes.
  *
@@ -147,7 +152,7 @@ test("a quantity is counted in a unit, chosen from the row and kept on reload", 
     await written;
   });
 
-  // The select fires its own optimistic write the same way the stepper does, so a
+  // The unit menu fires its own optimistic write the same way the stepper does, so a
   // reload straight after it races the request still in flight — wait for the round
   // trip the same way `runOut` does before trusting what a reload shows.
   await retry(async () => {
@@ -155,13 +160,14 @@ test("a quantity is counted in a unit, chosen from the row and kept on reload", 
       (response) => response.request().method() === "POST" && response.url().includes("/pantry"),
       { timeout: 5_000 },
     );
-    await page.getByRole("combobox", { name: "Unit for Ris", exact: true }).selectOption("KG");
+    await unitButton(page, "Ris").click();
+    await page.getByRole("menuitem", { name: "kg", exact: true }).click();
     await written;
   });
 
   await page.reload();
   await expect(quantityBox(page, "Ris")).toHaveValue("2");
-  await expect(page.getByRole("combobox", { name: "Unit for Ris", exact: true })).toHaveValue("KG");
+  await expect(unitButton(page, "Ris")).toContainText("kg");
 });
 
 test("a name the household already keeps is refused, and the row says what it says", async ({
