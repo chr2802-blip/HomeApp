@@ -178,7 +178,7 @@ createServer((request, response) => {
       id: "msg_stub",
       type: "message",
       role: "assistant",
-      model: "claude-sonnet-5",
+      model: "claude-haiku-4-5",
       content: [{ type: "text", text: JSON.stringify(answer(sent)) }],
       stop_reason: "end_turn",
       stop_sequence: null,

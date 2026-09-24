@@ -5,9 +5,9 @@ import { readInZone } from "@/lib/time";
 import { DATE } from "@/lib/copy/dates";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 import { StorageAcrossHomes } from "@/components/storage-usage";
-import { AiSpendAcrossHomes } from "@/components/ai-spend";
+import { AiCallTimes, AiSpendAcrossHomes } from "@/components/ai-spend";
 import { sayIn, type Say } from "@/lib/copy/say";
-import { SYSTEM } from "@/lib/copy/admin";
+import { AI_TIMES, SYSTEM } from "@/lib/copy/admin";
 import { SETTINGS } from "@/lib/copy/settings";
 
 export const dynamic = "force-dynamic";
@@ -200,6 +200,13 @@ export default async function SystemPage() {
           {say(SETTINGS.aiSpendingHeading)}
         </h2>
         <AiSpendAcrossHomes language={user.homeLanguage} />
+      </section>
+
+      {/* How long each AI reader keeps the household waiting, per model, so a change of
+          model or effort is judged from what it did to the wait rather than guessed at. */}
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">{say(AI_TIMES.heading)}</h2>
+        <AiCallTimes language={user.homeLanguage} />
       </section>
 
       <section className="mb-8">

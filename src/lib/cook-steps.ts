@@ -42,17 +42,17 @@ import { ingredientLines, instructionLines } from "./recipes";
  */
 
 /**
- * Sonnet at `medium` effort with thinking, as the importer is and for the same reason:
- * moving every ingredient's preparation into the steps is a cross-reference over the whole
- * recipe, and `low` was found missing matches it should have caught when the importer did
- * the same job. It is still not inventing a dish.
+ * Haiku with no thinking, as the importer is and for the same reason: speed, bought knowing
+ * that moving every ingredient's preparation into the steps is a cross-reference Sonnet at
+ * `low` effort already missed matches on. See the importer's `MODEL` for the trade in full.
+ * Haiku 4.5 takes no `effort`, and leaving `thinking` out is what turns it off.
  */
-const MODEL = "claude-sonnet-5";
+const MODEL = "claude-haiku-4-5";
 
 /** Bounded, because somebody is watching a Save button. Milliseconds, as this SDK counts. */
 const PREPARE_TIMEOUT_MS = 30_000;
 
-/** Room for thinking and the answer both: an answer that stops short is refused whole. */
+/** Room for a long recipe's whole answer: an answer that stops short is refused whole. */
 const MAX_TOKENS = 8_000;
 
 /**
@@ -312,8 +312,7 @@ export async function prepareCookSteps(
         model: MODEL,
         max_tokens: MAX_TOKENS,
         system: systemPrompt(language),
-        thinking: { type: "adaptive" },
-        output_config: { format: zodOutputFormat(PreparedStepsSchema), effort: "medium" },
+        output_config: { format: zodOutputFormat(PreparedStepsSchema) },
         messages: [{ role: "user", content: userMessage(recipe) }],
       },
       { timeout: PREPARE_TIMEOUT_MS },

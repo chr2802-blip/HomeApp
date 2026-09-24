@@ -1,7 +1,9 @@
 import type { HomeLanguage } from "@prisma/client";
 import {
+  AI_TIMING_WINDOW_DAYS,
   MONTHLY_LIMIT_DKK,
   formatDkk,
+  getAiCallTimings,
   getHomeAiSpend,
   getInstallationAiSpend,
 } from "@/lib/ai-usage";
@@ -9,7 +11,7 @@ import { Card, EmptyState } from "@/components/ui";
 import { ProgressBar } from "@/components/progress-bar";
 import { HomeDot } from "@/components/home-dot";
 import { sayIn } from "@/lib/copy/say";
-import { AI_SPEND } from "@/lib/copy/admin";
+import { AI_SPEND, AI_TIMES } from "@/lib/copy/admin";
 
 /**
  * What the app's one AI feature — reading an imported recipe — is costing, against the
@@ -84,6 +86,56 @@ export async function AiSpendAcrossHomes({ language }: { language: HomeLanguage 
         ))}
       </Card>
       <Footnote language={language} />
+    </>
+  );
+}
+
+/** What each recorded `feature` is called on the page; one it does not know shows as recorded. */
+const FEATURE_NAME = { recipe_import: AI_TIMES.import, cook_steps: AI_TIMES.save } as const;
+
+/** Seconds to one decimal, with the decimal mark the household's own language writes. */
+function seconds(ms: number, language: HomeLanguage): string {
+  const s = new Intl.NumberFormat(language === "DA" ? "da-DK" : "en-GB", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(ms / 1000);
+  return sayIn(language)(AI_TIMES.seconds, { s });
+}
+
+/** How long each AI reader has kept the household waiting, per model, on the System page. */
+export async function AiCallTimes({ language }: { language: HomeLanguage }) {
+  const timings = await getAiCallTimings();
+  const say = sayIn(language);
+
+  return (
+    <>
+      {timings.length === 0 ? (
+        <EmptyState>{say(AI_TIMES.noneYet, { days: AI_TIMING_WINDOW_DAYS })}</EmptyState>
+      ) : (
+        <Card className="divide-y divide-slate-100 p-0">
+          {timings.map((row) => {
+            const name = FEATURE_NAME[row.feature as keyof typeof FEATURE_NAME];
+            return (
+              <div key={`${row.feature}-${row.model}`} className="px-4 py-3" data-timing={row.feature}>
+                <div className="flex flex-wrap items-baseline gap-x-2">
+                  <p className="font-medium">{name ? say(name) : row.feature}</p>
+                  <p className="min-w-0 flex-1 truncate text-xs text-slate-500">{row.model}</p>
+                  <span className="shrink-0 text-sm text-slate-500 tabular-nums">
+                    {say(AI_TIMES.calls, { count: row.calls })}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-slate-600 tabular-nums">
+                  {say(AI_TIMES.typicalAndSlowest, {
+                    typical: seconds(row.typicalMs, language),
+                    slowest: seconds(row.slowestMs, language),
+                  })}
+                </p>
+              </div>
+            );
+          })}
+        </Card>
+      )}
+      <p className="mt-3 text-xs text-slate-500">{say(AI_TIMES.footnote, { days: AI_TIMING_WINDOW_DAYS })}</p>
     </>
   );
 }

@@ -60,6 +60,31 @@ test.describe("the system page", () => {
     await expect(page.getByText(/The reminder job has not run yet/)).toBeVisible();
   });
 
+  test("says how long each AI reader keeps a household waiting, per model", async ({ page, loginAs }) => {
+    const db = prisma();
+    const home = await db.home.findFirstOrThrow();
+    const call = (feature: string, model: string, durationMs: number) =>
+      db.aiUsage.create({
+        data: { homeId: home.id, feature, model, inputTokens: 0, outputTokens: 0, costMicros: 0, durationMs },
+      });
+    await call("recipe_import", "claude-sonnet-5", 18_400);
+    await call("recipe_import", "claude-haiku-4-5", 4_000);
+    await call("recipe_import", "claude-haiku-4-5", 6_000);
+    await call("cook_steps", "claude-haiku-4-5", 3_200);
+
+    await loginAs(ACCOUNTS.superAdmin);
+    await page.goto("/admin/system");
+
+    const section = page.locator("section", { has: page.getByRole("heading", { name: "AI call times" }) });
+    const importHaiku = section.locator('[data-timing="recipe_import"]', { hasText: "claude-haiku-4-5" });
+    await expect(importHaiku).toContainText("2 calls");
+    await expect(importHaiku).toContainText("typical 5.0 s · slowest 6.0 s");
+    await expect(section.locator('[data-timing="recipe_import"]', { hasText: "claude-sonnet-5" })).toContainText(
+      "typical 18.4 s",
+    );
+    await expect(section.locator('[data-timing="cook_steps"]')).toContainText("Save");
+  });
+
   test("is reachable from the admin page", async ({ page, loginAs }) => {
     await loginAs(ACCOUNTS.superAdmin);
     await prisma().user.update({

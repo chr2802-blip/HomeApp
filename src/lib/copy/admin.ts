@@ -128,6 +128,30 @@ export const AI_SPEND = {
   noHomesYet: { EN: "No homes yet.", DA: "Ingen hjem endnu." },
 } as const satisfies Record<string, Phrase>;
 
+/** Admin → System: how long the household waits on each AI reader. */
+export const AI_TIMES = {
+  heading: { EN: "AI call times", DA: "AI-svartider" },
+  import: { EN: "Import", DA: "Import" },
+  save: { EN: "Save", DA: "Gem" },
+  calls: {
+    EN: { one: "{count} call", other: "{count} calls" },
+    DA: { one: "{count} kald", other: "{count} kald" },
+  },
+  typicalAndSlowest: {
+    EN: "typical {typical} · slowest {slowest}",
+    DA: "typisk {typical} · langsomst {slowest}",
+  },
+  seconds: { EN: "{s} s", DA: "{s} sek." },
+  noneYet: {
+    EN: "No timed calls in the last {days} days yet.",
+    DA: "Ingen målte kald de seneste {days} dage endnu.",
+  },
+  footnote: {
+    EN: "The last {days} days. Only calls that finished are counted: one that timed out never reports its time, so the slowest real wait can be longer than shown.",
+    DA: "De seneste {days} dage. Kun kald, der blev færdige, tælles med: et kald, der fik timeout, melder aldrig sin tid, så den langsomste reelle ventetid kan være længere end vist.",
+  },
+} as const satisfies Record<string, Phrase | Plural>;
+
 export const REMINDERS = {
   noOneNotified: { EN: "no one will be notified", DA: "ingen bliver underrettet" },
   notificationsOn: { EN: "notifications on", DA: "notifikationer slået til" },

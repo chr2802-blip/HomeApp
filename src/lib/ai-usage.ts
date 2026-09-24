@@ -25,6 +25,7 @@ import { monthStartInstant } from "./time";
  */
 const PRICE_PER_MTOK_USD: Record<string, { input: number; output: number }> = {
   "claude-sonnet-5": { input: 2, output: 10 },
+  "claude-haiku-4-5": { input: 1, output: 5 },
 };
 
 /** What a call to a model this app has never priced is charged: nothing, rather than a guess. */
@@ -170,6 +171,56 @@ export async function getInstallationAiSpend(now: Date = new Date()): Promise<In
       .map((home) => ({ ...home, ...toSpend(perHome.get(home.id) ?? 0) }))
       .sort((a, b) => b.costMicros - a.costMicros || a.name.localeCompare(b.name)),
   };
+}
+
+/** How far back the System page's AI call times look. */
+export const AI_TIMING_WINDOW_DAYS = 30;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** How long one kind of call took, for one model: `feature` is what asked, as recorded. */
+export type AiCallTiming = {
+  feature: string;
+  model: string;
+  calls: number;
+  typicalMs: number;
+  slowestMs: number;
+};
+
+/**
+ * How long the household waited on each reader, per model, over the last
+ * `AI_TIMING_WINDOW_DAYS`: the median as the typical wait, and the slowest.
+ *
+ * Split by model as well as by feature, because the point of measuring was to compare
+ * one model against the next, and a median taken across both would describe neither.
+ * The median rather than the mean, so one pathological page is the slowest row and not
+ * everybody's typical wait. Raw SQL because Prisma has no percentile; across homes on
+ * purpose, as `getInstallationAiSpend` is — this is the super admin's System view.
+ *
+ * Only calls that came back are here: one that timed out never got a row, so the real
+ * slowest wait can be longer than `slowestMs` says.
+ */
+export async function getAiCallTimings(now: Date = new Date()): Promise<AiCallTiming[]> {
+  const since = new Date(now.getTime() - AI_TIMING_WINDOW_DAYS * DAY_MS);
+  const rows = await prisma.$queryRaw<
+    { feature: string; model: string; calls: number; typical: number; slowest: number }[]
+  >`
+    SELECT "feature", "model",
+           count(*)::int AS "calls",
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY "durationMs") AS "typical",
+           max("durationMs") AS "slowest"
+    FROM "AiUsage"
+    WHERE "durationMs" IS NOT NULL AND "createdAt" >= ${since}
+    GROUP BY "feature", "model"
+    ORDER BY "feature", "model"
+  `;
+  return rows.map((row) => ({
+    feature: row.feature,
+    model: row.model,
+    calls: row.calls,
+    typicalMs: Math.round(row.typical),
+    slowestMs: row.slowest,
+  }));
 }
 
 /**

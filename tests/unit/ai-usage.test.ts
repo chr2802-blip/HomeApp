@@ -8,6 +8,12 @@ describe("costMicros", () => {
     expect(costMicros("claude-sonnet-5", 0, 1_000_000)).toBe(10_000_000);
   });
 
+  it("prices Haiku 4.5 at its own rate, and still prices the Sonnet rows stored before it", () => {
+    // $1/MTok in, $5/MTok out.
+    expect(costMicros("claude-haiku-4-5", 1_000_000, 0)).toBe(1_000_000);
+    expect(costMicros("claude-haiku-4-5", 0, 1_000_000)).toBe(5_000_000);
+  });
+
   it("rounds once, to the nearest millionth of a dollar", () => {
     expect(costMicros("claude-sonnet-5", 3000, 1500)).toBe(21_000);
   });
