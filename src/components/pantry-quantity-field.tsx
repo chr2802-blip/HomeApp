@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { HomeLanguage, PantryUnit } from "@prisma/client";
+import { ContextMenu, MenuItem } from "@/components/context-menu";
 import { MAX_PANTRY_QUANTITY, PANTRY_UNITS, clampPantryQuantity } from "@/lib/pantry";
 import { sayIn } from "@/lib/copy/say";
 import { PANTRY, PANTRY_UNIT_LABELS } from "@/lib/copy/pantry";
@@ -15,6 +16,13 @@ import { PANTRY, PANTRY_UNIT_LABELS } from "@/lib/copy/pantry";
  * unit is offered only from `PANTRY_UNITS`, and "no unit" is its own choice — a plain
  * count ("3") is as valid an answer as a measured one ("500 g"), the same reason a
  * counted recipe ingredient carries no unit either.
+ *
+ * The unit picker is `ContextMenu`, not a bare `<select>`: a native select sizes its
+ * closed box to its *widest possible option* rather than what it is showing, so
+ * offering "Bunch"/"None" made every row's box as wide as those words even while
+ * showing "g" — which is what left no room for the name beside it. `ContextMenu`'s
+ * trigger is exactly as wide as whatever unit this one row is actually showing, so most
+ * rows stay narrow and only a row genuinely set to a longer word spends the space.
  *
  * Optimistic the same way `AmountPicker` is, and for the same reason: this is tapped
  * with a thumb on the way past, and a control that waits for the server to agree gets
@@ -53,6 +61,7 @@ export function PantryQuantityField({
   }
 
   const step = (by: number) => () => commit(quantity + by);
+  const unitLabel = unit ? say(PANTRY_UNIT_LABELS[unit]) : say(PANTRY.noUnit);
 
   return (
     <div className="flex shrink-0 items-center gap-1">
@@ -87,7 +96,7 @@ export function PantryQuantityField({
           }}
           // The spinners are tiny, sit where the thumb already is, and duplicate the
           // two buttons either side of them.
-          className="w-6 [appearance:textfield] border-0 bg-transparent p-0 text-center text-sm tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          className="w-7 [appearance:textfield] border-0 bg-transparent p-0 text-center text-sm tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
         <button
           type="button"
@@ -100,26 +109,58 @@ export function PantryQuantityField({
         </button>
       </div>
 
-      <select
-        value={unit ?? ""}
-        onChange={(event) => {
-          const value = event.target.value;
-          onChange(quantity, value === "" ? null : (value as PantryUnit));
-        }}
-        aria-label={say(PANTRY.unitAria, { name: label })}
-        // A bare `<select>` sizes itself to its widest *option*, not its shown value —
-        // so "Ingen enhed" made every row's box the same width as its own, whatever it
-        // was showing. Fixed and truncated instead: the name beside it is what a
-        // household is actually scanning the column for.
-        className="h-9 w-12 shrink-0 truncate rounded-lg border border-slate-300 bg-white pl-1 text-sm text-slate-700 outline-none focus-visible:border-slate-500"
+      <ContextMenu
+        label={say(PANTRY.unitAria, { name: label, value: unitLabel })}
+        triggerLabel={say(PANTRY.unitAria, { name: label, value: unitLabel })}
+        className="pressable flex h-9 items-center gap-0.5 rounded-lg border border-slate-300 bg-white pr-1.5 pl-2 text-sm text-slate-700 hover:bg-slate-50"
+        trigger={
+          <>
+            {/* The dash is a placeholder glyph, not a word, so it needs no language of
+                its own — the same reason "−"/"+" beside it are written plainly. The
+                accessible name above carries the real value ("No unit") instead, since
+                a screen reader has no use for a visually compact placeholder. */}
+            <span className="max-w-20 truncate">{unit ? unitLabel : "–"}</span>
+            <svg
+              viewBox="0 0 20 20"
+              className="h-3.5 w-3.5 shrink-0 text-slate-400"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden="true"
+            >
+              <path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </>
+        }
       >
-        <option value="">{say(PANTRY.noUnit)}</option>
+        <MenuItem onSelect={() => onChange(quantity, null)}>
+          <UnitCheck checked={unit === null} />
+          {say(PANTRY.noUnit)}
+        </MenuItem>
         {PANTRY_UNITS.map((value) => (
-          <option key={value} value={value}>
+          <MenuItem key={value} onSelect={() => onChange(quantity, value)}>
+            <UnitCheck checked={unit === value} />
             {say(PANTRY_UNIT_LABELS[value])}
-          </option>
+          </MenuItem>
         ))}
-      </select>
+      </ContextMenu>
     </div>
+  );
+}
+
+/** Which unit is already chosen, marked the way a native `<select>` marks it in its own
+ *  dropdown — `ContextMenu`'s panel has no notion of a "current" entry otherwise. */
+function UnitCheck({ checked }: { checked: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      className="h-4 w-4 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      aria-hidden="true"
+    >
+      {checked && <path d="M4 10l4 4 8-8" strokeLinecap="round" strokeLinejoin="round" />}
+    </svg>
   );
 }

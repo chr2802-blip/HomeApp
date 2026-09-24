@@ -45,8 +45,11 @@ export const PANTRY = {
   quantityAria: { EN: "Quantity of {name}", DA: "Mængde af {name}" },
   decreaseQuantity: { EN: "Decrease {name}", DA: "Formindsk {name}" },
   increaseQuantity: { EN: "Increase {name}", DA: "Forøg {name}" },
-  unitAria: { EN: "Unit for {name}", DA: "Enhed for {name}" },
-  noUnit: { EN: "None", DA: "Ingen" },
+  // The value is folded in rather than left to the visible trigger, whose own text
+  // stays short on purpose (a dash for "no unit") — a screen reader still has to be
+  // told what is chosen, which the dash alone does not say.
+  unitAria: { EN: "Unit for {name}: {value}", DA: "Enhed for {name}: {value}" },
+  noUnit: { EN: "No unit", DA: "Ingen enhed" },
   editAria: { EN: "Edit {name}", DA: "Rediger {name}" },
   removeTitle: { EN: "Remove from pantry", DA: "Fjern fra spisekammer" },
   removeMessage: {
