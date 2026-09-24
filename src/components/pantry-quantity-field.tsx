@@ -87,7 +87,7 @@ export function PantryQuantityField({
           }}
           // The spinners are tiny, sit where the thumb already is, and duplicate the
           // two buttons either side of them.
-          className="w-8 [appearance:textfield] border-0 bg-transparent p-0 text-center text-sm tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          className="w-6 [appearance:textfield] border-0 bg-transparent p-0 text-center text-sm tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
         <button
           type="button"
@@ -107,7 +107,11 @@ export function PantryQuantityField({
           onChange(quantity, value === "" ? null : (value as PantryUnit));
         }}
         aria-label={say(PANTRY.unitAria, { name: label })}
-        className="h-9 rounded-lg border border-slate-300 bg-white px-1 text-sm text-slate-700 outline-none focus-visible:border-slate-500"
+        // A bare `<select>` sizes itself to its widest *option*, not its shown value —
+        // so "Ingen enhed" made every row's box the same width as its own, whatever it
+        // was showing. Fixed and truncated instead: the name beside it is what a
+        // household is actually scanning the column for.
+        className="h-9 w-12 shrink-0 truncate rounded-lg border border-slate-300 bg-white pl-1 text-sm text-slate-700 outline-none focus-visible:border-slate-500"
       >
         <option value="">{say(PANTRY.noUnit)}</option>
         {PANTRY_UNITS.map((value) => (

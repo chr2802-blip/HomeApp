@@ -46,7 +46,7 @@ export const PANTRY = {
   decreaseQuantity: { EN: "Decrease {name}", DA: "Formindsk {name}" },
   increaseQuantity: { EN: "Increase {name}", DA: "Forøg {name}" },
   unitAria: { EN: "Unit for {name}", DA: "Enhed for {name}" },
-  noUnit: { EN: "No unit", DA: "Ingen enhed" },
+  noUnit: { EN: "None", DA: "Ingen" },
   editAria: { EN: "Edit {name}", DA: "Rediger {name}" },
   removeTitle: { EN: "Remove from pantry", DA: "Fjern fra spisekammer" },
   removeMessage: {
