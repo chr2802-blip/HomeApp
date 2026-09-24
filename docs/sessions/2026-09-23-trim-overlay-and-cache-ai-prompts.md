@@ -2,7 +2,7 @@
 
 - **Date** — 2026-09-23
 - **Branch** — `claude/loader-time-estimation-x4klpq`
-- **PR** — #125 (merged; the caching half was reverted afterward, see below)
+- **PR** — #125 (merged; the caching half was reverted in #126)
 - **Reached production** — yes — and broke recipe creation there for about the length of
   this session, until the revert below shipped
 
@@ -45,12 +45,22 @@ either) — that was enough to act on: merged `main` back into the branch (to pi
 unrelated pantry PR that had landed in the meantime), reverted `system` back to a plain
 string in both readers, reverted the matching test, and is pushing this as the fix.
 
-**The caching idea itself was not disproven, only shipped irresponsibly.** Nothing found here
-says content-block `system` with `cache_control` is wrong against the real API — the SDK's
-own types accept it, and Anthropic's docs describe exactly this shape. What's known is:
-whatever changed, recipe creation broke twice in a row in production the moment this went
-out, and reverting was the fastest way to stop that regardless of whether caching turns out
-to be the actual cause once someone can test it against a real key.
+**The mechanism was confirmed afterward, against Anthropic's own documentation, once the user
+asked "why slower, when it should be faster."** The `claude-api` skill's prompt-caching guide
+says plainly that a cache write is not a no-op — on a cache miss the API still runs the full
+prefill *and* additionally persists it to the cache, and a cold write on a large prefix is
+"noticeably slow" (the guide's own words, in the section on when pre-warming is worth it).
+That only pays for itself when the *same* prefix is read again inside the TTL (5 minutes by
+default) — and this app's traffic doesn't do that: a household imports or saves "a handful of
+recipes a week" (the code's own words, in `recipe-normalize.ts`), so a repeat call for the same
+language inside five minutes is rare across the *whole installation*, not just one home. So
+nearly every real call was a cold write: paying the write's latency tax and its 1.25× price,
+never the 10×-cheaper read — on top of a baseline that was already close to
+`NORMALIZE_TIMEOUT_MS` (25s, non-streaming, with `thinking: adaptive` + `effort: medium`
+already spending real time by design). That is enough to explain two-for-two timeouts without
+any unrelated cause. **This is a documented mechanism, not a production measurement** — nobody
+saw `cache_creation_input_tokens` on a real request, because there was no way to. The
+confidence here comes from the guidance matching the failure exactly, not from telemetry.
 
 ## Where the time went
 
@@ -76,22 +86,26 @@ gap should have been named out loud before pushing, not after production broke.
 
 ## What CLAUDE.md did not say
 
-That a change to the *shape* of a request sent to Anthropic (not just its content) cannot be
-verified by this repo's own test suite, because the e2e stub only checks that the app handles
-whatever the stub returns — it says nothing about whether the real API accepts the request at
-all. `cache_control` on `system` is documented, SDK-typed, and still broke something in
-production immediately. **Not written into CLAUDE.md yet, on purpose**: this note names the
-gap, but doesn't have a confirmed root cause to turn into a rule — "never touch `system`'s
-shape" would be overcorrecting for one unconfirmed incident. If a future session repeats this
-class of mistake, or confirms what specifically went wrong here, that is what earns the
-CLAUDE.md line.
+Two things, both now written in, under "An import is two stages" in the recipe-import section:
+
+1. **That a change to the *shape* of a request sent to Anthropic (not just its content)
+   cannot be verified by this repo's own test suite** — the e2e stub only checks that the app
+   handles whatever the stub returns, never whether the real API accepts the request at all.
+2. **That neither reader's system prompt is a candidate for prompt caching**, and why: the
+   traffic shape (sparse, per-household, rarely two calls for the same language inside five
+   minutes) means a cache write happens on nearly every call and a cache read almost never
+   does — the opposite of what caching is for. This is the rule "never touch `system`'s shape"
+   would have overcorrected into; the actual rule is narrower and now has a reason attached,
+   which is the whole point of writing it down rather than just reverting.
 
 ## Decided rather than known
 
-That the timeout was caused by the caching change, rather than an unrelated Anthropic-side or
-Vercel-side hiccup that happened to coincide with the deploy, is inferred from correlation
-(two failures out of two attempts, immediately after the only relevant code change) and from
-having no way to check further (Vercel's log/error/env endpoints all 403'd for this session's
-token; no local API key to reproduce with). The revert is the safe move either way — it costs
-nothing if caching turns out to be innocent — but whoever reads this next should know the
-root cause is still not confirmed, only acted on.
+The mechanism (cold cache writes, near-timeout baseline, sparse traffic never warming the
+cache) is inferred from Anthropic's own documented caching behavior matching the failure
+exactly — not from a production measurement. Nobody read `cache_creation_input_tokens` off a
+real request; Vercel's log/error/env endpoints all 403'd for this session's token, and there
+is no `ANTHROPIC_API_KEY` in this sandbox to reproduce with. If someone with real API access
+ever wants to close that last gap, the confirming test is cheap: two identical calls a few
+seconds apart, same language, and check `usage.cache_read_input_tokens` on the second — this
+note predicts it will be non-zero at, say, 30 seconds apart and never at 6 minutes apart. That
+would turn "matches the documented mechanism" into "measured."

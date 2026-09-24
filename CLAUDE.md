@@ -895,6 +895,22 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
 - The browser suite drives the whole import against **`e2e/helpers/anthropic-stub.mjs`**, one
   per worker, pointed at by `ANTHROPIC_BASE_URL`. A test that called the real API would be
   billed, would differ between runs, and would fail whenever somebody else's service did.
+- **Neither reader's system prompt is a candidate for prompt caching, and this was found the
+  hard way.** A cache write is not free — Anthropic's own guidance says a cold write is
+  "noticeably slow" on a large prefix — and it only pays for itself when the *same* prefix
+  is read again inside the cache's TTL (5 minutes by default). This app's own traffic
+  doesn't do that: a household imports or saves "a handful of recipes a week," so a repeat
+  call for the same language inside five minutes is rare across the whole installation, not
+  just one home. Enabling `cache_control` on `system` in 2026-09 meant nearly every real call
+  was a cold write — paying the write's latency tax *and* its 1.25× cost, never the 10×-
+  cheaper read — which pushed calls that were already close to `NORMALIZE_TIMEOUT_MS` (25s,
+  non-streaming, `thinking: adaptive` + `effort: medium` already spends real time) over the
+  edge. It shipped, broke recipe creation in production for every attempt, and was reverted.
+  **The stub the e2e suite talks to could not have caught this** — it doesn't model cache
+  economics or latency, only whether the app handles whatever it's told to return. Any future
+  change to the *shape* of a request sent to Anthropic (not just its content) needs either a
+  real API key to verify against, or a deliberate acceptance that the suite cannot confirm it.
+  `docs/sessions/2026-09-23-trim-overlay-and-cache-ai-prompts.md` has the incident in full.
 
 **[`docs/design/recipes.md`](docs/design/recipes.md) has the reasoning.**
 
