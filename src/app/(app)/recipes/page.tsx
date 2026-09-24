@@ -7,6 +7,7 @@ import { NewRecipeDialog } from "@/components/new-recipe-dialog";
 import { RecipeDirectory, type RecipeSummary } from "@/components/recipe-directory";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
+import { isInFormat } from "@/lib/cook";
 
 /**
  * An import runs as a server action from this page, and it is the one thing in this app
@@ -50,6 +51,7 @@ export default async function RecipesPage() {
     videoUrl: recipe.videoUrl,
     hasVideo: Boolean(parseSocialEmbed(recipe.videoUrl)),
     totalTimeMinutes: recipe.totalTimeMinutes,
+    inFormat: isInFormat(recipe.cookSteps),
   }));
 
   return (

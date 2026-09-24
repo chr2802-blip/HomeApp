@@ -17,11 +17,15 @@ export function useFormAction(
 ) {
   const [state, setState] = useState<ActionResult>(undefined);
   const [pending, startTransition] = useTransition();
+  // What was sent last, for a caller whose pending state depends on what was asked —
+  // `aiWaitActive` draws the AI wait only for a save that will actually be read.
+  const [submitted, setSubmitted] = useState<FormData | null>(null);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
+    setSubmitted(data);
 
     startTransition(async () => {
       // An action that redirects never returns; Next unwinds the call and navigates.
@@ -31,5 +35,5 @@ export function useFormAction(
     });
   }
 
-  return { state, pending, handleSubmit };
+  return { state, pending, submitted, handleSubmit };
 }

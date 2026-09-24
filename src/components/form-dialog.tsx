@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AiOverlay, type AiWait } from "@/components/ai-overlay";
+import { AiOverlay, aiWaitActive, type AiWait } from "@/components/ai-overlay";
 import { Modal, ModalBody, ModalFooter } from "@/components/modal";
 import { Button, IconButton } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
@@ -65,7 +65,7 @@ export function DialogForm({
   const language = useLanguage();
   // Close only once the action reports success. A rejected submission leaves the
   // dialog open, with the reason and everything already typed still in place.
-  const { state, pending, handleSubmit } = useFormAction(action, { onSuccess: onDone });
+  const { state, pending, submitted, handleSubmit } = useFormAction(action, { onSuccess: onDone });
 
   return (
     <form onSubmit={handleSubmit} className="relative flex min-h-0 flex-1 flex-col">
@@ -85,7 +85,7 @@ export function DialogForm({
           </Button>
         </div>
       </ModalFooter>
-      {overlay && <AiOverlay active={pending} {...overlay} />}
+      {overlay && <AiOverlay active={aiWaitActive(overlay, pending, submitted)} wait={overlay} />}
     </form>
   );
 }

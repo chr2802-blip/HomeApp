@@ -116,7 +116,7 @@ export function RecipeImportField({
           own label reads as "still working", so the wait takes the whole screen — the
           same one a save wears, since it is the same reader at work.
         */}
-        <AiOverlay active={pending} {...recipeImportOverlay(language)} />
+        <AiOverlay active={pending} wait={recipeImportOverlay(language)} />
         {error && (
           <p role="alert" className="text-sm text-red-600">
             {error}
