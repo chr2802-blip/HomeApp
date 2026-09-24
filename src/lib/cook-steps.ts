@@ -306,13 +306,12 @@ export async function prepareCookSteps(
   let cutShort = false;
   try {
     const client = new Anthropic({ maxRetries: 1 });
+    const started = performance.now();
     const response = await client.messages.parse(
       {
         model: MODEL,
         max_tokens: MAX_TOKENS,
-        // Cached: this prompt is the same for every household saving in this language, so
-        // one write is reused by every read within the TTL, across homes.
-        system: [{ type: "text", text: systemPrompt(language), cache_control: { type: "ephemeral" } }],
+        system: systemPrompt(language),
         thinking: { type: "adaptive" },
         output_config: { format: zodOutputFormat(PreparedStepsSchema), effort: "medium" },
         messages: [{ role: "user", content: userMessage(recipe) }],
@@ -327,6 +326,7 @@ export async function prepareCookSteps(
       MODEL,
       response.usage.input_tokens,
       response.usage.output_tokens,
+      performance.now() - started,
     );
   } catch (error) {
     // Told apart the same way the importer tells them apart: the far end failing passes,

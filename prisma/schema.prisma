@@ -596,6 +596,8 @@ model AiUsage {
   outputTokens Int
   /// USD, in millionths of a dollar.
   costMicros   Int
+  /// Wall-clock time of the call as the household waited for it, retries included. Null on rows written before it was measured.
+  durationMs   Int?
   createdAt    DateTime @default(now())
 
   home Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
