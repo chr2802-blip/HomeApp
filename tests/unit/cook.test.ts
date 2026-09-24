@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clockLabel, cookSteps, isPrepared } from "@/lib/cook";
+import { clockLabel, cookSteps, isPrepared, needsReading, readingStands } from "@/lib/cook";
 
 /**
  * What action mode will and will not show.
@@ -159,5 +159,43 @@ describe("a recipe with no instructions at all", () => {
 
     expect(cookSteps(video)).toEqual([]);
     expect(isPrepared(video)).toBe(false);
+  });
+});
+
+/**
+ * Whether a save spends a model call. `readingStands` is what `updateRecipe` skips the
+ * reader by, and `needsReading` is what the form draws the AI wait by — the same rule, so
+ * the wait is never shown for a save that does not wait on anything.
+ */
+describe("which saves the AI reads", () => {
+  const saved = { ...RECIPE, inFormat: true };
+
+  it("reads a new recipe that has something to read", () => {
+    expect(needsReading(RECIPE, null)).toBe(true);
+  });
+
+  it("reads nothing where there is nothing to read", () => {
+    expect(needsReading({ ingredients: " \n", instructions: "" }, null)).toBe(false);
+  });
+
+  it("skips a save that left the ingredients and steps of a read recipe alone", () => {
+    expect(readingStands(RECIPE, saved)).toBe(true);
+    expect(needsReading(RECIPE, saved)).toBe(false);
+  });
+
+  it("treats a textarea's line endings and stray blank lines as no change", () => {
+    const typed = { ...RECIPE, ingredients: "400 g pasta\r\n2 dl fløde\r\n\r\nSalt\r\n" };
+    expect(needsReading(typed, saved)).toBe(false);
+  });
+
+  it.each([
+    ["ingredients", { ingredients: "500 g pasta\n2 dl fløde\nSalt" }],
+    ["instructions", { instructions: "Kog pastaen." }],
+  ])("reads a save that changed the %s", (_, change) => {
+    expect(needsReading({ ...RECIPE, ...change }, saved)).toBe(true);
+  });
+
+  it("reads a recipe never read into the format, whatever the edit", () => {
+    expect(needsReading(RECIPE, { ...saved, inFormat: false })).toBe(true);
   });
 });

@@ -40,6 +40,49 @@ export function isInFormat(cookSteps: unknown): boolean {
   return read.success && read.data.v === IN_FORMAT;
 }
 
+/** What a stored reading covers: the text it read, and whether that text is in the format. */
+export type SavedReading = { ingredients: string; instructions: string; inFormat: boolean };
+
+/** Two blocks of recipe text as the reader sees them: the same lines, ignoring a
+ *  textarea's `\r\n` and blank lines. */
+function sameLines(a: string, b: string) {
+  const left = ingredientLines(a);
+  const right = ingredientLines(b);
+  return left.length === right.length && left.every((line, index) => line === right[index]);
+}
+
+/**
+ * Whether a reading already stands for what is being saved: text already read into the
+ * format, and ingredients and steps left line for line as they were. A title, a picture or
+ * a category is nothing the reader looks at. This is what lets `updateRecipe` skip the
+ * reader — and a recipe never read in the format (`inFormat` false) is read whatever the
+ * edit, which is how one stored before the format existed is brought in.
+ */
+export function readingStands(
+  submitted: { ingredients: string; instructions: string },
+  saved: SavedReading | null | undefined,
+): boolean {
+  return Boolean(
+    saved?.inFormat &&
+      sameLines(submitted.ingredients, saved.ingredients) &&
+      sameLines(submitted.instructions, saved.instructions),
+  );
+}
+
+/**
+ * Whether saving this spends a model call — **the question the AI wait asks**, so it is
+ * drawn only for a save the AI is actually working on. It is `readingStands` turned round,
+ * the rule the save itself skips the reader by, plus the one other case the reader answers
+ * without the model: a recipe with no ingredients and no steps has nothing to read.
+ */
+export function needsReading(
+  submitted: { ingredients: string; instructions: string },
+  saved: SavedReading | null | undefined,
+): boolean {
+  const anything = ingredientLines(submitted.ingredients).length || instructionLines(submitted.instructions).length;
+  return Boolean(anything) && !readingStands(submitted, saved);
+}
+
 /** The shape stored in `Recipe.cookSteps`, as written. Nothing here narrows: the column
  *  is read back defensively below, because a row written by an older version of this
  *  app is exactly the case the guards exist for. */

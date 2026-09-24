@@ -1,7 +1,7 @@
 "use client";
 
 import type { HomeLanguage } from "@prisma/client";
-import { AiOverlay } from "@/components/ai-overlay";
+import { AiOverlay, aiWaitActive } from "@/components/ai-overlay";
 import { Button, Card } from "@/components/ui";
 import {
   recipeSaveOverlay,
@@ -27,7 +27,8 @@ export function RecipeForm({
   submitLabel: string;
   language: HomeLanguage;
 }) {
-  const { state, pending, handleSubmit } = useFormAction(action);
+  const { state, pending, submitted, handleSubmit } = useFormAction(action);
+  const wait = recipeSaveOverlay(language, recipe);
   const say = sayIn(language);
 
   return (
@@ -44,7 +45,7 @@ export function RecipeForm({
           {pending ? say(RECIPES.saving) : submitLabel}
         </Button>
       </form>
-      <AiOverlay active={pending} {...recipeSaveOverlay(language)} />
+      <AiOverlay active={aiWaitActive(wait, pending, submitted)} wait={wait} />
     </Card>
   );
 }
