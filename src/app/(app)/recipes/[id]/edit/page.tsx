@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui";
 import { RecipeForm } from "@/components/recipe-form";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
+import { isInFormat } from "@/lib/cook";
 
 /**
  * Saving a recipe now reads it as well: the steps are prepared for action mode in the
@@ -40,7 +41,11 @@ export default async function EditRecipePage({ params }: { params: Promise<{ id:
       <PageHeader title={say(RECIPES.editRecipe)} />
       <RecipeForm
         action={updateRecipe}
-        recipe={{ ...recipe, categoryIds: recipe.categories.map((filed) => filed.categoryId) }}
+        recipe={{
+          ...recipe,
+          categoryIds: recipe.categories.map((filed) => filed.categoryId),
+          inFormat: isInFormat(recipe.cookSteps),
+        }}
         categories={categories}
         submitLabel={say(RECIPES.saveChanges)}
         language={user.homeLanguage}

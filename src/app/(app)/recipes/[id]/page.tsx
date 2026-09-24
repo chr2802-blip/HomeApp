@@ -14,6 +14,7 @@ import { ScreenAwakeToggle } from "@/components/screen-awake-toggle";
 import { ingredientLines, instructionLines, timeLabel } from "@/lib/recipes";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
+import { isInFormat } from "@/lib/cook";
 
 /**
  * Editing a recipe runs as a server action from this page, and saving one now reads its
@@ -89,7 +90,10 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
             label={recipe.title}
             editTitle={say(RECIPES.editRecipe)}
             editAction={updateRecipe}
-            editOverlay={recipeSaveOverlay(user.homeLanguage)}
+            editOverlay={recipeSaveOverlay(user.homeLanguage, {
+              ...recipe,
+              inFormat: isInFormat(recipe.cookSteps),
+            })}
             deleteAction={deleteRecipe}
             deleteMessage={say(RECIPES.deleteRecipeMessage, { title: recipe.title })}
             extraItems={<AddToMealPlanMenuItem recipeId={recipe.id} />}

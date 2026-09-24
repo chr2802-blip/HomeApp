@@ -199,7 +199,7 @@ export function NewRecipeDialog({
             submitLabel={say(RECIPES.saveRecipe)}
             onDone={close}
             onCancel={close}
-            overlay={recipeSaveOverlay(language)}
+            overlay={recipeSaveOverlay(language, initial)}
           >
             {/*
               What the import thought was worth a second look — a description that stopped

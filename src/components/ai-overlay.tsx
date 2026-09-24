@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { needsReading, type SavedReading } from "@/lib/cook";
 
 /**
  * What an AI wait tells the person waiting: the headline, one sentence of why, the
@@ -13,7 +14,25 @@ export type AiWait = {
   detail: string;
   stages: string[];
   expectedSeconds: number;
+  /**
+   * For a recipe save, the reading already stored (or carried by an import) — so the
+   * wait is drawn only for a submission that will actually be read (`needsReading`),
+   * never for one the server answers without the model. Absent for a wait that always
+   * spends a call, like an import.
+   */
+  reads?: { saved: SavedReading | null };
 };
+
+/**
+ * Whether this submission is one the AI is working on: pending, and — for a save — one
+ * `needsReading` says the server will actually send to the reader.
+ */
+export function aiWaitActive(wait: AiWait | undefined, pending: boolean, submitted: FormData | null) {
+  if (!wait || !pending) return false;
+  if (!wait.reads || !submitted) return true;
+  const field = (name: string) => String(submitted.get(name) ?? "");
+  return needsReading({ ingredients: field("ingredients"), instructions: field("instructions") }, wait.reads.saved);
+}
 
 /** How long each stage line stays up before the next one takes over. */
 const STAGE_MS = 2800;
@@ -32,7 +51,7 @@ const STAGE_MS = 2800;
  * the end: it is paced by `expectedSeconds` and is a promise that something is moving,
  * not a measurement, so it must never sit at 100% while the request is still out.
  */
-export function AiOverlay({ active, ...wait }: { active: boolean } & AiWait) {
+export function AiOverlay({ active, wait }: { active: boolean; wait: AiWait }) {
   if (!active) return null;
   return createPortal(<AiWaitScreen {...wait} />, document.body);
 }
@@ -55,7 +74,7 @@ function AiWaitScreen({ title, detail, stages, expectedSeconds }: AiWait) {
       role="status"
       aria-live="polite"
       data-testid="ai-overlay"
-      className="animate-backdrop-in fixed inset-0 z-[60] flex flex-col items-center justify-center overflow-hidden bg-white/95 px-6 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-center backdrop-blur-md"
+      className="ai-overlay animate-backdrop-in fixed inset-0 z-[60] flex flex-col items-center justify-center overflow-hidden bg-white/95 px-6 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-center backdrop-blur-md"
     >
       <div aria-hidden="true" className="ai-aurora pointer-events-none absolute -inset-1/3" />
 
@@ -74,15 +93,15 @@ function AiWaitScreen({ title, detail, stages, expectedSeconds }: AiWait) {
           className="ai-sparkle absolute left-1/2 top-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2"
         >
           <path
-            fill="var(--accent)"
+            style={{ fill: "var(--accent)" }}
             d="M12 2.5c.5 4.6 2.9 7 7.5 7.5-4.6.5-7 2.9-7.5 7.5-.5-4.6-2.9-7-7.5-7.5 4.6-.5 7-2.9 7.5-7.5Z"
           />
           <path
-            fill="#8b5cf6"
+            style={{ fill: "var(--ai-light)" }}
             d="M18.5 14.5c.2 1.8 1.2 2.8 3 3-1.8.2-2.8 1.2-3 3-.2-1.8-1.2-2.8-3-3 1.8-.2 2.8-1.2 3-3Z"
           />
           <path
-            fill="#06b6d4"
+            style={{ fill: "var(--ai-deep)" }}
             d="M5.5 15.5c.15 1.3.9 2 2.2 2.2-1.3.15-2.05.9-2.2 2.2-.15-1.3-.9-2.05-2.2-2.2 1.3-.2 2.05-.9 2.2-2.2Z"
           />
         </svg>

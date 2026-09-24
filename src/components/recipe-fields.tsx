@@ -21,6 +21,9 @@ export type RecipeValues = {
   totalTimeMinutes?: number | null;
   /** An import's signed reading of the ingredients and steps — see `READING_FIELD`. */
   reading?: string | null;
+  /** Whether its stored text was read into the one format (`isInFormat`) — what lets a
+   *  save that leaves the ingredients and steps alone skip the AI, and its wait. */
+  inFormat?: boolean;
 };
 
 export type CategoryOption = { id: string; name: string };
@@ -33,9 +36,16 @@ export type CategoryOption = { id: string; name: string };
  * request (`readForSaving` in `app/actions/recipes.ts`), which is the one model call
  * this can mean.
  */
-export function recipeSaveOverlay(language: HomeLanguage): AiWait {
+export function recipeSaveOverlay(language: HomeLanguage, recipe?: RecipeValues): AiWait {
   const say = sayIn(language);
+  // What already stands for the text: a stored recipe's own reading, or an import's —
+  // whose token the save accepts only while the lines are still the ones it read.
+  const inFormat = recipe?.id ? Boolean(recipe.inFormat) : Boolean(recipe?.reading);
+  const saved = recipe
+    ? { ingredients: recipe.ingredients ?? "", instructions: recipe.instructions ?? "", inFormat }
+    : null;
   return {
+    reads: { saved },
     title: say(RECIPES.savingRecipe),
     detail: say(RECIPES.savingRecipeDetail),
     stages: [

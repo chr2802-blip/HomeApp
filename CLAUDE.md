@@ -809,10 +809,14 @@ from a link**. Three steps, all inside the one `Modal`.
   seen choosing; the read is raced against `CLIPBOARD_GRACE_MS`, because `readText()` can sit
   unresolved behind a permission decision nobody will make. Choosing "Import from a link" by
   hand always starts blank.
-- **Every AI wait is `AiOverlay`, the whole screen** — the link import and every recipe
-  save alike, so they read as one machine at work. Portalled to `<body>` above the sheet;
-  what it says (title, detail, stage lines, pacing) is `recipeImportOverlay` /
-  `recipeSaveOverlay` in `recipe-fields.tsx`. Never a spinner of its own beside a field.
+- **Every AI wait is `AiOverlay`, the whole screen, and only while the AI is actually
+  working** — the link import, and a save that will be read. **`needsReading` in
+  `src/lib/cook.ts` decides that**, and it is `readingStands` — the rule `updateRecipe`
+  skips the reader by — turned round, so the form and the save cannot disagree about which
+  saves wait: an edit to the time or the picture, or an import saved untouched, shows none.
+  `recipeSaveOverlay` is handed the recipe (with `inFormat`, or an import's `reading`) so it
+  can ask. Portalled to `<body>` above the sheet, dressed only in the home's `--accent` and
+  mixes of it. Never a spinner beside a field. `e2e/ai-wait.spec.ts` holds both halves.
 - The title, ingredients, instructions, picture and total time come back filled in; the
   categories are the form's own fields either way — **except for a reel**, where the pasted
   link *is* the video and fills `videoUrl`.

@@ -13,7 +13,7 @@ import { bodyText, optionalText, readForm, requiredText } from "@/lib/form";
 import { safeExternalHref } from "@/lib/embed";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { ingredientLines, instructionLines, READING_FIELD, readCategoryChoice } from "@/lib/recipes";
-import { IN_FORMAT, isInFormat } from "@/lib/cook";
+import { IN_FORMAT, isInFormat, readingStands } from "@/lib/cook";
 import { readingFor } from "@/lib/reading-token";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { sayIn, type Say } from "@/lib/copy/say";
@@ -144,16 +144,6 @@ async function readForSaving(
 }
 
 /**
- * Whether two blocks of recipe text are the same lines, compared the way every reader
- * splits them — a textarea sends `\r\n`, and a trailing blank line is not a new step.
- */
-function sameText(a: string, b: string) {
-  const left = ingredientLines(a);
-  const right = ingredientLines(b);
-  return left.length === right.length && left.every((line, index) => line === right[index]);
-}
-
-/**
  * The language of the home a recipe is filed under, which is what it is read into — not
  * necessarily the one on screen, since a recipe can be edited from a home somebody is not
  * reading right now.
@@ -245,10 +235,8 @@ export async function updateRecipe(_prev: ActionResult, formData: FormData): Pro
   // steps changed, or the recipe was never read into the one format — which is how a
   // recipe stored before it existed is brought in: edit anything and save. A title, a
   // picture or a category changed on a recipe already in the format costs no reading.
-  const untouched =
-    sameText(form.fields.ingredients, recipe.ingredients) &&
-    sameText(form.fields.instructions, recipe.instructions) &&
-    isInFormat(recipe.cookSteps);
+  // `readingStands` is the one rule, and the form's AI wait asks it too (`needsReading`).
+  const untouched = readingStands(form.fields, { ...recipe, inFormat: isInFormat(recipe.cookSteps) });
   const read = untouched
     ? {}
     : await readForSaving(form.fields, recipe.homeId, user.id, await languageOf(recipe.homeId, user));

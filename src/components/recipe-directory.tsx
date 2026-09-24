@@ -28,6 +28,8 @@ export type RecipeSummary = {
   videoUrl: string | null;
   hasVideo: boolean;
   totalTimeMinutes: number | null;
+  /** `isInFormat` its stored breakdown: whether a save of it unchanged would need the AI. */
+  inFormat: boolean;
 };
 
 export type RecipeCategorySummary = { id: string; name: string };
@@ -294,7 +296,7 @@ export function RecipeDirectory({
                       label={recipe.title}
                       editTitle={say(RECIPES.editRecipe)}
                       editAction={updateRecipe}
-                      editOverlay={recipeSaveOverlay(language)}
+                      editOverlay={recipeSaveOverlay(language, recipe)}
                       deleteAction={deleteRecipe}
                       deleteMessage={say(RECIPES.deleteRecipeMessage, { title: recipe.title })}
                       extraItems={<AddToMealPlanMenuItem recipeId={recipe.id} />}
