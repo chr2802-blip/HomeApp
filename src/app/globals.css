@@ -807,6 +807,11 @@ h3 {
   animation: ai-shimmer 1.8s linear infinite;
 }
 
+/* The answer is back: the rest of the bar fills inside `FINISH_MS` in ai-overlay.tsx. */
+.ai-bar[data-done] {
+  transition-duration: 220ms;
+}
+
 .ai-step-now {
   background: linear-gradient(90deg, var(--accent), var(--ai-light));
 }

@@ -869,6 +869,11 @@ from a link**. Three steps, all inside the one `Modal`.
   `recipeSaveOverlay` is handed the recipe (with `inFormat`, or an import's `reading`) so it
   can ask. Portalled to `<body>` above the sheet, dressed only in the home's `--accent` and
   mixes of it. Never a spinner beside a field. `e2e/ai-wait.spec.ts` holds both halves.
+- **The wait is paced by `expectedSeconds`, the typical wait and not a ceiling**, and the
+  stage lines divide it between them. **It is set from Admin → System → AI call times**,
+  and wants changing with the model: at Sonnet's 20s against Haiku's 7s the screen vanished
+  at half a bar and the middle stage, which read as the loader being cut off. When the
+  answer arrives the bar fills and the screen stays for `FINISH_MS` before it goes.
 - The title, ingredients, instructions, picture and total time come back filled in; the
   categories are the form's own fields either way — **except for a reel**, where the pasted
   link *is* the video and fills `videoUrl`.
@@ -953,7 +958,22 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
   save over it still saves, and clears `cookSteps` as a reader that is down would. Per
   home: `overMonthlyLimit` is asked **inside** both readers rather than at each action, so
   no way into the model can forget it; past it, an import says so without offering the
-  paste box, which goes to the same reader.
+  paste box, which goes to the same reader. `"prepare"` allows 30 a quarter-hour rather
+  than the password-guesser's eight (`attemptsAllowed`), because going over it is silent.
+- **A stuck call must fail inside the route's `maxDuration` (60s)**, or the platform cuts
+  the request off and the honest refusal never arrives — for a save, an error screen and a
+  hand-typed recipe gone. The client retries a timeout once, so a stuck call costs *twice*
+  the reader's timeout, and a reel import has already spent `FETCH_TIMEOUT_MS` per caption
+  source before it asks. `tests/unit/ai-readers.test.ts` adds the sum up; a change to a
+  timeout, a retry count, a caption source or a `maxDuration` is checked against it.
+- **The recipe's picture is fetched while the reader works**, and stored only once the
+  reading comes back good — `finish` in `recipe-import.ts` starts it, `storeRecipePicture`
+  keeps it.
+- **Whether the readers follow the rules is measured by `npm run eval:ai`**, never by the
+  suites: it calls the real API with a real key (billed, slow, different each run), checks
+  a handful of real recipes against the bullets of `ingredientRules`, and prints a
+  scorecard with timings. Run it before and after any change of model, effort or prompt,
+  and read the scorecard rather than the tick — a rule failing twice running is a finding.
 - **The paste box is the load-bearing half**, offered on any `notARecipe` failure and from a
   button under the link field. It goes to the very same reader, and nothing on Meta's side can
   block it.
@@ -968,9 +988,8 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
   call for the same language inside five minutes is rare across the whole installation, not
   just one home. Enabling `cache_control` on `system` in 2026-09 meant nearly every real call
   was a cold write — paying the write's latency tax *and* its 1.25× cost, never the 10×-
-  cheaper read — which pushed calls that were already close to `NORMALIZE_TIMEOUT_MS` (25s,
-  non-streaming, `thinking: adaptive` + `effort: medium` already spends real time) over the
-  edge. It shipped, broke recipe creation in production for every attempt, and was reverted.
+  cheaper read — which pushed calls that were already close to `NORMALIZE_TIMEOUT_MS` (then
+  25s, on Sonnet with `thinking: adaptive` + `effort: medium`, non-streaming) over the edge. It shipped, broke recipe creation in production for every attempt, and was reverted.
   **The stub the e2e suite talks to could not have caught this** — it doesn't model cache
   economics or latency, only whether the app handles whatever it's told to return. Any future
   change to the *shape* of a request sent to Anthropic (not just its content) needs either a

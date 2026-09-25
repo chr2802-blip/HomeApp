@@ -49,8 +49,19 @@ import { ingredientLines, instructionLines } from "./recipes";
  */
 const MODEL = "claude-haiku-4-5";
 
-/** Bounded, because somebody is watching a Save button. Milliseconds, as this SDK counts. */
-const PREPARE_TIMEOUT_MS = 30_000;
+/**
+ * How long one attempt may take, because somebody is watching a Save button. Milliseconds,
+ * as this SDK counts.
+ *
+ * Bounded by the route's `maxDuration` (60s) together with the retry: the client retries a
+ * timeout once, so a stuck call costs twice this. At 30s that was the whole 60s before the
+ * save's own writes, and a request the platform cuts off is not a save that degrades — it
+ * is an error screen and a hand-typed recipe gone. `tests/unit/ai-readers.test.ts` holds it.
+ */
+export const PREPARE_TIMEOUT_MS = 15_000;
+
+/** One retry, as the importer: an overloaded API often answers the second time. */
+export const PREPARE_MAX_RETRIES = 1;
 
 /** Room for a long recipe's whole answer: an answer that stops short is refused whole. */
 const MAX_TOKENS = 8_000;
@@ -305,7 +316,7 @@ export async function prepareCookSteps(
   let parsed: PreparedSteps | null;
   let cutShort = false;
   try {
-    const client = new Anthropic({ maxRetries: 1 });
+    const client = new Anthropic({ maxRetries: PREPARE_MAX_RETRIES });
     const started = performance.now();
     const response = await client.messages.parse(
       {

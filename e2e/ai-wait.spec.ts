@@ -82,3 +82,36 @@ test("an edit to the ingredients shows the AI wait while it is read", async ({ p
   save.release();
   await expect(page).toHaveURL(`/recipes/${recipe.id}`);
 });
+
+test("a wait that ends fills the bar before it goes, rather than vanishing mid-way", async ({ page }) => {
+  const recipe = await seedRead();
+  // Time is the thing under test, so the page runs on a clock this test moves.
+  await page.clock.install();
+  await page.goto(`/recipes/${recipe.id}/edit`);
+  const save = await holdSave(page, `/recipes/${recipe.id}/edit`);
+
+  // A save the server refuses before reading anything — the heading it is filed under
+  // was deleted while the form stood open — so the answer comes back at once, well
+  // inside the wait's own pacing, which is the case that used to vanish at half a bar.
+  const db = prisma();
+  const links = await db.recipeCategoryLink.findMany({ where: { recipeId: recipe.id } });
+  await db.recipeCategoryLink.deleteMany({ where: { recipeId: recipe.id } });
+  await db.recipeCategory.deleteMany({ where: { id: { in: links.map((link) => link.categoryId) } } });
+
+  await page.getByLabel("Ingredients").fill("600 g potatoes\n2 tbsp oil\nSalt");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await save.arrived;
+
+  const overlay = page.getByTestId("ai-overlay");
+  await expect(overlay).toBeVisible();
+  await expect(overlay.locator(".ai-bar[data-done]")).toHaveCount(0);
+
+  // Stop the clock a second in, so the finish is held on screen until this test lets go.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  save.release();
+
+  await expect(overlay.locator(".ai-bar[data-done]")).toHaveAttribute("style", /width: 100%/);
+  await page.clock.runFor(1000);
+  await expect(overlay).toHaveCount(0);
+  await expect(page.getByText("Choose at least one category for this recipe.")).toBeVisible();
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { needsReading, type SavedReading } from "@/lib/cook";
 
@@ -34,8 +34,11 @@ export function aiWaitActive(wait: AiWait | undefined, pending: boolean, submitt
   return needsReading({ ingredients: field("ingredients"), instructions: field("instructions") }, wait.reads.saved);
 }
 
-/** How long each stage line stays up before the next one takes over. */
-const STAGE_MS = 2800;
+/**
+ * How long the finished screen stays up once the answer is back: long enough to see the
+ * bar reach the end, short enough not to be a wait of its own.
+ */
+export const FINISH_MS = 300;
 
 /**
  * The whole screen, for as long as an action that spends a model call is pending — the
@@ -46,28 +49,58 @@ const STAGE_MS = 2800;
  * `fixed` child of the sheet would be contained by `PageTransition`'s `transform`, and
  * covering only the sheet's middle left its header and footer looking pressable.
  *
- * The stage lines walk forward and stop on the last one rather than looping — a loop is
- * how a person notices the list is decoration. The bar eases towards, and never reaches,
- * the end: it is paced by `expectedSeconds` and is a promise that something is moving,
- * not a measurement, so it must never sit at 100% while the request is still out.
+ * **Paced by `expectedSeconds`, which is the typical wait and not a ceiling.** The stage
+ * lines divide that time between them, so the last one arrives shortly before a typical
+ * answer does, and they stop on the last one rather than looping — a loop is how a person
+ * notices the list is decoration. The bar eases towards, and never reaches, the end while
+ * the request is out: it is a promise that something is moving, not a measurement.
+ *
+ * **When the answer arrives the bar finishes rather than vanishing.** It fills to the end
+ * and every stage is marked done for `FINISH_MS` before the screen goes. Unmounting on the
+ * spot, a wait that came back faster than its pacing disappeared at half a bar and the
+ * middle stage, which read as the loader being cut off rather than the work being done.
  */
 export function AiOverlay({ active, wait }: { active: boolean; wait: AiWait }) {
-  if (!active) return null;
-  return createPortal(<AiWaitScreen {...wait} />, document.body);
+  const [finishing, setFinishing] = useState(false);
+  // A new wait starts its clock from nothing, even one submitted while the last was
+  // still finishing — keyed, so the screen is a fresh one rather than a resumed one.
+  const [run, setRun] = useState(0);
+  const wasActive = useRef(false);
+
+  useEffect(() => {
+    if (active) {
+      wasActive.current = true;
+      setFinishing(false);
+      setRun((count) => count + 1);
+      return;
+    }
+    if (!wasActive.current) return;
+    wasActive.current = false;
+    setFinishing(true);
+    const timer = window.setTimeout(() => setFinishing(false), FINISH_MS);
+    return () => window.clearTimeout(timer);
+  }, [active]);
+
+  if (!active && !finishing) return null;
+  return createPortal(<AiWaitScreen key={run} {...wait} done={!active} />, document.body);
 }
 
-function AiWaitScreen({ title, detail, stages, expectedSeconds }: AiWait) {
+function AiWaitScreen({ title, detail, stages, expectedSeconds, done }: AiWait & { done: boolean }) {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
+    if (done) return;
     const started = Date.now();
     const timer = window.setInterval(() => setElapsed(Date.now() - started), 200);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [done]);
 
-  const stage = Math.min(Math.floor(elapsed / STAGE_MS), stages.length - 1);
+  const expectedMs = expectedSeconds * 1000;
+  // Each stage gets an equal share of the typical wait, the last one included.
+  const stageMs = expectedMs / stages.length;
+  const stage = done ? stages.length - 1 : Math.min(Math.floor(elapsed / stageMs), stages.length - 1);
   // 1 - e^(-t/τ): about 85% at the expected time, then crawling, capped short of full.
-  const progress = Math.min(0.95, 1 - Math.exp(-elapsed / ((expectedSeconds * 1000) / 1.9)));
+  const progress = done ? 1 : Math.min(0.95, 1 - Math.exp(-elapsed / (expectedMs / 1.9)));
 
   return (
     <div
@@ -113,12 +146,18 @@ function AiWaitScreen({ title, detail, stages, expectedSeconds }: AiWait) {
       </div>
 
       <div className="relative mt-8 w-full max-w-xs">
-        <p key={stage} className="ai-stage h-5 text-sm font-medium text-slate-700" data-stage={stage}>
+        <p
+          key={stage}
+          className="ai-stage h-5 text-sm font-medium text-slate-700"
+          data-stage={stage}
+          data-done={done || undefined}
+        >
           {stages[stage]}
         </p>
         <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-200/70">
           <div
             className="ai-bar h-full rounded-full"
+            data-done={done || undefined}
             style={{ width: `${Math.round(progress * 100)}%` }}
           />
         </div>
@@ -127,7 +166,7 @@ function AiWaitScreen({ title, detail, stages, expectedSeconds }: AiWait) {
             <li
               key={index}
               className={`h-1.5 rounded-full transition-all duration-500 ${
-                index < stage
+                index < stage || done
                   ? "w-1.5 bg-[var(--accent)]"
                   : index === stage
                     ? "ai-step-now w-5"
