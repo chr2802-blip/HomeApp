@@ -28,10 +28,8 @@ const quantityGroup = (page: Page, name: string) =>
 const quantityBox = (page: Page, name: string) =>
   page.getByRole("spinbutton", { name: `Quantity of ${name}`, exact: true });
 
-/** The row's unit button, named for the row and folding in the unit currently chosen —
- *  "Unit for Ris: No unit" — so a regex rather than an exact match finds it either way. */
-const unitButton = (page: Page, name: string) =>
-  page.getByRole("button", { name: new RegExp(`^Unit for ${name}:`) });
+/** A shelf's own section, by the category it holds ("UNSORTED" for none yet). */
+const shelf = (page: Page, category: string) => page.locator(`section[data-shelf="${category}"]`);
 
 /**
  * Presses a control until it takes.
@@ -43,9 +41,11 @@ async function retry(attempt: () => Promise<void>) {
   await expect(attempt).toPass({ timeout: 20_000 });
 }
 
+/** Enter in the name, as somebody at the cupboard would — the suggestions are open over
+ *  the Add button while the name is being typed. */
 async function keepIn(page: Page, name: string) {
   await page.getByLabel("Something you keep in").fill(name);
-  await page.getByRole("button", { name: "Add to pantry" }).click();
+  await page.getByLabel("Something you keep in").press("Enter");
   await expect(quantityGroup(page, name)).toBeVisible();
 }
 
@@ -138,36 +138,64 @@ test("the pantry is reached from the home's own name, and kept there", async ({ 
   await expect(quantityGroup(page, "Havsalt")).toHaveCount(0);
 });
 
-test("a quantity is counted in a unit, chosen from the row and kept on reload", async ({ page }) => {
+test("a good is filed on its shelf, and its shelf and unit are changed in the sheet", async ({
+  page,
+}) => {
   await page.goto("/pantry");
   await keepIn(page, "Ris");
 
-  await retry(async () => {
-    const written = page.waitForResponse(
-      (response) => response.request().method() === "POST" && response.url().includes("/pantry"),
-      { timeout: 5_000 },
-    );
-    await page.getByRole("button", { name: "Increase Ris", exact: true }).click();
-    await expect(quantityBox(page, "Ris")).toHaveValue("2", { timeout: 1000 });
-    await written;
-  });
+  // The free list knows rice: on its shelf at once, counted in kilos.
+  await expect(shelf(page, "DRY_GOODS").getByRole("group", { name: "Quantity of Ris" })).toBeVisible();
+  await expect(quantityGroup(page, "Ris").getByTestId("pantry-unit")).toHaveText("kg");
 
-  // The unit menu fires its own optimistic write the same way the stepper does, so a
-  // reload straight after it races the request still in flight — wait for the round
-  // trip the same way `runOut` does before trusting what a reload shows.
-  await retry(async () => {
-    const written = page.waitForResponse(
-      (response) => response.request().method() === "POST" && response.url().includes("/pantry"),
-      { timeout: 5_000 },
-    );
-    await unitButton(page, "Ris").click();
-    await page.getByRole("menuitem", { name: "kg", exact: true }).click();
-    await written;
-  });
+  await openMenu(page, { label: "Ris" });
+  await page.getByRole("menuitem", { name: "Shelf and unit" }).click();
+  // The chips are what is pressed; the radios under them are visually hidden.
+  const sheet = page.getByRole("dialog");
+  await sheet.getByText("Freezer", { exact: true }).click();
+  await sheet.getByText("g", { exact: true }).click();
+  await expect(sheet.getByRole("radio", { name: "g", exact: true })).toBeChecked();
+  await page.getByRole("button", { name: "Save changes" }).click();
 
+  await expect(shelf(page, "FREEZER").getByRole("group", { name: "Quantity of Ris" })).toBeVisible();
   await page.reload();
-  await expect(quantityBox(page, "Ris")).toHaveValue("2");
-  await expect(unitButton(page, "Ris")).toContainText("kg");
+  await expect(shelf(page, "FREEZER").getByRole("group", { name: "Quantity of Ris" })).toBeVisible();
+  await expect(quantityGroup(page, "Ris").getByTestId("pantry-unit")).toHaveText("g");
+  await expect(shelf(page, "DRY_GOODS")).toHaveCount(0);
+});
+
+test("a name the free list does not know is sorted onto a shelf after it is added", async ({ page }) => {
+  await page.goto("/pantry");
+  await keepIn(page, "Gochujang");
+
+  // Stored at once, and moved when the model (the stub, here) has answered — nothing
+  // waited on it.
+  await expect(shelf(page, "SAUCES").getByRole("group", { name: "Quantity of Gochujang" })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(shelf(page, "UNSORTED")).toHaveCount(0);
+});
+
+test("the add box points at what the pantry already keeps rather than adding it twice", async ({
+  page,
+}) => {
+  await page.goto("/pantry");
+  await keepIn(page, "Ris");
+
+  const name = page.getByLabel("Something you keep in");
+  await name.fill("ri");
+  await expect(page.getByText("Already in the pantry", { exact: true })).toBeVisible();
+  await page.getByRole("option", { name: "Ris" }).click();
+  await expect(name).toHaveValue("");
+
+  // A name that is exactly one already kept says so before the press.
+  await name.fill("ris");
+  await expect(page.getByText("Ris is already in the pantry.")).toBeVisible();
+
+  // And a common basic not yet kept is offered in the household's own words.
+  await name.fill("olivenol");
+  await page.getByRole("option", { name: "Olive oil" }).click();
+  await expect(name).toHaveValue("Olive oil");
 });
 
 test("a name the household already keeps is refused, and the row says what it says", async ({

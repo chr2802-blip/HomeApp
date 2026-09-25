@@ -577,7 +577,7 @@ lines on the shop every time and the three that mattered were somewhere in among
 so the note under each item saying which recipe asked for it was answering a question
 nobody had, about salt.
 
-**A pantry entry is a name, a quantity and a unit**: `quantity`, which is the whole of
+**A pantry entry is a name, a quantity, a unit and a shelf**: `quantity`, which is the whole of
 what a cupboard says about how much there is, and `unit` — what it is counted in
 (`PANTRY_UNITS` in `src/lib/pantry.ts`: g, kg, dl, l, and the kitchen's own dåse, pose,
 pakke, glas, bundt) or nothing at all for a plain count. Zero is what a boolean
@@ -649,9 +649,9 @@ everybody's.** The actions take the home from the session and go through `homeDb
 they make **no admin check at all** — unlike the recipe-category ones beside them.
 Which household ran out of rice on a Tuesday is not a question about who runs the
 household, and a pantry only an admin could correct would be out of date by Thursday.
-The page is ordered by name and never by what has run out: both questions asked of it
-("is the rice in", "we've run out of rice") begin by finding rice, and a list that
-reordered itself under the household's thumb on every tick would answer neither.
+Within a shelf the page is ordered by name and never by what has run out: both questions
+asked of it ("is the rice in", "we've run out of rice") begin by finding rice, and a list
+that reordered itself under the household's thumb on every tick would answer neither.
 
 **The state is a quantity, not a tick, and the name is edited by pressing it.** A
 checkbox says "this one is selected" — something picked out of a list on the way to
@@ -659,27 +659,65 @@ doing something with it, which is exactly what a shopping list's boxes mean and 
 what this is not: a pantry entry is a standing fact about the cupboard, a number until
 somebody changes it. `PantryQuantityField` (`src/components/pantry-quantity-field.tsx`)
 is a stepper with a floor of zero rather than one — zero is the pantry's own "run out",
-not out-of-range input to correct away from — beside a unit picker offering
-`PANTRY_UNITS`, where "no unit" is its own choice and not a lesser one: a plain count
-("3") is as valid an answer as a measured one ("500 g"), the same reason a counted
-recipe ingredient carries no unit either (see `UNIT_WORDS`). **The unit picker is
-`ContextMenu`, never a bare `<select>`**: a native select sizes its closed box to its
-*widest possible option* rather than what it is showing, so offering "Bunch" made every
-row's box that wide even while showing "g" — which left no room for the name beside it.
-`ContextMenu`'s trigger instead sizes to exactly the unit *that row* shows (a bare dash
-for "no unit", the common state on a fresh entry), and carries the real value in its
-`triggerLabel` — "Unit for Rice: kg" — since a screen reader has no use for a visually
-compact placeholder. It is optimistic and is told the quantity to land in
-rather than "one more/one less", so the same press arriving twice — a double tap, a
-retry — leaves the cupboard saying what the thumb meant rather than applied again on top
-of itself. The name beside it opens an editor in place, the same way a list item's does
-— a name is the one thing on a row worth changing without a trip to a sheet, and a
-rename costing a menu, a dialog and a Save is a rename nobody makes. A refused rename
-(the household already keeps something under that name) needs no undoing: the
-optimistic name falls back to the stored one when the transition ends, and the row says
-why underneath itself. **Delete keeps the three dots to itself** — a destructive entry
-is the whole reason that menu exists, and it stays at the far end of the row where a
-thumb aiming at "we're out of rice" cannot reach it.
+not out-of-range input to correct away from. It is optimistic and is told the quantity
+to land in rather than "one more/one less", so the same press arriving twice — a double
+tap, a retry — leaves the cupboard saying what the thumb meant rather than applied again
+on top of itself; and `setPantryQuantity` writes **the quantity and nothing else**. The
+name beside it opens an editor in place, the same way a list item's does — a name is the
+one thing on a row worth changing without a trip to a sheet. A refused rename (the
+household already keeps something under that name) needs no undoing: the optimistic name
+falls back to the stored one when the transition ends, and the row says why underneath
+itself.
+
+**The unit and the shelf are in the sheet behind the three dots, not on the row.** Both
+are set once and then left alone, and a control on every row is room taken from the name
+on every row — a unit menu per row is what left long names truncated to a few letters. So
+the row only *reads* its unit beside the number ("2 kg"; nothing for a plain count), and
+"Shelf and unit" in the `ItemMenu` opens one `editPantryItem` sheet of chips for both.
+`PANTRY_UNITS` (g, kg, dl, l, and the kitchen's own dåse, pose, pakke, glas, bundt) are
+offered with "no unit" as its own choice and not a lesser one: a plain count ("3") is as
+valid an answer as a measured one ("500 g"), the same reason a counted recipe ingredient
+carries no unit either (see `UNIT_WORDS`). Delete stays last in that menu, at the far end
+of the row where a thumb aiming at "we're out of rice" cannot reach it.
+
+**The page is grouped by shelf.** `PantryCategory` is a fixed set (spices, oil & vinegar,
+sauces, baking, pasta/rice/grains, tins & jars, fridge, freezer, drinks, other), named in
+`PANTRY_CATEGORY_LABELS` and drawn in that order, empty shelves not drawn. **Null is "not
+sorted yet" and is not `OTHER`**: `OTHER` is somebody having decided it goes nowhere in
+particular, null is nobody having decided, and they answer different questions. Unsorted
+entries come first, under a heading carrying the button that sorts them. A fixed set
+rather than headings each household keeps, because every kitchen has the same shelves and
+a fixed set is the only kind of answer a model can be held to.
+
+**Where a new entry goes is answered by a list first and a model second, and nothing
+waits on the model.** `src/lib/pantry-goods.ts` is a list of common basics — each its two
+languages on one line, plus the spellings a household types — with the shelf and usual
+unit of each. `lookupGood` (exact key, then the longest run of whole words, like
+`matchedStockedKey`, so "røget paprika" is paprika and "rødløg" is never "løg") is the one
+answer: the add box previews the shelf with it and `createPantryItem` saves with it, so
+the two cannot disagree. A known good starts on its shelf with its unit; the unit is
+**only ever** the list's, never the model's, because a stored null unit may be a plain
+count somebody chose, and "3" quietly becoming "3 kg" would change what the cupboard
+says. A name the list does not know is stored at once, unsorted, and the add box sends
+`sortPantry` afterwards without waiting — so the row appears under "Not sorted yet" and
+moves onto its shelf when the answer lands, and there is no `AiOverlay` for an add because
+nobody is waiting. `sortPantry` runs the list over every unsorted entry first (free), asks
+`sortPantryGoods` (`src/lib/pantry-sort.ts`, the third model reader) about only what is
+left, in one call, and writes with `category: null` in the `where` so a shelf somebody
+chose by hand meanwhile is never overruled. It is bounded like the other two readers —
+`overMonthlyLimit` inside the reader, `checkRateLimit("pantry-sort", …)` per person spent
+only when the model is actually asked, `tests/unit/ai-readers.test.ts` holding the
+request's shape — and the heading's button draws `AiOverlay` only when the page knows the
+model will be asked (something unsorted that `lookupGood` does not know).
+
+**The add box says "you already have that" before it adds anything.** As a name is typed,
+`PantryAddForm` offers the entries already kept that it could be, under their own
+heading, and then common basics not yet kept, in the household's own language. Picking a
+kept one adds nothing: it scrolls to the row and washes it in `--accent`
+(`animate-pantry-found`), because somebody typing "ris" almost always meant "is the rice
+in", and the answer and its stepper are on that row. A name whose key is exactly one
+already kept says so under the box before the press. The list closes when the field is
+let go, because left open it sits over the shelf picker and the Add button.
 
 **Everything at zero goes onto a list in one press.** The pantry already knows what is
 missing, so asking somebody to type those five lines into the shopping list is asking

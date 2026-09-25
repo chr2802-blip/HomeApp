@@ -91,7 +91,11 @@ export async function AiSpendAcrossHomes({ language }: { language: HomeLanguage 
 }
 
 /** What each recorded `feature` is called on the page; one it does not know shows as recorded. */
-const FEATURE_NAME = { recipe_import: AI_TIMES.import, cook_steps: AI_TIMES.save } as const;
+const FEATURE_NAME = {
+  recipe_import: AI_TIMES.import,
+  cook_steps: AI_TIMES.save,
+  pantry_sort: AI_TIMES.pantrySort,
+} as const;
 
 /** Seconds to one decimal, with the decimal mark the household's own language writes. */
 function seconds(ms: number, language: HomeLanguage): string {

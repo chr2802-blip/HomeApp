@@ -1,13 +1,16 @@
 import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
-import { addPantryToList, createPantryItem } from "@/app/actions/pantry";
-import { Card, EmptyState, Input, Label, PageHeader } from "@/components/ui";
-import { ActionForm } from "@/components/action-form";
+import type { PantryCategory } from "@prisma/client";
+import { addPantryToList } from "@/app/actions/pantry";
+import { Card, EmptyState, PageHeader } from "@/components/ui";
 import { AddToListMenu } from "@/components/add-to-list-menu";
+import { PantryAddForm } from "@/components/pantry-add-form";
 import { PantryRow } from "@/components/pantry-row";
+import { PantrySortButton } from "@/components/pantry-sort-button";
+import { PANTRY_CATEGORIES } from "@/lib/pantry";
+import { lookupGood } from "@/lib/pantry-goods";
 import { sayIn } from "@/lib/copy/say";
-import { APP } from "@/lib/copy/app";
-import { PANTRY } from "@/lib/copy/pantry";
+import { PANTRY, PANTRY_CATEGORY_LABELS } from "@/lib/copy/pantry";
 
 /**
  * What the household keeps in, so that adding a recipe to a shopping list stops asking
@@ -19,7 +22,13 @@ import { PANTRY } from "@/lib/copy/pantry";
  * card on Settings because it is used, not configured, and because Settings is a page
  * half this home cannot open.
  *
- * Ordered by name and not by what has run out. The two questions asked of this page are
+ * Grouped by shelf, in the fixed order `PANTRY_CATEGORIES` gives, because a cupboard is
+ * looked through a shelf at a time — "which spices do we have" is a question a single
+ * alphabet made somebody read forty rows to answer. Entries nobody has filed yet come
+ * first, under "Not sorted yet" with the button that files them, because that heading is
+ * the one asking for something. An empty shelf is not drawn.
+ *
+ * Within a shelf, ordered by name and not by what has run out. The two questions asked of this page are
  * "is the rice in" and "we've run out of rice" — both of them begin by finding rice, and
  * a list that reordered itself under the household's thumb every time something was
  * switched off would answer neither.
@@ -40,6 +49,13 @@ export default async function PantryPage() {
       select: { id: true, title: true, _count: { select: { items: { where: { done: false } } } } },
     }),
   ]);
+
+  // Unsorted first, then every shelf in its fixed order; the query's own name order is
+  // kept inside each.
+  const shelves: (PantryCategory | null)[] = [null, ...PANTRY_CATEGORIES];
+  const groups = shelves
+    .map((category) => ({ category, entries: items.filter((item) => item.category === category) }))
+    .filter((group) => group.entries.length > 0);
 
   return (
     <>
@@ -66,19 +82,7 @@ export default async function PantryPage() {
       />
 
       <Card>
-        <ActionForm
-          action={createPantryItem}
-          submitLabel={say(PANTRY.add)}
-          successLabel={say(APP.added)}
-          className="flex flex-wrap items-end gap-3"
-        >
-          <div className="min-w-48 flex-1 space-y-1">
-            <Label htmlFor="pantry-name">{say(PANTRY.nameLabel)}</Label>
-            {/* One thing per entry, written the way it would go on a shopping list:
-                that is what it is matched against. "Salt and pepper" is two entries. */}
-            <Input id="pantry-name" name="name" placeholder={say(PANTRY.namePlaceholder)} required />
-          </div>
-        </ActionForm>
+        <PantryAddForm kept={items.map((item) => ({ id: item.id, name: item.name, key: item.key }))} />
       </Card>
 
       {items.length === 0 ? (
@@ -87,17 +91,31 @@ export default async function PantryPage() {
           <p className="mt-2">{say(PANTRY.emptyHint)}</p>
         </EmptyState>
       ) : (
-        <Card className="mt-3 divide-y divide-slate-100 p-0">
-          {items.map((item) => (
-            <PantryRow
-              key={item.id}
-              id={item.id}
-              name={item.name}
-              quantity={item.quantity}
-              unit={item.unit}
-            />
-          ))}
-        </Card>
+        groups.map(({ category, entries }) => (
+          <section key={category ?? "unsorted"} className="mt-5" data-shelf={category ?? "UNSORTED"}>
+            <div className="mb-2 flex items-center justify-between gap-3 px-1">
+              <h2 className="text-sm font-semibold text-slate-700">
+                {category ? say(PANTRY_CATEGORY_LABELS[category]) : say(PANTRY.unsorted)}{" "}
+                <span className="font-normal text-slate-400 tabular-nums">{entries.length}</span>
+              </h2>
+              {category === null && (
+                <PantrySortButton asksAi={entries.some((entry) => !lookupGood(entry.name))} />
+              )}
+            </div>
+            <Card className="divide-y divide-slate-100 p-0">
+              {entries.map((item) => (
+                <PantryRow
+                  key={item.id}
+                  id={item.id}
+                  name={item.name}
+                  quantity={item.quantity}
+                  unit={item.unit}
+                  category={item.category}
+                />
+              ))}
+            </Card>
+          </section>
+        ))
       )}
     </>
   );

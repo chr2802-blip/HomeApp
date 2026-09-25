@@ -1,11 +1,17 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+/** The model's half of sorting, answered here — see "filing things on shelves" below. */
+const { sortPantryGoods } = vi.hoisted(() => ({ sortPantryGoods: vi.fn() }));
+vi.mock("@/lib/pantry-sort", () => ({ sortPantryGoods, MAX_GOODS_PER_SORT: 60 }));
 import { prisma } from "@/lib/prisma";
 import {
   addPantryToList,
   createPantryItem,
   deletePantryItem,
+  editPantryItem,
   renamePantryItem,
   setPantryQuantity,
+  sortPantry,
 } from "@/app/actions/pantry";
 import { addListItem, addMealPlanIngredients, addRecipeIngredients } from "@/app/actions/lists";
 import { planMeal } from "@/app/actions/meals";
@@ -36,6 +42,7 @@ let home: Awaited<ReturnType<typeof createHomeWithMembers>>["home"];
 let member: Awaited<ReturnType<typeof createHomeWithMembers>>["member"];
 
 beforeEach(async () => {
+  sortPantryGoods.mockReset();
   ({ home, member } = await createHomeWithMembers());
   await signIn(member);
 });
@@ -61,13 +68,14 @@ describe("keeping the pantry", () => {
   it("is an ordinary member's to keep, not only an admin's", async () => {
     // Deliberately the plain member rather than the admin the other settings tests sign
     // in as: whoever finds the rice jar empty is who has to be able to say so.
-    expect(await submit(createPantryItem, { name: "Salt" })).toEqual({ ok: true });
+    expect(await submit(createPantryItem, { name: "Kiks" })).toEqual({ ok: true });
 
     expect(await prisma.pantryItem.findFirstOrThrow()).toMatchObject({
-      name: "Salt",
+      name: "Kiks",
       homeId: home.id,
       quantity: 1,
       unit: null,
+      category: null,
     });
   });
 
@@ -157,17 +165,15 @@ describe("keeping the pantry", () => {
     expect((await prisma.pantryItem.findFirstOrThrow()).quantity).toBe(0);
   });
 
-  it("clamps a quantity to the floor of zero, and holds the unit to what it offers", async () => {
+  it("clamps a quantity to the floor of zero, and writes nothing but the quantity", async () => {
     await submit(createPantryItem, { name: "Ris" });
     const item = await prisma.pantryItem.findFirstOrThrow();
+    expect(item.unit).toBe("KG");
 
-    await setPantryQuantity(formData({ pantryItemId: item.id, quantity: "-5", unit: "KG" }));
+    // A unit riding along is ignored: the unit belongs to the sheet behind the three dots
+    // now, and a stepper that wrote the one it was drawn with would undo that sheet.
+    await setPantryQuantity(formData({ pantryItemId: item.id, quantity: "-5", unit: "G" }));
     expect(await prisma.pantryItem.findFirstOrThrow()).toMatchObject({ quantity: 0, unit: "KG" });
-
-    // A unit outside `PANTRY_UNITS` is dropped to null rather than stored as written,
-    // the same leniency `canonicalUnit` gives a recipe's own unit word.
-    await setPantryQuantity(formData({ pantryItemId: item.id, quantity: "3", unit: "bogus" }));
-    expect(await prisma.pantryItem.findFirstOrThrow()).toMatchObject({ quantity: 3, unit: null });
   });
 
   it("drops an entry the household no longer treats as a basic", async () => {
@@ -190,10 +196,17 @@ describe("keeping the pantry", () => {
     });
     await deletePantryItem(formData({ pantryItemId: theirs.id }));
     await setPantryQuantity(formData({ pantryItemId: theirs.id, quantity: "0" }));
+    expect(
+      await submit(editPantryItem, { pantryItemId: theirs.id, category: "FREEZER", unit: "KG" }),
+    ).toEqual({ ok: false, error: "That is no longer in the pantry." });
+    // Sorting is this home's unsorted entries and nobody else's.
+    await sortPantry();
 
     expect(await prisma.pantryItem.findUniqueOrThrow({ where: { id: theirs.id } })).toMatchObject({
       name: "Salt",
       quantity: 1,
+      unit: null,
+      category: null,
     });
   });
 
@@ -425,5 +438,101 @@ describe("putting what has run out on a list", () => {
 
     await expectDenied(() => addPantryToList(formData({ listId: theirs.id })));
     expect(await prisma.listItem.count()).toBe(0);
+  });
+});
+
+describe("filing things on shelves", () => {
+  const entry = (name: string) =>
+    prisma.pantryItem.findFirstOrThrow({ where: { homeId: home.id, name } });
+
+  it("files a good the list knows the moment it is added, with its usual unit", async () => {
+    await submit(createPantryItem, { name: "Spidskommen" });
+    // Either language, and a qualifier in front is still the same good.
+    await submit(createPantryItem, { name: "Olive oil" });
+    await submit(createPantryItem, { name: "Røget paprika" });
+
+    expect(await entry("Spidskommen")).toMatchObject({ category: "SPICES", unit: "JAR", quantity: 1 });
+    expect(await entry("Olive oil")).toMatchObject({ category: "OIL_VINEGAR", unit: "L" });
+    expect(await entry("Røget paprika")).toMatchObject({ category: "SPICES" });
+    expect(sortPantryGoods).not.toHaveBeenCalled();
+  });
+
+  it("takes the shelf the household chose over the one the list would have", async () => {
+    await submit(createPantryItem, { name: "Smør", category: "FREEZER" });
+    expect(await entry("Smør")).toMatchObject({ category: "FREEZER", unit: "PACK" });
+
+    // And one it does not offer is no choice at all, so the list decides.
+    await submit(createPantryItem, { name: "Mælk", category: "CELLAR" });
+    expect(await entry("Mælk")).toMatchObject({ category: "FRIDGE" });
+  });
+
+  it("changes the shelf and the unit from the sheet, holding both to what is offered", async () => {
+    await submit(createPantryItem, { name: "Kiks" });
+    const item = await entry("Kiks");
+
+    expect(
+      await submit(editPantryItem, { pantryItemId: item.id, category: "DRY_GOODS", unit: "PACK" }),
+    ).toEqual({ ok: true });
+    expect(await entry("Kiks")).toMatchObject({ category: "DRY_GOODS", unit: "PACK" });
+
+    // An empty unit is "no unit", a real answer; an unknown one is dropped to it.
+    await submit(editPantryItem, { pantryItemId: item.id, category: "DRY_GOODS", unit: "bogus" });
+    expect((await entry("Kiks")).unit).toBeNull();
+
+    // A shelf that did not arrive leaves the entry where it was.
+    await submit(editPantryItem, { pantryItemId: item.id, unit: "BAG" });
+    expect(await entry("Kiks")).toMatchObject({ category: "DRY_GOODS", unit: "BAG" });
+  });
+
+  it("sorts what the list knows for free, and asks the model only about the rest", async () => {
+    // Stored as entries kept before shelves existed would have been.
+    for (const name of ["Salt", "Gochujang", "Panko"]) {
+      await prisma.pantryItem.create({ data: { homeId: home.id, name, key: name.toLowerCase() } });
+    }
+    sortPantryGoods.mockResolvedValue({
+      ok: true,
+      categories: new Map([
+        [0, "SAUCES"],
+        [1, "DRY_GOODS"],
+      ]),
+    });
+
+    expect(await sortPantry()).toEqual({ ok: true });
+
+    expect(sortPantryGoods).toHaveBeenCalledWith(["Gochujang", "Panko"], home.id);
+    expect(await entry("Salt")).toMatchObject({ category: "SPICES", unit: null });
+    expect(await entry("Gochujang")).toMatchObject({ category: "SAUCES" });
+    expect(await entry("Panko")).toMatchObject({ category: "DRY_GOODS" });
+  });
+
+  it("never spends a call when there is nothing the list does not know", async () => {
+    await prisma.pantryItem.create({ data: { homeId: home.id, name: "Ris", key: "ris" } });
+
+    expect(await sortPantry()).toEqual({ ok: true });
+    expect(sortPantryGoods).not.toHaveBeenCalled();
+    expect((await entry("Ris")).category).toBe("DRY_GOODS");
+  });
+
+  it("still files what it can when the model is down, and says so", async () => {
+    await prisma.pantryItem.create({ data: { homeId: home.id, name: "Salt", key: "salt" } });
+    await prisma.pantryItem.create({ data: { homeId: home.id, name: "Za'atar", key: "za'atar" } });
+    sortPantryGoods.mockResolvedValue({ ok: false, reason: "unavailable" });
+
+    const outcome = await sortPantry();
+
+    expect(outcome?.ok).toBe(false);
+    expect((await entry("Salt")).category).toBe("SPICES");
+    expect((await entry("Za'atar")).category).toBeNull();
+  });
+
+  it("never overrules a shelf somebody chose while the model was thinking", async () => {
+    const item = await prisma.pantryItem.create({ data: { homeId: home.id, name: "Panko", key: "panko" } });
+    sortPantryGoods.mockImplementation(async () => {
+      await prisma.pantryItem.update({ where: { id: item.id }, data: { category: "BAKING" } });
+      return { ok: true, categories: new Map([[0, "DRY_GOODS"]]) };
+    });
+
+    await sortPantry();
+    expect((await entry("Panko")).category).toBe("BAKING");
   });
 });
