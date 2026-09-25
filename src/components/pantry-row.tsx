@@ -35,7 +35,11 @@ import { PANTRY_CATEGORIES, PANTRY_UNITS } from "@/lib/pantry";
  * thing on a row worth changing without a trip to a sheet, and a rename that costs a
  * menu, a dialog and a Save is a rename nobody makes. Delete keeps the three dots to
  * itself: a destructive entry is the whole reason that menu exists, and it stays at the
- * far end of the row where a thumb aiming at "we're out of rice" cannot reach it.
+ * far end of the row, past the stepper, set apart from it by a gap.
+ *
+ * **The name leads the row**, as a list item's does: finding rice on the shelf is the
+ * first thing every visit does, and a column of steppers down the left edge pushed the
+ * names out of line wherever a unit widened one.
  */
 export function PantryRow({
   id,
@@ -106,14 +110,6 @@ export function PantryRow({
     // pantry — show it".
     <div id={`pantry-${id}`} className="scroll-mt-24 px-4 py-2">
       <div className="flex items-center gap-1">
-        <PantryQuantityField
-          quantity={stock}
-          unit={unit}
-          onChange={changeStock}
-          label={shown}
-          language={language}
-        />
-
         {editing ? (
           <input
             autoFocus
@@ -134,14 +130,14 @@ export function PantryRow({
               }
             }}
             aria-label={say(PANTRY.editAria, { name: shown })}
-            className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-sm outline-none focus-visible:border-slate-500"
+            className="-ml-2 min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-sm outline-none focus-visible:border-slate-500"
           />
         ) : (
           <button
             type="button"
             onClick={open}
             aria-label={say(PANTRY.editAria, { name: shown })}
-            className="min-w-0 flex-1 truncate rounded px-2 py-1 text-left text-sm transition-colors hover:bg-slate-50"
+            className="-ml-2 min-w-0 flex-1 truncate rounded px-2 py-1 text-left text-sm transition-colors hover:bg-slate-50"
           >
             {shown}
           </button>
@@ -155,6 +151,16 @@ export function PantryRow({
           <span className="shrink-0 text-xs text-slate-500">{say(PANTRY.runOut)}</span>
         )}
 
+        {/* The name leads the row, the way a list item's does — it is what the eye
+            scans the shelf for — and the number sits beside the three dots, read second. */}
+        <PantryQuantityField
+          quantity={stock}
+          unit={unit}
+          onChange={changeStock}
+          label={shown}
+          language={language}
+        />
+
         <ItemMenu
           name="pantryItemId"
           id={id}
@@ -166,7 +172,7 @@ export function PantryRow({
           deleteTitle={say(PANTRY.removeTitle)}
           deleteMessage={say(PANTRY.removeMessage, { name: shown })}
           deleteConfirmLabel={say(PANTRY.removeConfirm)}
-          className="-mr-2"
+          className="-mr-2 ml-1"
         >
           <PantryEditFields category={category} unit={unit} language={language} />
         </ItemMenu>
@@ -175,7 +181,7 @@ export function PantryRow({
       {/* Under the row rather than in a sheet, because the row is where the rename was
           typed — and a live region, since nothing moved when the answer arrived. */}
       {error && (
-        <p role="alert" className="mt-1 pl-14 text-xs text-red-600">
+        <p role="alert" className="mt-1 text-xs text-red-600">
           {error}
         </p>
       )}
