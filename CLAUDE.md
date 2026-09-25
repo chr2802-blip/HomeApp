@@ -1102,6 +1102,11 @@ failing suite must not reach the remote.**
   cookie straight into the browser; `auth.spec.ts` still drives the real form.
 - **A flaky test is worse than no test: fix the race, do not add a timeout.** CI refuses an
   `it.only` in either suite.
+- **A test's 5s covers every `await import(…)` / `vi.importActual(…)` inside its body.** A
+  module that reaches the generated Prisma client costs ~1.7s cold on a laptop and ran past
+  5s on Vercel's build machine, failing the production build on a test nobody had touched
+  (`ai-readers.test.ts`, 2026-09-25). Import at file level, beside the `vi.mock`s — module
+  collection is not timed.
 - **Never pipe a suite whose exit code is the thing being asked about.** `npm run e2e |
   tail -30` reports `tail`'s status, so a run in which all 249 tests failed came back `0`.
   Redirect to a file and read `$?`, or read `${PIPESTATUS[0]}`.
