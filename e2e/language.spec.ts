@@ -13,9 +13,15 @@ import { CATEGORIES, HOME_NAME, prisma } from "./helpers/database";
 
 const htmlOf = (page: Page) => page.locator("html");
 
+/** Through the green "+" and its sheet, whose every word is Danish here too. */
 async function keepIn(page: Page, name: string) {
+  await expect(async () => {
+    await page.getByRole("button", { name: "Tilføj til spisekammer" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 20_000 });
   await page.getByLabel("Noget I altid har hjemme").fill(name);
-  await page.getByRole("button", { name: "Tilføj til spisekammer" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Tilføj", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
   await expect(page.getByRole("group", { name: `Mængde af ${name}`, exact: true })).toBeVisible();
 }
 

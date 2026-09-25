@@ -1,7 +1,7 @@
-import type { HomeLanguage, PantryUnit } from "@prisma/client";
+import type { HomeLanguage, PantryCategory, PantryUnit } from "@prisma/client";
 import { shoppingText } from "./recipes";
 import { sayIn } from "./copy/say";
-import { PANTRY, PANTRY_UNIT_LABELS } from "./copy/pantry";
+import { PANTRY, PANTRY_CATEGORY_LABELS, PANTRY_UNIT_LABELS } from "./copy/pantry";
 
 /**
  * What a household keeps in, and what that means for a shopping list.
@@ -41,6 +41,20 @@ export function pantryKey(name: string): string {
  * `src/lib/theme.ts`.
  */
 export const PANTRY_UNITS = Object.keys(PANTRY_UNIT_LABELS) as [PantryUnit, ...PantryUnit[]];
+
+/**
+ * Every shelf, in the order the pantry page draws them — derived from
+ * `PANTRY_CATEGORY_LABELS` for the same reason `PANTRY_UNITS` is.
+ */
+export const PANTRY_CATEGORIES = Object.keys(PANTRY_CATEGORY_LABELS) as [
+  PantryCategory,
+  ...PantryCategory[],
+];
+
+/** A shelf this app actually has, or not — what every write holds a submitted one to. */
+export function isPantryCategory(value: string): value is PantryCategory {
+  return (PANTRY_CATEGORIES as readonly string[]).includes(value);
+}
 
 /** Nothing a household keeps in needs four digits, and a typo should not become one. */
 export const MAX_PANTRY_QUANTITY = 999;

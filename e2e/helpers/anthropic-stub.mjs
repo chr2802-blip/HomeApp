@@ -138,7 +138,24 @@ const NOT_A_RECIPE = "aften i haven";
 /** And the one that asks for a recipe worth checking over. */
 const NEEDS_REVIEW = "resten i bio";
 
+/**
+ * The third question: which shelf each of a household's unsorted pantry goods sits on
+ * (`src/lib/pantry-sort.ts`), told apart by the fenced list its message sends. Every good
+ * goes on the sauces shelf, whatever it is: only names the free list in `pantry-goods.ts`
+ * does not know are ever sent here, so a test adding one sees it arrive on that shelf.
+ */
+function sortedGoods(sent) {
+  const request = JSON.parse(sent);
+  const text = request.messages?.[0]?.content ?? "";
+  const from = text.indexOf("--- GOODS ---");
+  const to = text.indexOf("--- END GOODS ---");
+  const lines = from === -1 || to === -1 ? [] : text.slice(from, to).split("\n").slice(1).filter(Boolean);
+  return { goods: lines.map((_, index) => ({ index, category: "SAUCES" })) };
+}
+
 function answer(sent) {
+  if (sent.includes("--- GOODS ---")) return sortedGoods(sent);
+
   // Only the importer's schema names `isRecipe`, so its presence in the request is what
   // says which of the two questions this is.
   if (!sent.includes("isRecipe")) return preparedSteps(sent);

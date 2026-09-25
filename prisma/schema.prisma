@@ -531,6 +531,28 @@ enum PantryUnit {
 }
 
 /**
+ * Which shelf a basic good sits on, so the pantry page reads as a cupboard rather than one
+ * long alphabet. A fixed set rather than headings each household keeps: every kitchen has
+ * the same shelves, a fixed set can be named in both languages once
+ * (`PANTRY_CATEGORY_LABELS`), and it is the only kind of answer a model can be held to
+ * when it files an entry (`src/lib/pantry-sort.ts`).
+ * `OTHER` is a decision — "it goes nowhere in particular" — and is therefore not the same
+ * as `PantryItem.category` being null, which means nobody has decided yet.
+ */
+enum PantryCategory {
+  SPICES
+  OIL_VINEGAR
+  SAUCES
+  BAKING
+  DRY_GOODS
+  TINS_JARS
+  FRIDGE
+  FREEZER
+  DRINKS
+  OTHER
+}
+
+/**
  * One basic good a household keeps in the cupboard, and how much of it there is.
  * Salt, pepper, oil, flour, rice: the lines almost every recipe asks for and almost
  * nobody needs to buy. A recipe's ingredients are put on a shopping list through
@@ -565,6 +587,9 @@ model PantryItem {
   quantity  Int         @default(1)
   /// What the quantity is counted in, or null for a plain count with no unit.
   unit      PantryUnit?
+  /// The shelf it is filed under. Null is "not sorted yet" — waiting for the household or
+  /// `sortPantry` — and is deliberately not `OTHER`, which is somebody having decided.
+  category  PantryCategory?
   createdAt DateTime    @default(now())
 
   home Home @relation(fields: [homeId], references: [id], onDelete: Cascade)

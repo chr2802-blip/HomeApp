@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { Prisma, type HomeLanguage } from "@prisma/client";
+import { Prisma, type HomeLanguage, type PantryCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
@@ -10,7 +10,16 @@ import { homeScoped } from "@/lib/scoped";
 import { readForm, requiredText } from "@/lib/form";
 import { addItem } from "@/lib/list-writes";
 import { MIN_AMOUNT } from "@/lib/amount";
-import { alreadyOnListNote, clampPantryQuantity, isPantryUnit, pantryKey } from "@/lib/pantry";
+import {
+  alreadyOnListNote,
+  clampPantryQuantity,
+  isPantryCategory,
+  isPantryUnit,
+  pantryKey,
+} from "@/lib/pantry";
+import { lookupGood } from "@/lib/pantry-goods";
+import { MAX_GOODS_PER_SORT, sortPantryGoods } from "@/lib/pantry-sort";
+import { checkRateLimit, recordFailedAttempt } from "@/lib/rate-limit";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { sayIn, type Say } from "@/lib/copy/say";
 import { PANTRY } from "@/lib/copy/pantry";
@@ -81,6 +90,18 @@ function readPantryName(formData: FormData, language: HomeLanguage) {
   return { ok: true, fields: { name: form.fields.name, key } } as const;
 }
 
+/**
+ * Keeps something in. The shelf is the one the form chose, and where it chose "choose for
+ * me" (the field left empty) it is whatever `lookupGood` knows — the same lookup the add
+ * box used to preview it, so the page and the save cannot disagree about where salt goes.
+ * A name the list has never heard of is stored with no shelf at all, under "Not sorted
+ * yet", and the add box asks `sortPantry` for it afterwards: the add itself never waits on
+ * a model.
+ *
+ * The unit is only ever the known good's usual one, never a guess: a new entry starts at
+ * one, and "1 glas" of spidskommen is what a household would have written. Anything else
+ * starts as a plain count and is changed from the three dots.
+ */
 export async function createPantryItem(
   _prev: ActionResult,
   formData: FormData,
@@ -90,11 +111,21 @@ export async function createPantryItem(
   const form = readPantryName(formData, user.homeLanguage);
   if (!form.ok) return fail(form.error);
 
+  const known = lookupGood(form.fields.name);
+  const chosen = String(formData.get("category") ?? "");
+  const category = isPantryCategory(chosen) ? chosen : (known?.category ?? null);
+
   try {
     // The home is spelled out beside the check that produced it, as createList and
     // createRecipeCategory do: homeDb would stamp it, but its types still ask.
     await prisma.pantryItem.create({
-      data: { homeId: user.homeId, name: form.fields.name, key: form.fields.key },
+      data: {
+        homeId: user.homeId,
+        name: form.fields.name,
+        key: form.fields.key,
+        category,
+        unit: known?.unit ?? null,
+      },
     });
   } catch (error) {
     return duplicate(error, form.fields.name, sayIn(user.homeLanguage));
@@ -150,23 +181,125 @@ export async function renamePantryItem(formData: FormData): Promise<ActionResult
  * queued offline op is: the press that sets it is optimistic, so the same press
  * arriving twice — a double tap, a retry — must leave the cupboard saying what the
  * thumb meant, not applied again on top of itself. Acts on one id and reports nothing;
- * there is nothing to refuse. The unit is held to `PANTRY_UNITS` and dropped to null
- * otherwise, the same leniency `canonicalUnit` gives a recipe's own unit word.
+ * there is nothing to refuse.
+ *
+ * It writes the quantity and nothing else. The unit lives in the sheet behind the three
+ * dots now (`editPantryItem`), and a stepper that also sent the unit it was drawn with
+ * would put back whatever that sheet had just changed.
  */
 export async function setPantryQuantity(formData: FormData) {
   const item = await itemInScope(String(formData.get("pantryItemId")));
   if (!item) return;
 
-  const quantity = clampPantryQuantity(formData.get("quantity"));
-  const rawUnit = String(formData.get("unit") ?? "");
-  const unit = isPantryUnit(rawUnit) ? rawUnit : null;
-
   await prisma.pantryItem.update({
     where: { id: item.id },
-    data: { quantity, unit },
+    data: { quantity: clampPantryQuantity(formData.get("quantity")) },
   });
 
   refreshPantryViews();
+}
+
+/**
+ * The sheet behind the three dots: which shelf an entry sits on and what it is counted
+ * in — the two things about an entry that are set once and then left alone, which is why
+ * they left the row and gave its name the room.
+ *
+ * Both are held to what this app offers. An empty unit is "no unit", a plain count, and is
+ * a real answer. A shelf is always sent by the sheet (it opens on the current one, or on
+ * nothing for an unsorted entry); one that does not arrive leaves the entry where it was,
+ * since "not sorted yet" is not something a person chooses.
+ */
+export async function editPantryItem(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
+
+  const item = await itemInScope(String(formData.get("pantryItemId")));
+  if (!item) return fail(say(PANTRY.noItemAnyMore));
+
+  const rawUnit = String(formData.get("unit") ?? "");
+  const rawCategory = String(formData.get("category") ?? "");
+
+  await prisma.pantryItem.update({
+    where: { id: item.id },
+    data: {
+      unit: isPantryUnit(rawUnit) ? rawUnit : null,
+      ...(isPantryCategory(rawCategory) ? { category: rawCategory } : {}),
+    },
+  });
+
+  refreshPantryViews();
+  return ok();
+}
+
+/**
+ * Files every entry still waiting under "Not sorted yet".
+ *
+ * `lookupGood` first, which is free and instant — an entry kept since before shelves
+ * existed is usually salt or rice — and only what that list has never heard of goes to
+ * the model, in one call (`sortPantryGoods`). Pressed from the heading's button, and also
+ * sent by the add box, without waiting, straight after it adds a name the list did not
+ * know; nothing is watching it either way, so it answers in words only for the button.
+ *
+ * The write only ever fills a shelf that is still empty (`category: null` in the
+ * `where`), so somebody filing an entry by hand while the model was thinking is not
+ * overruled by it.
+ *
+ * A paid call, so it is counted per person on top of the home's monthly limit — as
+ * `"prepare"` is for the recipe save — and the count is spent only where there was
+ * anything left for the model to read.
+ */
+export async function sortPantry(): Promise<ActionResult> {
+  const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
+  const db = homeDb(user.homeId);
+
+  const unsorted = await db.pantryItem.findMany({
+    where: { category: null },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true },
+  });
+  if (unsorted.length === 0) return ok();
+
+  const byShelf = new Map<PantryCategory, string[]>();
+  const file = (category: PantryCategory, id: string) =>
+    byShelf.set(category, [...(byShelf.get(category) ?? []), id]);
+
+  const unknown: typeof unsorted = [];
+  for (const item of unsorted) {
+    const known = lookupGood(item.name);
+    if (known) file(known.category, item.id);
+    else unknown.push(item);
+  }
+
+  let outcome: ActionResult = ok();
+  if (unknown.length > 0) {
+    const limit = await checkRateLimit("pantry-sort", user.id);
+    if (!limit.allowed) {
+      outcome = fail(say(PANTRY.sortTooSoon, { minutes: limit.retryAfterMinutes }));
+    } else {
+      await recordFailedAttempt("pantry-sort", user.id);
+      const asked = unknown.slice(0, MAX_GOODS_PER_SORT);
+      const sorted = await sortPantryGoods(
+        asked.map((item) => item.name),
+        user.homeId,
+      );
+      if (sorted.ok) {
+        for (const [index, category] of sorted.categories) file(category, asked[index]!.id);
+      } else {
+        outcome = fail(say(sorted.reason === "over-limit" ? PANTRY.sortOverLimit : PANTRY.sortUnavailable));
+      }
+    }
+  }
+
+  for (const [category, ids] of byShelf) {
+    await db.pantryItem.updateMany({ where: { id: { in: ids }, category: null }, data: { category } });
+  }
+
+  if (byShelf.size > 0) refreshPantryViews();
+  return outcome;
 }
 
 /**

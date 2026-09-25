@@ -1,12 +1,11 @@
 import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
-import { addPantryToList, createPantryItem } from "@/app/actions/pantry";
-import { Card, EmptyState, Input, Label, PageHeader } from "@/components/ui";
-import { ActionForm } from "@/components/action-form";
+import { addPantryToList } from "@/app/actions/pantry";
+import { EmptyState, PageHeader } from "@/components/ui";
 import { AddToListMenu } from "@/components/add-to-list-menu";
-import { PantryRow } from "@/components/pantry-row";
+import { PantryAddDialog } from "@/components/pantry-add-dialog";
+import { PantryShelves } from "@/components/pantry-shelves";
 import { sayIn } from "@/lib/copy/say";
-import { APP } from "@/lib/copy/app";
 import { PANTRY } from "@/lib/copy/pantry";
 
 /**
@@ -19,7 +18,15 @@ import { PANTRY } from "@/lib/copy/pantry";
  * card on Settings because it is used, not configured, and because Settings is a page
  * half this home cannot open.
  *
- * Ordered by name and not by what has run out. The two questions asked of this page are
+ * Grouped by shelf, in the fixed order `PANTRY_CATEGORIES` gives, because a cupboard is
+ * looked through a shelf at a time — "which spices do we have" is a question a single
+ * alphabet made somebody read forty rows to answer. Entries nobody has filed yet come
+ * first, under "Not sorted yet" with the button that files them, because that heading is
+ * the one asking for something. An empty shelf is not drawn.
+ *
+ * A search box and an "only run out" switch narrow the shelves — see `PantryShelves`.
+ *
+ * Within a shelf, ordered by name and not by what has run out. The two questions asked of this page are
  * "is the rice in" and "we've run out of rice" — both of them begin by finding rice, and
  * a list that reordered itself under the household's thumb every time something was
  * switched off would answer neither.
@@ -47,39 +54,28 @@ export default async function PantryPage() {
         title={say(PANTRY.title)}
         description={say(PANTRY.description)}
         action={
-          // Drawn whenever the pantry has anything in it at all, rather than only when
-          // something has run out: the switches are optimistic, so a button that came
-          // and went with the count would arrive a beat after the thumb that caused it.
-          // Pressed on a full cupboard it says so, which is the same answer.
-          items.length > 0 ? (
-            <AddToListMenu
-              lists={shoppingLists.map((list) => ({
-                id: list.id,
-                title: list.title,
-                open: list._count.items,
-              }))}
-              action={addPantryToList}
-              extraData={{}}
-            />
-          ) : undefined
+          <div className="flex items-center gap-2">
+            {/* Drawn whenever the pantry has anything in it at all, rather than only
+                when something has run out: the quantities are optimistic, so a button
+                that came and went with the count would arrive a beat after the thumb
+                that caused it. Pressed on a full cupboard it says so, which is the same
+                answer. */}
+            {items.length > 0 && (
+              <AddToListMenu
+                lists={shoppingLists.map((list) => ({
+                  id: list.id,
+                  title: list.title,
+                  open: list._count.items,
+                }))}
+                action={addPantryToList}
+                extraData={{}}
+              />
+            )}
+            {/* The green "+" every page adds with, and the sheet behind it. */}
+            <PantryAddDialog kept={items.map((item) => ({ id: item.id, name: item.name, key: item.key }))} />
+          </div>
         }
       />
-
-      <Card>
-        <ActionForm
-          action={createPantryItem}
-          submitLabel={say(PANTRY.add)}
-          successLabel={say(APP.added)}
-          className="flex flex-wrap items-end gap-3"
-        >
-          <div className="min-w-48 flex-1 space-y-1">
-            <Label htmlFor="pantry-name">{say(PANTRY.nameLabel)}</Label>
-            {/* One thing per entry, written the way it would go on a shopping list:
-                that is what it is matched against. "Salt and pepper" is two entries. */}
-            <Input id="pantry-name" name="name" placeholder={say(PANTRY.namePlaceholder)} required />
-          </div>
-        </ActionForm>
-      </Card>
 
       {items.length === 0 ? (
         <EmptyState icon="🧂">
@@ -87,17 +83,16 @@ export default async function PantryPage() {
           <p className="mt-2">{say(PANTRY.emptyHint)}</p>
         </EmptyState>
       ) : (
-        <Card className="mt-3 divide-y divide-slate-100 p-0">
-          {items.map((item) => (
-            <PantryRow
-              key={item.id}
-              id={item.id}
-              name={item.name}
-              quantity={item.quantity}
-              unit={item.unit}
-            />
-          ))}
-        </Card>
+        <PantryShelves
+          items={items.map((item) => ({
+            id: item.id,
+            name: item.name,
+            key: item.key,
+            quantity: item.quantity,
+            unit: item.unit,
+            category: item.category,
+          }))}
+        />
       )}
     </>
   );
