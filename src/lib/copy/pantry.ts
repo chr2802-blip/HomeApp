@@ -48,6 +48,7 @@ export const PANTRY = {
   nameLabel: { EN: "Something you keep in", DA: "Noget I altid har hjemme" },
   namePlaceholder: { EN: "Salt", DA: "Salt" },
   add: { EN: "Add to pantry", DA: "Tilføj til spisekammer" },
+  addSubmit: { EN: "Add", DA: "Tilføj" },
   nameRequired: { EN: "Write what you keep in.", DA: "Skriv, hvad I har stående." },
   noKeyLeft: {
     EN: "Write what it is called, not how much of it.",
@@ -106,7 +107,6 @@ export const PANTRY = {
   },
   categoryLabel: { EN: "Shelf", DA: "Hylde" },
   categoryAuto: { EN: "Choose for me", DA: "Vælg for mig" },
-  categoryAria: { EN: "Shelf: {value}", DA: "Hylde: {value}" },
   unitLabel: { EN: "Counted in", DA: "Tælles i" },
   editTitle: { EN: "Shelf and unit", DA: "Hylde og enhed" },
   editEntry: { EN: "Shelf and unit", DA: "Hylde og enhed" },

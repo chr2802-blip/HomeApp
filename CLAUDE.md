@@ -694,11 +694,11 @@ waits on the model.** `src/lib/pantry-goods.ts` is a list of common basics — e
 languages on one line, plus the spellings a household types — with the shelf and usual
 unit of each. `lookupGood` (exact key, then the longest run of whole words, like
 `matchedStockedKey`, so "røget paprika" is paprika and "rødløg" is never "løg") is the one
-answer: the add box previews the shelf with it and `createPantryItem` saves with it, so
+answer: the add sheet previews the shelf with it and `createPantryItem` saves with it, so
 the two cannot disagree. A known good starts on its shelf with its unit; the unit is
 **only ever** the list's, never the model's, because a stored null unit may be a plain
 count somebody chose, and "3" quietly becoming "3 kg" would change what the cupboard
-says. A name the list does not know is stored at once, unsorted, and the add box sends
+says. A name the list does not know is stored at once, unsorted, and the add sheet sends
 `sortPantry` afterwards without waiting — so the row appears under "Not sorted yet" and
 moves onto its shelf when the answer lands, and there is no `AiOverlay` for an add because
 nobody is waiting. `sortPantry` runs the list over every unsorted entry first (free), asks
@@ -710,14 +710,19 @@ only when the model is actually asked, `tests/unit/ai-readers.test.ts` holding t
 request's shape — and the heading's button draws `AiOverlay` only when the page knows the
 model will be asked (something unsorted that `lookupGood` does not know).
 
-**The add box says "you already have that" before it adds anything.** As a name is typed,
-`PantryAddForm` offers the entries already kept that it could be, under their own
-heading, and then common basics not yet kept, in the household's own language. Picking a
-kept one adds nothing: it scrolls to the row and washes it in `--accent`
-(`animate-pantry-found`), because somebody typing "ris" almost always meant "is the rice
-in", and the answer and its stepper are on that row. A name whose key is exactly one
-already kept says so under the box before the press. The list closes when the field is
-let go, because left open it sits over the shelf picker and the Add button.
+**Adding is the green "+" and a sheet, like every other page, and the sheet says "you
+already have that" before it adds anything.** `PantryAddDialog` is the `create`
+`IconButton` beside the page's title and a `DialogForm` — written out rather than through
+`FormDialog` because its fields read the name as it is typed and a successful add may
+send `sortPantry` afterwards. The shelf is asked with the same chips as the "Shelf and
+unit" sheet, starting on "choose for me", which names the shelf `lookupGood` would pick.
+As a name is typed the sheet offers the entries already kept that it could be, under
+their own heading, and then common basics not yet kept, in the household's own language.
+Picking a kept one adds nothing: it closes the sheet and shows the row, washed in
+`--accent` (`animate-pantry-found`), because somebody typing "ris" almost always meant
+"is the rice in". A name whose key is exactly one already kept says so before the press.
+The suggestions sit in the sheet's own flow, not floating over it: `ModalBody` scrolls,
+and would clip a list drawn outside it.
 
 **The shelves can be narrowed, and a narrowed row is hidden, never unmounted.**
 `PantryShelves` draws them under a search box (name, key, *and* the shelf's own name, so
@@ -725,7 +730,7 @@ let go, because left open it sits over the shelf picker and the Add button.
 visit, because a pantry that opened already filtered would look half empty. A row the
 filter leaves out stays in the tree under `hidden`, because it may be holding an
 optimistic quantity or name on its way to the server, and unmounting it would drop that.
-The add box's "show it" is an event (`showPantryRow`) rather than a scroll of its own,
+The add sheet's "show it" is an event (`showPantryRow`) rather than a scroll of its own,
 since only `PantryShelves` knows to clear the filter that may be hiding the row first.
 
 **Everything at zero goes onto a list in one press.** The pantry already knows what is

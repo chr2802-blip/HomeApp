@@ -21,7 +21,7 @@ export type ShelfEntry = {
 };
 
 /**
- * The add box's way of saying "show this row": an event rather than a direct scroll,
+ * The add sheet's way of saying "show this row": an event rather than a direct scroll,
  * because the row it means may be one the filter here is hiding, and only this component
  * knows to clear the filter first.
  */
@@ -53,7 +53,7 @@ export function PantryShelves({ items }: { items: ShelfEntry[] }) {
   const [query, setQuery] = useState("");
   const [runOutOnly, setRunOutOnly] = useState(false);
 
-  // "Show it", from the add box: clear anything that might be hiding the row, then — once
+  // "Show it", from the add sheet: clear anything that might be hiding the row, then — once
   // that has been drawn — bring it into view and wash it in the home's colour.
   useEffect(() => {
     function onShow(event: Event) {
@@ -100,7 +100,7 @@ export function PantryShelves({ items }: { items: ShelfEntry[] }) {
 
   return (
     <>
-      <div className="mt-5 flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <input
           type="search"
           value={query}

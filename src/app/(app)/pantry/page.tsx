@@ -1,9 +1,9 @@
 import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
 import { addPantryToList } from "@/app/actions/pantry";
-import { Card, EmptyState, PageHeader } from "@/components/ui";
+import { EmptyState, PageHeader } from "@/components/ui";
 import { AddToListMenu } from "@/components/add-to-list-menu";
-import { PantryAddForm } from "@/components/pantry-add-form";
+import { PantryAddDialog } from "@/components/pantry-add-dialog";
 import { PantryShelves } from "@/components/pantry-shelves";
 import { sayIn } from "@/lib/copy/say";
 import { PANTRY } from "@/lib/copy/pantry";
@@ -54,27 +54,28 @@ export default async function PantryPage() {
         title={say(PANTRY.title)}
         description={say(PANTRY.description)}
         action={
-          // Drawn whenever the pantry has anything in it at all, rather than only when
-          // something has run out: the switches are optimistic, so a button that came
-          // and went with the count would arrive a beat after the thumb that caused it.
-          // Pressed on a full cupboard it says so, which is the same answer.
-          items.length > 0 ? (
-            <AddToListMenu
-              lists={shoppingLists.map((list) => ({
-                id: list.id,
-                title: list.title,
-                open: list._count.items,
-              }))}
-              action={addPantryToList}
-              extraData={{}}
-            />
-          ) : undefined
+          <div className="flex items-center gap-2">
+            {/* Drawn whenever the pantry has anything in it at all, rather than only
+                when something has run out: the quantities are optimistic, so a button
+                that came and went with the count would arrive a beat after the thumb
+                that caused it. Pressed on a full cupboard it says so, which is the same
+                answer. */}
+            {items.length > 0 && (
+              <AddToListMenu
+                lists={shoppingLists.map((list) => ({
+                  id: list.id,
+                  title: list.title,
+                  open: list._count.items,
+                }))}
+                action={addPantryToList}
+                extraData={{}}
+              />
+            )}
+            {/* The green "+" every page adds with, and the sheet behind it. */}
+            <PantryAddDialog kept={items.map((item) => ({ id: item.id, name: item.name, key: item.key }))} />
+          </div>
         }
       />
-
-      <Card>
-        <PantryAddForm kept={items.map((item) => ({ id: item.id, name: item.name, key: item.key }))} />
-      </Card>
 
       {items.length === 0 ? (
         <EmptyState icon="🧂">

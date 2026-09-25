@@ -234,21 +234,35 @@ export function PantryEditFields({
   );
 }
 
-/** One radio, drawn as a pill in the home's own colour when it is the one chosen. */
-function Chip({
+/** One radio, drawn as a pill in the home's own colour when it is the one chosen — shared
+ *  by this sheet and the add sheet, so the two ask their questions the same way. */
+export function Chip({
   name,
   value,
   defaultChecked,
+  checked,
+  onChange,
   children,
 }: {
   name: string;
   value: string;
-  defaultChecked: boolean;
+  defaultChecked?: boolean;
+  /** Given where the sheet reads the choice as it is made (the add sheet's preview). */
+  checked?: boolean;
+  onChange?: () => void;
   children: React.ReactNode;
 }) {
   return (
     <label className="cursor-pointer">
-      <input type="radio" name={name} value={value} defaultChecked={defaultChecked} className="peer sr-only" />
+      <input
+        type="radio"
+        name={name}
+        value={value}
+        defaultChecked={defaultChecked}
+        checked={checked}
+        onChange={onChange}
+        className="peer sr-only"
+      />
       <span className="pressable inline-block rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 peer-checked:border-[var(--accent)] peer-checked:bg-[var(--accent)] peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--accent)] peer-focus-visible:ring-offset-1">
         {children}
       </span>

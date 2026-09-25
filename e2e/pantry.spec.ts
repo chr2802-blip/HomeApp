@@ -41,11 +41,20 @@ async function retry(attempt: () => Promise<void>) {
   await expect(attempt).toPass({ timeout: 20_000 });
 }
 
-/** Enter in the name, as somebody at the cupboard would — the suggestions are open over
- *  the Add button while the name is being typed. */
+/** Opens the add sheet from the green "+" beside the page's title. */
+async function openAdd(page: Page) {
+  await retry(async () => {
+    await page.getByRole("button", { name: "Add to pantry" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 1000 });
+  });
+}
+
+/** Adds through the sheet, which closes on success. */
 async function keepIn(page: Page, name: string) {
+  await openAdd(page);
   await page.getByLabel("Something you keep in").fill(name);
-  await page.getByLabel("Something you keep in").press("Enter");
+  await page.getByRole("dialog").getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
   await expect(quantityGroup(page, name)).toBeVisible();
 }
 
@@ -182,15 +191,23 @@ test("the add box points at what the pantry already keeps rather than adding it 
   await page.goto("/pantry");
   await keepIn(page, "Ris");
 
+  await openAdd(page);
   const name = page.getByLabel("Something you keep in");
   await name.fill("ri");
   await expect(page.getByText("Already in the pantry", { exact: true })).toBeVisible();
+  // Picking it adds nothing: the sheet closes onto the row.
   await page.getByRole("option", { name: "Ris" }).click();
-  await expect(name).toHaveValue("");
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(quantityGroup(page, "Ris")).toBeInViewport();
 
   // A name that is exactly one already kept says so before the press.
+  await openAdd(page);
   await name.fill("ris");
   await expect(page.getByText("Ris is already in the pantry.")).toBeVisible();
+
+  // And the shelf the list knows is previewed on "choose for me".
+  await name.fill("spidskommen");
+  await expect(page.getByRole("radio", { name: "Choose for me · Spices & herbs" })).toBeChecked();
 
   // And a common basic not yet kept is offered in the household's own words.
   await name.fill("olivenol");
@@ -232,6 +249,7 @@ test("the shelves narrow to a search or to what has run out, and widen again", a
   // The add box's "show it" clears a filter that was hiding the row it points at.
   await find.fill("salt");
   await expect(quantityGroup(page, "Ris")).toBeHidden();
+  await openAdd(page);
   await page.getByLabel("Something you keep in").fill("ri");
   await page.getByRole("option", { name: "Ris" }).click();
   await expect(find).toHaveValue("");

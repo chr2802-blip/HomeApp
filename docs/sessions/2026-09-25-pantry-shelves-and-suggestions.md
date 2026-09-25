@@ -13,7 +13,8 @@ units into an edit dialog too, to give the list more room." That second ask turn
 be the same sheet the shelves needed, so both went behind the three dots together.
 
 A follow-up in the same session: "add search/filter too" — a search box and an "Only run
-out" switch over the shelves.
+out" switch over the shelves. And then: "the add section takes up too much space — align
+it with the other add flows, green add button and a create dialog."
 
 ## The route
 
@@ -29,6 +30,12 @@ The filter moved the shelves into a client component (`PantryShelves`), which is
 what changed "show it" from a direct scroll into an event: the row it points at may be
 one the filter is hiding. Postgres had stopped between the two asks; `npm run setup`
 brought it back, as CLAUDE.md says.
+
+The add card became the green "+" and a sheet. The card had been built as a card because
+the list's own add box is one; the thing to copy was the lists and tasks pages' header
+button instead, which a look at those two pages first would have shown. In the sheet the
+suggestions had to move into the flow (a floating list is clipped by `ModalBody`'s scroll)
+and the shelf picker became chips, matching the edit sheet.
 
 ## Where the time went
 
@@ -48,7 +55,17 @@ the e2e stub's dispatch and `ai-spend.tsx`'s `FEATURE_NAME` — the last of whic
 would have failed on (an unnamed feature shows its raw string on Admin → System). A
 checklist for "adding a model reader" would have saved reading all five to be sure.
 
+**Checking which other specs drive a changed screen by its English labels only.**
+`language.spec.ts` adds to the pantry in Danish ("Noget I altid har hjemme"), so a grep
+for the English label found nothing and the full run was what caught it. Grepping for the
+component or the route (`/pantry`) across `e2e/` would have found it first.
+
 ## What CLAUDE.md did not say
+
+- **How things are added is a convention, and it was not written down**: the green `create`
+  "+" beside a page's title, opening a sheet. The pantry's add card had to be undone for
+  missing it; the pantry section now says it, but it belongs in the UI conventions too
+  and is worth a line there by whoever next adds a page.
 
 - The pantry section described the unit picker on the row; rewritten for the sheet, the
   shelves, the catalogue-then-model split and the add box.
