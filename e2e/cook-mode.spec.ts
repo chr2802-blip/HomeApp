@@ -240,3 +240,35 @@ test("is reached from the recipe, and only where there is something to cook", as
   await expect(page).toHaveURL(`/recipes/${recipe.id}/cook`);
   await expect(page.getByRole("dialog", { name: /Cooking/ })).toBeVisible();
 });
+
+test("comes back to the same step and the same timer after the phone threw the page away", async ({
+  page,
+}) => {
+  const recipe = await seedPrepared();
+  let surface = await openCookMode(page, recipe.id);
+
+  for (const label of ["Start", "Next", "Next"]) {
+    await surface.getByRole("button", { name: label, exact: true }).click();
+  }
+  await surface.getByRole("button", { name: "Start 10 min" }).click();
+  await expect(surface.getByRole("button", { name: /^Step 3 ·/ })).toBeVisible();
+
+  // What an iPhone does to an installed app left in the background: the page is gone, and
+  // it is relaunched at the manifest's start_url. A fresh load of the dashboard is that,
+  // since nothing in the page gets to run on the way out.
+  await page.goto("/dashboard");
+
+  await expect(page).toHaveURL(`/recipes/${recipe.id}/cook`);
+  surface = page.getByRole("dialog", { name: /Cooking/ });
+  await expect(surface).toHaveAttribute("data-ready", "true");
+  await expect(surface.getByText("Step 3 of 3")).toBeVisible();
+  // Still counting from when it was started, not restarted: under ten minutes left.
+  await expect(surface.getByRole("button", { name: /^Step 3 · (9|10):\d\d/ })).toBeVisible();
+
+  // Leaving on purpose forgets it, so the next launch is just the dashboard.
+  await surface.getByRole("link", { name: "Close" }).click();
+  await expect(page).toHaveURL(`/recipes/${recipe.id}`);
+  await page.goto("/dashboard");
+  await expect(page.getByRole("dialog", { name: /Cooking/ })).toHaveCount(0);
+  await expect(page).toHaveURL("/dashboard");
+});

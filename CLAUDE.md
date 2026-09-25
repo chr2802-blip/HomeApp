@@ -795,6 +795,14 @@ forward**, as lifting a right-hand page over does.
   `transform` on an ancestor and a transformed ancestor contains a fixed child. It pads
   its own `env(safe-area-inset-*)`, holds a wake lock through `useWakeLock` (shared with
   `ScreenAwakeToggle`), and its timers live above the pages so a turn does not end them.
+- **Where a cook is survives the phone discarding the page.** An installed app killed in
+  the background is relaunched at the manifest's `start_url` (`/dashboard`), not where it
+  was — on an iPhone, half an hour in another app did exactly that mid-dinner. So the page
+  and the timers (each an `endsAt`, never a countdown) are written to `localStorage` on
+  every change (`src/lib/cook-session.ts`), cleared when action mode *unmounts* — which a
+  killed page never does — and `ResumeCooking` in the app layout sends a fresh load back
+  to the cook page while one is saved and `isResumable`. A timer still cannot ring while
+  the page is dead; it reads done when the cook comes back.
 - The page turn is `page-turn-next` / `page-turn-back` in `globals.css` — keyframes, and
   no `translate-*`/`rotate-*`/`scale-*` utility on the element playing one.
 
