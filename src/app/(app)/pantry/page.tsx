@@ -1,16 +1,12 @@
 import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
-import type { PantryCategory } from "@prisma/client";
 import { addPantryToList } from "@/app/actions/pantry";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 import { AddToListMenu } from "@/components/add-to-list-menu";
 import { PantryAddForm } from "@/components/pantry-add-form";
-import { PantryRow } from "@/components/pantry-row";
-import { PantrySortButton } from "@/components/pantry-sort-button";
-import { PANTRY_CATEGORIES } from "@/lib/pantry";
-import { lookupGood } from "@/lib/pantry-goods";
+import { PantryShelves } from "@/components/pantry-shelves";
 import { sayIn } from "@/lib/copy/say";
-import { PANTRY, PANTRY_CATEGORY_LABELS } from "@/lib/copy/pantry";
+import { PANTRY } from "@/lib/copy/pantry";
 
 /**
  * What the household keeps in, so that adding a recipe to a shopping list stops asking
@@ -27,6 +23,8 @@ import { PANTRY, PANTRY_CATEGORY_LABELS } from "@/lib/copy/pantry";
  * alphabet made somebody read forty rows to answer. Entries nobody has filed yet come
  * first, under "Not sorted yet" with the button that files them, because that heading is
  * the one asking for something. An empty shelf is not drawn.
+ *
+ * A search box and an "only run out" switch narrow the shelves — see `PantryShelves`.
  *
  * Within a shelf, ordered by name and not by what has run out. The two questions asked of this page are
  * "is the rice in" and "we've run out of rice" — both of them begin by finding rice, and
@@ -49,13 +47,6 @@ export default async function PantryPage() {
       select: { id: true, title: true, _count: { select: { items: { where: { done: false } } } } },
     }),
   ]);
-
-  // Unsorted first, then every shelf in its fixed order; the query's own name order is
-  // kept inside each.
-  const shelves: (PantryCategory | null)[] = [null, ...PANTRY_CATEGORIES];
-  const groups = shelves
-    .map((category) => ({ category, entries: items.filter((item) => item.category === category) }))
-    .filter((group) => group.entries.length > 0);
 
   return (
     <>
@@ -91,31 +82,16 @@ export default async function PantryPage() {
           <p className="mt-2">{say(PANTRY.emptyHint)}</p>
         </EmptyState>
       ) : (
-        groups.map(({ category, entries }) => (
-          <section key={category ?? "unsorted"} className="mt-5" data-shelf={category ?? "UNSORTED"}>
-            <div className="mb-2 flex items-center justify-between gap-3 px-1">
-              <h2 className="text-sm font-semibold text-slate-700">
-                {category ? say(PANTRY_CATEGORY_LABELS[category]) : say(PANTRY.unsorted)}{" "}
-                <span className="font-normal text-slate-400 tabular-nums">{entries.length}</span>
-              </h2>
-              {category === null && (
-                <PantrySortButton asksAi={entries.some((entry) => !lookupGood(entry.name))} />
-              )}
-            </div>
-            <Card className="divide-y divide-slate-100 p-0">
-              {entries.map((item) => (
-                <PantryRow
-                  key={item.id}
-                  id={item.id}
-                  name={item.name}
-                  quantity={item.quantity}
-                  unit={item.unit}
-                  category={item.category}
-                />
-              ))}
-            </Card>
-          </section>
-        ))
+        <PantryShelves
+          items={items.map((item) => ({
+            id: item.id,
+            name: item.name,
+            key: item.key,
+            quantity: item.quantity,
+            unit: item.unit,
+            category: item.category,
+          }))}
+        />
       )}
     </>
   );

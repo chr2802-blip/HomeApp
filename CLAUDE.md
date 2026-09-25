@@ -719,6 +719,15 @@ in", and the answer and its stepper are on that row. A name whose key is exactly
 already kept says so under the box before the press. The list closes when the field is
 let go, because left open it sits over the shelf picker and the Add button.
 
+**The shelves can be narrowed, and a narrowed row is hidden, never unmounted.**
+`PantryShelves` draws them under a search box (name, key, *and* the shelf's own name, so
+"krydder" is the spice shelf) and an "Only run out" switch; both start empty on every
+visit, because a pantry that opened already filtered would look half empty. A row the
+filter leaves out stays in the tree under `hidden`, because it may be holding an
+optimistic quantity or name on its way to the server, and unmounting it would drop that.
+The add box's "show it" is an event (`showPantryRow`) rather than a scroll of its own,
+since only `PantryShelves` knows to clear the filter that may be hiding the row first.
+
 **Everything at zero goes onto a list in one press.** The pantry already knows what is
 missing, so asking somebody to type those five lines into the shopping list is asking
 them to say it twice: `addPantryToList` is the same `AddToListMenu` the recipe page and

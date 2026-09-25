@@ -198,6 +198,46 @@ test("the add box points at what the pantry already keeps rather than adding it 
   await expect(name).toHaveValue("Olive oil");
 });
 
+test("the shelves narrow to a search or to what has run out, and widen again", async ({ page }) => {
+  await page.goto("/pantry");
+  await keepIn(page, "Salt");
+  await keepIn(page, "Ris");
+  await keepIn(page, "Spidskommen");
+  await runOut(page, "Ris");
+
+  const find = page.getByRole("searchbox", { name: "Find in the pantry" });
+
+  await find.fill("ris");
+  await expect(quantityGroup(page, "Ris")).toBeVisible();
+  await expect(quantityGroup(page, "Salt")).toBeHidden();
+
+  // A shelf's own name narrows to the shelf.
+  await find.fill("spices");
+  await expect(quantityGroup(page, "Salt")).toBeVisible();
+  await expect(quantityGroup(page, "Spidskommen")).toBeVisible();
+  await expect(quantityGroup(page, "Ris")).toBeHidden();
+  await expect(shelf(page, "DRY_GOODS")).toBeHidden();
+
+  await find.fill("");
+  await page.getByRole("button", { name: "Only run out" }).click();
+  await expect(quantityGroup(page, "Ris")).toBeVisible();
+  await expect(quantityGroup(page, "Salt")).toBeHidden();
+
+  // Nothing matching says so, and offers the way back.
+  await find.fill("kaffe");
+  await expect(page.getByText("Nothing in the pantry matches “kaffe”.")).toBeVisible();
+  await page.getByRole("button", { name: "Show everything" }).click();
+  await expect(quantityGroup(page, "Salt")).toBeVisible();
+
+  // The add box's "show it" clears a filter that was hiding the row it points at.
+  await find.fill("salt");
+  await expect(quantityGroup(page, "Ris")).toBeHidden();
+  await page.getByLabel("Something you keep in").fill("ri");
+  await page.getByRole("option", { name: "Ris" }).click();
+  await expect(find).toHaveValue("");
+  await expect(quantityGroup(page, "Ris")).toBeVisible();
+});
+
 test("a name the household already keeps is refused, and the row says what it says", async ({
   page,
 }) => {

@@ -12,6 +12,9 @@ already there, and could AI help — suggest a category or a unit?" Mid-session:
 units into an edit dialog too, to give the list more room." That second ask turned out to
 be the same sheet the shelves needed, so both went behind the three dots together.
 
+A follow-up in the same session: "add search/filter too" — a search box and an "Only run
+out" switch over the shelves.
+
 ## The route
 
 Read the pantry end to end (schema, actions, page, row, quantity field), then the list's
@@ -21,6 +24,11 @@ e2e run found two real bugs rather than test problems: the suggestion listbox bo
 input's own label (two elements answering to one name), and the open list sat over the
 Add button. A screenshot at 390px found the third: "sa" suggested garam masala before
 salt, so word-start matches now come first.
+
+The filter moved the shelves into a client component (`PantryShelves`), which is also
+what changed "show it" from a direct scroll into an event: the row it points at may be
+one the filter is hiding. Postgres had stopped between the two asks; `npm run setup`
+brought it back, as CLAUDE.md says.
 
 ## Where the time went
 
@@ -59,5 +67,7 @@ checklist for "adding a model reader" would have saved reading all five to be su
 - **Per-person rate limit `"pantry-sort"`** reuses the login-attempt window (8 per 15 min),
   spent only when the model is asked. Adding many unknown names fast can outrun it; they
   wait under "Not sorted yet" for the button.
+- **The filter also matches the shelf's name**, and hides rather than unmounts rows; it is
+  not remembered between visits.
 - **The catalogue's contents** (≈75 goods, their shelves and units) are my judgement of a
   Danish/English kitchen, e.g. garlic and lemons on the fridge shelf, onions under Other.

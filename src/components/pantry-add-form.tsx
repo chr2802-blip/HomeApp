@@ -6,6 +6,7 @@ import { createPantryItem, sortPantry } from "@/app/actions/pantry";
 import { Button, Input, Label } from "@/components/ui";
 import { ContextMenu, MenuItem } from "@/components/context-menu";
 import { useFormAction } from "@/components/use-form-action";
+import { showPantryRow } from "@/components/pantry-shelves";
 import { useLanguage } from "@/components/language-provider";
 import { PANTRY_CATEGORIES, pantryKey } from "@/lib/pantry";
 import { goodsMatching, lookupGood } from "@/lib/pantry-goods";
@@ -24,8 +25,9 @@ const MAX_GOODS = 5;
  * two things a household adding to its cupboard most needs to be told.
  *
  * **"You already have that."** The entries this pantry already keeps that the name could
- * be, first, under their own heading. Picking one does not add anything: it scrolls to the
- * row and washes it in the home's colour, because somebody typing "ris" into the add box
+ * be, first, under their own heading. Picking one does not add anything: it asks
+ * `PantryShelves` to show the row (clearing any filter hiding it) and wash it in the
+ * home's colour, because somebody typing "ris" into the add box
  * almost always meant "is the rice in", and the answer — and the stepper to change it — is
  * on that row. A name whose key is exactly one already kept says so under the box before
  * the press rather than after it.
@@ -97,14 +99,7 @@ export function PantryAddForm({ kept }: { kept: KeptEntry[] }) {
   function show(entry: KeptEntry) {
     setQuery("");
     setHighlighted(-1);
-    const row = document.getElementById(`pantry-${entry.id}`);
-    if (!row) return;
-    row.scrollIntoView({ behavior: "smooth", block: "center" });
-    // Restarting the wash: a class taken off and put back in one frame is a class the
-    // browser never saw leave, so the animation would not play a second time.
-    row.classList.remove("animate-pantry-found");
-    void row.offsetWidth;
-    row.classList.add("animate-pantry-found");
+    showPantryRow(entry.id);
   }
 
   function choose(option: Option) {
