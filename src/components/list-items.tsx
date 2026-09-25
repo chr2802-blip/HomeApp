@@ -42,6 +42,7 @@ import { PersonMark } from "@/components/person-mark";
 import { ProgressBar } from "@/components/progress-bar";
 import { QueueStatus } from "@/components/queue-status";
 import { useOfflineList } from "@/components/use-offline-list";
+import { useListFollow } from "@/components/use-list-follow";
 import { applyPending, type ListRow, type Person } from "@/lib/offline-ops";
 import { newId } from "@/lib/offline-queue";
 import { cheer, tick } from "@/lib/haptics";
@@ -334,6 +335,7 @@ export function ListItems({
   trackAmounts,
   me,
   shared,
+  version,
 }: {
   listId: string;
   items: Item[];
@@ -350,8 +352,14 @@ export function ListItems({
    * not told who did the shopping.
    */
   shared: boolean;
+  /**
+   * The list's fingerprint as the server drew it (`listVersion`). Somebody else ticking
+   * something off changes it, and this page then redraws — see `useListFollow`.
+   */
+  version: string;
 }) {
   const { pending, record, onlyOnline, reconcile, online, sending } = useOfflineList(listId);
+  useListFollow(listId, version);
   const say = sayIn(useLanguage());
 
   /*
