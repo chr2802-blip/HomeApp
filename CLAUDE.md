@@ -677,8 +677,10 @@ the row only *reads* its unit beside the number ("2 kg"; nothing for a plain cou
 `PANTRY_UNITS` (g, kg, dl, l, and the kitchen's own dåse, pose, pakke, glas, bundt) are
 offered with "no unit" as its own choice and not a lesser one: a plain count ("3") is as
 valid an answer as a measured one ("500 g"), the same reason a counted recipe ingredient
-carries no unit either (see `UNIT_WORDS`). Delete stays last in that menu, at the far end
-of the row where a thumb aiming at "we're out of rice" cannot reach it.
+carries no unit either (see `UNIT_WORDS`). **The name leads the row, on the left**, as a
+list item's does — finding rice is the first thing every visit does — then the stepper,
+then the three dots at the far end. Delete stays last in that menu, a gap away from the
+stepper so a thumb aiming at "we're out of rice" does not land on it.
 
 **The page is grouped by shelf.** `PantryCategory` is a fixed set (spices, oil & vinegar,
 sauces, baking, pasta/rice/grains, tins & jars, fridge, freezer, drinks, other), named in
