@@ -34,6 +34,10 @@ const { MAX_INPUT_CHARS, PREPARE_MAX_RETRIES, PREPARE_TIMEOUT_MS, prepareCookSte
 const { NORMALIZE_MAX_RETRIES, NORMALIZE_TIMEOUT_MS, normalizeRecipe } = await import("@/lib/recipe-normalize");
 const { ingredientRules, languageRules } = await import("@/lib/ingredient-line");
 const { sortPantryGoods, MAX_GOODS_PER_SORT } = await import("@/lib/pantry-sort");
+// The real price table, beside the mock above. Loaded here rather than inside the test that
+// uses it: it drags in the generated Prisma client, and a cold import of that inside a test
+// body counts against the test's own 5s — which a busy Vercel build machine ran past.
+const { costMicros } = await vi.importActual<typeof import("@/lib/ai-usage")>("@/lib/ai-usage");
 
 const answer = (stopReason: string) => ({
   parsed_output: { title: null, ingredients: [{ name: "mel" }], steps: [{ step: "Bland.", uses: [0], minutes: null }] },
@@ -227,8 +231,6 @@ describe("the pantry's shelf reader", () => {
  */
 describe("the request every reader sends", () => {
   it("names a priced model, and carries no thinking and no effort", async () => {
-    const { costMicros } = await vi.importActual<typeof import("@/lib/ai-usage")>("@/lib/ai-usage");
-
     parse.mockResolvedValue(answer("end_turn"));
     await prepareCookSteps(recipe("Ælt."), "home", "DA");
     parse.mockResolvedValue({ ...answer("end_turn"), parsed_output: null });
