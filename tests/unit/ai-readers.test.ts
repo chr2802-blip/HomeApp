@@ -33,6 +33,7 @@ const { MAX_INPUT_CHARS, PREPARE_MAX_RETRIES, PREPARE_TIMEOUT_MS, prepareCookSte
 );
 const { NORMALIZE_MAX_RETRIES, NORMALIZE_TIMEOUT_MS, normalizeRecipe } = await import("@/lib/recipe-normalize");
 const { ingredientRules, languageRules } = await import("@/lib/ingredient-line");
+const { sortPantryGoods, MAX_GOODS_PER_SORT } = await import("@/lib/pantry-sort");
 
 const answer = (stopReason: string) => ({
   parsed_output: { title: null, ingredients: [{ name: "mel" }], steps: [{ step: "Bland.", uses: [0], minutes: null }] },
@@ -181,6 +182,41 @@ describe("a home past its month's allowance", () => {
     expect(await normalizeRecipe(raw, "home", "DA")).toEqual({ ok: false, reason: "over-limit" });
     expect(parse).not.toHaveBeenCalled();
   });
+
+  it("gets no pantry sorting either", async () => {
+    expect(await sortPantryGoods(["Gochujang"], "home")).toEqual({ ok: false, reason: "over-limit" });
+    expect(parse).not.toHaveBeenCalled();
+  });
+});
+
+describe("the pantry's shelf reader", () => {
+  it("sends every good numbered in one call, and never more than it may", async () => {
+    parse.mockResolvedValue({
+      parsed_output: { goods: [{ index: 0, category: "SAUCES" }] },
+      stop_reason: "end_turn",
+      usage: { input_tokens: 10, output_tokens: 5 },
+    });
+    const names = Array.from({ length: MAX_GOODS_PER_SORT + 5 }, (_, i) => `Vare ${i}`);
+
+    const outcome = await sortPantryGoods(names, "home");
+
+    expect(outcome).toEqual({ ok: true, categories: new Map([[0, "SAUCES"]]) });
+    expect(parse).toHaveBeenCalledTimes(1);
+    const sent = parse.mock.calls[0]![0].messages[0].content as string;
+    expect(sent).toContain(`${MAX_GOODS_PER_SORT - 1}. Vare ${MAX_GOODS_PER_SORT - 1}`);
+    expect(sent).not.toContain(`Vare ${MAX_GOODS_PER_SORT}`);
+  });
+
+  it("asks nothing about nothing", async () => {
+    expect(await sortPantryGoods([], "home")).toEqual({ ok: true, categories: new Map() });
+    expect(overMonthlyLimit).not.toHaveBeenCalled();
+    expect(parse).not.toHaveBeenCalled();
+  });
+
+  it("answers as down, rather than throwing, when the API will not answer", async () => {
+    parse.mockRejectedValue(new Error("boom"));
+    expect(await sortPantryGoods(["Panko"], "home")).toEqual({ ok: false, reason: "unavailable" });
+  });
 });
 
 /*
@@ -189,7 +225,7 @@ describe("a home past its month's allowance", () => {
  * adaptive thinking, so both readers must send neither. And a model this app has never
  * priced is billed at nothing, which would quietly switch off the monthly limit.
  */
-describe("the request both readers send", () => {
+describe("the request every reader sends", () => {
   it("names a priced model, and carries no thinking and no effort", async () => {
     const { costMicros } = await vi.importActual<typeof import("@/lib/ai-usage")>("@/lib/ai-usage");
 
@@ -201,8 +237,10 @@ describe("the request both readers send", () => {
       "home",
       "DA",
     );
+    parse.mockResolvedValue({ ...answer("end_turn"), parsed_output: { goods: [] } });
+    await sortPantryGoods(["Panko"], "home");
 
-    expect(parse).toHaveBeenCalledTimes(2);
+    expect(parse).toHaveBeenCalledTimes(3);
     for (const [request] of parse.mock.calls) {
       expect(costMicros(request.model, 1_000_000, 0)).toBeGreaterThan(0);
       expect(request.thinking).toBeUndefined();

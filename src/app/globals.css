@@ -605,6 +605,25 @@ h3 {
   }
 }
 
+/*
+ * A pantry row the add box pointed at ("already in the pantry — show it"): washed in the
+ * home's own colour and let go, so the eye lands on it after the scroll. It is the
+ * household's own control being pointed out, so it wears --accent, never the green that
+ * means "added".
+ */
+@keyframes pantry-found {
+  from {
+    background-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.animate-pantry-found {
+  animation: pantry-found 1.6s ease-out both;
+}
+
 /* The curve every movement here uses: quick away, settling at the end. */
 .animate-page-in,
 .animate-page-forward,
