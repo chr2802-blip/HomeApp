@@ -345,7 +345,7 @@ describe("fetchRecipeFromUrl", () => {
   });
 
   // No `image` field anywhere in `goodHtml`, so none of the tests above ever ask this
-  // app to fetch a second URL or touch the database — importRecipeImage short-circuits
+  // app to fetch a second URL or touch the database — fetchRecipePicture short-circuits
   // on a null imageUrl. The image fetch itself, which does touch storePhoto and so a
   // real database, is covered in tests/integration/recipe-import.test.ts instead.
   it("never fetches an image when the page names none", async () => {
@@ -376,9 +376,10 @@ describe("fetchRecipeFromUrl", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  // Nothing is stored for a page that turned out not to be a recipe: the picture is
-  // fetched only once the reading has come back good.
-  it("never fetches an image for a page the reader refused", async () => {
+  // The picture is asked for while the reader works rather than after it — the two are
+  // independent, and the reader is the slow half. That it is then never *stored* for a
+  // page the reader refused wants a database, and is tests/integration/recipe-import.test.ts's.
+  it("asks for the picture alongside the reader, even for a page the reader then refuses", async () => {
     normalizeRecipe.mockResolvedValue({ ok: false, reason: "not-a-recipe" });
     const withImage = pageWithLdJson({
       "@type": "Recipe",
@@ -390,9 +391,13 @@ describe("fetchRecipeFromUrl", () => {
     const fetchMock = vi.fn().mockResolvedValue(htmlResponse(withImage));
     vi.stubGlobal("fetch", fetchMock);
 
-    await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID, "EN");
+    const result = await fetchRecipeFromUrl("https://example.com/recipe", HOME_ID, "EN");
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.ok).toBe(false);
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://example.com/recipe",
+      "https://example.com/pancakes.jpg",
+    ]);
   });
 });
 

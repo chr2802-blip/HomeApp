@@ -232,24 +232,30 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
   });
 
   /*
-   * The picture is fetched only once the reading has come back good, which is worth having
-   * a real database to assert: an import that refuses still leaves nothing behind for the
+   * The picture is fetched while the reader works — the two are independent, and waiting
+   * for the slow half before starting the other added the whole picture fetch to every
+   * import — but stored only once the reading has come back good, which is worth having a
+   * real database to assert: an import that refuses still leaves nothing behind for the
    * upload sweep to find later.
    */
-  it("stores nothing at all for a page the reader would not read", async () => {
+  it("fetches the picture while the reader works, and stores nothing for a page it would not read", async () => {
     const home = await createHome();
-    normalizeRecipe.mockResolvedValue({ ok: false, reason: "not-a-recipe" });
     const fetchMock = stubFetch({
       "https://example.com/recipe": htmlResponse(
         pageWithImage("https://example.com/pancakes.png"),
         "https://example.com/recipe",
       ),
+      "https://example.com/pancakes.png": imageResponse(pngBytes(400, 300), "https://example.com/pancakes.png"),
+    });
+    // By the time the reader is asked, the picture's request has already gone out.
+    normalizeRecipe.mockImplementation(async () => {
+      expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain("https://example.com/pancakes.png");
+      return { ok: false, reason: "not-a-recipe" };
     });
 
     const result = await fetchRecipeFromUrl("https://example.com/recipe", home.id, home.language);
 
     expect(result.ok).toBe(false);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(await prisma.photo.count()).toBe(0);
   });
 

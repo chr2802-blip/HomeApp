@@ -55,7 +55,8 @@ export function recipeSaveOverlay(language: HomeLanguage, recipe?: RecipeValues)
       RECIPES.savingStage4,
       RECIPES.savingStage5,
     ].map(say),
-    expectedSeconds: 20,
+    // The save's median on Haiku (Admin → System → AI call times), rounded up.
+    expectedSeconds: 8,
   };
 }
 
@@ -74,7 +75,8 @@ export function recipeImportOverlay(language: HomeLanguage): AiWait {
       RECIPES.readingStage3,
       RECIPES.readingStage4,
     ].map(say),
-    expectedSeconds: 15,
+    // The reader's median on Haiku, rounded up, plus the page fetch before it.
+    expectedSeconds: 10,
   };
 }
 

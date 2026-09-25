@@ -4,12 +4,12 @@ import { homeDb } from "./home-db";
 import { monthStartInstant } from "./time";
 
 /**
- * What the app's one AI feature — reading an imported recipe, `recipe-normalize.ts` —
- * is costing each household, and how close that is to what a home may spend in a
- * month.
+ * What the app's two AI readers — the importer (`recipe-normalize.ts`) and the save's
+ * reader (`cook-steps.ts`) — are costing each household, and how close that is to what
+ * a home may spend in a month.
  *
  * A call is priced and stamped with its home the moment it happens
- * (`recordAiUsage`, called from `normalizeRecipe`), so "how much has this home spent"
+ * (`recordAiUsage`, called from both readers), so "how much has this home spent"
  * is always a sum over rows rather than a number trusted to stay right on its own —
  * the same choice `storage.ts` makes about a home's bytes, for the same reason.
  */
@@ -17,8 +17,8 @@ import { monthStartInstant } from "./time";
 /**
  * USD per million tokens, for every model this app has ever billed a call to.
  *
- * Priced at the model, not assumed: `recipe-normalize.ts` names its model in one
- * place (`MODEL`), and a price is looked up against whatever a stored row actually
+ * Priced at the model, not assumed: each reader names its model in one place
+ * (`MODEL`), and a price is looked up against whatever a stored row actually
  * says it used — so a model change there is a row that prices itself correctly
  * without this file needing to know it happened, and an old row keeps the price that
  * was true when it was made even after this table is edited for a new one.
@@ -48,7 +48,10 @@ export function costMicros(model: string, inputTokens: number, outputTokens: num
  * What a home may spend on AI calls in a month. Both readers ask `overMonthlyLimit`
  * before every call and answer as they do when the reader is down, so this is a limit
  * rather than a number on Settings — though a home can land one call's worth past it,
- * since what a call will cost is only known once it has been made.
+ * since what a call will cost is only known once it has been made, and a few if several
+ * are in flight at once, since each asks before any has been charged. Reserving a call's
+ * cost up front would close that, for a limit of a few kroner a month that is not worth
+ * a second write on every call.
  */
 export const MONTHLY_LIMIT_USD = 5;
 
@@ -65,8 +68,8 @@ export const MONTHLY_LIMIT_DKK = MONTHLY_LIMIT_USD * USD_TO_DKK;
 /**
  * Records what one call to the reader cost, against the home that asked for it.
  *
- * Never thrown from and never awaited by the import it is metering: a household's
- * recipe is what that press was for, and losing it because a metrics write failed
+ * Never throws into the reading it is metering (the readers await it, and it swallows
+ * its own failure): a household's recipe is what that press was for, and losing it because a metrics write failed
  * would be the tail wagging the dog. Logged the way `recipe-normalize.ts` logs the
  * reader going down, so a metering failure is visible without being able to fail
  * anything.

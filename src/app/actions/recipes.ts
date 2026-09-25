@@ -130,7 +130,12 @@ async function readForSaving(
   // steps is answered without the model, and should neither spend an attempt nor be
   // refused one.
   const anything = ingredientLines(fields.ingredients).length || instructionLines(fields.instructions).length;
-  if (anything && !(await takeReading(userId)).allowed) return asWritten;
+  if (anything && !(await takeReading(userId)).allowed) {
+    // Logged, because the cook is not told: the save goes through as written, and a
+    // recipe that quietly never got its breakdown looks like the reader being down.
+    console.warn(JSON.stringify({ level: "warn", event: "cook_steps_rate_limited", at: new Date().toISOString() }));
+    return asWritten;
+  }
 
   const read = await (await reader())(fields, homeId, language);
   if (!read.ok) return asWritten;
