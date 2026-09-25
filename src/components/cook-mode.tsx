@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { clockLabel, type CookStep } from "@/lib/cook";
+import { clearCookSession, readCookSession, saveCookSession, type CookTimer } from "@/lib/cook-session";
 import { cheer, tick } from "@/lib/haptics";
 import { timeLabel } from "@/lib/recipes";
 import type { FormAction } from "@/lib/action-result";
@@ -45,8 +46,6 @@ import { APP } from "@/lib/copy/app";
  *  is are worse than either. */
 const SWIPE_THRESHOLD_PX = 60;
 
-type Timer = { step: number; endsAt: number };
-
 export function CookMode({
   recipeId,
   title,
@@ -75,7 +74,7 @@ export function CookMode({
   const [page, setPage] = useState(0);
   const [turn, setTurn] = useState<"next" | "back" | null>(null);
 
-  const [timers, setTimers] = useState<Timer[]>([]);
+  const [timers, setTimers] = useState<CookTimer[]>([]);
   const [now, setNow] = useState(() => Date.now());
   const rung = useRef(new Set<number>());
 
@@ -83,9 +82,30 @@ export function CookMode({
   // opened the cooking view has already said what they are doing for the next half hour.
   useWakeLock(mounted);
 
+  // Picking up where a discarded page left off (see `lib/cook-session.ts`). Read before
+  // the first real render, in the same effect that allows it, so the surface never shows
+  // the ingredients page and then jumps.
   useEffect(() => {
+    const saved = readCookSession();
+    if (saved?.recipeId === recipeId) {
+      setPage(Math.min(saved.page, pageCount - 1));
+      setTimers(saved.timers.filter((timer) => timer.step < steps.length));
+    }
     setMounted(true);
+    // Once, on arrival: what is stored afterwards is this visit's own.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Written on every turn and every timer, because a page that is about to be discarded
+  // is given no warning a phone reliably honours.
+  useEffect(() => {
+    if (!mounted) return;
+    saveCookSession({ recipeId, page, timers, savedAt: Date.now() });
+  }, [mounted, recipeId, page, timers]);
+
+  // Leaving on purpose — Close, Complete, the back gesture — unmounts this and forgets the
+  // session. A page the phone killed never runs this, which is the whole distinction.
+  useEffect(() => clearCookSession, []);
 
   // The page behind must not scroll under the surface, the same way a sheet stops it.
   useEffect(() => {

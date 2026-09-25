@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import type { HomeLanguage } from "@prisma/client";
 import { useQueueFlush } from "@/components/use-offline-list";
 import { clearQueue } from "@/lib/offline-queue";
+import { clearCookSession } from "@/lib/cook-session";
 
 /**
  * Installs the service worker on every visit to the app.
@@ -56,11 +57,14 @@ export function OfflineSupport({ language }: { language: HomeLanguage }) {
  * them, and the queue of changes nobody managed to send, whose ops name rows only the
  * session that made them could see. Whoever opens this browser next is a different person
  * until they have proved otherwise, and finding the last one's shopping there is worse
- * than losing a tick to a session that ended before it could be sent.
+ * than losing a tick to a session that ended before it could be sent. A cook session left
+ * behind by a discarded page goes too, or the next person to sign in would be sent into
+ * the last one's dinner.
  */
 export function ForgetOfflineData() {
   useEffect(() => {
     void clearQueue();
+    clearCookSession();
     navigator.serviceWorker?.controller?.postMessage({ type: "homehub:forget" });
   }, []);
 

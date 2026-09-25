@@ -695,8 +695,10 @@ the row only *reads* its unit beside the number ("2 kg"; nothing for a plain cou
 `PANTRY_UNITS` (g, kg, dl, l, and the kitchen's own dåse, pose, pakke, glas, bundt) are
 offered with "no unit" as its own choice and not a lesser one: a plain count ("3") is as
 valid an answer as a measured one ("500 g"), the same reason a counted recipe ingredient
-carries no unit either (see `UNIT_WORDS`). Delete stays last in that menu, at the far end
-of the row where a thumb aiming at "we're out of rice" cannot reach it.
+carries no unit either (see `UNIT_WORDS`). **The name leads the row, on the left**, as a
+list item's does — finding rice is the first thing every visit does — then the stepper,
+then the three dots at the far end. Delete stays last in that menu, a gap away from the
+stepper so a thumb aiming at "we're out of rice" does not land on it.
 
 **The page is grouped by shelf.** `PantryCategory` is a fixed set (spices, oil & vinegar,
 sauces, baking, pasta/rice/grains, tins & jars, fridge, freezer, drinks, other), named in
@@ -865,6 +867,14 @@ forward**, as lifting a right-hand page over does.
   `transform` on an ancestor and a transformed ancestor contains a fixed child. It pads
   its own `env(safe-area-inset-*)`, holds a wake lock through `useWakeLock` (shared with
   `ScreenAwakeToggle`), and its timers live above the pages so a turn does not end them.
+- **Where a cook is survives the phone discarding the page.** An installed app killed in
+  the background is relaunched at the manifest's `start_url` (`/dashboard`), not where it
+  was — on an iPhone, half an hour in another app did exactly that mid-dinner. So the page
+  and the timers (each an `endsAt`, never a countdown) are written to `localStorage` on
+  every change (`src/lib/cook-session.ts`), cleared when action mode *unmounts* — which a
+  killed page never does — and `ResumeCooking` in the app layout sends a fresh load back
+  to the cook page while one is saved and `isResumable`. A timer still cannot ring while
+  the page is dead; it reads done when the cook comes back.
 - The page turn is `page-turn-next` / `page-turn-back` in `globals.css` — keyframes, and
   no `translate-*`/`rotate-*`/`scale-*` utility on the element playing one.
 
