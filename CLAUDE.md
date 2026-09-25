@@ -555,6 +555,24 @@ Two deliberately independent halves: **the page comes back from the service work
 `e2e/logout-forgets.spec.ts` asks what is left in Cache Storage afterwards.
 **[`docs/design/offline.md`](docs/design/offline.md) has the reasoning.**
 
+### An open list follows what the rest of the household does to it
+
+Two people shop from one list at once, so a tick on one phone has to reach the other.
+**It is a poll, not a push**: serverless functions cannot hold a socket open, and a
+household's list changes a few times a minute at most.
+
+- The page hashes what it draws with `listVersion` (`src/lib/list-version.ts`) and hands
+  the result to `ListItems`. `useListFollow` asks `/api/lists/<id>/version` every
+  `FOLLOW_MS` and calls `router.refresh()` **only when the two differ**, so the rows, the
+  bar and the add box's suggestions all come from the one query that draws them.
+- **What is hashed is exactly what the page draws.** A field the page shows and the hash
+  leaves out is a change the other phone never sees; the route and the page must select
+  the same fields, and `tests/unit/list-version.test.ts` names each one.
+- Nothing is asked of a hidden tab or an offline browser — the queue owns that stretch.
+  A fingerprint already refreshed for is never refreshed for twice, so a page and route
+  that ever disagreed cannot redraw the list every three seconds for ever.
+- `e2e/list-follow.spec.ts` drives two browser contexts against one list.
+
 ### An item can say which recipe put it there
 
 `ListItemSource` pairs a list item with a recipe, and "Add to list" on a recipe writes them.
@@ -677,8 +695,10 @@ the row only *reads* its unit beside the number ("2 kg"; nothing for a plain cou
 `PANTRY_UNITS` (g, kg, dl, l, and the kitchen's own dåse, pose, pakke, glas, bundt) are
 offered with "no unit" as its own choice and not a lesser one: a plain count ("3") is as
 valid an answer as a measured one ("500 g"), the same reason a counted recipe ingredient
-carries no unit either (see `UNIT_WORDS`). Delete stays last in that menu, at the far end
-of the row where a thumb aiming at "we're out of rice" cannot reach it.
+carries no unit either (see `UNIT_WORDS`). **The name leads the row, on the left**, as a
+list item's does — finding rice is the first thing every visit does — then the stepper,
+then the three dots at the far end. Delete stays last in that menu, a gap away from the
+stepper so a thumb aiming at "we're out of rice" does not land on it.
 
 **The page is grouped by shelf.** `PantryCategory` is a fixed set (spices, oil & vinegar,
 sauces, baking, pasta/rice/grains, tins & jars, fridge, freezer, drinks, other), named in

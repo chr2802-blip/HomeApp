@@ -12,6 +12,7 @@ import { PhotoField } from "@/components/photo-field";
 import { PhotoThumb } from "@/components/photo";
 import { sayIn } from "@/lib/copy/say";
 import { LISTS } from "@/lib/copy/lists";
+import { listVersion } from "@/lib/list-version";
 
 export default async function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -49,6 +50,19 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   if (!list) notFound();
 
   const ticked = list.items.filter((item) => item.done);
+  const items = list.items.map((item) => ({
+    ...item,
+    sources: item.sources.map((source) => source.recipe),
+  }));
+  // Drawn from the same rows as the page, so an open list can ask whether anybody else
+  // has changed it since — see `useListFollow`.
+  const version = listVersion({
+    ...list,
+    items: items.map((item) => ({
+      ...item,
+      sourceIds: item.sources.map((source) => source.id),
+    })),
+  });
 
   return (
     <>
@@ -98,13 +112,11 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
       <Card className="divide-y divide-slate-100 p-0">
         <ListItems
           listId={list.id}
-          items={list.items.map((item) => ({
-            ...item,
-            sources: item.sources.map((source) => source.recipe),
-          }))}
+          items={items}
           trackAmounts={list.trackAmounts}
           me={{ id: user.id, name: user.name, photoId: user.photoId }}
           shared={members > 1}
+          version={version}
         />
       </Card>
     </>
