@@ -103,7 +103,8 @@ const readerUnavailable = (language: HomeLanguage) => sayIn(language)(RECIPES.re
 const MAX_RESPONSE_BYTES = 3 * 1024 * 1024;
 /** A recipe's own hero photo is never anywhere near this; it exists to bound the request. */
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
-const FETCH_TIMEOUT_MS = 8000;
+/** Per request, so a reel costs this once for every caption source it has to ask. */
+export const FETCH_TIMEOUT_MS = 8000;
 
 /**
  * Node's `fetch` sends no `User-Agent` at all unless told to, which plenty of ordinary
@@ -337,7 +338,9 @@ export async function importPastedCaption(
   return finish(raw, homeId, language, {
     notARecipe: captionNotARecipe(language),
     videoUrl: isReel ? url.toString() : null,
-    photoId: isReel ? await fetchReelThumbnail(url, homeId) : null,
+    // Started, not awaited: the poster frame is fetched while the reader works, and only
+    // stored once the reading has come back good.
+    picture: isReel ? fetchReelPicture(url) : Promise.resolve(null),
   });
 }
 
@@ -348,17 +351,20 @@ export async function importPastedCaption(
  * picture, and the two ways of failing that the cook is told apart. Both routes funnel
  * through it so neither can come to mean something slightly different by "imported".
  *
- * The picture is fetched only once the recipe is good — there is no point storing bytes for
- * a page that turned out not to be a recipe — and never in a way that can fail the import: a
- * picture that cannot be fetched or does not survive `storePhoto`'s own checks is left out
- * rather than refusing a recipe that was otherwise perfectly readable.
+ * The picture is fetched and shrunk **while the reader works**, since the two are independent
+ * and the reader is the slow half — waiting for it before starting on a picture added the
+ * whole picture fetch to every import. It is still only *stored* once the recipe is good:
+ * there is no point keeping bytes for a page that turned out not to be a recipe. And it can
+ * never fail the import — a picture that cannot be fetched or does not survive `storePhoto`'s
+ * own checks is left out rather than refusing a recipe that was otherwise perfectly readable.
  */
 async function finish(
   raw: RawExtract,
   homeId: string,
   language: HomeLanguage,
-  options: { notARecipe: string; videoUrl?: string | null; photoId?: string | null },
+  options: { notARecipe: string; videoUrl?: string | null; picture?: Promise<Picture | null> },
 ): Promise<ImportOutcome> {
+  const picture = options.picture ?? fetchRecipePicture(raw.imageUrl, raw.sourceUrl ?? "");
   const read = await normalizeRecipe(raw, homeId, language);
   // No paste box: it goes to this same reader, which would refuse it the same way.
   if (!read.ok && read.reason === "over-limit") {
@@ -372,10 +378,7 @@ async function finish(
     };
   }
 
-  const photoId =
-    options.photoId !== undefined
-      ? options.photoId
-      : await importRecipeImage(raw.imageUrl, raw.sourceUrl ?? "", homeId);
+  const photoId = await storeRecipePicture(homeId, await picture);
 
   return {
     ok: true,
@@ -429,12 +432,12 @@ function reelExtract(read: ReelCaption, reelUrl: string, fetchedFrom: string): R
  * already filled in by hand should not wait through the whole chain again for a picture
  * they will be offered the chance to replace anyway.
  */
-async function fetchReelThumbnail(url: URL, homeId: string): Promise<string | null> {
+async function fetchReelPicture(url: URL): Promise<Picture | null> {
   const [first] = captionSources(url.toString());
   if (!first) return null;
 
   const read = await readCaptionSource(first);
-  return read ? importRecipeImage(read.imageUrl, first.url, homeId) : null;
+  return read ? fetchRecipePicture(read.imageUrl, first.url) : null;
 }
 
 /**
@@ -540,19 +543,19 @@ async function readCaptionSource(source: CaptionSource): Promise<ReelCaption | n
   return read;
 }
 
+/** A recipe's picture, fetched and shrunk to what is stored, but not yet stored. */
+type Picture = { full: Buffer; thumb: Buffer };
+
 /**
- * Fetches a recipe's own picture and files it under the home doing the import, or
- * gives up quietly. A page's `image` is frequently relative to the page itself, so it
- * is resolved against the address this app actually landed on rather than the link
- * that was pasted — the same reasoning `isBlockedHost` already applies to redirects
- * applies here: whatever the page points at is checked as its own address, not assumed
- * safe for having been mentioned by a page that itself passed the check.
+ * Fetches a recipe's own picture and shrinks it, or gives up quietly — it never rejects,
+ * because `finish` starts it before the reader and may never await it. A page's `image`
+ * is frequently relative to the page itself, so it is resolved against the address this
+ * app actually landed on rather than the link that was pasted — the same reasoning
+ * `isBlockedHost` already applies to redirects applies here: whatever the page points at
+ * is checked as its own address, not assumed safe for having been mentioned by a page
+ * that itself passed the check.
  */
-async function importRecipeImage(
-  imageUrl: string | null,
-  pageUrl: string,
-  homeId: string,
-): Promise<string | null> {
+async function fetchRecipePicture(imageUrl: string | null, pageUrl: string): Promise<Picture | null> {
   if (!imageUrl) return null;
 
   let resolved: URL;
@@ -577,22 +580,25 @@ async function importRecipeImage(
   if (!response.ok || !response.body) return null;
   if (isBlockedHost(new URL(response.url).hostname)) return null;
 
-  let bytes: Uint8Array;
   try {
-    bytes = await readLimited(response.body, MAX_IMAGE_BYTES);
+    const bytes = await readLimited(response.body, MAX_IMAGE_BYTES);
+    return await downscaleForStorage(bytes);
   } catch {
+    // Too large, or a file that claims to be a picture but is not one sharp can decode —
+    // this is decoration for a recipe that is otherwise complete, not a reason to refuse it.
     return null;
   }
+}
 
+/** Files a fetched picture under the home doing the import, or leaves it out quietly. */
+async function storeRecipePicture(homeId: string, picture: Picture | null): Promise<string | null> {
+  if (!picture) return null;
   try {
-    const { full, thumb } = await downscaleForStorage(bytes);
     // The refusal's wording is never shown — a picture that will not store is left out
     // quietly — so which language it would have been said in does not matter.
-    const stored = await storePhoto(homeId, full, thumb, DEFAULT_LANGUAGE);
+    const stored = await storePhoto(homeId, picture.full, picture.thumb, DEFAULT_LANGUAGE);
     return stored.ok ? stored.id : null;
   } catch {
-    // A file that claims to be a picture but is not one sharp can decode, say — this
-    // is decoration for a recipe that is otherwise complete, not a reason to refuse it.
     return null;
   }
 }

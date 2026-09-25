@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { createRecipe, deleteRecipe, prepareRecipeSteps, updateRecipe } from "@/app/actions/recipes";
 import { MONTHLY_LIMIT_USD } from "@/lib/ai-usage";
+import { attemptsAllowed } from "@/lib/rate-limit";
 import { RECIPES } from "@/lib/copy/recipes";
 import { IN_FORMAT } from "@/lib/cook";
 import { READING_FIELD } from "@/lib/recipes";
@@ -657,10 +658,10 @@ describe("what bounds a call to the reader", () => {
 
   afterEach(() => vi.unstubAllEnvs());
 
-  it("turns the ninth preparation in a quarter of an hour away, and says when to come back", async () => {
+  it("turns a preparation past the quarter-hour's allowance away, and says when to come back", async () => {
     const recipe = await seedRecipe({ homeId: home.id, createdById: member.id, categoryIds: [category.id] });
 
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < attemptsAllowed("prepare"); i++) {
       expect(await press(recipe.id)).toEqual({ ok: false, error: RECIPES.prepareReaderUnavailable.EN });
     }
 
@@ -670,10 +671,18 @@ describe("what bounds a call to the reader", () => {
     });
   });
 
+  // A save over the limit degrades without saying so, so the limit is set where a
+  // household tidying old recipes for an evening does not meet it — well past the
+  // guess-a-password eight the other scopes use. The money is the monthly allowance's.
+  it("allows an evening's worth of saves, not a password-guesser's", () => {
+    expect(attemptsAllowed("prepare")).toBeGreaterThanOrEqual(30);
+    expect(attemptsAllowed("login")).toBe(8);
+  });
+
   it("still saves a recipe once its author is over the limit, and clears its breakdown", async () => {
     const recipe = await seedRecipe({ homeId: home.id, createdById: member.id, categoryIds: [category.id] });
     await prisma.recipe.update({ where: { id: recipe.id }, data: { cookSteps: { v: 1, steps: [{ uses: [0], minutes: null }] } } });
-    for (let i = 0; i < 8; i++) await press(recipe.id);
+    for (let i = 0; i < attemptsAllowed("prepare"); i++) await press(recipe.id);
 
     await expectRedirect(
       () =>

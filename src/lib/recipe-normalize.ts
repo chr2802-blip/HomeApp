@@ -63,11 +63,20 @@ import { overMonthlyLimit, recordAiUsage } from "./ai-usage";
 const MODEL = "claude-haiku-4-5";
 
 /**
- * How long a read may take before it is given up on. The cook is watching a spinner, and
- * the limit is milliseconds in this SDK rather than the seconds the fetch timeouts next
- * door are written in.
+ * How long one attempt at a read may take before it is given up on. Milliseconds in this
+ * SDK, rather than the seconds the fetch timeouts next door are written in.
+ *
+ * **The budget is the route's `maxDuration` (60s), not this number alone.** The client
+ * retries once, and a timeout is one of the things it retries — so a stuck call costs
+ * twice this, on top of the page fetch (`FETCH_TIMEOUT_MS`, 8s) before it. At 25s that
+ * sum was 58s before the picture, and the platform cut the request off before the
+ * honest "the reader is not answering" could be said. Haiku answers in about 7s, so
+ * 15s is still twice a typical read. `tests/unit/ai-readers.test.ts` holds the sum.
  */
-const NORMALIZE_TIMEOUT_MS = 25_000;
+export const NORMALIZE_TIMEOUT_MS = 15_000;
+
+/** One retry: an overloaded API often answers the second time, and the budget allows one. */
+export const NORMALIZE_MAX_RETRIES = 1;
 
 /** Enough for a long recipe with its method; a recipe that needs more is not a recipe. */
 const MAX_TOKENS = 8_000;
@@ -238,8 +247,9 @@ export async function normalizeRecipe(
   if (await overMonthlyLimit(homeId)) return { ok: false, reason: "over-limit" };
 
   let parsed: NormalizedRecipe | null;
+  let cutShort = false;
   try {
-    const client = new Anthropic({ maxRetries: 1 });
+    const client = new Anthropic({ maxRetries: NORMALIZE_MAX_RETRIES });
     const started = performance.now();
     const response = await client.messages.parse(
       {
@@ -252,6 +262,7 @@ export async function normalizeRecipe(
       { timeout: NORMALIZE_TIMEOUT_MS },
     );
     parsed = response.parsed_output;
+    cutShort = response.stop_reason === "max_tokens";
     await recordAiUsage(
       homeId,
       "recipe_import",
@@ -282,6 +293,13 @@ export async function normalizeRecipe(
   // is reported as such: "we could not read it" rather than "there is no recipe here".
   if (!parsed) {
     logUnavailable("unparseable", "the model returned no parseable output");
+    return { ok: false, reason: "unavailable" };
+  }
+  // The same guard the save's reader has, and for the same reason: an import saved
+  // untouched is stored as this answer read it (`reading-token.ts`), so an answer that ran
+  // out of room would store a recipe missing everything past where it stopped.
+  if (cutShort) {
+    logUnavailable("cut_short", `the answer reached max_tokens (${MAX_TOKENS})`);
     return { ok: false, reason: "unavailable" };
   }
   if (!parsed.isRecipe) return { ok: false, reason: "not-a-recipe" };

@@ -3,7 +3,23 @@ import { headers } from "next/headers";
 import { prisma } from "./prisma";
 
 const WINDOW_MS = 15 * 60 * 1000;
-const MAX_ATTEMPTS = 8;
+
+/**
+ * How many attempts a scope allows in `WINDOW_MS`. Eight is the guess-a-password number,
+ * and is right for anything guarding a secret.
+ *
+ * `prepare` is not guarding anything: it counts saves that go to the model, and a save
+ * over it does not fail — it stores the recipe as written and clears its cooking-mode
+ * breakdown, which nobody is told about. A household tidying a shelf of old recipes in
+ * one evening reached eight honestly, so it is set where only a loop would reach it. The
+ * money is bounded elsewhere, by the home's monthly allowance (`overMonthlyLimit`).
+ */
+const MAX_ATTEMPTS: Record<string, number> = { prepare: 30 };
+const DEFAULT_MAX_ATTEMPTS = 8;
+
+export function attemptsAllowed(scope: string): number {
+  return MAX_ATTEMPTS[scope] ?? DEFAULT_MAX_ATTEMPTS;
+}
 
 /**
  * Attempts are keyed by a hash of scope + client IP + identifier, so the table never
@@ -31,7 +47,7 @@ export async function checkRateLimit(scope: string, identifier: string): Promise
     select: { createdAt: true },
   });
 
-  if (attempts.length < MAX_ATTEMPTS) return { allowed: true };
+  if (attempts.length < attemptsAllowed(scope)) return { allowed: true };
 
   const oldest = attempts[0]!.createdAt.getTime();
   const retryAfterMs = Math.max(0, oldest + WINDOW_MS - Date.now());
