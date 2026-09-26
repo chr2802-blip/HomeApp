@@ -485,8 +485,8 @@ the hearts always inserts, never updates.
   person's own newest rating, not the average.
 - The card's meta line is **time · ♥ average**. It used to say "Includes a video"; that went.
 - Hearts are the home's `--accent`, never red: red means "about to be deleted".
-- **On the recipe page the hearts are in a sheet**, behind a heart icon by the title,
-  beside keep-screen-on (`SheetButton`, `src/components/sheet-button.tsx`) — it is about
+- **On the recipe page the hearts are in a sheet**, behind a heart icon by the title
+  (`SheetButton`, `src/components/sheet-button.tsx`) — it is about
   the whole recipe, not the ingredients. The portions and "Add to list" are the same kind
   of icon in the ingredients' heading. As a card, a stepper and a labelled button the
   three crowded out the recipe.
@@ -890,8 +890,9 @@ forward**, as lifting a right-hand page over does.
   all of it.
 - **The surface is portalled to `document.body`**, because `PageTransition` puts a
   `transform` on an ancestor and a transformed ancestor contains a fixed child. It pads
-  its own `env(safe-area-inset-*)`, holds a wake lock through `useWakeLock` (shared with
-  `ScreenAwakeToggle`), and its timers live above the pages so a turn does not end them.
+  its own `env(safe-area-inset-*)`, holds a wake lock through `useWakeLock` — the only
+  thing in the app that keeps the screen on, since the recipe page's toggle was removed —
+  and its timers live above the pages so a turn does not end them.
 - **Where a cook is survives the phone discarding the page.** An installed app killed in
   the background is relaunched at the manifest's `start_url` (`/dashboard`), not where it
   was — on an iPhone, half an hour in another app did exactly that mid-dinner. So the page

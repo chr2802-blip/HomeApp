@@ -50,16 +50,6 @@ export const APP = {
     },
   },
 
-  /** The recipe page's toggle that keeps the phone awake while somebody cooks. */
-  keepScreenOn: {
-    label: { EN: "Keep screen on", DA: "Hold skærmen tændt" },
-    whileOn: {
-      EN: "Screen will stay on — tap to allow it to sleep",
-      DA: "Skærmen forbliver tændt — tryk for at lade den slukke",
-    },
-    whileOff: { EN: "Keep screen on while cooking", DA: "Hold skærmen tændt under madlavningen" },
-  },
-
   /** The header's home menu — pantry, settings, profile, and the other homes. */
   homeMenu: {
     ariaLabel: { EN: "{name} — home menu", DA: "{name} — hjemmemenu" },

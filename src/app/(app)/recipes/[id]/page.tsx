@@ -10,7 +10,6 @@ import { recipeSaveOverlay, RecipeFields } from "@/components/recipe-fields";
 import { PhotoBanner } from "@/components/photo";
 import { safeExternalHref } from "@/lib/embed";
 import { AddToListMenu } from "@/components/add-to-list-menu";
-import { ScreenAwakeToggle } from "@/components/screen-awake-toggle";
 import { ingredientLines, instructionLines, PORTIONS_PARAM, portionsShown, timeLabel } from "@/lib/recipes";
 import { CookLink, PortionsButton, PortionsProvider, ScaledIngredients } from "@/components/recipe-portions";
 import { sayIn } from "@/lib/copy/say";
@@ -107,7 +106,6 @@ export default async function RecipePage({
             count={rating?.count ?? 0}
             lastHearts={lastHearts}
           />
-          <ScreenAwakeToggle />
           <ItemMenu
             name="recipeId"
             id={recipe.id}
