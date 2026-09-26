@@ -12,7 +12,13 @@ import { homeScoped } from "@/lib/scoped";
 import { bodyText, optionalText, readForm, requiredText } from "@/lib/form";
 import { safeExternalHref } from "@/lib/embed";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
-import { ingredientLines, instructionLines, READING_FIELD, readCategoryChoice } from "@/lib/recipes";
+import {
+  ingredientLines,
+  instructionLines,
+  MAX_SERVINGS,
+  READING_FIELD,
+  readCategoryChoice,
+} from "@/lib/recipes";
 import { IN_FORMAT, isInFormat, readingStands } from "@/lib/cook";
 import { readingFor } from "@/lib/reading-token";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
@@ -35,12 +41,24 @@ function recipeSchema(say: Say) {
       error: timeMessage,
     });
 
+  /** Blank is a recipe nobody has said the servings of, which is shown unscaled. The
+   *  form asks every time; only a submission that did not come from it arrives blank. */
+  const servings = z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value ? Number(value) : null))
+    .refine((value) => value === null || (Number.isInteger(value) && value >= 1 && value <= MAX_SERVINGS), {
+      error: say(RECIPES.servingsMessage),
+    });
+
   return z.object({
     title: requiredText(say(RECIPES.titleRequired)),
     description: optionalText,
     ingredients: bodyText,
     instructions: bodyText,
     totalTimeMinutes,
+    servings,
     // A link that was typed but cannot be understood is a mistake worth reporting,
     // rather than silently dropping what the cook pasted. Checked before the transform,
     // which would otherwise make an empty field and a bad link both look like null.

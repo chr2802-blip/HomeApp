@@ -93,6 +93,7 @@ async function newList(page: Page, title: string) {
 async function newRecipe(page: Page, title: string, ingredients: string) {
   await page.goto("/recipes/new");
   await page.getByLabel("Title").fill(title);
+  await page.getByLabel("Portions").fill("4");
   await page.getByRole("checkbox", { name: CATEGORIES[0], exact: true }).check({ force: true });
   await page.getByLabel("Ingredients").fill(ingredients);
   await page.getByRole("button", { name: "Save recipe" }).click();

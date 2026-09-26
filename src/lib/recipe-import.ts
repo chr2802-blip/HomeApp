@@ -44,6 +44,8 @@ export type ImportedRecipe = {
   instructions: string;
   photoId: string | null;
   totalTimeMinutes: number | null;
+  /** How many the amounts are for, where the source said — the form asks either way. */
+  servings: number | null;
   /**
    * Filled in only for a reel, where the link that was pasted *is* the video — so the
    * recipe keeps playing the thing it was copied from, through the embed `embed.ts`
@@ -387,6 +389,7 @@ async function finish(
       ingredients: read.recipe.ingredients,
       instructions: read.recipe.instructions,
       totalTimeMinutes: read.recipe.totalTimeMinutes,
+      servings: read.recipe.servings,
       note: read.recipe.note,
       reading: signReading(homeId, read.recipe),
       photoId,

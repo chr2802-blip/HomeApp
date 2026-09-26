@@ -188,6 +188,18 @@ describe("extractFromHtml — JSON-LD", () => {
     expect(extract(html)?.timeHintMinutes).toBe(90);
   });
 
+  it("hands the reader the page's own yield", () => {
+    const html = pageWithLdJson({
+      "@type": "Recipe",
+      name: "Pancakes",
+      recipeIngredient: ["Flour"],
+      recipeInstructions: "Fry.",
+      recipeYield: ["4", "4 servings"],
+    });
+    expect(extract(html)?.rawContent).toContain("SERVINGS");
+    expect(extract(html)?.rawContent).toContain("4 servings");
+  });
+
   it("adds prepTime and cookTime when there is no totalTime", () => {
     const html = pageWithLdJson({
       "@type": "Recipe",

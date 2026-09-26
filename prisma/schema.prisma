@@ -347,6 +347,11 @@ model Recipe {
   /// this app answers a question they would disagree about; a total is what the recipe
   /// list filters and shows.
   totalTimeMinutes Int?
+  /// How many people the amounts in `ingredients` feed, as written. The recipe page and
+  /// action mode scale the lines from this to however many are being cooked for; the
+  /// stored lines are never rewritten, so scaling up and back down loses nothing. Null
+  /// for a recipe stored before anybody was asked, which is shown unscaled.
+  servings         Int?
   /// What action mode needs and the two text blocks cannot say: which ingredient lines
   /// each step uses, and how long it takes. One entry per line of `instructions`, in
   /// order — `{ "v": 1, "steps": [{ "uses": [0, 3], "minutes": 10 }] }`, where `uses`

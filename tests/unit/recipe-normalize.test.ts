@@ -208,6 +208,8 @@ describe("an answer the wire schema permits", () => {
     ["no time, written as null", { ...complete, totalTimeMinutes: null }],
     ["a time with a fraction in it", { ...complete, totalTimeMinutes: 22.5 }],
     ["a negative time", { ...complete, totalTimeMinutes: -1 }],
+    ["no servings, written as zero", { ...complete, servings: 0 }],
+    ["servings with a fraction in them", { ...complete, servings: 2.5 }],
     ["an unrecognised unit", { ...complete, ingredients: [{ ...complete.ingredients[0], unit: "sticks" }] }],
     ["no ingredients at all", { ...complete, ingredients: [] }],
     ["the nullable fields simply left out", { isRecipe: true, title: "Boller", ingredients: [{ name: "mel" }], instructions: [{ step: "Ælt." }] }],
@@ -222,6 +224,15 @@ describe("an answer the wire schema permits", () => {
     expect(read({ ...complete, totalTimeMinutes: -1 }).totalTimeMinutes).toBeNull();
     expect(read({ ...complete, totalTimeMinutes: 22.5 }).totalTimeMinutes).toBe(23);
     expect(read({ ...complete, totalTimeMinutes: 25 }).totalTimeMinutes).toBe(25);
+  });
+
+  it("reads the servings as a whole number the form will take, or not at all", () => {
+    expect(read(complete).servings).toBeNull();
+    expect(read({ ...complete, servings: 4 }).servings).toBe(4);
+    expect(read({ ...complete, servings: 3.6 }).servings).toBe(4);
+    expect(read({ ...complete, servings: 0 }).servings).toBeNull();
+    expect(read({ ...complete, servings: -2 }).servings).toBeNull();
+    expect(read({ ...complete, servings: 500 }).servings).toBeNull();
   });
 
   it("keeps the ingredient when it is only the unit that is wrong", () => {

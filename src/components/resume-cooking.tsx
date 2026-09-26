@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import { readCookSession } from "@/lib/cook-session";
+import { PORTIONS_PARAM } from "@/lib/recipes";
 
 /**
  * Only the first render of a freshly loaded document asks. A module variable rather than
@@ -32,7 +33,8 @@ export function ResumeCooking() {
     const session = readCookSession();
     if (!session) return;
     const target = `/recipes/${session.recipeId}/cook`;
-    if (pathname !== target) router.replace(target);
+    const portions = session.portions !== null ? `?${PORTIONS_PARAM}=${session.portions}` : "";
+    if (pathname !== target) router.replace(target + portions);
   }, [pathname, router]);
 
   return null;

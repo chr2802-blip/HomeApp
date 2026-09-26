@@ -9,7 +9,7 @@ import { createPortal } from "react-dom";
 import { clockLabel, type CookStep } from "@/lib/cook";
 import { clearCookSession, readCookSession, saveCookSession, type CookTimer } from "@/lib/cook-session";
 import { cheer, tick } from "@/lib/haptics";
-import { timeLabel } from "@/lib/recipes";
+import { PORTIONS_PARAM, timeLabel } from "@/lib/recipes";
 import type { FormAction } from "@/lib/action-result";
 import { Button } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
@@ -53,6 +53,8 @@ export function CookMode({
   ingredients,
   prepared,
   prepareAction,
+  portions,
+  servings,
 }: {
   recipeId: string;
   title: string;
@@ -60,8 +62,15 @@ export function CookMode({
   ingredients: string[];
   prepared: boolean;
   prepareAction: FormAction;
+  /** How many this is being cooked for, where that is not what the recipe is written
+   *  for — the amounts arrive already scaled; this is only for saying so, and for taking
+   *  the same number back to the recipe page. */
+  portions: number | null;
+  /** How many the recipe is written for, or null where nobody has said. */
+  servings: number | null;
 }) {
   const router = useRouter();
+  const recipeHref = `/recipes/${recipeId}${portions !== null ? `?${PORTIONS_PARAM}=${portions}` : ""}`;
   const [mounted, setMounted] = useState(false);
   const language = useLanguage();
   const say = sayIn(language);
@@ -100,8 +109,8 @@ export function CookMode({
   // is given no warning a phone reliably honours.
   useEffect(() => {
     if (!mounted) return;
-    saveCookSession({ recipeId, page, timers, savedAt: Date.now() });
-  }, [mounted, recipeId, page, timers]);
+    saveCookSession({ recipeId, portions, page, timers, savedAt: Date.now() });
+  }, [mounted, recipeId, portions, page, timers]);
 
   // Leaving on purpose — Close, Complete, the back gesture — unmounts this and forgets the
   // session. A page the phone killed never runs this, which is the whole distinction.
@@ -129,7 +138,7 @@ export function CookMode({
     [pageCount],
   );
 
-  const leave = useCallback(() => router.push(`/recipes/${recipeId}`), [router, recipeId]);
+  const leave = useCallback(() => router.push(recipeHref), [router, recipeHref]);
 
   // The last page turns nowhere — turning past it is finishing, so it closes the mode
   // instead of moving to one more screen that only exists to say so.
@@ -235,7 +244,7 @@ export function CookMode({
             </p>
           </div>
           <Link
-            href={`/recipes/${recipeId}`}
+            href={recipeHref}
             aria-label={say(APP.close)}
             className="pressable shrink-0 rounded-lg p-2 text-slate-400 active:scale-90 hover:bg-slate-200 hover:text-slate-900"
           >
@@ -304,6 +313,7 @@ export function CookMode({
           <MiseEnPlace
             title={title}
             ingredients={ingredients}
+            portions={portions ?? servings}
             prepared={prepared}
             recipeId={recipeId}
             prepareAction={prepareAction}
@@ -349,9 +359,11 @@ function MiseEnPlace({
   prepareAction,
   hasSteps,
   language,
+  portions,
 }: {
   title: string;
   ingredients: string[];
+  portions: number | null;
   prepared: boolean;
   recipeId: string;
   prepareAction: FormAction;
@@ -365,6 +377,12 @@ function MiseEnPlace({
       <h1 className="text-2xl font-semibold tracking-tight break-words">{title}</h1>
       <h2 className="mt-6 mb-3 text-sm font-semibold text-slate-500 uppercase">
         {say(RECIPES.ingredientsHeading)}
+        {portions !== null && (
+          <span data-testid="cook-portions" className="font-normal normal-case">
+            {" · "}
+            {say(RECIPES.portions, { count: portions })}
+          </span>
+        )}
       </h2>
       {ingredients.length === 0 ? (
         <p className="text-sm text-slate-500">{say(RECIPES.noneListed)}</p>

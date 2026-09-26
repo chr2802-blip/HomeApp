@@ -21,6 +21,9 @@ export type CookTimer = { step: number; endsAt: number };
 
 export type CookSession = {
   recipeId: string;
+  /** How many it was being cooked for, where that was not what the recipe is written for
+   *  — so a resumed cook comes back to the same amounts. Null for the recipe as written. */
+  portions: number | null;
   page: number;
   timers: CookTimer[];
   savedAt: number;
@@ -43,7 +46,7 @@ export function parseCookSession(raw: string | null): CookSession | null {
     return null;
   }
   if (!value || typeof value !== "object") return null;
-  const { recipeId, page, timers, savedAt } = value as Record<string, unknown>;
+  const { recipeId, portions, page, timers, savedAt } = value as Record<string, unknown>;
   if (typeof recipeId !== "string" || !recipeId) return null;
   if (!Number.isInteger(page) || (page as number) < 0) return null;
   if (typeof savedAt !== "number" || !Number.isFinite(savedAt)) return null;
@@ -57,7 +60,10 @@ export function parseCookSession(raw: string | null): CookSession | null {
       typeof timer.endsAt === "number" &&
       Number.isFinite(timer.endsAt),
   );
-  return { recipeId, page: page as number, timers: valid, savedAt };
+  // A session saved before portions existed, or one holding nonsense, is the recipe as
+  // written rather than a reason to throw the page and the timers away.
+  const shown = Number.isInteger(portions) && (portions as number) >= 1 ? (portions as number) : null;
+  return { recipeId, portions: shown, page: page as number, timers: valid, savedAt };
 }
 
 /** Whether a session is still worth going back to. A timer still counting always is; past
