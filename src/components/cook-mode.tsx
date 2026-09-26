@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { clockLabel, type CookStep } from "@/lib/cook";
-import { finishCook, findCook, leaveCook, showCook, startTimer, stopTimer } from "@/lib/cook-session";
+import { finishCook, findCook, leaveCook, showCook, startTimer, stopTimer, turnCook } from "@/lib/cook-session";
 import { cheer, tick } from "@/lib/haptics";
 import { PORTIONS_PARAM, timeLabel } from "@/lib/recipes";
 import type { FormAction } from "@/lib/action-result";
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
 import { useWakeLock } from "@/components/use-wake-lock";
 import { cookHref, useKitchen } from "@/components/kitchen";
+import { CookPicker, type CookChoice } from "@/components/cook-picker";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
@@ -40,6 +41,14 @@ import { APP } from "@/lib/copy/app";
  * — leaves them running, and this screen draws every one of them, the other recipes'
  * too, each a way over to the recipe it is for.
  *
+ * **More than one recipe can be on the stove**, and the others are a row of tabs under
+ * the header: each goes to its recipe on the step it was left on, with the time left on
+ * its nearest timer, and its cross takes it off the stove. The "+" beside Close puts
+ * another one on (`CookPicker`). Switching *replaces* the address rather than pushing
+ * one, so the back gesture does not walk back through every tab pressed. (The picker is
+ * a sheet, and a sheet pushes one entry of its own that it never pops — see `Modal` — so
+ * back straight after picking lands on the recipe it was opened over.)
+ *
  * The whole thing works on a recipe that was never prepared: the steps show plainly,
  * with no ingredients and no timers, and the offer to prepare it is on the first page.
  * Guessing which ingredients a step uses by matching words against it would be the one
@@ -61,6 +70,8 @@ export function CookMode({
   prepareAction,
   portions,
   servings,
+  recipes,
+  tonightId,
 }: {
   recipeId: string;
   title: string;
@@ -74,6 +85,10 @@ export function CookMode({
   portions: number | null;
   /** How many the recipe is written for, or null where nobody has said. */
   servings: number | null;
+  /** Every recipe in the home, for putting another on the stove. */
+  recipes: CookChoice[];
+  /** The recipe on today's meal plan, where there is one. */
+  tonightId: string | null;
 }) {
   const router = useRouter();
   const recipeHref = `/recipes/${recipeId}${portions !== null ? `?${PORTIONS_PARAM}=${portions}` : ""}`;
@@ -90,6 +105,7 @@ export function CookMode({
   const [turn, setTurn] = useState<"next" | "back" | null>(null);
 
   const { kitchen, loaded, now, update } = useKitchen();
+  const [picking, setPicking] = useState(false);
 
   // The screen stays on for as long as this is open. Nothing to press: somebody who has
   // opened the cooking view has already said what they are doing for the next half hour.
@@ -144,13 +160,25 @@ export function CookMode({
 
   const leave = useCallback(() => router.push(recipeHref), [router, recipeHref]);
 
+  /** Over to another recipe on the stove, or onto the stove. */
+  const switchTo = useCallback(
+    (other: string) => {
+      setPicking(false);
+      router.replace(cookHref(kitchen, other));
+    },
+    [router, kitchen],
+  );
+
   // The last page turns nowhere — turning past it is finishing, so it closes the mode
-  // instead of moving to one more screen that only exists to say so.
+  // instead of moving to one more screen that only exists to say so. With another recipe
+  // still on the stove, finishing this one is going back to that one.
   const complete = useCallback(() => {
     cheer();
     update((current) => finishCook(current, recipeId));
-    leave();
-  }, [leave, update, recipeId]);
+    const next = kitchen.cooks.find((cook) => cook.recipeId !== recipeId);
+    if (next) switchTo(next.recipeId);
+    else leave();
+  }, [leave, update, recipeId, kitchen, switchTo]);
 
   const forward = useCallback(
     () => (page === pageCount - 1 ? complete() : goTo(page + 1, "next")),
@@ -161,13 +189,16 @@ export function CookMode({
   // A screen that can only be swiped is a screen a desktop and a keyboard cannot use.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      // The picker is over this and has its own Escape; a page turning behind it would
+      // be a page nobody saw turn.
+      if (picking) return;
       if (event.key === "ArrowRight") forward();
       else if (event.key === "ArrowLeft") back();
       else if (event.key === "Escape") leave();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [forward, back, leave]);
+  }, [forward, back, leave, picking]);
 
   const drag = useRef<{ x: number; y: number } | null>(null);
 
@@ -202,6 +233,7 @@ export function CookMode({
   // drawn as though it were one of these steps.
   const own = kitchen.timers.filter((timer) => timer.recipeId === recipeId && timer.step < steps.length);
   const others = kitchen.timers.filter((timer) => timer.recipeId !== recipeId);
+  const otherCooks = kitchen.cooks.filter((cook) => cook.recipeId !== recipeId);
 
   if (!mounted || typeof document === "undefined") return null;
 
@@ -229,6 +261,16 @@ export function CookMode({
                 : say(RECIPES.stepOfTotal, { number: page, total: steps.length })}
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setPicking(true)}
+            aria-label={say(RECIPES.cookAnother)}
+            className="pressable shrink-0 rounded-lg p-2 text-slate-400 active:scale-90 hover:bg-slate-200 hover:text-slate-900"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+            </svg>
+          </button>
           <Link
             href={recipeHref}
             aria-label={say(APP.close)}
@@ -247,6 +289,57 @@ export function CookMode({
           </Link>
         </div>
 
+        {otherCooks.length > 0 && (
+          <nav
+            aria-label={say(RECIPES.onTheStove)}
+            className="flex gap-2 overflow-x-auto px-[max(1rem,env(safe-area-inset-left))] pb-2.5 pr-[max(1rem,env(safe-area-inset-right))]"
+          >
+            <span
+              aria-current="page"
+              className="max-w-[45%] shrink-0 truncate rounded-full bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white"
+            >
+              {title}
+            </span>
+            {otherCooks.map((cook) => {
+              // Its nearest timer, so a glance at the tabs says which pan needs looking at.
+              const soonest = Math.min(
+                ...kitchen.timers.filter((timer) => timer.recipeId === cook.recipeId).map((timer) => timer.endsAt),
+              );
+              const remaining = (soonest - now) / 1000;
+              return (
+                <span
+                  key={cook.recipeId}
+                  className="flex max-w-[45%] shrink-0 items-center rounded-full bg-white text-xs font-medium text-slate-700 ring-1 ring-slate-200"
+                >
+                  <Link
+                    href={cookHref(kitchen, cook.recipeId)}
+                    replace
+                    className="pressable min-w-0 truncate py-1.5 pl-3 active:scale-[0.96]"
+                  >
+                    {cook.title}
+                    {Number.isFinite(soonest) && (
+                      <span className={`tabular-nums ${remaining <= 0 ? "text-emerald-700" : "text-slate-500"}`}>
+                        {" · "}
+                        {remaining <= 0 ? say(RECIPES.timerDone) : clockLabel(remaining)}
+                      </span>
+                    )}
+                  </Link>
+                  <button
+                    type="button"
+                    aria-label={say(RECIPES.stopCooking, { title: cook.title })}
+                    onClick={() => update((current) => finishCook(current, cook.recipeId))}
+                    className="pressable shrink-0 rounded-full p-1.5 pr-2 text-slate-400 hover:text-slate-900 active:scale-90"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true">
+                      <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </span>
+              );
+            })}
+          </nav>
+        )}
+
         {/* The same number is in words above it, so this is decoration — but decoration
             that has to be honest, hence `data-progress`. */}
         <div aria-hidden="true" className="h-1 w-full bg-[var(--band)]">
@@ -261,7 +354,8 @@ export function CookMode({
       {own.length + others.length > 0 && (
         <div className="flex shrink-0 flex-wrap gap-2 border-b border-slate-200 bg-white px-4 py-2">
           {/* This recipe's own stop when pressed, as they always have; another recipe's
-              is a way over to it, where pressing it stops it. */}
+              is a way over to it — to the step the timer is for — where pressing it stops
+              it. */}
           {[...own, ...others].map((timer) => {
             const remaining = (timer.endsAt - now) / 1000;
             const finished = remaining <= 0;
@@ -281,7 +375,13 @@ export function CookMode({
                 {text}
               </button>
             ) : (
-              <Link key={`${timer.recipeId}:${timer.step}`} href={cookHref(kitchen, timer.recipeId)} replace className={className}>
+              <Link
+                key={`${timer.recipeId}:${timer.step}`}
+                href={cookHref(kitchen, timer.recipeId)}
+                replace
+                onClick={() => update((current) => turnCook(current, timer.recipeId, timer.step + 1))}
+                className={className}
+              >
                 {text}
               </Link>
             );
@@ -340,6 +440,16 @@ export function CookMode({
               : say(RECIPES.next)}
         </Button>
       </footer>
+
+      <CookPicker
+        open={picking}
+        onClose={() => setPicking(false)}
+        currentId={recipeId}
+        cooking={otherCooks.map((cook) => ({ id: cook.recipeId, title: cook.title }))}
+        tonightId={tonightId}
+        recipes={recipes}
+        onPick={switchTo}
+      />
     </div>,
     document.body,
   );

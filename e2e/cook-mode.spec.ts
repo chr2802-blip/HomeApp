@@ -363,3 +363,69 @@ test("keeps one recipe's timer counting while another is cooked, and shows it ev
   await timers.getByRole("button", { name: /^Stop timer: Ovnkartofler/ }).click();
   await expect(timers).toHaveCount(0);
 });
+
+test("puts a second recipe on the stove from inside the first, and moves between them", async ({
+  page,
+}) => {
+  const potatoes = await seedPrepared();
+  const meatballs = await seedPrepared({ title: "Frikadeller" });
+  await seedPrepared({ title: "Æblekage" });
+
+  // Tonight's plan names the meatballs, so they come before the rest.
+  const db = prisma();
+  const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Copenhagen" }).format(new Date());
+  await db.mealPlan.create({ data: { homeId: meatballs.homeId, date: today, recipeId: meatballs.id } });
+
+  let surface = await openCookMode(page, potatoes.id);
+  for (const label of ["Start", "Next", "Next"]) {
+    await surface.getByRole("button", { name: label, exact: true }).click();
+  }
+  await surface.getByRole("button", { name: "Start 10 min" }).click();
+
+  await surface.getByRole("button", { name: "Cook another recipe" }).click();
+  const picker = page.getByRole("dialog", { name: "What else is cooking?" });
+  await expect(picker.getByRole("heading", { name: "On tonight's plan" })).toBeVisible();
+  // The recipe being cooked is not offered again.
+  await expect(picker.getByRole("button", { name: "Ovnkartofler" })).toHaveCount(0);
+  await picker.getByRole("searchbox").fill("frik");
+  await expect(picker.getByRole("button", { name: "Æblekage" })).toHaveCount(0);
+  await picker.getByRole("button", { name: "Frikadeller" }).click();
+
+  await expect(page).toHaveURL(`/recipes/${meatballs.id}/cook`);
+  surface = page.getByRole("dialog", { name: /Cooking Frikadeller/ });
+  await expect(surface).toHaveAttribute("data-ready", "true");
+
+  // The potatoes are a tab, carrying their timer, and pressing it goes back to them on
+  // the step they were left on.
+  const stove = surface.getByRole("navigation", { name: "On the stove" });
+  await stove.getByRole("link", { name: /^Ovnkartofler · (9|10):\d\d/ }).click();
+  await expect(page).toHaveURL(`/recipes/${potatoes.id}/cook`);
+  surface = page.getByRole("dialog", { name: /Cooking Ovnkartofler/ });
+  await expect(surface).toHaveAttribute("data-ready", "true");
+  await expect(surface.getByText("Step 3 of 3")).toBeVisible();
+
+  // Finishing the potatoes goes on to what is still cooking, not out of the kitchen.
+  await surface.getByRole("button", { name: "Complete", exact: true }).click();
+  await expect(page).toHaveURL(`/recipes/${meatballs.id}/cook`);
+  surface = page.getByRole("dialog", { name: /Cooking Frikadeller/ });
+  await expect(surface).toHaveAttribute("data-ready", "true");
+  await expect(surface.getByRole("navigation", { name: "On the stove" })).toHaveCount(0);
+  // Its timer is still running: completing a recipe is not stopping its oven.
+  await expect(surface.getByRole("link", { name: /^Ovnkartofler · Step 3 ·/ })).toBeVisible();
+});
+
+test("takes a recipe off the stove from its tab", async ({ page }) => {
+  const potatoes = await seedPrepared();
+  const meatballs = await seedPrepared({ title: "Frikadeller" });
+
+  let surface = await openCookMode(page, potatoes.id);
+  await surface.getByRole("button", { name: "Cook another recipe" }).click();
+  await page.getByRole("dialog", { name: "What else is cooking?" }).getByRole("button", { name: "Frikadeller" }).click();
+  await expect(page).toHaveURL(`/recipes/${meatballs.id}/cook`);
+  surface = page.getByRole("dialog", { name: /Cooking Frikadeller/ });
+  await expect(surface).toHaveAttribute("data-ready", "true");
+
+  const stove = surface.getByRole("navigation", { name: "On the stove" });
+  await stove.getByRole("button", { name: "Stop cooking Ovnkartofler" }).click();
+  await expect(stove).toHaveCount(0);
+});

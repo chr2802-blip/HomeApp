@@ -173,6 +173,17 @@ export function finishCook(kitchen: Kitchen, recipeId: string): Kitchen {
   };
 }
 
+/** Opens a recipe on the stove at a page of its own — a timer pressed on another
+ *  recipe's screen goes to the step that timer is for, not wherever that recipe was left.
+ *  A recipe no longer on the stove is left to start from its ingredients. */
+export function turnCook(kitchen: Kitchen, recipeId: string, page: number): Kitchen {
+  if (!findCook(kitchen, recipeId)) return kitchen;
+  return {
+    ...kitchen,
+    cooks: kitchen.cooks.map((cook) => (cook.recipeId === recipeId ? { ...cook, page } : cook)),
+  };
+}
+
 /** One timer per step of a recipe: starting it again restarts it, which is what somebody
  *  who has just put the potatoes back on means by it. */
 export function startTimer(
