@@ -897,14 +897,31 @@ forward**, as lifting a right-hand page over does.
   `transform` on an ancestor and a transformed ancestor contains a fixed child. It pads
   its own `env(safe-area-inset-*)`, holds a wake lock through `useWakeLock` (shared with
   `ScreenAwakeToggle`), and its timers live above the pages so a turn does not end them.
+- **The timers belong to the kitchen, not to the screen.** Two dishes at once is most
+  dinners, and a timer held in action mode's own state ended the moment the cook walked
+  over to the second recipe. `KitchenProvider` (`src/components/kitchen.tsx`) sits in the
+  app layout and holds the *kitchen* — `cooks`, the recipes on the stove with the page
+  each was left on, and `timers`, each carrying its recipe's id and title. Action mode
+  draws every timer, another recipe's as a way over to it; every other page draws them
+  above the tab bar (`KitchenTimers`). **A timer stops only when it is stopped**, and a
+  recipe leaves the stove only when its last step is completed or it goes
+  `RESUME_WITHIN_MS` untouched — never because its screen went away.
+- **More than one recipe on the stove is a row of tabs in action mode**, and the "+" by
+  Close puts another on (`CookPicker`: what is still cooking, then tonight's `MealPlan`
+  recipe, then every recipe, as a partition). Tabs and another recipe's timer switch with
+  `router.replace` — a timer to the step it is for (`turnCook`) — so back does not walk
+  every tab; completing one recipe goes on to the next still on the stove. The page gets
+  `key={recipe.id}`, so switching is a fresh `CookMode` and never one carrying the last
+  recipe's page.
 - **Where a cook is survives the phone discarding the page.** An installed app killed in
   the background is relaunched at the manifest's `start_url` (`/dashboard`), not where it
-  was — on an iPhone, half an hour in another app did exactly that mid-dinner. So the page
-  and the timers (each an `endsAt`, never a countdown) are written to `localStorage` on
-  every change (`src/lib/cook-session.ts`), cleared when action mode *unmounts* — which a
-  killed page never does — and `ResumeCooking` in the app layout sends a fresh load back
-  to the cook page while one is saved and `isResumable`. A timer still cannot ring while
-  the page is dead; it reads done when the cook comes back.
+  was — on an iPhone, half an hour in another app did exactly that mid-dinner. So the
+  kitchen (each timer an `endsAt`, never a countdown) is written to `localStorage` on
+  every change (`src/lib/cook-session.ts`). **`open` is the one statement about the
+  screen**: set while action mode is mounted, cleared when it *unmounts* — which a killed
+  page never does — so `ResumeCooking` sends a fresh load back to the `open` cook, unless
+  that load is already on a cook page. A timer still cannot ring while the page is dead;
+  it reads done when the cook comes back.
 - The page turn is `page-turn-next` / `page-turn-back` in `globals.css` — keyframes, and
   no `translate-*`/`rotate-*`/`scale-*` utility on the element playing one.
 

@@ -4,6 +4,7 @@ import { prepareRecipeSteps } from "@/app/actions/recipes";
 import { requireHomeUser } from "@/lib/auth";
 import { cookSteps, isPrepared } from "@/lib/cook";
 import { homeDb } from "@/lib/home-db";
+import { todayInZone } from "@/lib/time";
 import { ingredientLines, PORTIONS_PARAM, portionsShown } from "@/lib/recipes";
 import { scaleIngredient } from "@/lib/ingredient-line";
 import { CookMode } from "@/components/cook-mode";
@@ -36,13 +37,25 @@ export default async function CookPage({
 
   // Scoped to the caller's home, so another home's id simply finds nothing —
   // indistinguishable from a record that never existed, which is the point.
-  const recipe = await homeDb(user.homeId).recipe.findUnique({
+  const db = homeDb(user.homeId);
+  const recipe = await db.recipe.findUnique({
     where: { id },
     // `photoId` and not the photo: a picture is served from /api/photos, never carried
     // through a page. Nothing here shows one anyway — the dish is what is on the hob.
     select: { id: true, title: true, ingredients: true, instructions: true, cookSteps: true, servings: true },
   });
   if (!recipe) notFound();
+
+  // What could go on the stove beside it: every recipe by name, and tonight's first
+  // because the second dish is usually the one that goes with it. Titles only — a
+  // household's recipes are dozens, not thousands, and the picker filters as typed.
+  const [recipes, tonight] = await Promise.all([
+    db.recipe.findMany({ select: { id: true, title: true }, orderBy: { title: "asc" } }),
+    db.mealPlan.findUnique({
+      where: { homeId_date: { homeId: user.homeId, date: todayInZone() } },
+      select: { recipeId: true },
+    }),
+  ]);
 
   // The amounts the recipe page was showing when "Start cooking" was pressed. Scaled line
   // by line, so every line keeps its position and the stored breakdown's indices still
@@ -58,6 +71,7 @@ export default async function CookPage({
 
   return (
     <CookMode
+      key={recipe.id}
       recipeId={recipe.id}
       title={recipe.title}
       steps={cookSteps(scaled)}
@@ -66,6 +80,8 @@ export default async function CookPage({
       servings={recipe.servings}
       prepared={isPrepared(recipe)}
       prepareAction={prepareRecipeSteps}
+      recipes={recipes}
+      tonightId={tonight?.recipeId ?? null}
     />
   );
 }
