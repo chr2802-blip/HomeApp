@@ -30,15 +30,18 @@ async function newRecipe(page: Page, title: string, ingredients: string) {
 }
 
 /**
- * Opens the recipe's "Add to list" menu and chooses one. Like every other menu here it
- * waits for the trigger to say it is really a menu button: hydration leaves no mark of
- * its own, so a press before React has attached looks exactly like a miss.
+ * Opens the recipe's "Add to list" sheet and chooses one. Like every menu here it waits
+ * for the trigger to say it is really wired up: hydration leaves no mark of its own, so a
+ * press before React has attached looks exactly like a miss.
  */
 async function addToList(page: Page, listTitle: string) {
   const trigger = page.getByRole("button", { name: "Add to list" });
   await expect(trigger).toHaveAttribute("data-ready", "true");
   await trigger.click();
-  await page.getByRole("menuitem", { name: new RegExp(`^${listTitle}`) }).click();
+  await page
+    .getByRole("dialog", { name: "Add to list" })
+    .getByRole("button", { name: new RegExp(`^${listTitle}`) })
+    .click();
   await expect(page.getByText(`Added to ${listTitle}.`)).toBeVisible();
 }
 

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { ContextMenu, MenuItem } from "@/components/context-menu";
 import { Modal, ModalBody, ModalFooter } from "@/components/modal";
+import { SheetButton } from "@/components/sheet-button";
 import { Button, buttonClass } from "@/components/ui";
 import type { ActionResult } from "@/lib/action-result";
 import {
@@ -48,15 +49,22 @@ type Decision = { list: ListChoice; lines: AmbiguousLine[]; keep: Set<string> };
  * Pressing a list can come back asking a further question rather than saying what
  * happened — a line naming more than one thing where the pantry has some but not all
  * of it. Nothing is written until that is answered, which is what `Decision` holds.
+ *
+ * `sheet` is the recipe page's way in to the same choice: an icon beside the portions
+ * and the rating, opening the lists in a sheet, because a labelled button there was one
+ * more thing competing with the recipe itself. The press and what it reports are the
+ * same either way.
  */
 export function AddToListMenu({
   lists,
   action,
   extraData,
+  sheet = false,
 }: {
   lists: ListChoice[];
   action: (formData: FormData) => Promise<ActionResult | PantryDecision>;
   extraData: Record<string, string>;
+  sheet?: boolean;
 }) {
   const [pending, startAdding] = useTransition();
   const [decision, setDecision] = useState<Decision | null>(null);
@@ -121,44 +129,76 @@ export function AddToListMenu({
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <ContextMenu
-        label={say(APP.addToList.label)}
-        className={buttonClass("secondary")}
-        trigger={
-          <>
-            <svg
-              viewBox="0 0 24 24"
-              className="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              aria-hidden="true"
-            >
-              <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            {say(APP.addToList.label)}
-          </>
-        }
-      >
-        {lists.length === 0 ? (
-          <p className="px-3.5 py-2.5 text-sm text-slate-500">{say(APP.addToList.noLists)}</p>
-        ) : (
-          lists.map((list) => (
-            <MenuItem key={list.id} icon="list" onSelect={() => add(list)}>
-              <span className="min-w-0 flex-1 truncate">{list.title}</span>
-              <span className="shrink-0 text-xs font-normal text-slate-400 tabular-nums">
-                {say(APP.addToList.open, { count: list.open })}
-              </span>
-            </MenuItem>
-          ))
-        )}
-      </ContextMenu>
+    <div className={sheet ? "contents" : "flex flex-col items-end gap-1"}>
+      {sheet ? (
+        <SheetButton label={say(APP.addToList.label)} icon={<CartIcon />} busy={pending} disabled={pending}>
+          {(close) => (
+            <ModalBody className="!px-0 !py-2">
+              {lists.length === 0 ? (
+                <p className="px-5 py-2.5 text-sm text-slate-500">{say(APP.addToList.noLists)}</p>
+              ) : (
+                <ul>
+                  {lists.map((list) => (
+                    <li key={list.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          close();
+                          add(list);
+                        }}
+                        className="flex w-full items-center gap-3 px-5 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
+                      >
+                        <span className="min-w-0 flex-1 truncate">{list.title}</span>
+                        <span className="shrink-0 text-xs font-normal text-slate-400 tabular-nums">
+                          {say(APP.addToList.open, { count: list.open })}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </ModalBody>
+          )}
+        </SheetButton>
+      ) : (
+        <ContextMenu
+          label={say(APP.addToList.label)}
+          className={buttonClass("secondary")}
+          trigger={
+            <>
+              <svg
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden="true"
+              >
+                <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {say(APP.addToList.label)}
+            </>
+          }
+        >
+          {lists.length === 0 ? (
+            <p className="px-3.5 py-2.5 text-sm text-slate-500">{say(APP.addToList.noLists)}</p>
+          ) : (
+            lists.map((list) => (
+              <MenuItem key={list.id} icon="list" onSelect={() => add(list)}>
+                <span className="min-w-0 flex-1 truncate">{list.title}</span>
+                <span className="shrink-0 text-xs font-normal text-slate-400 tabular-nums">
+                  {say(APP.addToList.open, { count: list.open })}
+                </span>
+              </MenuItem>
+            ))
+          )}
+        </ContextMenu>
+      )}
 
       {/* A live region, so the press being under way is announced rather than only
           drawn: the press that caused it moved focus nowhere. What happened once it
           lands is the snackbar's to say — this is only ever "Adding…" or nothing. */}
-      <p role="status" className="text-xs text-slate-500">
+      <p role="status" className={sheet ? "sr-only" : "text-xs text-slate-500"}>
         {pending ? say(APP.addToList.adding) : ""}
       </p>
 
@@ -205,5 +245,25 @@ export function AddToListMenu({
         )}
       </Modal>
     </div>
+  );
+}
+
+/** A shopping trolley: "Add to list" where there is room only for an icon. */
+function CartIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-[18px] w-[18px]"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      aria-hidden="true"
+    >
+      <path
+        d="M3 4h2l2.2 10.4a1.5 1.5 0 0 0 1.5 1.1h8.6a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.2M10 20h.01M17 20h.01"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

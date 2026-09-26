@@ -100,11 +100,16 @@ async function newRecipe(page: Page, title: string, ingredients: string) {
   await page.waitForURL(SAVED_RECIPE);
 }
 
+/** The pantry offers its lists as a menu, a recipe's page in a sheet — the same choice. */
 async function addToList(page: Page, listTitle: string) {
   const trigger = page.getByRole("button", { name: "Add to list" });
   await expect(trigger).toHaveAttribute("data-ready", "true");
   await trigger.click();
-  await page.getByRole("menuitem", { name: new RegExp(`^${listTitle}`) }).click();
+  const name = new RegExp(`^${listTitle}`);
+  await page
+    .getByRole("menuitem", { name })
+    .or(page.getByRole("dialog", { name: "Add to list" }).getByRole("button", { name }))
+    .click();
 }
 
 test.beforeEach(async ({ loginAs }) => {

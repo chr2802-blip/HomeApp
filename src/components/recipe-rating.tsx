@@ -3,6 +3,8 @@
 import { useOptimistic, useTransition } from "react";
 import { rateRecipe } from "@/app/actions/recipes";
 import { useLanguage } from "@/components/language-provider";
+import { ModalBody } from "@/components/modal";
+import { SheetButton } from "@/components/sheet-button";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
 import { formatAverage, MAX_HEARTS } from "@/lib/rating";
@@ -120,5 +122,39 @@ export function RecipeRating({
           : say(RECIPES.rateHint)}
       </p>
     </div>
+  );
+}
+
+/**
+ * The rating as an icon beside the ingredients' heading — a heart, filled once the
+ * household has rated it, with the average beside it — and the hearts to press in a
+ * sheet behind it. Rating is done after cooking, not every time the page is read, so it
+ * no longer takes a card of its own.
+ */
+export function RecipeRatingButton(props: {
+  recipeId: string;
+  average: number | null;
+  count: number;
+  lastHearts: number | null;
+}) {
+  const language = useLanguage();
+  const say = sayIn(language);
+
+  return (
+    <SheetButton
+      label={say(RECIPES.ratingHeading)}
+      value={props.average === null ? undefined : formatAverage(props.average, language)}
+      icon={
+        <span className="text-[var(--accent)]">
+          <HeartIcon filled={props.average !== null} className="h-[18px] w-[18px]" />
+        </span>
+      }
+    >
+      {() => (
+        <ModalBody>
+          <RecipeRating {...props} />
+        </ModalBody>
+      )}
+    </SheetButton>
   );
 }

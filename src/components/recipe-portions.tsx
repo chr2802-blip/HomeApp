@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useState, type ReactNode } from "react";
 
+import { ModalBody } from "@/components/modal";
+import { SheetButton } from "@/components/sheet-button";
 import { ButtonLink } from "@/components/ui";
 import { useLanguage } from "@/components/language-provider";
 import { scaleIngredient } from "@/lib/ingredient-line";
@@ -12,8 +14,8 @@ import { RECIPES } from "@/lib/copy/recipes";
 /**
  * How many a recipe is being cooked for, on the recipe's own page.
  *
- * One piece of state read in three places — the stepper, the ingredient list and the
- * "Start cooking" link — so the amounts on screen and the amounts at the hob are the same
+ * One piece of state read in four places — the stepper, its button, the ingredient list
+ * and the "Start cooking" link — so the amounts on screen and the amounts at the hob are the same
  * number by construction. A context rather than one component holding all three, because
  * the page puts the link above the picture and the list in a card below it.
  *
@@ -82,6 +84,46 @@ export function PortionsStepper() {
         <p className="mt-1 text-xs text-slate-500">{say(RECIPES.scaledFrom, { count: servings })}</p>
       )}
     </div>
+  );
+}
+
+/**
+ * The portions as an icon beside the ingredients' heading, carrying the number being
+ * cooked for, with the stepper in a sheet behind it. The number stays on the page because
+ * it is what the amounts below it mean; changing it is the rarer thing.
+ */
+export function PortionsButton() {
+  const { servings, portions } = useContext(PortionsContext);
+  const say = sayIn(useLanguage());
+  if (servings === null || portions === null) return null;
+
+  return (
+    <SheetButton
+      label={say(RECIPES.servingsField)}
+      value={portions}
+      icon={
+        <svg
+          viewBox="0 0 24 24"
+          className="h-[18px] w-[18px]"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          aria-hidden="true"
+        >
+          <path
+            d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M3 20a6 6 0 0 1 12 0M16 4.3a3.5 3.5 0 0 1 0 6.4M18 14.5a6 6 0 0 1 3 5.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      }
+    >
+      {() => (
+        <ModalBody>
+          <PortionsStepper />
+        </ModalBody>
+      )}
+    </SheetButton>
   );
 }
 
