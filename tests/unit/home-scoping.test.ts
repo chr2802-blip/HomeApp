@@ -45,7 +45,7 @@ describe("every model is classified", () => {
    * than derived, because "looks home-scoped but is reached through its parent" is
    * exactly the judgement no column can express — and getting it wrong is silent.
    */
-  it.each(["User", "ListItem", "ListItemSource", "ListFavorite", "RecipeCategoryLink"])(
+  it.each(["User", "ListItem", "ListItemSource", "ListFavorite", "RecipeCategoryLink", "RecipeRating"])(
     "refuses %s rather than passing it through unscoped",
     (name) => {
       const found = classifyModels().find((entry) => entry.model === name);

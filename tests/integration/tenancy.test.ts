@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { deleteList, updateList, toggleListFavorite, toggleListItem } from "@/app/actions/lists";
 import { completeTask, deleteTask, updateTask } from "@/app/actions/tasks";
-import { createRecipe as saveRecipe, deleteRecipe, updateRecipe } from "@/app/actions/recipes";
+import { createRecipe as saveRecipe, deleteRecipe, rateRecipe, updateRecipe } from "@/app/actions/recipes";
 import {
   deleteRecipeCategory,
   renameRecipeCategory,
@@ -47,6 +47,14 @@ describe("a member of one home cannot touch another home's data", () => {
     await expectDenied(() => toggleListFavorite(formData({ listId: list.id })));
 
     expect(await prisma.listFavorite.count()).toBe(0);
+  });
+
+  it("cannot rate another home's recipe", async () => {
+    const recipe = await createRecipe({ homeId: victimHome.id, createdById: victimOwner.id });
+
+    await expectDenied(() => rateRecipe(formData({ recipeId: recipe.id, hearts: "1" })));
+
+    expect(await prisma.recipeRating.count()).toBe(0);
   });
 
   it("cannot rename another home's list", async () => {

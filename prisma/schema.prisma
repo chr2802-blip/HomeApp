@@ -140,6 +140,7 @@ model User {
   memberships       HomeMember[]
   pushSubscriptions PushSubscription[]
   favoriteLists     ListFavorite[]
+  recipeRatings     RecipeRating[]
   /// The list items this person has ticked off, wherever they are still ticked.
   itemsCompleted    ListItem[]
   lists             List[]
@@ -373,8 +374,37 @@ model Recipe {
   /// The days a household has planned to cook this on — including, when nothing else
   /// has been decided yet, today's own auto-picked suggestion (see MealPlan).
   mealPlans  MealPlan[]
+  /// Every time somebody has rated it (RecipeRating).
+  ratings    RecipeRating[]
 
   @@index([homeId])
+}
+
+/**
+ * One rating of one recipe, 1 to 5 hearts — one row per time it was rated, not per person.
+ * The same person rates the same recipe again after cooking it again, and the opinion is
+ * allowed to move: the recipe's score is the average of every row, so a dish that got
+ * better with practice climbs and one that got tired sinks. Nothing is overwritten.
+ * The average is never stored. It is asked of these rows whenever a page draws it, so no
+ * new rating can leave a number behind that no longer adds up — a stored average beside
+ * the rows would be a second answer to the same question.
+ * `userId` says who rated, and survives them leaving as null: a person's account going
+ * is no reason for the household's opinion of a dinner to change.
+ * It carries no homeId, so homeDb refuses it — like ListFavorite it is reached through
+ * the record that does, its recipe. Pages read it as an include on a homeDb recipe query.
+ */
+model RecipeRating {
+  id        String   @id @default(cuid())
+  recipeId  String
+  userId    String?
+  hearts    Int
+  createdAt DateTime @default(now())
+
+  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([recipeId])
+  @@index([userId])
 }
 
 /**
@@ -576,7 +606,7 @@ enum PantryCategory {
  * and "salt" are not two basic goods.
  */
 model PantryItem {
-  id        String      @id @default(cuid())
+  id        String          @id @default(cuid())
   homeId    String
   /// What it is called, as the household wrote it.
   name      String
@@ -584,13 +614,13 @@ model PantryItem {
   key       String
   /// How much the household has of it. Zero is what `inStock: false` used to mean;
   /// anything more is what `true` did.
-  quantity  Int         @default(1)
+  quantity  Int             @default(1)
   /// What the quantity is counted in, or null for a plain count with no unit.
   unit      PantryUnit?
   /// The shelf it is filed under. Null is "not sorted yet" — waiting for the household or
   /// `sortPantry` — and is deliberately not `OTHER`, which is somebody having decided.
   category  PantryCategory?
-  createdAt DateTime    @default(now())
+  createdAt DateTime        @default(now())
 
   home Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
 
