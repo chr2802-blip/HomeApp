@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireHomeUser } from "@/lib/auth";
+import { canAdministerCurrentHome } from "@/lib/access";
 import { homeDb } from "@/lib/home-db";
 import { deleteRecipe, updateRecipe } from "@/app/actions/recipes";
 import { addRecipeIngredients } from "@/app/actions/lists";
@@ -105,6 +106,7 @@ export default async function RecipePage({
             average={rating?.average ?? null}
             count={rating?.count ?? 0}
             lastHearts={lastHearts}
+            canReset={canAdministerCurrentHome(user)}
           />
           <ItemMenu
             name="recipeId"

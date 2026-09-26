@@ -1,10 +1,12 @@
 "use client";
 
-import { useOptimistic, useTransition } from "react";
-import { rateRecipe } from "@/app/actions/recipes";
+import { useOptimistic, useState, useTransition } from "react";
+import { rateRecipe, resetRecipeRatings } from "@/app/actions/recipes";
 import { useLanguage } from "@/components/language-provider";
 import { ModalBody } from "@/components/modal";
 import { SheetButton } from "@/components/sheet-button";
+import { Button } from "@/components/ui";
+import { APP } from "@/lib/copy/app";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
 import { formatAverage, MAX_HEARTS } from "@/lib/rating";
@@ -50,12 +52,15 @@ export function RecipeRating({
   average,
   count,
   lastHearts,
+  canReset,
 }: {
   recipeId: string;
   average: number | null;
   count: number;
   /** What this person gave it the last time they rated it, if they ever have. */
   lastHearts: number | null;
+  /** Whether they run this home, and so may clear the ratings and start again. */
+  canReset: boolean;
 }) {
   const language = useLanguage();
   const say = sayIn(language);
@@ -121,6 +126,68 @@ export function RecipeRating({
           ? say(RECIPES.yourLastRating, { count: standing.last })
           : say(RECIPES.rateHint)}
       </p>
+
+      {canReset && standing.count > 0 && (
+        <ResetRatings recipeId={recipeId} count={standing.count} disabled={pending} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The home admin's way to clear a recipe's ratings, asked twice inside the sheet it sits
+ * in rather than in a second sheet stacked on top: both would push a history entry, and
+ * one back press would then close the two of them together.
+ *
+ * Only drawn where there is something to clear — a reset that would do nothing is a
+ * button offering to fail.
+ */
+function ResetRatings({ recipeId, count, disabled }: { recipeId: string; count: number; disabled: boolean }) {
+  const say = sayIn(useLanguage());
+  const [confirming, setConfirming] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  function reset() {
+    const data = new FormData();
+    data.set("recipeId", recipeId);
+    startTransition(async () => {
+      await resetRecipeRatings(data);
+      setConfirming(false);
+    });
+  }
+
+  return (
+    <div className="mt-4 border-t border-slate-200 pt-3">
+      {confirming ? (
+        <>
+          <p className="text-sm text-slate-600">{say(RECIPES.resetRatingsMessage, { count })}</p>
+          <div className="mt-2 flex gap-2">
+            <Button
+              type="button"
+              variant="danger"
+              onClick={reset}
+              disabled={pending}
+              aria-busy={pending}
+              className="flex-1 sm:flex-none"
+            >
+              {pending ? say(APP.working) : say(RECIPES.resetRatingsConfirm)}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setConfirming(false)} disabled={pending}>
+              {say(APP.cancel)}
+            </Button>
+          </div>
+        </>
+      ) : (
+        <Button
+          type="button"
+          variant="danger"
+          onClick={() => setConfirming(true)}
+          disabled={disabled}
+          className="px-2 py-1 text-xs"
+        >
+          {say(RECIPES.resetRatings)}
+        </Button>
+      )}
     </div>
   );
 }
@@ -136,6 +203,7 @@ export function RecipeRatingButton(props: {
   average: number | null;
   count: number;
   lastHearts: number | null;
+  canReset: boolean;
 }) {
   const language = useLanguage();
   const say = sayIn(language);

@@ -275,9 +275,42 @@ test("every rating counts, the same person's too, and the card shows the average
   await ratingButton.click();
   await expect(page.getByTestId("rating-average")).toHaveText("3.5");
   await expect(page.getByText("Your last rating: 2 hearts")).toBeVisible();
+  // Clearing the ratings is the home admins' alone.
+  await expect(page.getByRole("button", { name: "Reset ratings" })).toHaveCount(0);
 
   await page.goto("/recipes");
   const card = page.getByRole("link", { name: /Lasagne/ });
   await expect(card.getByText("1 hr 30 min")).toBeVisible();
   await expect(card.getByLabel("Rated 3.5 out of 5 from 2 ratings")).toBeVisible();
+});
+
+test("a home admin can reset a recipe's ratings from the rating sheet", async ({ loginAs, page }) => {
+  await fillRecipe(page, { title: "Moussaka", ingredients: "Aubergine" });
+  await page.getByRole("button", { name: "Save recipe" }).click();
+  await expect(page).toHaveURL(SAVED_RECIPE);
+  const recipeUrl = page.url();
+
+  const ratingButton = page.getByRole("button", { name: "Rating" });
+  await expect(ratingButton).toHaveAttribute("data-ready", "true");
+  await ratingButton.click();
+  await page.getByRole("button", { name: "Give 4 hearts" }).click();
+  await expect(page.getByTestId("rating-average")).toHaveText("4");
+
+  await loginAs(ACCOUNTS.admin);
+  await page.goto(recipeUrl);
+  await expect(ratingButton).toHaveText("4");
+  await expect(ratingButton).toHaveAttribute("data-ready", "true");
+  await ratingButton.click();
+
+  // Asked twice, inside the same sheet.
+  await page.getByRole("button", { name: "Reset ratings" }).click();
+  await expect(page.getByText("Delete 1 rating? The average starts again from nothing.")).toBeVisible();
+  await page.getByRole("button", { name: "Reset", exact: true }).click();
+
+  await expect(page.getByText("Not rated yet")).toBeVisible();
+  // Nothing left to clear, so nothing offers to.
+  await expect(page.getByRole("button", { name: "Reset ratings" })).toHaveCount(0);
+
+  await page.reload();
+  await expect(ratingButton).not.toHaveText("4");
 });
