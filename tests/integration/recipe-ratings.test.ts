@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { deleteRecipe, rateRecipe } from "@/app/actions/recipes";
+import { deleteRecipe, rateRecipe, resetRecipeRatings } from "@/app/actions/recipes";
 import { ratingSummary } from "@/lib/rating";
-import { createHomeWithMembers, createRecipe, formData, signIn } from "../helpers/factories";
+import { createHome, createHomeWithMembers, createRecipe, createUser, formData, joinHome, signIn } from "../helpers/factories";
 import { expectRedirect } from "../helpers/expect";
 
 let home: Awaited<ReturnType<typeof createHomeWithMembers>>["home"];
@@ -60,5 +60,43 @@ describe("rating a recipe", () => {
     await expectRedirect(() => deleteRecipe(formData({ recipeId: recipe.id })), "/recipes");
 
     expect(await prisma.recipeRating.count()).toBe(0);
+  });
+});
+
+describe("resetting a recipe's ratings", () => {
+  it("clears every rating, everybody's, for an admin of the recipe's home", async () => {
+    const recipe = await createRecipe({ homeId: home.id, createdById: admin.id });
+    const other = await createRecipe({ homeId: home.id, createdById: admin.id });
+    await rateRecipe(formData({ recipeId: recipe.id, hearts: "2" }));
+    await rateRecipe(formData({ recipeId: other.id, hearts: "5" }));
+    await signIn(admin);
+    await rateRecipe(formData({ recipeId: recipe.id, hearts: "4" }));
+
+    await resetRecipeRatings(formData({ recipeId: recipe.id }));
+
+    expect(await ratingsOf(recipe.id)).toEqual([]);
+    expect(await ratingsOf(other.id)).toHaveLength(1);
+  });
+
+  it("is refused to a member who does not run the home", async () => {
+    const recipe = await createRecipe({ homeId: home.id, createdById: admin.id });
+    await rateRecipe(formData({ recipeId: recipe.id, hearts: "3" }));
+
+    await expect(resetRecipeRatings(formData({ recipeId: recipe.id }))).rejects.toThrow("Not allowed");
+
+    expect(await ratingsOf(recipe.id)).toHaveLength(1);
+  });
+
+  it("is refused to an admin of another home who merely lives in this one", async () => {
+    const recipe = await createRecipe({ homeId: home.id, createdById: admin.id });
+    await rateRecipe(formData({ recipeId: recipe.id, hearts: "3" }));
+    const elsewhere = await createHome();
+    const outsider = await createUser({ homeId: elsewhere.id, role: "ADMIN" });
+    await joinHome({ userId: outsider.id, homeId: home.id, role: "USER" });
+    await signIn(outsider);
+
+    await expect(resetRecipeRatings(formData({ recipeId: recipe.id }))).rejects.toThrow("Not allowed");
+
+    expect(await ratingsOf(recipe.id)).toHaveLength(1);
   });
 });

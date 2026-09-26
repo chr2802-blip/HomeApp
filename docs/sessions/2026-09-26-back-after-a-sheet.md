@@ -2,7 +2,7 @@
 
 - **Date** — 2026-09-26
 - **Branch** — `claude/browser-back-dialog-issue-37j7wd`
-- **PR** — #147
+- **PR** — #142, then #147 (the test fix)
 - **Reached production** — not yet
 
 ## The idea

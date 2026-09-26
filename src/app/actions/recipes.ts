@@ -9,6 +9,7 @@ import { requireHomeUser } from "@/lib/auth";
 import { checkRateLimit, recordFailedAttempt, type RateLimitResult } from "@/lib/rate-limit";
 import { homeDb } from "@/lib/home-db";
 import { homeScoped } from "@/lib/scoped";
+import { assertHomeAdmin } from "@/lib/access";
 import { bodyText, optionalText, readForm, requiredText } from "@/lib/form";
 import { safeExternalHref } from "@/lib/embed";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
@@ -360,6 +361,26 @@ export async function rateRecipe(formData: FormData) {
   if (hearts === null) return;
 
   await prisma.recipeRating.create({ data: { recipeId: recipe.id, userId: user.id, hearts } });
+
+  revalidatePath("/recipes");
+  revalidatePath(`/recipes/${recipe.id}`);
+}
+
+/**
+ * Clears every rating a recipe has been given, so its average starts again from nothing —
+ * for a dish the household now cooks differently, or one rated by mistake.
+ *
+ * The home's admins only, and asked of the recipe's own home rather than whichever one
+ * is on screen: running one household is no licence over the next. Every row goes,
+ * everybody's, because the average is asked of all of them and a reset that kept some
+ * would be a reset of nothing anybody can see.
+ */
+export async function resetRecipeRatings(formData: FormData) {
+  const user = await requireHomeUser();
+  const recipe = await recipeInScope(String(formData.get("recipeId")));
+  assertHomeAdmin(user, recipe.homeId);
+
+  await prisma.recipeRating.deleteMany({ where: { recipeId: recipe.id } });
 
   revalidatePath("/recipes");
   revalidatePath(`/recipes/${recipe.id}`);
