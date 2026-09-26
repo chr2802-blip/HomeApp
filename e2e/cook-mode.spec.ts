@@ -26,7 +26,7 @@ type Recorder = Window & { __animations?: string[] };
 
 /** A recipe already prepared, as a save would have left it: one entry per step, each
  *  naming the ingredient lines that step uses. */
-async function seedPrepared(options: { cookSteps?: unknown; servings?: number } = {}) {
+async function seedPrepared(options: { cookSteps?: unknown; servings?: number; title?: string } = {}) {
   const db = prisma();
   const home = await db.home.findFirstOrThrow({ where: { name: HOME_NAME } });
   const owner = await db.user.findFirstOrThrow({ where: { email: ACCOUNTS.member.email } });
@@ -38,7 +38,7 @@ async function seedPrepared(options: { cookSteps?: unknown; servings?: number } 
     data: {
       homeId: home.id,
       createdById: owner.id,
-      title: "Ovnkartofler",
+      title: options.title ?? "Ovnkartofler",
       servings: options.servings ?? null,
       ingredients: "500 g kartofler\n2 spsk olie\nSalt",
       instructions: "Skær kartoflerne i både.\nVend dem i olien.\nBag dem i ovnen.",
@@ -319,4 +319,47 @@ test("comes back to the same step and the same timer after the phone threw the p
   await page.goto("/dashboard");
   await expect(page.getByRole("dialog", { name: /Cooking/ })).toHaveCount(0);
   await expect(page).toHaveURL("/dashboard");
+});
+
+test("keeps one recipe's timer counting while another is cooked, and shows it everywhere", async ({
+  page,
+}) => {
+  const potatoes = await seedPrepared();
+  const second = await seedPrepared({ title: "Frikadeller" });
+
+  let surface = await openCookMode(page, potatoes.id);
+  for (const label of ["Start", "Next", "Next"]) {
+    await surface.getByRole("button", { name: label, exact: true }).click();
+  }
+  await surface.getByRole("button", { name: "Start 10 min" }).click();
+  await expect(surface.getByRole("button", { name: /^Step 3 ·/ })).toBeVisible();
+
+  // Over to the second dish. Its own screen, and the potatoes' timer still counting on
+  // it, saying which recipe it is for — the bug was that leaving the first screen ended
+  // it. Arriving at it fresh, while the potatoes' screen was the one left open, is also
+  // not a relaunch to be pulled back from.
+  surface = await openCookMode(page, second.id);
+  await expect(surface.getByRole("heading", { name: "Frikadeller" })).toBeVisible();
+  const potatoTimer = surface.getByRole("link", { name: /^Ovnkartofler · Step 3 · (9|10):\d\d/ });
+  await expect(potatoTimer).toBeVisible();
+
+  // Pressing it goes back to the potatoes, on the step they were left on.
+  await potatoTimer.click();
+  await expect(page).toHaveURL(`/recipes/${potatoes.id}/cook`);
+  surface = page.getByRole("dialog", { name: /Cooking Ovnkartofler/ });
+  await expect(surface).toHaveAttribute("data-ready", "true");
+  await expect(surface.getByText("Step 3 of 3")).toBeVisible();
+
+  // Leaving cooking altogether does not stop it either: it sits above the tab bar on
+  // every other page, and its cross stops it.
+  await surface.getByRole("link", { name: "Close" }).click();
+  await expect(page).toHaveURL(`/recipes/${potatoes.id}`);
+  const timers = page.getByRole("region", { name: "Timers" });
+  await expect(timers.getByRole("link", { name: /^Ovnkartofler · Step 3 · (9|10):\d\d/ })).toBeVisible();
+  // A fresh load, too: the kitchen is read back out of the browser, not kept in memory.
+  await page.goto("/lists");
+  await expect(timers.getByRole("link", { name: /^Ovnkartofler · Step 3/ })).toBeVisible();
+
+  await timers.getByRole("button", { name: /^Stop timer: Ovnkartofler/ }).click();
+  await expect(timers).toHaveCount(0);
 });

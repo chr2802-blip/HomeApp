@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-import { readCookSession } from "@/lib/cook-session";
+import { findCook, readKitchen } from "@/lib/cook-session";
 import { PORTIONS_PARAM } from "@/lib/recipes";
 
 /**
@@ -18,10 +18,11 @@ let asked = false;
  *
  * An installed app whose page was discarded in the background is relaunched at the
  * manifest's `start_url`, not where it was — so on an iPhone, half an hour in another app
- * mid-dinner came back to the dashboard with the timers gone. A saved session exists only
- * while action mode was never left on purpose (`lib/cook-session.ts`), so finding one on a
- * fresh load means exactly that happened, and the right answer is the cook page it came
- * from, which restores the page and the timers itself.
+ * mid-dinner came back to the dashboard with the timers gone. The kitchen's `open` stays
+ * set only while action mode was never left on purpose (`lib/cook-session.ts`), so
+ * finding it set on a fresh load means exactly that happened, and the right answer is the
+ * cook page it came from, which restores the page itself — the timers never left, since
+ * they belong to the kitchen and not to the screen.
  */
 export function ResumeCooking() {
   const router = useRouter();
@@ -30,11 +31,14 @@ export function ResumeCooking() {
   useEffect(() => {
     if (asked) return;
     asked = true;
-    const session = readCookSession();
+    // A fresh load that is already cooking something is where the cook meant to be — a
+    // second dish opened in its own right, not a relaunch to be corrected.
+    if (/^\/recipes\/[^/]+\/cook$/.test(pathname)) return;
+    const kitchen = readKitchen();
+    const session = kitchen.open ? findCook(kitchen, kitchen.open) : undefined;
     if (!session) return;
-    const target = `/recipes/${session.recipeId}/cook`;
     const portions = session.portions !== null ? `?${PORTIONS_PARAM}=${session.portions}` : "";
-    if (pathname !== target) router.replace(target + portions);
+    router.replace(`/recipes/${session.recipeId}/cook${portions}`);
   }, [pathname, router]);
 
   return null;

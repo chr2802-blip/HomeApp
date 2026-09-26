@@ -7,13 +7,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { clockLabel, type CookStep } from "@/lib/cook";
-import { clearCookSession, readCookSession, saveCookSession, type CookTimer } from "@/lib/cook-session";
+import { finishCook, findCook, leaveCook, showCook, startTimer, stopTimer } from "@/lib/cook-session";
 import { cheer, tick } from "@/lib/haptics";
 import { PORTIONS_PARAM, timeLabel } from "@/lib/recipes";
 import type { FormAction } from "@/lib/action-result";
 import { Button } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
 import { useWakeLock } from "@/components/use-wake-lock";
+import { cookHref, useKitchen } from "@/components/kitchen";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
@@ -33,6 +34,11 @@ import { APP } from "@/lib/copy/app";
  * would be trapped under the header and the tab bar for as long as that ran. Portalling
  * also puts it above the tab bar's own `z-40`, and `data-theme` still reaches it, since
  * that lives on `<html>`.
+ *
+ * **The timers are not its own.** They belong to the kitchen (`components/kitchen.tsx`),
+ * so leaving this screen — for the other recipe on the stove, the shopping list, anything
+ * — leaves them running, and this screen draws every one of them, the other recipes'
+ * too, each a way over to the recipe it is for.
  *
  * The whole thing works on a recipe that was never prepared: the steps show plainly,
  * with no ingredients and no timers, and the offer to prepare it is on the first page.
@@ -83,38 +89,36 @@ export function CookMode({
   const [page, setPage] = useState(0);
   const [turn, setTurn] = useState<"next" | "back" | null>(null);
 
-  const [timers, setTimers] = useState<CookTimer[]>([]);
-  const [now, setNow] = useState(() => Date.now());
-  const rung = useRef(new Set<number>());
+  const { kitchen, loaded, now, update } = useKitchen();
 
   // The screen stays on for as long as this is open. Nothing to press: somebody who has
   // opened the cooking view has already said what they are doing for the next half hour.
   useWakeLock(mounted);
 
-  // Picking up where a discarded page left off (see `lib/cook-session.ts`). Read before
-  // the first real render, in the same effect that allows it, so the surface never shows
-  // the ingredients page and then jumps.
+  // Picking up where this recipe was left — by a phone that discarded the page, or by a
+  // cook who went to see to another recipe (see `lib/cook-session.ts`). Read once the
+  // kitchen has been, and before the first real render, so the surface never shows the
+  // ingredients page and then jumps.
   useEffect(() => {
-    const saved = readCookSession();
-    if (saved?.recipeId === recipeId) {
-      setPage(Math.min(saved.page, pageCount - 1));
-      setTimers(saved.timers.filter((timer) => timer.step < steps.length));
-    }
+    if (!loaded || mounted) return;
+    const saved = findCook(kitchen, recipeId);
+    if (saved) setPage(Math.min(saved.page, pageCount - 1));
     setMounted(true);
     // Once, on arrival: what is stored afterwards is this visit's own.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loaded]);
 
-  // Written on every turn and every timer, because a page that is about to be discarded
-  // is given no warning a phone reliably honours.
+  // On the stove, open, and on this page — said on every turn, so coming back finds it.
   useEffect(() => {
     if (!mounted) return;
-    saveCookSession({ recipeId, portions, page, timers, savedAt: Date.now() });
-  }, [mounted, recipeId, portions, page, timers]);
+    update((current, at) => showCook(current, { recipeId, title, portions, page }, at));
+  }, [mounted, update, recipeId, title, portions, page]);
 
-  // Leaving on purpose — Close, Complete, the back gesture — unmounts this and forgets the
-  // session. A page the phone killed never runs this, which is the whole distinction.
-  useEffect(() => clearCookSession, []);
+  // Leaving — Close, the back gesture, the other recipe — unmounts this and says the
+  // screen is no longer open, and nothing else: the recipe stays on the stove and its
+  // timers keep counting. A page the phone killed never runs this, which is how a fresh
+  // load tells the two apart.
+  useEffect(() => () => update((current) => leaveCook(current, recipeId)), [update, recipeId]);
 
   // The page behind must not scroll under the surface, the same way a sheet stops it.
   useEffect(() => {
@@ -144,8 +148,9 @@ export function CookMode({
   // instead of moving to one more screen that only exists to say so.
   const complete = useCallback(() => {
     cheer();
+    update((current) => finishCook(current, recipeId));
     leave();
-  }, [leave]);
+  }, [leave, update, recipeId]);
 
   const forward = useCallback(
     () => (page === pageCount - 1 ? complete() : goTo(page + 1, "next")),
@@ -163,25 +168,6 @@ export function CookMode({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [forward, back, leave]);
-
-  // Only while something is counting: an interval left running behind a finished timer
-  // is a phone kept awake for nothing.
-  useEffect(() => {
-    if (!timers.length) return;
-    const id = setInterval(() => setNow(Date.now()), 500);
-    return () => clearInterval(id);
-  }, [timers.length]);
-
-  // A timer reaching zero is worth feeling, once. `rung` is a ref rather than state
-  // because noticing must not itself cause the render that would notice again.
-  useEffect(() => {
-    for (const timer of timers) {
-      if (timer.endsAt <= now && !rung.current.has(timer.endsAt)) {
-        rung.current.add(timer.endsAt);
-        cheer();
-      }
-    }
-  }, [timers, now]);
 
   const drag = useRef<{ x: number; y: number } | null>(null);
 
@@ -202,20 +188,20 @@ export function CookMode({
     else back();
   }
 
-  function startTimer(step: number, minutes: number) {
+  function start(step: number, minutes: number) {
     tick();
-    setTimers((running) => [
-      // One timer per step: pressing the chip again restarts that step's, which is what
-      // somebody who has just put the potatoes back on means by it.
-      ...running.filter((timer) => timer.step !== step),
-      { step, endsAt: Date.now() + minutes * 60_000 },
-    ]);
-    setNow(Date.now());
+    update((current, at) => startTimer(current, { recipeId, title, step, minutes }, at));
   }
 
-  function stopTimer(step: number) {
-    setTimers((running) => running.filter((timer) => timer.step !== step));
+  function stop(step: number) {
+    update((current) => stopTimer(current, recipeId, step));
   }
+
+  // This recipe's own first, in the order they were started, then everybody else's — a
+  // step past the end of this recipe is a timer from before it was edited, and is not
+  // drawn as though it were one of these steps.
+  const own = kitchen.timers.filter((timer) => timer.recipeId === recipeId && timer.step < steps.length);
+  const others = kitchen.timers.filter((timer) => timer.recipeId !== recipeId);
 
   if (!mounted || typeof document === "undefined") return null;
 
@@ -272,23 +258,32 @@ export function CookMode({
         </div>
       </header>
 
-      {timers.length > 0 && (
+      {own.length + others.length > 0 && (
         <div className="flex shrink-0 flex-wrap gap-2 border-b border-slate-200 bg-white px-4 py-2">
-          {timers.map((timer) => {
+          {/* This recipe's own stop when pressed, as they always have; another recipe's
+              is a way over to it, where pressing it stops it. */}
+          {[...own, ...others].map((timer) => {
             const remaining = (timer.endsAt - now) / 1000;
             const finished = remaining <= 0;
-            return (
-              <button
-                key={timer.step}
-                type="button"
-                onClick={() => stopTimer(timer.step)}
-                className={`pressable rounded-full px-3 py-1 text-xs font-medium tabular-nums active:scale-[0.96] ${
-                  finished ? "bg-emerald-600 text-white" : "accent-tint-bg text-slate-700"
-                }`}
-              >
-                {say(RECIPES.stepNumber, { number: timer.step + 1 })} ·{" "}
-                {finished ? say(RECIPES.timerDone) : clockLabel(remaining)}
+            const step = say(RECIPES.stepNumber, { number: timer.step + 1 });
+            const mine = timer.recipeId === recipeId;
+            const label = mine || !timer.title ? step : say(RECIPES.timerOf, { title: timer.title, step });
+            const className = `pressable max-w-full truncate rounded-full px-3 py-1 text-xs font-medium tabular-nums active:scale-[0.96] ${
+              finished ? "bg-emerald-600 text-white" : mine ? "accent-tint-bg text-slate-700" : "bg-slate-100 text-slate-700"
+            }`;
+            const text = (
+              <>
+                {label} · {finished ? say(RECIPES.timerDone) : clockLabel(remaining)}
+              </>
+            );
+            return mine ? (
+              <button key={`${timer.recipeId}:${timer.step}`} type="button" onClick={() => stop(timer.step)} className={className}>
+                {text}
               </button>
+            ) : (
+              <Link key={`${timer.recipeId}:${timer.step}`} href={cookHref(kitchen, timer.recipeId)} replace className={className}>
+                {text}
+              </Link>
             );
           })}
         </div>
@@ -326,8 +321,8 @@ export function CookMode({
           <StepPage
             number={page}
             step={step}
-            running={timers.some((timer) => timer.step === page - 1)}
-            onStartTimer={(minutes) => startTimer(page - 1, minutes)}
+            running={own.some((timer) => timer.step === page - 1)}
+            onStartTimer={(minutes) => start(page - 1, minutes)}
             language={language}
           />
         )}

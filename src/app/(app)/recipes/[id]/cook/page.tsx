@@ -58,6 +58,7 @@ export default async function CookPage({
 
   return (
     <CookMode
+      key={recipe.id}
       recipeId={recipe.id}
       title={recipe.title}
       steps={cookSteps(scaled)}
