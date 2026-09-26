@@ -485,6 +485,11 @@ the hearts always inserts, never updates.
   person's own newest rating, not the average.
 - The card's meta line is **time · ♥ average**. It used to say "Includes a video"; that went.
 - Hearts are the home's `--accent`, never red: red means "about to be deleted".
+- **A home's admins can reset a recipe's ratings** — every row, everybody's — from the
+  rating sheet (`resetRecipeRatings`). It is gated by `assertHomeAdmin` on the recipe's own
+  home, never `requireAdmin`. The confirmation is asked inside the sheet rather than in a
+  second sheet stacked on it: two `Modal`s each push a history entry and listen for
+  `popstate`, so one back press closes both.
 - **On the recipe page the hearts are in a sheet**, behind a heart icon by the title,
   beside keep-screen-on (`SheetButton`, `src/components/sheet-button.tsx`) — it is about
   the whole recipe, not the ingredients. The portions and "Add to list" are the same kind
