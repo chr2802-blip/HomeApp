@@ -1129,12 +1129,12 @@ about which words to throw away.
   full-screen sheet with a gap at the top. From `sm` up both are the same centred panel.
   A drawer pads past the home indicator itself unless it has a `ModalFooter`, which does.
 - **A sheet closes on the browser's back button and a phone's back gesture**, by pushing
-  one history entry when it opens and closing on the `popstate` that leaves it. **It never
-  calls `history.back()` itself to tidy that entry away on a Cancel or a save** — the App
-  Router's client cache freezes the entry *below* the one a sheet pushed at the moment the
-  sheet opened, and a save made inside the sheet happens after that: popping back to it
-  restores the frozen snapshot and silently undoes the save. Costs one extra back press to
-  leave a page after a sheet was opened and cancelled; the alternative cost correctness.
+  one history entry when it opens and closing on the `popstate` that leaves it. **Closed
+  any other way, it takes that entry back off through `popOwnEntry` and nothing else** —
+  a bare `history.back()` lets the App Router restore the page as it was when the sheet
+  opened, which silently undoes the save that closed it. `popOwnEntry` swallows its own
+  traverse before the router hears it and hands the entry below the router's current
+  tree. Left on, the entry makes the next back press land on the same page.
 - `Collapsible` **always says how much is in there** and **starts shut on every visit**.
   Pass `headingClassName` where what folds is a section rather than part of a card. For the
   same reason **a list card counts open items, not all of them**.
