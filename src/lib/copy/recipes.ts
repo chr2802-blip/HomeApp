@@ -147,6 +147,19 @@ export const RECIPES = {
     EN: { one: "Your last rating: {count} heart", other: "Your last rating: {count} hearts" },
     DA: { one: "Din seneste bedømmelse: {count} hjerte", other: "Din seneste bedømmelse: {count} hjerter" },
   },
+  // Resetting a recipe's ratings: the home's admins only, from the rating sheet.
+  resetRatings: { EN: "Reset ratings", DA: "Nulstil bedømmelser" },
+  resetRatingsMessage: {
+    EN: {
+      one: "Delete {count} rating? The average starts again from nothing.",
+      other: "Delete all {count} ratings? The average starts again from nothing.",
+    },
+    DA: {
+      one: "Slet {count} bedømmelse? Gennemsnittet starter forfra.",
+      other: "Slet alle {count} bedømmelser? Gennemsnittet starter forfra.",
+    },
+  },
+  resetRatingsConfirm: { EN: "Reset", DA: "Nulstil" },
 
   // Recipe fields, shared by the create dialog, the standalone form and the card's own menu
   categories: { EN: "Categories", DA: "Kategorier" },
