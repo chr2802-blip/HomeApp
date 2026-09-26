@@ -54,6 +54,22 @@ so they are in view from the moment it opens. **Never put a form's buttons insid
 `ModalBody`.** On a phone the sheet is the whole screen and the longer forms run well past
 it; a Save button below the fold is a form people abandon believing it did not work.
 
+## Small sheets are drawers
+
+A sheet holding one control — the portions stepper, the hearts, a choice of list, an "are
+you sure" — used to take the whole phone screen like the recipe form does, which read as
+far too much ceremony for one press, and hid the recipe the control was being changed for.
+So `Modal` takes `size="drawer"`: anchored to the bottom edge, rounded along its top, only
+as tall as its contents (capped at 85dvh), with the page dimmed but visible above it. The
+same `sheet-in` keyframes carry it, since they move a sheet by its own height.
+
+What stays full screen is everything with fields to fill in. The deciding question is
+whether the contents can run past the fold: a drawer that grows to the full height is a
+full-screen sheet with a strip of page at the top, and the rule above about a form's
+buttons would then be the only thing keeping Save in view. Swipe-down-to-dismiss was not
+added: the backdrop, the ×, Escape and back already close it, and a drag gesture would
+have to be told apart from scrolling a drawer's own body.
+
 ## What is finished folds away
 
 `Collapsible` (`src/components/collapsible.tsx`) is the heading that hides what is

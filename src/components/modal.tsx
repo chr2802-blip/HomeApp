@@ -21,6 +21,13 @@ const EXIT_MS = 200;
  * Full-screen sheet on mobile, centred dialog from `sm` up.
  * Mounts through a portal so it always sits above the bottom tab bar.
  *
+ * `size="drawer"` is the same sheet for something small — a stepper, the hearts, a
+ * choice of list, an "are you sure": on a phone it rises from the bottom edge only as
+ * far as its contents need, with the page still showing above it, rather than taking
+ * the whole screen for one row of controls. Anything with fields to fill in stays the
+ * whole screen: a form runs past the fold, and a drawer grown to the full height is a
+ * full-screen sheet with a gap at the top. From `sm` up the two are the same panel.
+ *
  * The sheet arrives the way the platform it is on does: up from the bottom edge on a
  * phone, where it fills the screen, and a scale-and-fade on a desktop, where it is a
  * panel over the page. Both curves are weighted towards the end of the movement, which
@@ -37,13 +44,17 @@ export function Modal({
   open,
   onClose,
   title,
+  size = "screen",
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** The whole screen on a phone, or only as tall as the contents. */
+  size?: "screen" | "drawer";
   children: React.ReactNode;
 }) {
+  const drawer = size === "drawer";
   const [mounted, setMounted] = useState(false);
   const [closing, setClosing] = useState(false);
   const say = sayIn(useLanguage());
@@ -110,7 +121,11 @@ export function Modal({
   if (!mounted || typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center sm:p-4">
+    <div
+      className={`fixed inset-0 z-50 flex sm:items-center sm:justify-center sm:p-4 ${
+        drawer ? "items-end" : ""
+      }`}
+    >
       <div
         aria-hidden
         onClick={onClose}
@@ -126,9 +141,15 @@ export function Modal({
         // Which way it moves, and how far, is the animation's business: up from the
         // bottom edge on a phone and a scale-and-fade from `sm` up, chosen by the one
         // media query in globals.css rather than by `sm:` classes here.
+        //
+        // A drawer ends on the phone's home indicator, so it pads past the bottom inset
+        // itself — unless it has a footer, which already does.
+        data-size={size}
         className={`relative flex w-full flex-col overflow-hidden bg-white shadow-2xl sm:max-h-[85vh] sm:max-w-lg sm:rounded-2xl ${
-          closing ? "animate-sheet-out" : "animate-sheet-in"
-        }`}
+          drawer
+            ? "max-h-[85dvh] rounded-t-2xl pb-[env(safe-area-inset-bottom)] has-[[data-modal-footer]]:pb-0 sm:pb-0"
+            : ""
+        } ${closing ? "animate-sheet-out" : "animate-sheet-in"}`}
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <h2 className="min-w-0 flex-1 text-lg font-semibold tracking-tight break-words">{title}</h2>
@@ -182,7 +203,10 @@ export function ModalBody({
  */
 export function ModalFooter({ children }: { children: React.ReactNode }) {
   return (
-    <div className="shrink-0 border-t border-slate-100 bg-white px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-4">
+    <div
+      data-modal-footer
+      className="shrink-0 border-t border-slate-100 bg-white px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-4"
+    >
       {children}
     </div>
   );

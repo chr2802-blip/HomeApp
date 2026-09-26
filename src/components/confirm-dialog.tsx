@@ -37,7 +37,7 @@ export function ConfirmDialog({
   const say = sayIn(useLanguage());
 
   return (
-    <Modal open={open} onClose={onClose} title={title ?? say(APP.areYouSure)}>
+    <Modal open={open} onClose={onClose} title={title ?? say(APP.areYouSure)} size="drawer">
       <form action={action} className="flex min-h-0 flex-1 flex-col">
         <ModalBody>
           <p className="text-sm text-slate-600">{message}</p>
