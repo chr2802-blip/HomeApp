@@ -11,6 +11,7 @@ import {
   showCook,
   startTimer,
   stopTimer,
+  turnCook,
   type Kitchen,
 } from "@/lib/cook-session";
 
@@ -186,5 +187,20 @@ describe("cooking two recipes at once", () => {
       ["lasagne", 4],
       ["rice", 1],
     ]);
+  });
+});
+
+describe("turnCook", () => {
+  it("opens a recipe on the stove at the step a timer is for", () => {
+    const kitchen = showCook(showCook(EMPTY_KITCHEN, lasagne, NOW), rice, NOW);
+    expect(turnCook(kitchen, "lasagne", 3).cooks.map((cook) => [cook.recipeId, cook.page])).toEqual([
+      ["lasagne", 3],
+      ["rice", 1],
+    ]);
+  });
+
+  it("leaves a recipe no longer on the stove to start from its ingredients", () => {
+    const kitchen = showCook(EMPTY_KITCHEN, rice, NOW);
+    expect(turnCook(kitchen, "lasagne", 3)).toBe(kitchen);
   });
 });

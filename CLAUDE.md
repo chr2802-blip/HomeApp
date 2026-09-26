@@ -901,6 +901,13 @@ forward**, as lifting a right-hand page over does.
   above the tab bar (`KitchenTimers`). **A timer stops only when it is stopped**, and a
   recipe leaves the stove only when its last step is completed or it goes
   `RESUME_WITHIN_MS` untouched — never because its screen went away.
+- **More than one recipe on the stove is a row of tabs in action mode**, and the "+" by
+  Close puts another on (`CookPicker`: what is still cooking, then tonight's `MealPlan`
+  recipe, then every recipe, as a partition). Tabs and another recipe's timer switch with
+  `router.replace` — a timer to the step it is for (`turnCook`) — so back does not walk
+  every tab; completing one recipe goes on to the next still on the stove. The page gets
+  `key={recipe.id}`, so switching is a fresh `CookMode` and never one carrying the last
+  recipe's page.
 - **Where a cook is survives the phone discarding the page.** An installed app killed in
   the background is relaunched at the manifest's `start_url` (`/dashboard`), not where it
   was — on an iPhone, half an hour in another app did exactly that mid-dinner. So the
