@@ -37,6 +37,13 @@ Next's server-action and refresh reducers). The first design keyed "is this stil
 entry" on that marker and would have silently done nothing after every save; it is keyed
 on the address instead.
 
+A second cost, found after the first push: `recipe-ingredients.spec.ts`'s "adding the
+same recipe again" failed once with `page.goto: net::ERR_ABORTED`. Its `addToList` waited
+on "Added to Groceries." — which the *first* add had already put on screen — so it went to
+`/lists` while the second add was in flight, and the sheet's own `history.back()` landed in
+the middle of that load and cancelled it. Never reproduced in 35 local runs; the helper
+now waits on the action's response and the sheet being gone.
+
 ## What CLAUDE.md did not say
 
 That custom `history.state` does not survive a server action or `router.refresh()` in
@@ -48,5 +55,8 @@ guard); worth a line of its own if anything else starts storing state in history
 - Swallowing the router's `popstate` relies on registering a capturing listener at module
   load, before the router mounts. Held by the two tests in `e2e/dialogs.spec.ts`, not by
   anything in Next's contract.
+- A sheet now traverses history a moment after it closes, so a test that `goto`s straight
+  after closing one can have that navigation cancelled. Only a test is fast enough to hit
+  it; the fix was the test's wait, not the sheet.
 - The forward entry left behind by the pop is harmless (same page, current tree) and not
   worth removing.
