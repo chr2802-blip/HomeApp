@@ -13,6 +13,8 @@ import { QUICK_RECIPE_MINUTES, timeLabel } from "@/lib/recipes";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
+import { formatAverage } from "@/lib/rating";
+import { HeartIcon } from "@/components/recipe-rating";
 
 export type RecipeSummary = {
   id: string;
@@ -26,7 +28,8 @@ export type RecipeSummary = {
   ingredients: string;
   instructions: string;
   videoUrl: string | null;
-  hasVideo: boolean;
+  /** Every rating's average and how many there are; null for a recipe nobody has rated. */
+  rating: { average: number; count: number } | null;
   totalTimeMinutes: number | null;
   /** `isInFormat` its stored breakdown: whether a save of it unchanged would need the AI. */
   inFormat: boolean;
@@ -275,14 +278,26 @@ export function RecipeDirectory({
                             {recipe.description}
                           </p>
                         )}
-                        {(recipe.totalTimeMinutes !== null || recipe.hasVideo) && (
-                          <p className="mt-2 text-xs text-slate-500">
-                            {[
-                              timeLabel(recipe.totalTimeMinutes, language),
-                              recipe.hasVideo ? say(RECIPES.includesVideo) : null,
-                            ]
-                              .filter(Boolean)
-                              .join(" · ")}
+                        {(recipe.totalTimeMinutes !== null || recipe.rating) && (
+                          <p className="mt-2 flex items-center gap-1 text-xs text-slate-500">
+                            {timeLabel(recipe.totalTimeMinutes, language)}
+                            {recipe.totalTimeMinutes !== null && recipe.rating && (
+                              <span aria-hidden="true">{" · "}</span>
+                            )}
+                            {recipe.rating && (
+                              <span
+                                className="inline-flex items-center gap-0.5"
+                                aria-label={say(RECIPES.ratingAria, {
+                                  average: formatAverage(recipe.rating.average, language),
+                                  count: recipe.rating.count,
+                                })}
+                              >
+                                <HeartIcon filled className="h-3.5 w-3.5 text-[var(--accent)]" />
+                                <span aria-hidden="true">
+                                  {formatAverage(recipe.rating.average, language)}
+                                </span>
+                              </span>
+                            )}
                           </p>
                         )}
                       </div>

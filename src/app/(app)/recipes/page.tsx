@@ -2,12 +2,12 @@ import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
 import { createRecipe } from "@/app/actions/recipes";
 import { PageHeader } from "@/components/ui";
-import { parseSocialEmbed } from "@/lib/embed";
 import { NewRecipeDialog } from "@/components/new-recipe-dialog";
 import { RecipeDirectory, type RecipeSummary } from "@/components/recipe-directory";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
 import { isInFormat } from "@/lib/cook";
+import { ratingSummary } from "@/lib/rating";
 
 /**
  * An import runs as a server action from this page, and it is the one thing in this app
@@ -29,10 +29,14 @@ export default async function RecipesPage() {
   const [recipes, categories] = await Promise.all([
     // The headings each recipe is filed under come back with it, as ids rather than
     // rows: the page already has every category's name, and the cards only need to
-    // know which of them a recipe belongs to.
+    // know which of them a recipe belongs to. The ratings come back as their hearts
+    // alone, for the average on each card.
     db.recipe.findMany({
       orderBy: { createdAt: "desc" },
-      include: { categories: { select: { categoryId: true } } },
+      include: {
+        categories: { select: { categoryId: true } },
+        ratings: { select: { hearts: true } },
+      },
     }),
     // Alphabetical: the headings are a table of contents, and a household's own order
     // of creation is not one a reader can scan by. Only the two columns the page shows,
@@ -49,7 +53,7 @@ export default async function RecipesPage() {
     ingredients: recipe.ingredients,
     instructions: recipe.instructions,
     videoUrl: recipe.videoUrl,
-    hasVideo: Boolean(parseSocialEmbed(recipe.videoUrl)),
+    rating: ratingSummary(recipe.ratings),
     totalTimeMinutes: recipe.totalTimeMinutes,
     inFormat: isInFormat(recipe.cookSteps),
   }));

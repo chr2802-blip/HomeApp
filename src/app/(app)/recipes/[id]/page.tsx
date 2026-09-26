@@ -15,6 +15,8 @@ import { ingredientLines, instructionLines, timeLabel } from "@/lib/recipes";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
 import { isInFormat } from "@/lib/cook";
+import { ratingSummary } from "@/lib/rating";
+import { RecipeRating } from "@/components/recipe-rating";
 
 /**
  * Editing a recipe runs as a server action from this page, and saving one now reads its
@@ -42,6 +44,9 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
           select: { category: { select: { id: true, name: true } } },
           orderBy: { category: { name: "asc" } },
         },
+        // Every rating ever given, newest first: the average is asked of all of them,
+        // and the newest one of this person's is what their hearts show filled.
+        ratings: { select: { hearts: true, userId: true }, orderBy: { createdAt: "desc" } },
       },
     }),
     db.recipeCategory.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -64,6 +69,8 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
   const ingredients = ingredientLines(recipe.ingredients);
   const instructions = instructionLines(recipe.instructions);
   const videoHref = safeExternalHref(recipe.videoUrl);
+  const rating = ratingSummary(recipe.ratings);
+  const lastHearts = recipe.ratings.find((given) => given.userId === user.id)?.hearts ?? null;
 
   return (
     <>
@@ -137,6 +144,18 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
           )}
         </div>
       )}
+
+      <Card className="mb-4">
+        <h2 className="mb-2 text-sm font-semibold text-slate-500 uppercase">
+          {say(RECIPES.ratingHeading)}
+        </h2>
+        <RecipeRating
+          recipeId={recipe.id}
+          average={rating?.average ?? null}
+          count={rating?.count ?? 0}
+          lastHearts={lastHearts}
+        />
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <Card>

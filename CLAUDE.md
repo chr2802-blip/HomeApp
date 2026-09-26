@@ -466,6 +466,26 @@ and it follows the page when that scrolls rather than closing.
 
 **[`docs/design/recipes.md`](docs/design/recipes.md) has the rest.**
 
+### A recipe's rating is every rating ever given, averaged
+
+`RecipeRating` is one row per time somebody rated a recipe, 1 to 5 hearts (`MIN_HEARTS`,
+`MAX_HEARTS` in `src/lib/rating.ts`). **Not one per person**: the same person rates the same
+dish again after cooking it again, and the score is meant to evolve with them — a press on
+the hearts always inserts, never updates.
+
+- **The average is never stored.** `ratingSummary` asks it of the rows every time a page
+  draws one; a column beside them would be a second answer to the same question.
+- **The range is `rateRecipe`'s to keep** (`readHearts`), not a check constraint, for the
+  same reason as `MealPlan`'s columns. A value the buttons cannot produce is ignored.
+- It carries no `homeId`, so `homeDb` refuses it and a lint rule rejects `prisma.recipeRating`
+  in pages: read it as an include on a homeDb recipe query. `userId` goes null when a person
+  leaves, rather than taking the household's opinion of dinner with them.
+- The hearts on the recipe page are held while a press is in flight, because every press
+  counts and a double tap would otherwise be two ratings. What they show filled is the
+  person's own newest rating, not the average.
+- The card's meta line is **time · ♥ average**. It used to say "Includes a video"; that went.
+- Hearts are the home's `--accent`, never red: red means "about to be deleted".
+
 ### Ticking something off is the moment the list is for, and it is worth seeing
 
 - `SETTLE_MS` in `src/components/list-items.tsx` and the `tick-off` animation in

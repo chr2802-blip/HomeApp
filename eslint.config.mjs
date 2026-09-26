@@ -72,12 +72,12 @@ const eslintConfig = [
         },
         {
           /*
-           * RecipeCategoryLink carries no homeId either, for the same reason and with
-           * the same consequence: it is reached through its recipe.
+           * RecipeCategoryLink and RecipeRating carry no homeId either, for the same
+           * reason and with the same consequence: both are reached through their recipe.
            */
-          selector: "MemberExpression[object.name='prisma'][property.name='recipeCategoryLink']",
+          selector: "MemberExpression[object.name='prisma'][property.name=/^(recipeCategoryLink|recipeRating)$/]",
           message:
-            "Read a recipe's categories as an include on a homeDb recipe query. prisma.recipeCategoryLink here would not be scoped to a home at all.",
+            "Read a recipe's categories and ratings as an include on a homeDb recipe query. prisma.recipeCategoryLink or prisma.recipeRating here would not be scoped to a home at all.",
         },
       ],
     },

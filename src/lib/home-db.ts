@@ -37,6 +37,7 @@ const NO_HOME_ID: Record<string, { refuse: true; because: string } | { refuse: f
   ListItemSource: { refuse: true, because: "reached through its list item" },
   ListFavorite: { refuse: true, because: "reached through its list" },
   RecipeCategoryLink: { refuse: true, because: "reached through its recipe" },
+  RecipeRating: { refuse: true, because: "reached through its recipe" },
 
   // Nothing to do with any home. Scoping these would be a query error, not a leak.
   Home: { refuse: false },
