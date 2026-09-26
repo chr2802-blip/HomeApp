@@ -369,7 +369,15 @@ test("checking that line in the dialog adds it anyway", async ({ page }) => {
 
   const decision = page.getByRole("dialog", { name: "Already have some of this?" });
   await decision.getByRole("checkbox", { name: /Salt og peber/ }).check();
+  // Waited on as the action's own response and the sheet being gone, as `addToList` in
+  // recipe-ingredients.spec.ts is: a `goto` while either is still under way is cancelled
+  // by the sheet taking its history entry back off (net::ERR_ABORTED).
+  const added = page.waitForResponse(
+    (response) => response.request().method() === "POST" && !!response.request().headers()["next-action"],
+  );
   await decision.getByRole("button", { name: "Add checked" }).click();
+  await added;
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 
   await page.goto("/lists");
   await page.getByRole("link", { name: /Groceries/ }).click();

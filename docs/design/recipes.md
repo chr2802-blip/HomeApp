@@ -552,8 +552,11 @@ app that disagree about what a swipe is are worse than either.
 
 The screen stays awake for as long as it is open, with no toggle: somebody who has opened
 the cooking view has already said what they are doing for the next half hour.
-`ScreenAwakeToggle` and this share `useWakeLock` rather than keeping two copies of the
-awkward parts — asking, being refused, and getting the lock back after the tab was hidden.
+The recipe page used to offer the same thing as a toggle beside the title (`ScreenAwakeToggle`,
+sharing `useWakeLock` with this). *2026-09-26:* it was removed — keeping the screen on is what
+action mode is for, and a second way to ask for it on the reading page was a second answer to
+the same question. `useWakeLock` stays, holding the awkward parts — asking, being refused, and
+getting the lock back after the tab was hidden.
 
 Timers live above the pages rather than on them, so turning to the next step does not end
 the one counting down on the last. They are in memory only and do not notify: a timer that

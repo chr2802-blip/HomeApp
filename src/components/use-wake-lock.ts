@@ -5,10 +5,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 /**
  * Keeping the phone's screen on, for as long as something on the page wants it.
  *
- * Two places ask for this and they ask differently: `ScreenAwakeToggle` offers it as a
- * button on a recipe, and action mode simply holds it for as long as it is open. What
- * they share is every awkward part — asking, being refused, and getting it back — so it
- * lives here once rather than as a copy in each.
+ * Action mode holds it for as long as it is open. The recipe page used to offer it as a
+ * toggle too; that went once action mode was where cooking happens. What is kept here is
+ * every awkward part — asking, being refused, and getting it back.
  *
  * The lock is never stored and never belongs to the home or the recipe: it is asked for
  * fresh, for this visit, and forgotten the moment `wanted` goes false, the tab is left,
