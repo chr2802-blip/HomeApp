@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { canAccessHome } from "@/lib/access";
+import { announceListsChanged } from "@/lib/realtime";
 import type { SessionUser } from "@/lib/auth";
 import { addItem, setItemAmount, setItemDone } from "@/lib/list-writes";
 import type { OfflineOp } from "@/lib/offline-ops";
@@ -34,13 +35,14 @@ export async function applyQueuedOps(
 ): Promise<SyncResult> {
   const applied: string[] = [];
   const rejected: SyncResult["rejected"] = [];
-  const touched = new Set<string>();
+  // Which lists changed, and whose: a person in two homes can have queued ticks in both.
+  const touched = new Map<string, string>();
 
   for (const op of ops) {
     const outcome = await applyOne(user, op);
     if (outcome.ok) {
       applied.push(op.id);
-      touched.add(op.listId);
+      touched.set(op.listId, outcome.homeId);
     } else {
       rejected.push({ id: op.id, reason: outcome.reason });
     }
@@ -49,16 +51,19 @@ export async function applyQueuedOps(
   // Everything a tick can change, for whoever is reading this home in another tab or on
   // another device: the list's page, the bar on its card, and the streak on the
   // dashboard. The same three the actions refresh, for the same reason.
-  for (const listId of touched) revalidatePath(`/lists/${listId}`);
+  for (const listId of touched.keys()) revalidatePath(`/lists/${listId}`);
   if (touched.size > 0) {
     revalidatePath("/lists");
     revalidatePath("/dashboard");
   }
+  const byHome = new Map<string, string[]>();
+  for (const [listId, homeId] of touched) byHome.set(homeId, [...(byHome.get(homeId) ?? []), listId]);
+  for (const [homeId, listIds] of byHome) announceListsChanged(homeId, listIds);
 
   return { applied, rejected };
 }
 
-type OneOutcome = { ok: true } | { ok: false; reason: string };
+type OneOutcome = { ok: true; homeId: string } | { ok: false; reason: string };
 
 async function applyOne(
   user: SessionUser,
@@ -73,7 +78,7 @@ async function applyOne(
     const outcome = await addItem(op.listId, op.text, op.amount, op.itemId);
     // Already on the list and not ticked off. Nothing is going to change that later, so
     // the op is finished with rather than kept: the list already says what it was for.
-    return outcome.ok ? { ok: true } : { ok: false, reason: `"${outcome.clash}" is already on the list` };
+    return outcome.ok ? { ok: true, homeId: list.homeId } : { ok: false, reason: `"${outcome.clash}" is already on the list` };
   }
 
   const item = await prisma.listItem.findUnique({
@@ -90,9 +95,9 @@ async function applyOne(
 
   if (op.kind === "amount") {
     await setItemAmount(item.id, op.amount);
-    return { ok: true };
+    return { ok: true, homeId: item.list.homeId };
   }
 
   await setItemDone(item, op.done, item.list.homeId, user.id);
-  return { ok: true };
+  return { ok: true, homeId: item.list.homeId };
 }

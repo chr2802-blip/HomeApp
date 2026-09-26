@@ -427,6 +427,31 @@ Import the GitHub repo, then add every variable from `.env.example` under **Sett
 Variables**. The build runs `prisma migrate deploy`, so the schema is created on the first deploy —
 there is no separate migration step.
 
+### 3b. Live lists (optional)
+
+An open list updates on other phones the moment somebody ticks something off, through
+Supabase Realtime. Without this it still updates, every three seconds. In the same Supabase
+project:
+
+1. **Project Settings → API**: copy the project URL into `SUPABASE_URL`, the publishable
+   (anon) key into `SUPABASE_PUBLISHABLE_KEY`, and the secret (service role) key into
+   `SUPABASE_SECRET_KEY`.
+2. **Project Settings → JWT Keys**: copy the legacy JWT secret into `SUPABASE_JWT_SECRET`.
+   The app signs each phone's Realtime token with it (HS256); if the project has moved to
+   the new signing keys, keep the legacy secret un-revoked, or import a shared secret
+   (HS256) as a signing key and use that.
+3. **Realtime → Settings**: leave private channels allowed. Nothing else to switch on —
+   Broadcast needs no table in the publication.
+4. Add all four to Vercel and redeploy. The deploy's migration creates the policy that lets
+   a phone listen only to its own home's channel. If its build log shows
+   `Could not create the Realtime home channel policy`, run the `CREATE POLICY` from
+   `prisma/migrations/20260926120000_realtime_home_channels/migration.sql` in the SQL editor.
+
+To check it works, open the same list on two phones and tick something on one: the other
+should move within a second. In the browser's network tab, `/api/realtime/token` should
+answer `"enabled": true` and a websocket to `<ref>.supabase.co/realtime/v1` should stay
+open.
+
 ### 4. Create the first super admin
 
 Once deployed, run the seed once from your machine against the production database:

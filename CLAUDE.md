@@ -583,20 +583,51 @@ Two deliberately independent halves: **the page comes back from the service work
 ### An open list follows what the rest of the household does to it
 
 Two people shop from one list at once, so a tick on one phone has to reach the other.
-**It is a poll, not a push**: serverless functions cannot hold a socket open, and a
-household's list changes a few times a minute at most.
+**A write pushes a nudge; the phone still asks.** Serverless functions cannot hold a
+socket open, so Supabase Realtime holds it: every list write announces itself with one
+HTTP request, and a phone that hears it asks the same question the poll always asked.
 
 - The page hashes what it draws with `listVersion` (`src/lib/list-version.ts`) and hands
-  the result to `ListItems`. `useListFollow` asks `/api/lists/<id>/version` every
-  `FOLLOW_MS` and calls `router.refresh()` **only when the two differ**, so the rows, the
-  bar and the add box's suggestions all come from the one query that draws them.
+  the result to `ListItems`. `useListFollow` asks `/api/lists/<id>/version` and calls
+  `router.refresh()` **only when the two differ**, so the rows, the bar and the add box's
+  suggestions all come from the one query that draws them.
 - **What is hashed is exactly what the page draws.** A field the page shows and the hash
   leaves out is a change the other phone never sees; the route and the page must select
   the same fields, and `tests/unit/list-version.test.ts` names each one.
+- **What is asked is the same; only *when* differs.** A nudge on the home's channel asks
+  at once; the timer asks every `FOLLOW_MS` (3s) with no channel, and every
+  `LIVE_FOLLOW_MS` (30s) while one is joined, because Broadcast is at most once and a
+  nudge sent while the socket was reconnecting is never heard. Joining — and rejoining —
+  asks once to catch up.
+- **The nudge is a list id and nothing else** (`src/lib/realtime.ts`). No rows travel
+  through Supabase, and a nudge lost, doubled or spoofed costs one question the poll
+  would have asked anyway.
+- **Every write that changes what a list's page draws calls `announceListsChanged`** —
+  in the list actions it is `listChanged`, beside the `revalidatePath` of that page; the
+  pantry's add and the offline queue call it directly. A new writer that forgets is a
+  list that updates at the next 30s poll, which looks like lag rather than a bug. It
+  runs in `after`, so the person pressing never waits on Supabase, and it never throws.
+- **Channels are private, one per home (`home:<homeId>`).** `/api/realtime/token` signs
+  a 15-minute HS256 token with `SUPABASE_JWT_SECRET` whose `homes` claim is every home the
+  person belongs to; the `realtime_home_channels` migration's policy on
+  `realtime.messages` lets a phone read a topic only if it names one of them. **There is
+  no insert policy** — phones never broadcast, only the server with the secret key.
+  `tests/unit/realtime.test.ts` holds the topic's prefix and the policy together.
+- **All four `SUPABASE_*` settings or none.** Without them nothing is announced, the
+  token route answers `{ enabled: false }`, the socket library is never loaded, and a list
+  polls every 3s — which is what the test suites and a laptop run. **No suite talks to a
+  real Realtime**, so a change to the request's shape, the token's claims or the policy is
+  confirmed only on two phones against production.
 - Nothing is asked of a hidden tab or an offline browser — the queue owns that stretch.
   A fingerprint already refreshed for is never refreshed for twice, so a page and route
   that ever disagreed cannot redraw the list every three seconds for ever.
-- `e2e/list-follow.spec.ts` drives two browser contexts against one list.
+- **`@supabase/realtime-js` alone does two things `supabase-js` did for it**, and both
+  fail silently: it wants a `wss://` address (it will not derive one from `https://`),
+  and a join sent before the `accessToken` callback has resolved carries no token, which a
+  private channel refuses. `followListSignal` awaits `setAuth()` before subscribing.
+- `e2e/list-follow.spec.ts` drives two browser contexts against one list (polling).
+
+**[`docs/design/lists.md`](docs/design/lists.md) has the reasoning.**
 
 ### An item can say which recipe put it there
 

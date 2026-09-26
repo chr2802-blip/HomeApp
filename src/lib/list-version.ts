@@ -15,8 +15,9 @@
  * hashed is exactly what the page shows: a field left out here is a change the other
  * phone never sees, and one put in that the page does not draw is a refresh for nothing.
  *
- * Deliberately not a push. The app runs on serverless functions that cannot hold a
- * socket open, and a household's list changes a handful of times a minute at most.
+ * What makes a phone ask sooner than its timer is a nudge pushed through Supabase
+ * Realtime (`src/lib/realtime.ts`) — but the nudge only says *that* a list changed, and
+ * this is still the one answer to *whether this phone is behind*.
  */
 export type VersionedList = {
   title: string;

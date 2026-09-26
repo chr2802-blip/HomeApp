@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { announceListsChanged } from "@/lib/realtime";
 import { z } from "zod";
 import { Prisma, type HomeLanguage, type PantryCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -365,6 +366,7 @@ export async function addPantryToList(formData: FormData): Promise<ActionResult>
   revalidatePath(`/lists/${list.id}`);
   revalidatePath("/lists");
   revalidatePath("/dashboard");
+  announceListsChanged(list.homeId, [list.id]);
 
   return ok(alreadyOnListNote(already, user.homeLanguage));
 }

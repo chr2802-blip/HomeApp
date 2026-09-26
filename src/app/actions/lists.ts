@@ -8,6 +8,7 @@ import { requireHomeUser } from "@/lib/auth";
 import { assertHomeAccess } from "@/lib/access";
 import { homeDb } from "@/lib/home-db";
 import { homeScoped } from "@/lib/scoped";
+import { announceListsChanged } from "@/lib/realtime";
 import { readForm, requiredText } from "@/lib/form";
 import { MAX_ITEM_TEXT } from "@/lib/offline-ops";
 import { clampAmount, MIN_AMOUNT } from "@/lib/amount";
@@ -43,10 +44,22 @@ import {
  * the count from before it, which is the one thing a bar that is meant to be live may
  * not do.
  */
-function refreshListViews(listId: string) {
-  revalidatePath(`/lists/${listId}`);
+function refreshListViews(list: ChangedList) {
+  listChanged(list);
   revalidatePath("/lists");
   revalidatePath("/dashboard");
+}
+
+type ChangedList = { id: string; homeId: string };
+
+/**
+ * A list's own page is out of date: this copy is thrown away, and every other phone with
+ * it open is told to ask for a fresh one (`announceListsChanged`) rather than finding out
+ * at its next poll.
+ */
+function listChanged(list: ChangedList) {
+  revalidatePath(`/lists/${list.id}`);
+  announceListsChanged(list.homeId, [list.id]);
 }
 
 const listInScope = homeScoped("List", (id) => prisma.list.findUnique({ where: { id } }));
@@ -140,7 +153,7 @@ export async function updateList(_prev: ActionResult, formData: FormData): Promi
   // holding a picture that has already gone.
   await discardReplaced(list.homeId, list.photoId, photo.photoId);
 
-  revalidatePath(`/lists/${list.id}`);
+  listChanged(list);
   revalidatePath("/lists");
   return ok();
 }
@@ -165,6 +178,7 @@ export async function toggleListFavorite(formData: FormData) {
 
   revalidatePath("/dashboard");
   revalidatePath("/lists");
+  // Not `listChanged`: a star is the caller's own, and nothing the other phones draw.
   revalidatePath(`/lists/${list.id}`);
 }
 
@@ -189,7 +203,7 @@ export async function addListItem(_prev: ActionResult, formData: FormData): Prom
   const outcome = await addItem(list.id, form.fields.text, form.fields.amount);
   if (!outcome.ok) return fail(say(LISTS.alreadyOnListNamed, { name: outcome.clash }));
 
-  revalidatePath(`/lists/${list.id}`);
+  listChanged(list);
   return ok();
 }
 
@@ -202,7 +216,7 @@ export async function restoreListItem(formData: FormData) {
   if (!item) return;
 
   await restoreItem(item.id, item.listId, clampAmount(formData.get("amount") ?? 1));
-  revalidatePath(`/lists/${item.listId}`);
+  listChanged(item.list);
 }
 
 /**
@@ -239,7 +253,7 @@ export async function reorderListItems(formData: FormData) {
     ),
   );
 
-  revalidatePath(`/lists/${list.id}`);
+  listChanged(list);
 }
 
 /** Items are reached through their list, which is what carries the home. */
@@ -273,7 +287,7 @@ export async function toggleListItem(formData: FormData) {
   // depending on what the row said when the phone last saw it.
   await setItemDone(item, !item.done, item.list.homeId, user.id);
 
-  refreshListViews(item.listId);
+  refreshListViews(item.list);
 }
 
 export async function deleteListItem(formData: FormData) {
@@ -281,7 +295,7 @@ export async function deleteListItem(formData: FormData) {
   if (!item) return;
 
   await prisma.listItem.delete({ where: { id: item.id } });
-  revalidatePath(`/lists/${item.listId}`);
+  listChanged(item.list);
 }
 
 /**
@@ -294,7 +308,7 @@ export async function setListItemAmount(formData: FormData) {
   if (!item) return;
 
   await setItemAmount(item.id, clampAmount(formData.get("amount")));
-  revalidatePath(`/lists/${item.listId}`);
+  listChanged(item.list);
 }
 
 /**
@@ -315,7 +329,7 @@ export async function renameListItem(formData: FormData) {
   if (!text || text.length > MAX_ITEM_TEXT) return;
 
   await setItemText(item.id, text);
-  revalidatePath(`/lists/${item.listId}`);
+  listChanged(item.list);
 }
 
 /**
@@ -491,7 +505,7 @@ async function writeRecipesToList(
     { timeout: WRITE_TIMEOUT_MS },
   );
 
-  revalidatePath(`/lists/${list.id}`);
+  listChanged(list);
   revalidatePath("/lists");
   revalidatePath("/dashboard");
 
