@@ -98,7 +98,15 @@ export default async function RecipePage({
           )}
           {recipe.description && <p className="mt-1 text-sm text-slate-500">{recipe.description}</p>}
         </div>
-        <div className="flex shrink-0 items-start">
+        <div className="flex shrink-0 items-center gap-1">
+          {/* The rating is about the recipe as a whole, so it sits by the title rather
+              than with the ingredients; the hearts are in the sheet behind it. */}
+          <RecipeRatingButton
+            recipeId={recipe.id}
+            average={rating?.average ?? null}
+            count={rating?.count ?? 0}
+            lastHearts={lastHearts}
+          />
           <ScreenAwakeToggle />
           <ItemMenu
             name="recipeId"
@@ -154,9 +162,9 @@ export default async function RecipePage({
 
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <Card>
-          {/* The portions, the rating and "Add to list" are each an icon here, opening a
-              sheet: all three are things done now and then, and as a stepper, a card of
-              hearts and a labelled button they crowded out the recipe they belong to. */}
+          {/* The portions and "Add to list" are each an icon here, opening a sheet: both
+              are done now and then, and as a stepper and a labelled button they crowded
+              out the ingredients they belong to. */}
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="min-w-0 truncate text-sm font-semibold text-slate-500 uppercase">
               {say(RECIPES.ingredientsHeading)}
@@ -164,12 +172,6 @@ export default async function RecipePage({
             <div className="flex shrink-0 items-center gap-1.5">
               {/* Only where there are amounts to scale. */}
               {ingredients.length > 0 && <PortionsButton />}
-              <RecipeRatingButton
-                recipeId={recipe.id}
-                average={rating?.average ?? null}
-                count={rating?.count ?? 0}
-                lastHearts={lastHearts}
-              />
               {/* Only where there is something to add. A recipe still being written would
                   otherwise offer to put nothing on a list. */}
               {ingredients.length > 0 && (

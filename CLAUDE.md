@@ -485,10 +485,11 @@ the hearts always inserts, never updates.
   person's own newest rating, not the average.
 - The card's meta line is **time · ♥ average**. It used to say "Includes a video"; that went.
 - Hearts are the home's `--accent`, never red: red means "about to be deleted".
-- **On the recipe page the hearts are in a sheet**, behind a heart icon beside the
-  ingredients' heading, next to the portions and "Add to list" (`SheetButton`,
-  `src/components/sheet-button.tsx`). All three are done now and then rather than read
-  every visit, and as a card, a stepper and a labelled button they crowded out the recipe.
+- **On the recipe page the hearts are in a sheet**, behind a heart icon by the title,
+  beside keep-screen-on (`SheetButton`, `src/components/sheet-button.tsx`) — it is about
+  the whole recipe, not the ingredients. The portions and "Add to list" are the same kind
+  of icon in the ingredients' heading. As a card, a stepper and a labelled button the
+  three crowded out the recipe.
 
 ### Ticking something off is the moment the list is for, and it is worth seeing
 

@@ -44,7 +44,8 @@ under the rating section saying where the hearts now live.
 - The icons: people (portions, with the count), heart (rating, filled once rated, with the
   average), trolley (add to list). The count and average are shown beside the icons
   because they are what the amounts and the recipe's standing mean at a glance.
-- The rating icon shows even for a recipe with no ingredients; portions and "Add to list"
-  only where there are ingredients, as before.
+- The rating icon sits by the title, beside keep-screen-on (asked for mid-session: the
+  rating is about the recipe, not the ingredients); portions and "Add to list" stay in
+  the ingredients' heading, only where there are ingredients, as before.
 - The sheets use the existing `Modal`, so on a phone they are full-screen like every other
   sheet in the app.
