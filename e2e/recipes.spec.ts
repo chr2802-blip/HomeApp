@@ -267,6 +267,9 @@ test("every rating counts, the same person's too, and the card shows the average
   await page.getByRole("button", { name: "Give 2 hearts" }).click();
   await expect(page.getByTestId("rating-average")).toHaveText("3.5");
   await expect(page.getByText("from 2 ratings")).toBeVisible();
+  // What is on screen is the optimistic press; the hearts are held until the rating has
+  // actually been written, and a reload before then throws the second rating away.
+  await expect(page.getByRole("button", { name: "Give 2 hearts" })).toBeEnabled();
 
   // Still true once the page is drawn from the database rather than the press.
   await page.reload();
