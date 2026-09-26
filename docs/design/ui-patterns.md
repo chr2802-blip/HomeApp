@@ -25,26 +25,36 @@ what the router would otherwise do with either gesture. `Modal` pushes one histo
 when it opens (`{ homehubModal: true }`, no url — the address never changes) and closes
 itself on a `popstate` instead.
 
-**It never pops that entry itself.** The first version did, in the cleanup that runs when
-the sheet closes some other way — Cancel, the × button, Escape, a successful save — on
-the theory that leaving it there costs a later back press "an entry that closes nothing
-and shows no new page". That theory is true only when nothing changed while the sheet was
-open. The App Router keeps a client-side cache of each route's rendered tree, keyed to the
-history entry current when it was fetched; a background save — exactly what closes a
-sheet on success — updates the *entry the sheet pushed*, because that is the current one
-while the sheet is open, and leaves the entry **below** it exactly as it was the moment the
-sheet opened. Popping back to that entry with `history.back()` restores that frozen
-snapshot outright, which silently undid the very save that had just been made: deleting a
-list's last item left the item on screen, renaming a list left the old name — both fixed by
-a `revalidatePath` the traverse never saw, because it never asked the server again. Found
-by the full browser suite, not by the two tests written for the feature, because both used
-the one dialog in the app that never mutates anything (choosing "start from scratch")
-— **`e2e/lists.spec.ts`'s "an item can be removed outright" and "a list can be renamed"
-are the regression cover**, not a test living beside this file.
+**The first version popped that entry with a plain `history.back()`**, in the cleanup that
+runs when the sheet closes some other way — Cancel, the × button, Escape, a successful
+save. The App Router answers every `popstate` by restoring the tree it filed under the
+entry landed on, and the entry **below** a sheet was filed the moment the sheet opened. A
+background save — exactly what closes a sheet on success — happened after that, so the
+restore silently undid it: deleting a list's last item left the item on screen, renaming a
+list left the old name. Found by the full browser suite, not by the two tests written for
+the feature, because both used the one dialog in the app that never mutates anything —
+**`e2e/lists.spec.ts`'s "an item can be removed outright" and "a list can be renamed"
+are the regression cover.**
 
-So the entry stays. The cost is a page that opened and cancelled a sheet needing one
-extra back press to be left entirely — never a second call to `history.back()` from this
-component, which is the only way to reintroduce the bug above.
+**The second version never popped it**, and paid for that in a bug people reported: after
+any sheet had been opened and closed, back landed on the same page and looked like a
+button that did nothing — once per sheet opened.
+
+**So the entry is popped, and the router is not told.** `popOwnEntry` in `modal.tsx` notes
+the tree the router has *now* (the entry's `__PRIVATE_NEXTJS_INTERNALS_TREE`, which a save
+has already updated), then calls `history.back()`. A `popstate` listener registered when
+the module loads — capturing, so ahead of the router's own, which is only added once the
+router mounts — swallows that one traverse with `stopImmediatePropagation` and writes the
+noted tree onto the entry landed on, so a later back or forward onto it restores the page
+as it is. Nothing is restored in between, because nothing needs to be: the address never
+changed and the router's in-memory state is already current.
+
+Two guards. A save that navigated (an action ending in `redirect`) has left the sheet's
+entry behind on another page, so the pop happens only if the address is still the one the
+sheet opened on. And the pop is deferred a tick and cancelled by a reopen, because React's
+development double-run closes and reopens every sheet at once. `e2e/dialogs.spec.ts` holds
+both halves: back after a Cancel leaves the page, and back after a save leaves it with the
+save standing when it is returned to.
 
 ## A sheet's actions stay on screen
 
