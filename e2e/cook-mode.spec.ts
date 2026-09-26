@@ -121,17 +121,27 @@ test("cooks the portions the recipe page was showing, and goes back to them", as
   const recipe = await seedPrepared({ servings: 4 });
   await page.goto(`/recipes/${recipe.id}`);
 
-  await expect(page.getByTestId("portions")).toHaveText("4 portions");
   await expect(page.getByText("500 g kartofler")).toBeVisible();
 
-  await page.getByRole("button", { name: "More portions" }).click();
-  await page.getByRole("button", { name: "More portions" }).click();
-  await expect(page.getByTestId("portions")).toHaveText("6 portions");
+  // The portions are an icon beside the ingredients, and the stepper is in its sheet.
+  const portionsButton = page.getByRole("button", { name: "Portions" });
+  await expect(portionsButton).toHaveAttribute("data-ready", "true");
+  await expect(portionsButton).toHaveText("4");
+  await portionsButton.click();
+  const sheet = page.getByRole("dialog", { name: "Portions" });
+  await expect(sheet.getByTestId("portions")).toHaveText("4 portions");
+  await sheet.getByRole("button", { name: "More portions" }).click();
+  await sheet.getByRole("button", { name: "More portions" }).click();
+  await expect(sheet.getByTestId("portions")).toHaveText("6 portions");
+  await expect(sheet.getByText("The recipe is written for 4")).toBeVisible();
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0);
+
+  await expect(portionsButton).toHaveText("6");
   await expect(page.getByText("750 g kartofler")).toBeVisible();
   await expect(page.getByText("3 spsk olie")).toBeVisible();
   // Unmeasured stays unmeasured, however many it is for.
   await expect(page.getByRole("listitem").filter({ hasText: /^·\s*Salt$/ })).toBeVisible();
-  await expect(page.getByText("The recipe is written for 4")).toBeVisible();
 
   await page.getByRole("link", { name: "Start cooking" }).click();
   await expect(page).toHaveURL(`/recipes/${recipe.id}/cook?portions=6`);
@@ -146,7 +156,7 @@ test("cooks the portions the recipe page was showing, and goes back to them", as
 
   await surface.getByRole("link", { name: "Close" }).click();
   await expect(page).toHaveURL(`/recipes/${recipe.id}?portions=6`);
-  await expect(page.getByTestId("portions")).toHaveText("6 portions");
+  await expect(page.getByRole("button", { name: "Portions" })).toHaveText("6");
 
   // Nothing was written back: the recipe is still the recipe as written.
   expect((await prisma().recipe.findUniqueOrThrow({ where: { id: recipe.id } })).ingredients).toBe(

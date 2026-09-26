@@ -485,6 +485,11 @@ the hearts always inserts, never updates.
   person's own newest rating, not the average.
 - The card's meta line is **time · ♥ average**. It used to say "Includes a video"; that went.
 - Hearts are the home's `--accent`, never red: red means "about to be deleted".
+- **On the recipe page the hearts are in a sheet**, behind a heart icon by the title,
+  beside keep-screen-on (`SheetButton`, `src/components/sheet-button.tsx`) — it is about
+  the whole recipe, not the ingredients. The portions and "Add to list" are the same kind
+  of icon in the ingredients' heading. As a card, a stepper and a labelled button the
+  three crowded out the recipe.
 
 ### Ticking something off is the moment the list is for, and it is worth seeing
 
@@ -1261,6 +1266,9 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
 ## Working style
 
 Open a branch, keep `npm run verify` green, and open a PR rather than pushing to `main`.
+**Do not run `npx prettier --write`**: the repo has no Prettier config and is not
+formatted by it, so it rewraps every file it is pointed at to 80 columns. ESLint is the
+formatter check that runs.
 Explain in the PR what changed and why, and flag anything you decided rather than knew.
 
 ### Every session leaves a note behind

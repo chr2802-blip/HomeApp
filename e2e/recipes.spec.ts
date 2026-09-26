@@ -253,6 +253,10 @@ test("every rating counts, the same person's too, and the card shows the average
   await page.getByRole("button", { name: "Save recipe" }).click();
   await expect(page).toHaveURL(SAVED_RECIPE);
 
+  // The hearts are in a sheet behind the heart beside the ingredients.
+  const ratingButton = page.getByRole("button", { name: "Rating" });
+  await expect(ratingButton).toHaveAttribute("data-ready", "true");
+  await ratingButton.click();
   await expect(page.getByText("Not rated yet")).toBeVisible();
 
   await page.getByRole("button", { name: "Give 5 hearts" }).click();
@@ -266,6 +270,9 @@ test("every rating counts, the same person's too, and the card shows the average
 
   // Still true once the page is drawn from the database rather than the press.
   await page.reload();
+  await expect(ratingButton).toHaveText("3.5");
+  await expect(ratingButton).toHaveAttribute("data-ready", "true");
+  await ratingButton.click();
   await expect(page.getByTestId("rating-average")).toHaveText("3.5");
   await expect(page.getByText("Your last rating: 2 hearts")).toBeVisible();
 

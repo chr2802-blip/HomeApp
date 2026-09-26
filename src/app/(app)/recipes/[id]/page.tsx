@@ -12,12 +12,12 @@ import { safeExternalHref } from "@/lib/embed";
 import { AddToListMenu } from "@/components/add-to-list-menu";
 import { ScreenAwakeToggle } from "@/components/screen-awake-toggle";
 import { ingredientLines, instructionLines, PORTIONS_PARAM, portionsShown, timeLabel } from "@/lib/recipes";
-import { CookLink, PortionsProvider, PortionsStepper, ScaledIngredients } from "@/components/recipe-portions";
+import { CookLink, PortionsButton, PortionsProvider, ScaledIngredients } from "@/components/recipe-portions";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
 import { isInFormat } from "@/lib/cook";
 import { ratingSummary } from "@/lib/rating";
-import { RecipeRating } from "@/components/recipe-rating";
+import { RecipeRatingButton } from "@/components/recipe-rating";
 
 /**
  * Editing a recipe runs as a server action from this page, and saving one now reads its
@@ -98,7 +98,15 @@ export default async function RecipePage({
           )}
           {recipe.description && <p className="mt-1 text-sm text-slate-500">{recipe.description}</p>}
         </div>
-        <div className="flex shrink-0 items-start">
+        <div className="flex shrink-0 items-center gap-1">
+          {/* The rating is about the recipe as a whole, so it sits by the title rather
+              than with the ingredients; the hearts are in the sheet behind it. */}
+          <RecipeRatingButton
+            recipeId={recipe.id}
+            average={rating?.average ?? null}
+            count={rating?.count ?? 0}
+            lastHearts={lastHearts}
+          />
           <ScreenAwakeToggle />
           <ItemMenu
             name="recipeId"
@@ -152,45 +160,38 @@ export default async function RecipePage({
         </div>
       )}
 
-      <Card className="mb-4">
-        <h2 className="mb-2 text-sm font-semibold text-slate-500 uppercase">
-          {say(RECIPES.ratingHeading)}
-        </h2>
-        <RecipeRating
-          recipeId={recipe.id}
-          average={rating?.average ?? null}
-          count={rating?.count ?? 0}
-          lastHearts={lastHearts}
-        />
-      </Card>
-
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <Card>
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <h2 className="mt-2 shrink-0 text-sm font-semibold text-slate-500 uppercase">
+          {/* The portions and "Add to list" are each an icon here, opening a sheet: both
+              are done now and then, and as a stepper and a labelled button they crowded
+              out the ingredients they belong to. */}
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="min-w-0 truncate text-sm font-semibold text-slate-500 uppercase">
               {say(RECIPES.ingredientsHeading)}
             </h2>
-            {/* Only where there is something to add. A recipe still being written would
-                otherwise offer to put nothing on a list. */}
-            {ingredients.length > 0 && (
-              <AddToListMenu
-                action={addRecipeIngredients}
-                extraData={{ recipeId: recipe.id }}
-                lists={lists.map((list) => ({
-                  id: list.id,
-                  title: list.title,
-                  open: list._count.items,
-                }))}
-              />
-            )}
+            <div className="flex shrink-0 items-center gap-1.5">
+              {/* Only where there are amounts to scale. */}
+              {ingredients.length > 0 && <PortionsButton />}
+              {/* Only where there is something to add. A recipe still being written would
+                  otherwise offer to put nothing on a list. */}
+              {ingredients.length > 0 && (
+                <AddToListMenu
+                  sheet
+                  action={addRecipeIngredients}
+                  extraData={{ recipeId: recipe.id }}
+                  lists={lists.map((list) => ({
+                    id: list.id,
+                    title: list.title,
+                    open: list._count.items,
+                  }))}
+                />
+              )}
+            </div>
           </div>
           {ingredients.length === 0 ? (
             <p className="text-sm text-slate-500">{say(RECIPES.noneListed)}</p>
           ) : (
-            <>
-              <PortionsStepper />
-              <ScaledIngredients lines={ingredients} />
-            </>
+            <ScaledIngredients lines={ingredients} />
           )}
         </Card>
 

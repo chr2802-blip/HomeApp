@@ -99,7 +99,10 @@ test("speaks the pantry, the importer's own copy, and the hardest sentence in th
   const trigger = page.getByRole("button", { name: "Tilføj til liste" });
   await expect(trigger).toHaveAttribute("data-ready", "true");
   await trigger.click();
-  await page.getByRole("menuitem", { name: /^Indkøb/ }).click();
+  await page
+    .getByRole("dialog", { name: "Tilføj til liste" })
+    .getByRole("button", { name: /^Indkøb/ })
+    .click();
 
   // Salt and Peber are each their own line, each fully covered by their own pantry
   // entry, so this is the plain sentence rather than the ambiguous-line dialog — and
