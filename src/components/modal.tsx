@@ -18,6 +18,44 @@ import { APP } from "@/lib/copy/app";
 const EXIT_MS = 200;
 
 /**
+ * Takes a closed sheet's history entry back off without the App Router noticing.
+ *
+ * The router answers every `popstate` by restoring the tree it filed under the entry
+ * landed on — for the entry below a sheet, the page as it was when the sheet opened. A
+ * save made in the sheet happened after that, so restoring it would put back what the
+ * save removed. So the one traverse this starts is swallowed before the router's own
+ * listener hears it, and the entry landed on is handed the tree the router has now,
+ * which is what a later back or forward onto it should restore.
+ */
+let ownPop: { tree: unknown } | null = null;
+
+function popOwnEntry() {
+  ownPop = { tree: window.history.state?.__PRIVATE_NEXTJS_INTERNALS_TREE };
+  window.history.back();
+}
+
+if (typeof window !== "undefined") {
+  // Capturing, and registered when this module loads — before the router mounts and adds
+  // its own — so it runs first and can stop the router's.
+  window.addEventListener(
+    "popstate",
+    (event) => {
+      if (!ownPop) return;
+      const { tree } = ownPop;
+      ownPop = null;
+      event.stopImmediatePropagation();
+      if (tree && event.state?.__NA) {
+        window.history.replaceState(
+          { ...event.state, __PRIVATE_NEXTJS_INTERNALS_TREE: tree },
+          "",
+        );
+      }
+    },
+    { capture: true },
+  );
+}
+
+/**
  * Full-screen sheet on mobile, centred dialog from `sm` up.
  * Mounts through a portal so it always sits above the bottom tab bar.
  *
@@ -95,27 +133,43 @@ export function Modal({
   // every render of whatever opened this, and depending on it directly would tear the
   // listener down and re-push a history entry on every one of those renders.
   //
-  // Closing any other way — Cancel, the × button, Escape, a successful save — leaves
-  // the pushed entry where it is rather than popping it to tidy up. Popping it would
-  // mean calling `history.back()` ourselves, and the App Router keeps its own client
-  // cache keyed to history entries: the entry a self-triggered `back()` lands *on* is a
-  // snapshot frozen from the moment this sheet's entry was pushed, and the router
-  // restores that snapshot outright. A save made from inside the sheet — exactly the
-  // case that closes it — happened *after* that snapshot was taken, so restoring it
-  // would silently undo the very change the sheet just made. Leaving the entry alone
-  // costs an extra back press to fully leave the page after a sheet was opened and
-  // cancelled; popping it costs correctness, on every save. `docs/design/ui-patterns.md`
-  // has the trace that found this the hard way.
+  // Closing any other way — Cancel, the ×, Escape, a successful save — takes that entry
+  // back off, or the next back press lands on the same page and looks like it did
+  // nothing. It is taken off with `popOwnEntry` (above), which hides the traverse from the
+  // App Router: letting the router see it restores a snapshot frozen when the sheet
+  // opened, and undoes the save that closed it. `docs/design/ui-patterns.md` has both.
+  //
+  // The pop is deferred a tick, and a re-run of this effect cancels it, because React's
+  // development double-run closes and reopens every sheet in the same breath.
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
   });
+  const pendingPop = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
     if (!open) return;
-    window.history.pushState({ homehubModal: true }, "");
-    const onPopState = () => onCloseRef.current();
+    if (pendingPop.current !== undefined) {
+      clearTimeout(pendingPop.current);
+      pendingPop.current = undefined;
+    } else {
+      window.history.pushState({ homehubModal: true }, "");
+    }
+    const href = window.location.href;
+    let poppedByBack = false;
+    const onPopState = () => {
+      poppedByBack = true;
+      onCloseRef.current();
+    };
     window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+      if (poppedByBack) return;
+      pendingPop.current = setTimeout(() => {
+        pendingPop.current = undefined;
+        // A save that navigated has already left the entry behind, on a new page.
+        if (window.location.href === href) popOwnEntry();
+      }, 0);
+    };
   }, [open]);
 
   if (!mounted || typeof document === "undefined") return null;

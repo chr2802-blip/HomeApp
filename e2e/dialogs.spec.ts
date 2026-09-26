@@ -22,6 +22,46 @@ test.describe("a sheet is closed by the browser's back button", () => {
     await expect(page.getByRole("dialog")).toBeHidden();
     await expect(page).toHaveURL(/\/recipes$/);
   });
+
+  // A sheet closed any other way takes its own history entry with it. Left behind, the
+  // next back press lands on the same page and looks like a button that did nothing.
+  test("after a sheet is cancelled, back leaves the page", async ({ page }) => {
+    await page.goto("/dashboard");
+    await page.goto("/recipes");
+    await openDialog(page, "New recipe");
+    await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
+    await expect(page.getByRole("dialog")).toBeHidden();
+
+    await page.goBack();
+
+    await expect(page).toHaveURL(/\/dashboard$/);
+  });
+
+  // The entry is taken off without the router restoring the page as it was when the
+  // sheet opened — which would put the old name back — and a later return to the page
+  // shows the save too.
+  test("after a sheet saves, back leaves the page and the save stands", async ({ page }) => {
+    await page.goto("/lists");
+    await openDialog(page, "New list");
+    await page.getByLabel("List name").fill("Old name");
+    await page.getByRole("button", { name: "Create list" }).click();
+    await page.waitForURL(/\/lists\/[a-z0-9]+$/);
+    const listUrl = page.url();
+
+    await openMenu(page);
+    await openDialog(page, "Edit");
+    await page.getByLabel("List name").fill("New name");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(page.getByRole("dialog")).toBeHidden();
+    await expect(page.getByRole("heading", { name: "New name" })).toBeVisible();
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/lists$/);
+
+    await page.goForward();
+    await expect(page).toHaveURL(listUrl);
+    await expect(page.getByRole("heading", { name: "New name" })).toBeVisible();
+  });
 });
 
 /*
