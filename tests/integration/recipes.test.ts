@@ -66,6 +66,41 @@ describe("createRecipe", () => {
     expect(destination).toBe(`/recipes/${recipe.id}`);
   });
 
+  it("keeps how many the recipe is for, and a blank as not said", async () => {
+    await captureRedirect(() =>
+      createRecipe(
+        undefined,
+        formData({ title: "Lasagne", categoryIds: [category.id], ingredients: "", instructions: "", servings: "6" }),
+      ),
+    );
+    expect((await only()).servings).toBe(6);
+
+    const recipe = await only();
+    await captureRedirect(() =>
+      updateRecipe(
+        undefined,
+        formData({
+          recipeId: recipe.id,
+          title: "Lasagne",
+          categoryIds: [category.id],
+          ingredients: "",
+          instructions: "",
+          servings: "",
+        }),
+      ),
+    );
+    expect((await only()).servings).toBeNull();
+  });
+
+  it.each(["0", "2.5", "100", "four"])("refuses %s portions", async (servings) => {
+    const result = await createRecipe(
+      undefined,
+      formData({ title: "Lasagne", categoryIds: [category.id], ingredients: "", instructions: "", servings }),
+    );
+    expect(result).toMatchObject({ ok: false, error: RECIPES.servingsMessage.EN });
+    expect(await prisma.recipe.count()).toBe(0);
+  });
+
   it("keeps a valid video link", async () => {
     await captureRedirect(() =>
       createRecipe(

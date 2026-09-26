@@ -90,6 +90,7 @@ test.describe("a rejected recipe", () => {
     await page.goto("/recipes/new");
 
     await page.getByLabel("Title").fill("Pasta");
+    await page.getByLabel("Portions").fill("4");
     // A category is required, and the action would refuse the recipe over that before
     // it ever got to judge the video link.
     await page.getByRole("checkbox", { name: CATEGORIES[0], exact: true }).check({ force: true });

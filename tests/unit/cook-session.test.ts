@@ -16,8 +16,15 @@ const MINUTE = 60_000;
 
 describe("parseCookSession", () => {
   it("reads back what was written", () => {
-    const session = { recipeId: "r1", page: 3, timers: [{ step: 2, endsAt: NOW }], savedAt: NOW };
+    const session = { recipeId: "r1", portions: 6, page: 3, timers: [{ step: 2, endsAt: NOW }], savedAt: NOW };
     expect(parseCookSession(JSON.stringify(session))).toEqual(session);
+  });
+
+  it("reads a session from before portions as the recipe as written", () => {
+    const raw = JSON.stringify({ recipeId: "r1", page: 3, timers: [], savedAt: NOW });
+    expect(parseCookSession(raw)).toEqual({ recipeId: "r1", portions: null, page: 3, timers: [], savedAt: NOW });
+    const nonsense = JSON.stringify({ recipeId: "r1", portions: "six", page: 3, timers: [], savedAt: NOW });
+    expect(parseCookSession(nonsense)?.portions).toBeNull();
   });
 
   it("is nothing for anything that is not a session", () => {
@@ -41,7 +48,7 @@ describe("parseCookSession", () => {
 });
 
 describe("isResumable", () => {
-  const base = { recipeId: "r1", page: 2, timers: [] };
+  const base = { recipeId: "r1", portions: null, page: 2, timers: [] };
 
   it("resumes a cook who was away half an hour", () => {
     expect(isResumable({ ...base, savedAt: NOW - 30 * MINUTE }, NOW)).toBe(true);

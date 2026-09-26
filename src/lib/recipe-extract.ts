@@ -350,6 +350,11 @@ export function extractFromHtml(html: string, sourceUrl: string): RawExtract | n
     instructionLines(jsonLd?.recipeInstructions) ||
     (hasMicrodata ? microdataInstructions($, microdata) : "");
   const description = asLines(jsonLd?.description);
+  // schema.org's `recipeYield` is text or a list of it ("4", "4 portioner", ["4", "4
+  // servings"]) — handed to the reader as the site's own words, which it turns into a
+  // number the way it reads everything else.
+  const servings =
+    asLines(jsonLd?.recipeYield) || (hasMicrodata ? microdataText($, microdata, "recipeYield") : "");
 
   const imageUrl =
     jsonLdImageUrl(jsonLd?.image) || (hasMicrodata ? microdataImageUrl($, microdata) : null) || ogImage(html);
@@ -373,6 +378,7 @@ export function extractFromHtml(html: string, sourceUrl: string): RawExtract | n
   const structured = [
     block("TITLE", title),
     block("DESCRIPTION", description),
+    block("SERVINGS", servings),
     block("INGREDIENTS", ingredients),
     block("INSTRUCTIONS", instructions),
   ]

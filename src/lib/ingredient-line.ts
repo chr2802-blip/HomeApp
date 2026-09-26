@@ -287,3 +287,78 @@ function formatAmount(amount: number, language: HomeLanguage): string {
   const rounded = String(Number(amount.toFixed(2)));
   return language === "DA" ? rounded.replace(".", ",") : rounded;
 }
+
+/** What each fraction glyph a stored line may start with is worth. */
+const GLYPH_VALUE: Record<string, number> = {
+  "½": 1 / 2,
+  "⅓": 1 / 3,
+  "⅔": 2 / 3,
+  "¼": 1 / 4,
+  "¾": 3 / 4,
+  "⅕": 1 / 5,
+  "⅖": 2 / 5,
+  "⅗": 3 / 5,
+  "⅘": 4 / 5,
+  "⅙": 1 / 6,
+  "⅚": 5 / 6,
+  "⅐": 1 / 7,
+  "⅛": 1 / 8,
+  "⅜": 3 / 8,
+  "⅝": 5 / 8,
+  "⅞": 7 / 8,
+};
+const GLYPHS = Object.keys(GLYPH_VALUE).join("");
+
+/**
+ * One quantity as a line may start with it: "1 1/2", "3/4", "1,5", "2½", "½". Mixed
+ * numbers first, because "1 1/2" read as "1" would leave "1/2" behind as part of the name.
+ */
+const QUANTITY = String.raw`(?:\d+\s+\d+/\d+|\d+/\d+|\d+(?:[.,]\d+)?\s*[${GLYPHS}]?|[${GLYPHS}])`;
+/** A quantity or a range of two, followed by the rest of the line. */
+const LEADING_QUANTITY = new RegExp(`^(${QUANTITY})(?:\\s*[-–]\\s*(${QUANTITY}))?(?=\\s|$)`);
+
+function quantityValue(text: string): number | null {
+  const mixed = /^(\d+)\s+(\d+)\/(\d+)$/.exec(text);
+  if (mixed) return Number(mixed[3]) === 0 ? null : Number(mixed[1]) + Number(mixed[2]) / Number(mixed[3]);
+  const fraction = /^(\d+)\/(\d+)$/.exec(text);
+  if (fraction) return Number(fraction[2]) === 0 ? null : Number(fraction[1]) / Number(fraction[2]);
+
+  const glyph = text.at(-1)!;
+  const glyphValue = GLYPH_VALUE[glyph] ?? 0;
+  const digits = (glyphValue ? text.slice(0, -1) : text).trim().replace(",", ".");
+  const value = (digits ? Number(digits) : 0) + glyphValue;
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/**
+ * An amount as scaling leaves it: whole grams and millilitres rather than "333,33 g",
+ * and two decimals below ten — which `formatAmount` then writes as the fraction a cook
+ * would, where it is one.
+ */
+function kitchenRound(value: number): number {
+  return value >= 10 ? Math.round(value) : Math.round(value * 100) / 100;
+}
+
+/**
+ * One stored ingredient line with its amount multiplied by `factor` — how the recipe page
+ * and action mode show a recipe cooked for more or fewer people than it was written for.
+ *
+ * Only the leading amount moves; the unit and the thing bought are left exactly as
+ * stored, and so is a line with no amount at all ("Salt"), since "salt to taste" for
+ * eight is still salt to taste. A range left over from before every line was read into
+ * one format scales at both ends. Nothing here is ever written back: the stored lines are
+ * the recipe as written, and scaling 4 → 3 → 4 has to land where it started.
+ */
+export function scaleIngredient(line: string, factor: number, language: HomeLanguage): string {
+  if (factor === 1 || !Number.isFinite(factor) || factor <= 0) return line;
+  const match = LEADING_QUANTITY.exec(line);
+  if (!match) return line;
+
+  const low = quantityValue(match[1]);
+  const high = match[2] ? quantityValue(match[2]) : null;
+  if (low === null || (match[2] && high === null)) return line;
+
+  const write = (value: number) => formatAmount(kitchenRound(value * factor), language) || "0";
+  const amount = high === null ? write(low) : `${write(low)}-${write(high)}`;
+  return amount + line.slice(match[0].length);
+}

@@ -26,6 +26,7 @@ async function seedRead() {
       homeId: home.id,
       createdById: owner.id,
       title: "Roast potatoes",
+      servings: 4,
       ingredients: "500 g potatoes\n2 tbsp oil\nSalt",
       instructions: "Cut the potatoes.\nToss in oil.\nRoast.",
       cookSteps: { v: 2, steps: [{ uses: [0] }, { uses: [1, 2] }, { uses: [], minutes: 40 }] },

@@ -4,7 +4,8 @@ import { prepareRecipeSteps } from "@/app/actions/recipes";
 import { requireHomeUser } from "@/lib/auth";
 import { cookSteps, isPrepared } from "@/lib/cook";
 import { homeDb } from "@/lib/home-db";
-import { ingredientLines } from "@/lib/recipes";
+import { ingredientLines, PORTIONS_PARAM, portionsShown } from "@/lib/recipes";
+import { scaleIngredient } from "@/lib/ingredient-line";
 import { CookMode } from "@/components/cook-mode";
 
 /**
@@ -22,8 +23,15 @@ export const maxDuration = 60;
  * place. The page draws nothing itself — the surface is fixed and portalled over the
  * app's own chrome, which is `CookMode`'s to explain.
  */
-export default async function CookPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CookPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { id } = await params;
+  const asked = (await searchParams)[PORTIONS_PARAM];
   const user = await requireHomeUser();
 
   // Scoped to the caller's home, so another home's id simply finds nothing —
@@ -32,16 +40,30 @@ export default async function CookPage({ params }: { params: Promise<{ id: strin
     where: { id },
     // `photoId` and not the photo: a picture is served from /api/photos, never carried
     // through a page. Nothing here shows one anyway — the dish is what is on the hob.
-    select: { id: true, title: true, ingredients: true, instructions: true, cookSteps: true },
+    select: { id: true, title: true, ingredients: true, instructions: true, cookSteps: true, servings: true },
   });
   if (!recipe) notFound();
+
+  // The amounts the recipe page was showing when "Start cooking" was pressed. Scaled line
+  // by line, so every line keeps its position and the stored breakdown's indices still
+  // point at the same ingredients; `isPrepared` is asked of the stored text, not this.
+  const portions = portionsShown(recipe.servings, asked);
+  const factor = recipe.servings && portions ? portions / recipe.servings : 1;
+  const scaled = {
+    ...recipe,
+    ingredients: ingredientLines(recipe.ingredients)
+      .map((line) => scaleIngredient(line, factor, user.homeLanguage))
+      .join("\n"),
+  };
 
   return (
     <CookMode
       recipeId={recipe.id}
       title={recipe.title}
-      steps={cookSteps(recipe)}
-      ingredients={ingredientLines(recipe.ingredients)}
+      steps={cookSteps(scaled)}
+      ingredients={ingredientLines(scaled.ingredients)}
+      portions={portions !== recipe.servings ? portions : null}
+      servings={recipe.servings}
       prepared={isPrepared(recipe)}
       prepareAction={prepareRecipeSteps}
     />

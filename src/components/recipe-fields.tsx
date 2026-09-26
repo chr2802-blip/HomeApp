@@ -3,7 +3,7 @@ import type { HomeLanguage } from "@prisma/client";
 import { Input, Label, Textarea } from "@/components/ui";
 import { PhotoField } from "@/components/photo-field";
 import type { AiWait } from "@/components/ai-overlay";
-import { CATEGORY_FIELD, READING_FIELD } from "@/lib/recipes";
+import { CATEGORY_FIELD, MAX_SERVINGS, READING_FIELD } from "@/lib/recipes";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
 import { SETTINGS } from "@/lib/copy/settings";
@@ -19,6 +19,9 @@ export type RecipeValues = {
   videoUrl?: string | null;
   photoId?: string | null;
   totalTimeMinutes?: number | null;
+  /** How many the ingredient amounts are for — asked on every save, and filled in by an
+   *  import wherever the source said. */
+  servings?: number | null;
   /** An import's signed reading of the ingredients and steps — see `READING_FIELD`. */
   reading?: string | null;
   /** Whether its stored text was read into the one format (`isInFormat`) — what lets a
@@ -187,6 +190,23 @@ export function RecipeFields({
           inputMode="numeric"
           defaultValue={recipe?.totalTimeMinutes ?? ""}
         />
+      </div>
+
+      {/* Required here and not in the action: the form asks every time, and a recipe
+          stored before anybody was asked still saves — it is simply shown unscaled. */}
+      <div className="space-y-1">
+        <Label htmlFor="servings">{say(RECIPES.servingsField)}</Label>
+        <Input
+          id="servings"
+          name="servings"
+          type="number"
+          min={1}
+          max={MAX_SERVINGS}
+          inputMode="numeric"
+          required
+          defaultValue={recipe?.servings ?? ""}
+        />
+        <p className="text-xs text-slate-500">{say(RECIPES.servingsHint)}</p>
       </div>
 
       <PhotoField

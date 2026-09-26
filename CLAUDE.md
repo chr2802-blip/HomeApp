@@ -898,6 +898,25 @@ forward**, as lifting a right-hand page over does.
 - The page turn is `page-turn-next` / `page-turn-back` in `globals.css` — keyframes, and
   no `translate-*`/`rotate-*`/`scale-*` utility on the element playing one.
 
+### A recipe says how many it is for, and is scaled on screen, never in storage
+
+`Recipe.servings` is how many people the stored amounts feed. The form asks it on every
+save (`required` on the input) while the action accepts a blank, so a recipe stored before
+anybody was asked still saves and is simply shown unscaled — the dozens of tests and seeds
+that create recipes without it keep meaning what they meant. An import fills it where the
+source said (`recipeYield`, handed to the reader as a `SERVINGS` block; the reader answers
+`servings`, coerced like `totalTimeMinutes`).
+
+- **Scaling is display only.** `scaleIngredient` in `src/lib/ingredient-line.ts` multiplies
+  a stored line's leading amount and writes it back through `formatAmount`, so a scaled
+  line is still one `shoppingText` can take apart. The stored lines are never rewritten —
+  4 → 3 → 4 has to land where it started — and a line with no amount ("Salt") is left alone.
+- **The portions travel in the address** (`PORTIONS_PARAM`, read by `portionsShown`):
+  "Start cooking" carries them into action mode, closing it carries them back, and the cook
+  session keeps them so a resumed cook comes back to the same amounts. Action mode scales
+  line by line, so a scaled block keeps every position the stored breakdown's `uses` point at.
+- The steps' own text is not scaled ("Tilsæt 50 g af smørret") — nothing parses a step.
+
 ### A new recipe starts by asking how, not with a field buried in the form
 
 `NewRecipeDialog` is a small choice before it is a form: **start from scratch**, or **import

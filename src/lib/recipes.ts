@@ -159,3 +159,24 @@ export function shoppingText(line: string): string {
     ? withoutNote
     : withoutNote.charAt(0).toUpperCase() + withoutNote.slice(1);
 }
+
+/** The most people a recipe is written for, or scaled to — past this it is catering. */
+export const MAX_SERVINGS = 99;
+
+/**
+ * The address parameter that carries how many a recipe is being cooked for, from the
+ * recipe page into action mode and back out again — so the amounts at the hob are the
+ * ones that were on screen when "Start cooking" was pressed.
+ */
+export const PORTIONS_PARAM = "portions";
+
+/**
+ * How many a recipe is being shown for: what the address asked, where that is a whole
+ * number in range, and the recipe's own `servings` otherwise. Null only for a recipe
+ * nobody has said the servings of, which has nothing to scale from.
+ */
+export function portionsShown(servings: number | null, asked: unknown): number | null {
+  if (servings === null) return null;
+  const value = Number(Array.isArray(asked) ? asked[0] : asked);
+  return Number.isInteger(value) && value >= 1 && value <= MAX_SERVINGS ? value : servings;
+}

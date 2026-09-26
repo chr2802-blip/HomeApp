@@ -85,6 +85,7 @@ test("speaks the pantry, the importer's own copy, and the hardest sentence in th
   // The recipes area is converted too, so the standalone create page speaks Danish.
   await page.goto("/recipes/new");
   await page.getByLabel("Titel").fill("Suppe");
+  await page.getByLabel("Portioner").fill("4");
   await page.getByRole("checkbox", { name: CATEGORIES[0], exact: true }).check({ force: true });
   await page.getByLabel("Ingredienser").fill("Salt\nPeber\n500 g kartofler");
   await page.getByRole("button", { name: "Gem opskrift" }).click();

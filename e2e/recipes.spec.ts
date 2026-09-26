@@ -16,9 +16,12 @@ async function fillRecipe(
     ingredients?: string;
     instructions?: string;
     totalTimeMinutes?: number;
+    servings?: number;
   },
 ) {
   await page.getByLabel("Title").fill(options.title);
+  // Asked on every save, so every recipe typed in here says how many it is for.
+  await page.getByLabel("Portions").fill(String(options.servings ?? 4));
   // Every recipe needs at least one category, so the seed's first one stands in unless
   // a test cares which. The box itself is off screen — what a person presses is the
   // chip beside it — so it is ticked rather than clicked at.

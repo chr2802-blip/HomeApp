@@ -29,6 +29,7 @@ const RECIPE = {
   isRecipe: true,
   title: "Cremet pasta med kylling",
   totalTimeMinutes: 25,
+  servings: 4,
   ingredients: [
     { name: "pasta", amount: 400, unit: "g" },
     { name: "kyllingebryst", amount: 500, unit: "g" },
@@ -117,6 +118,7 @@ const RECIPE_EN = {
   isRecipe: true,
   title: "Creamy chicken pasta",
   totalTimeMinutes: 25,
+  servings: 4,
   ingredients: [
     { name: "pasta", amount: 400, unit: "g" },
     { name: "chicken breast", amount: 500, unit: "g" },

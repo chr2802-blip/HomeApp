@@ -161,6 +161,15 @@ export const RECIPES = {
   titleField: { EN: "Title", DA: "Titel" },
   shortDescription: { EN: "Short description", DA: "Kort beskrivelse" },
   totalTimeMinutesField: { EN: "Total time (minutes)", DA: "Samlet tid (minutter)" },
+  servingsField: { EN: "Portions", DA: "Portioner" },
+  servingsHint: {
+    EN: "How many people the amounts below are for.",
+    DA: "Hvor mange personer mængderne nedenfor er til.",
+  },
+  servingsMessage: {
+    EN: "Portions must be a whole number from 1 to 99.",
+    DA: "Portioner skal være et helt tal fra 1 til 99.",
+  },
   picture: { EN: "Picture", DA: "Billede" },
   pictureHint: {
     EN: "What it looks like when it is finished — shown on the recipe and on its card.",
@@ -201,6 +210,13 @@ export const RECIPES = {
   ingredientsHeading: { EN: "Ingredients", DA: "Ingredienser" },
   instructionsHeading: { EN: "Instructions", DA: "Fremgangsmåde" },
   noneListed: { EN: "None listed.", DA: "Ingen angivet." },
+  portions: {
+    EN: { one: "{count} portion", other: "{count} portions" },
+    DA: { one: "{count} portion", other: "{count} portioner" },
+  },
+  fewerPortions: { EN: "Fewer portions", DA: "Færre portioner" },
+  morePortions: { EN: "More portions", DA: "Flere portioner" },
+  scaledFrom: { EN: "The recipe is written for {count}", DA: "Opskriften er skrevet til {count}" },
   noneWrittenFollowVideo: { EN: "None written — follow the video.", DA: "Ingen skrevet — følg videoen." },
 
   // Action mode — src/components/cook-mode.tsx

@@ -11,7 +11,8 @@ import { PhotoBanner } from "@/components/photo";
 import { safeExternalHref } from "@/lib/embed";
 import { AddToListMenu } from "@/components/add-to-list-menu";
 import { ScreenAwakeToggle } from "@/components/screen-awake-toggle";
-import { ingredientLines, instructionLines, timeLabel } from "@/lib/recipes";
+import { ingredientLines, instructionLines, PORTIONS_PARAM, portionsShown, timeLabel } from "@/lib/recipes";
+import { CookLink, PortionsProvider, PortionsStepper, ScaledIngredients } from "@/components/recipe-portions";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
 import { isInFormat } from "@/lib/cook";
@@ -25,8 +26,15 @@ import { RecipeRating } from "@/components/recipe-rating";
  */
 export const maxDuration = 60;
 
-export default async function RecipePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function RecipePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { id } = await params;
+  const asked = (await searchParams)[PORTIONS_PARAM];
   const user = await requireHomeUser();
   const say = sayIn(user.homeLanguage);
 
@@ -73,7 +81,8 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
   const lastHearts = recipe.ratings.find((given) => given.userId === user.id)?.hearts ?? null;
 
   return (
-    <>
+    // Leaving action mode comes back here with the portions it was cooking in the address.
+    <PortionsProvider servings={recipe.servings} initial={portionsShown(recipe.servings, asked)}>
       <div className="mb-6 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex flex-wrap gap-1.5">
@@ -127,9 +136,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
       {(instructions.length > 0 || videoHref) && (
         <div className="mb-6 flex flex-wrap gap-2">
           {instructions.length > 0 && (
-            <ButtonLink href={`/recipes/${recipe.id}/cook`} className="flex-1 sm:flex-none">
-              {say(RECIPES.startCooking)}
-            </ButtonLink>
+            <CookLink recipeId={recipe.id}>{say(RECIPES.startCooking)}</CookLink>
           )}
           {videoHref && (
             <ButtonLink
@@ -180,14 +187,10 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
           {ingredients.length === 0 ? (
             <p className="text-sm text-slate-500">{say(RECIPES.noneListed)}</p>
           ) : (
-            <ul className="space-y-1.5 text-sm">
-              {ingredients.map((item, index) => (
-                <li key={index} className="flex gap-2">
-                  <span className="text-slate-400">·</span>
-                  {item}
-                </li>
-              ))}
-            </ul>
+            <>
+              <PortionsStepper />
+              <ScaledIngredients lines={ingredients} />
+            </>
           )}
         </Card>
 
@@ -211,6 +214,6 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
           )}
         </Card>
       </div>
-    </>
+    </PortionsProvider>
   );
 }

@@ -6,6 +6,7 @@ import type { RawExtract } from "./recipe-extract";
 import { IngredientSchema, ingredientRules, languageRules } from "./ingredient-line";
 import { PreparedStep, renderReading, stepRules } from "./cook-steps";
 import type { StoredStep } from "./cook";
+import { MAX_SERVINGS } from "./recipes";
 import { overMonthlyLimit, recordAiUsage } from "./ai-usage";
 
 /**
@@ -122,6 +123,12 @@ export const NormalizedRecipeSchema = z.object({
       "Start to finish in whole minutes, only where the text says so about the whole dish. Null otherwise — never a guess, and never zero.",
     )
     .nullish(),
+  servings: z
+    .number()
+    .describe(
+      "How many people the ingredient amounts are for, as a whole number, only where the text says so. Null otherwise — never a guess.",
+    )
+    .nullish(),
   ingredients: z.array(IngredientSchema).default([]),
   instructions: z.array(PreparedStep).default([]),
   needsReview: z
@@ -142,6 +149,8 @@ export type NormalizedFields = {
   ingredients: string;
   instructions: string;
   totalTimeMinutes: number | null;
+  /** How many the amounts are for, where the source said; the form asks either way. */
+  servings: number | null;
   /** What the cook should look over before saving, or null. */
   note: string | null;
   /** Action mode's breakdown of `instructions`, one entry per line of it. */
@@ -182,6 +191,9 @@ Hashtags, @handles, "følg med for flere opskrifter", "link in bio", "gem den ti
 
 ### Time
 \`totalTimeMinutes\` only where the text says how long the **whole dish** takes — "klar på 25 minutter", "i alt 1 time". A bare "bag i 20 min" is one step's own timing and is not the recipe's total. When in doubt, null.
+
+### Portions
+\`servings\` only where the text says how many the recipe is for — "4 personer", "til 6", "serves 4", "makes 12 pieces" (12). A range takes the higher number. When the text does not say, null: the cook is asked when they save, and a guess would scale every amount wrongly.
 
 ### When it is not a recipe
 Set \`isRecipe: false\` when there is no recipe in the text: a shop page, an article about food, a caption that is only a photo description. Do not assemble something plausible out of fragments — a cook handed a form full of nonsense has to clear it out before typing the real thing, so a bad guess costs more than no guess.
@@ -368,6 +380,7 @@ export function renderNormalized(
     // The page's own machine-readable duration wins. A site publishing `PT1H30M` is stating
     // the answer; anything read back out of prose is an inference, however good.
     totalTimeMinutes: raw.timeHintMinutes ?? cookingMinutes(parsed.totalTimeMinutes),
+    servings: servingsCount(parsed.servings),
     note: parsed.needsReview ? (parsed.reviewReason?.trim() || null) : null,
     steps,
   };
@@ -384,4 +397,15 @@ export function renderNormalized(
 function cookingMinutes(minutes: number | null | undefined): number | null {
   if (typeof minutes !== "number" || !Number.isFinite(minutes) || minutes <= 0) return null;
   return Math.round(minutes);
+}
+
+/**
+ * A number of servings the form will take, or null — the same coercion `cookingMinutes`
+ * makes, for the same reason: a zero or a fraction is the model reaching for a number
+ * where the text had none, and the cook is asked on the form either way.
+ */
+function servingsCount(servings: number | null | undefined): number | null {
+  if (typeof servings !== "number" || !Number.isFinite(servings)) return null;
+  const whole = Math.round(servings);
+  return whole >= 1 && whole <= MAX_SERVINGS ? whole : null;
 }

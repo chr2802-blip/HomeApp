@@ -65,6 +65,7 @@ test.describe("a sheet on a phone-sized screen", () => {
     // A title and no category: refused by the action rather than by the browser, so the
     // reason comes back into a sheet that is still open and still scrolled to the top.
     await page.getByLabel("Title").fill("Nowhere to file this");
+    await page.getByLabel("Portions").fill("4");
     await page.getByRole("button", { name: "Save recipe" }).click();
 
     const reason = page.getByText("Choose at least one category for this recipe.");
