@@ -1116,6 +1116,13 @@ about which words to throw away.
 - `Modal` lays its contents out as a column: `ModalBody` scrolls, `ModalFooter` does not.
   **Never put a form's buttons — or the reason a submission was refused — inside
   `ModalBody`.** On a phone a Save button below the fold is a form people abandon.
+- **A sheet is the whole screen or a drawer, and which is decided by what is in it.**
+  `Modal`'s `size="drawer"` rises on a phone only as far as its contents need, with the
+  page still visible above it: `SheetButton` (portions, rating, "Add to list"),
+  `ConfirmDialog` and `ConfirmButton` use it. Anything with fields to fill in stays
+  `"screen"` — a form runs past the fold, and a drawer grown to full height is a
+  full-screen sheet with a gap at the top. From `sm` up both are the same centred panel.
+  A drawer pads past the home indicator itself unless it has a `ModalFooter`, which does.
 - **A sheet closes on the browser's back button and a phone's back gesture**, by pushing
   one history entry when it opens and closing on the `popstate` that leaves it. **It never
   calls `history.back()` itself to tidy that entry away on a Cancel or a save** — the App

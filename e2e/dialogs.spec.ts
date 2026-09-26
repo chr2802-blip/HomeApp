@@ -89,4 +89,33 @@ test.describe("a sheet on a phone-sized screen", () => {
     await expect(sheet.getByRole("button", { name: "Delete", exact: true })).toBeInViewport();
     await expect(sheet.getByRole("button", { name: "Cancel" })).toBeInViewport();
   });
+
+  // A question with two answers is a drawer, and a form is the whole screen: the page
+  // behind a confirmation stays in view above it, and a form's fields get every pixel.
+  test("a confirmation rises only as far as it needs, and a form takes the screen", async ({
+    page,
+  }) => {
+    await page.goto("/lists");
+    await openDialog(page, "New list");
+    const form = page.getByRole("dialog");
+    await expect(form).toHaveAttribute("data-size", "screen");
+    expect((await form.boundingBox())!.height).toBeGreaterThanOrEqual(680 - 1);
+    await page.getByLabel("List name").fill("Weekly shop");
+    await page.getByRole("button", { name: "Create list" }).click();
+    await page.waitForURL(/\/lists\/[a-z0-9]+$/);
+
+    await openMenu(page);
+    await page.getByRole("menuitem", { name: "Delete" }).click();
+
+    const sheet = page.getByRole("dialog");
+    await expect(sheet).toHaveAttribute("data-size", "drawer");
+    // Settled rather than mid-entrance: the drawer slides up, so its box moves until then.
+    await expect
+      .poll(async () => {
+        const box = (await sheet.boundingBox())!;
+        return Math.round(box.y + box.height);
+      })
+      .toBe(680);
+    expect((await sheet.boundingBox())!.height).toBeLessThan(680 / 2);
+  });
 });
