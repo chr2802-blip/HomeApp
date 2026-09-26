@@ -1278,6 +1278,36 @@ formatted by it, so it rewraps every file it is pointed at to 80 columns. ESLint
 formatter check that runs.
 Explain in the PR what changed and why, and flag anything you decided rather than knew.
 
+### Show the change on screen first, before finishing it
+
+**Anything a person will see is shown to the user as a screenshot as early as it can be
+drawn** — the first rough version, before the tests, the edge cases, the copy in both
+languages and `npm run verify`. The user iterates on what they can see; a change built out
+completely before anybody looked at it is a change that gets built twice when the first
+look says "not like that".
+
+- **The first screenshot goes out as soon as the change renders at all**, even with
+  placeholder data or a hard-coded string. Then a new one after each round of feedback,
+  and a final one of the finished state before the PR.
+- **At a phone's width, 390×844**, because that is where this app is used and where layout
+  goes wrong. Add a desktop shot only where the change looks different there. A home with
+  a Danish language is worth a second shot whenever the change has words in it — Danish is
+  longer and is what truncates.
+- **Sent with `SendUserFile`** (the cloud session's way to put an image in front of the
+  user), with a one-line caption saying what to look at. Say what is not built yet, so the
+  rough edges are not taken for the design.
+- **Ask, then wait for the answer** before building the rest, whenever the screenshot
+  settles a choice (a layout, a placement, which of two variants). Where it settles
+  nothing, carry on and let the user interrupt.
+- **The quickest route to a screenshot is `npm run dev` and a throwaway Playwright
+  script** against it (the dev server needs no `next build`, which the e2e server does),
+  logging in through the form the way `logInThroughForm` in `e2e/helpers/fixtures.ts`
+  does. There is no one-command "screenshot this path" helper yet — sessions have
+  copied helpers into a throwaway spec each time; whoever writes one should note it here.
+  The throwaway is not committed.
+- A change with nothing to see (a migration, a lib function, a test) has nothing to show,
+  and this rule does not ask for a screenshot of a terminal.
+
 ### Every session leaves a note behind
 
 A change here goes idea → branch → `npm run verify` → PR → merge → production, usually in
