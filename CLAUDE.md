@@ -485,6 +485,11 @@ the hearts always inserts, never updates.
   person's own newest rating, not the average.
 - The card's meta line is **time · ♥ average**. It used to say "Includes a video"; that went.
 - Hearts are the home's `--accent`, never red: red means "about to be deleted".
+- **A home's admins can reset a recipe's ratings** — every row, everybody's — from the
+  rating sheet (`resetRecipeRatings`). It is gated by `assertHomeAdmin` on the recipe's own
+  home, never `requireAdmin`. The confirmation is asked inside the sheet rather than in a
+  second sheet stacked on it: two `Modal`s each push a history entry and listen for
+  `popstate`, so one back press closes both.
 - **On the recipe page the hearts are in a sheet**, behind a heart icon by the title,
   beside keep-screen-on (`SheetButton`, `src/components/sheet-button.tsx`) — it is about
   the whole recipe, not the ingredients. The portions and "Add to list" are the same kind
@@ -1141,12 +1146,12 @@ about which words to throw away.
   full-screen sheet with a gap at the top. From `sm` up both are the same centred panel.
   A drawer pads past the home indicator itself unless it has a `ModalFooter`, which does.
 - **A sheet closes on the browser's back button and a phone's back gesture**, by pushing
-  one history entry when it opens and closing on the `popstate` that leaves it. **It never
-  calls `history.back()` itself to tidy that entry away on a Cancel or a save** — the App
-  Router's client cache freezes the entry *below* the one a sheet pushed at the moment the
-  sheet opened, and a save made inside the sheet happens after that: popping back to it
-  restores the frozen snapshot and silently undoes the save. Costs one extra back press to
-  leave a page after a sheet was opened and cancelled; the alternative cost correctness.
+  one history entry when it opens and closing on the `popstate` that leaves it. **Closed
+  any other way, it takes that entry back off through `popOwnEntry` and nothing else** —
+  a bare `history.back()` lets the App Router restore the page as it was when the sheet
+  opened, which silently undoes the save that closed it. `popOwnEntry` swallows its own
+  traverse before the router hears it and hands the entry below the router's current
+  tree. Left on, the entry makes the next back press land on the same page.
 - `Collapsible` **always says how much is in there** and **starts shut on every visit**.
   Pass `headingClassName` where what folds is a section rather than part of a card. For the
   same reason **a list card counts open items, not all of them**.
@@ -1294,6 +1299,36 @@ Open a branch, keep `npm run verify` green, and open a PR rather than pushing to
 formatted by it, so it rewraps every file it is pointed at to 80 columns. ESLint is the
 formatter check that runs.
 Explain in the PR what changed and why, and flag anything you decided rather than knew.
+
+### Show the change on screen first, before finishing it
+
+**Anything a person will see is shown to the user as a screenshot as early as it can be
+drawn** — the first rough version, before the tests, the edge cases, the copy in both
+languages and `npm run verify`. The user iterates on what they can see; a change built out
+completely before anybody looked at it is a change that gets built twice when the first
+look says "not like that".
+
+- **The first screenshot goes out as soon as the change renders at all**, even with
+  placeholder data or a hard-coded string. Then a new one after each round of feedback,
+  and a final one of the finished state before the PR.
+- **At a phone's width, 390×844**, because that is where this app is used and where layout
+  goes wrong. Add a desktop shot only where the change looks different there. A home with
+  a Danish language is worth a second shot whenever the change has words in it — Danish is
+  longer and is what truncates.
+- **Sent with `SendUserFile`** (the cloud session's way to put an image in front of the
+  user), with a one-line caption saying what to look at. Say what is not built yet, so the
+  rough edges are not taken for the design.
+- **Ask, then wait for the answer** before building the rest, whenever the screenshot
+  settles a choice (a layout, a placement, which of two variants). Where it settles
+  nothing, carry on and let the user interrupt.
+- **The quickest route to a screenshot is `npm run dev` and a throwaway Playwright
+  script** against it (the dev server needs no `next build`, which the e2e server does),
+  logging in through the form the way `logInThroughForm` in `e2e/helpers/fixtures.ts`
+  does. There is no one-command "screenshot this path" helper yet — sessions have
+  copied helpers into a throwaway spec each time; whoever writes one should note it here.
+  The throwaway is not committed.
+- A change with nothing to see (a migration, a lib function, a test) has nothing to show,
+  and this rule does not ask for a screenshot of a terminal.
 
 ### Every session leaves a note behind
 
