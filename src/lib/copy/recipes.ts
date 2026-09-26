@@ -118,7 +118,35 @@ export const RECIPES = {
   },
   editRecipe: { EN: "Edit recipe", DA: "Rediger opskrift" },
   deleteRecipeMessage: { EN: 'Delete the recipe "{title}"?', DA: 'Slet opskriften "{title}"?' },
-  includesVideo: { EN: "Includes a video", DA: "Indeholder en video" },
+  // A recipe's rating: the card's "♥ 4.3", and the hearts on its own page.
+  ratingAria: {
+    EN: {
+      one: "Rated {average} out of 5 from {count} rating",
+      other: "Rated {average} out of 5 from {count} ratings",
+    },
+    DA: {
+      one: "Bedømt {average} ud af 5 ud fra {count} bedømmelse",
+      other: "Bedømt {average} ud af 5 ud fra {count} bedømmelser",
+    },
+  },
+  ratingHeading: { EN: "Rating", DA: "Bedømmelse" },
+  ratingCount: {
+    EN: { one: "from {count} rating", other: "from {count} ratings" },
+    DA: { one: "ud fra {count} bedømmelse", other: "ud fra {count} bedømmelser" },
+  },
+  notRatedYet: { EN: "Not rated yet", DA: "Ikke bedømt endnu" },
+  rateHint: {
+    EN: "Rate it each time you cook it — every rating counts towards the average.",
+    DA: "Bedøm den hver gang I laver den — hver bedømmelse tæller med i gennemsnittet.",
+  },
+  rateHearts: {
+    EN: { one: "Give {count} heart", other: "Give {count} hearts" },
+    DA: { one: "Giv {count} hjerte", other: "Giv {count} hjerter" },
+  },
+  yourLastRating: {
+    EN: { one: "Your last rating: {count} heart", other: "Your last rating: {count} hearts" },
+    DA: { one: "Din seneste bedømmelse: {count} hjerte", other: "Din seneste bedømmelse: {count} hjerter" },
+  },
 
   // Recipe fields, shared by the create dialog, the standalone form and the card's own menu
   categories: { EN: "Categories", DA: "Kategorier" },

@@ -24,6 +24,7 @@ import { readingFor } from "@/lib/reading-token";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { sayIn, type Say } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
+import { readHearts } from "@/lib/rating";
 
 const recipeInScope = homeScoped("Recipe", (id) => prisma.recipe.findUnique({ where: { id } }));
 
@@ -341,4 +342,25 @@ export async function deleteRecipe(formData: FormData) {
   await discardPhoto(recipe.homeId, recipe.photoId);
   revalidatePath("/recipes");
   redirect("/recipes");
+}
+
+/**
+ * Adds one rating to a recipe, from whoever pressed the hearts.
+ *
+ * Always a new row, never an update of the person's last one: the same person rates the
+ * same dish again after cooking it again, and the average is meant to move with them.
+ * Like starring a list it acts on a press and reports nothing — the average redrawn is the
+ * answer. A number of hearts the buttons cannot produce is ignored rather than clamped,
+ * because it arrived by hand and a guess at what it meant would still count.
+ */
+export async function rateRecipe(formData: FormData) {
+  const user = await requireHomeUser();
+  const recipe = await recipeInScope(String(formData.get("recipeId")));
+  const hearts = readHearts(formData.get("hearts"));
+  if (hearts === null) return;
+
+  await prisma.recipeRating.create({ data: { recipeId: recipe.id, userId: user.id, hearts } });
+
+  revalidatePath("/recipes");
+  revalidatePath(`/recipes/${recipe.id}`);
 }

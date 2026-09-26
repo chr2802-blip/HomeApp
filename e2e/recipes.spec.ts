@@ -245,3 +245,32 @@ test.describe("the recipe list's time filter", () => {
     await expect(page.getByRole("group", { name: "Filter by time" })).toHaveCount(0);
   });
 });
+
+test("every rating counts, the same person's too, and the card shows the average beside the time", async ({
+  page,
+}) => {
+  await fillRecipe(page, { title: "Lasagne", ingredients: "Pasta", totalTimeMinutes: 90 });
+  await page.getByRole("button", { name: "Save recipe" }).click();
+  await expect(page).toHaveURL(SAVED_RECIPE);
+
+  await expect(page.getByText("Not rated yet")).toBeVisible();
+
+  await page.getByRole("button", { name: "Give 5 hearts" }).click();
+  await expect(page.getByTestId("rating-average")).toHaveText("5");
+  await expect(page.getByText("Your last rating: 5 hearts")).toBeVisible();
+
+  // Rating again adds a second rating rather than replacing the first.
+  await page.getByRole("button", { name: "Give 2 hearts" }).click();
+  await expect(page.getByTestId("rating-average")).toHaveText("3.5");
+  await expect(page.getByText("from 2 ratings")).toBeVisible();
+
+  // Still true once the page is drawn from the database rather than the press.
+  await page.reload();
+  await expect(page.getByTestId("rating-average")).toHaveText("3.5");
+  await expect(page.getByText("Your last rating: 2 hearts")).toBeVisible();
+
+  await page.goto("/recipes");
+  const card = page.getByRole("link", { name: /Lasagne/ });
+  await expect(card.getByText("1 hr 30 min")).toBeVisible();
+  await expect(card.getByLabel("Rated 3.5 out of 5 from 2 ratings")).toBeVisible();
+});
