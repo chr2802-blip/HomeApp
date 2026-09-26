@@ -45,6 +45,22 @@ describe("parseCookSession", () => {
     });
     expect(parseCookSession(raw)?.timers).toEqual([{ step: 0, endsAt: NOW }]);
   });
+
+  it("keeps a timer's push id, so a resumed cook can still cancel it", () => {
+    const raw = JSON.stringify({
+      recipeId: "r1",
+      page: 1,
+      timers: [
+        { step: 0, endsAt: NOW, pushId: "msg_1" },
+        { step: 1, endsAt: NOW, pushId: 42 },
+      ],
+      savedAt: NOW,
+    });
+    expect(parseCookSession(raw)?.timers).toEqual([
+      { step: 0, endsAt: NOW, pushId: "msg_1" },
+      { step: 1, endsAt: NOW },
+    ]);
+  });
 });
 
 describe("isResumable", () => {

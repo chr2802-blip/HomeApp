@@ -13,8 +13,13 @@ const WINDOW_MS = 15 * 60 * 1000;
  * breakdown, which nobody is told about. A household tidying a shelf of old recipes in
  * one evening reached eight honestly, so it is set where only a loop would reach it. The
  * money is bounded elsewhere, by the home's monthly allowance (`overMonthlyLimit`).
+ *
+ * `cook-timer` counts timers scheduled to ring on a locked phone, each one a QStash
+ * message out of a daily quota the whole installation shares. A dinner with five timed
+ * steps, some restarted, is a dozen; going over is silent too — the timer still counts
+ * in the page, it just cannot ring with the page closed.
  */
-const MAX_ATTEMPTS: Record<string, number> = { prepare: 30 };
+const MAX_ATTEMPTS: Record<string, number> = { prepare: 30, "cook-timer": 40 };
 const DEFAULT_MAX_ATTEMPTS = 8;
 
 export function attemptsAllowed(scope: string): number {

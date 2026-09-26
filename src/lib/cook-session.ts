@@ -17,7 +17,14 @@
  * not leave".
  */
 
-export type CookTimer = { step: number; endsAt: number };
+export type CookTimer = {
+  step: number;
+  endsAt: number;
+  /** The QStash message that will ring this timer on a phone whose page is not running
+   *  (`lib/cook-timer-push.ts`), kept so stopping the timer can cancel it. Absent where
+   *  nothing was scheduled, which is a timer that rings in the page only. */
+  pushId?: string;
+};
 
 export type CookSession = {
   recipeId: string;
@@ -51,15 +58,19 @@ export function parseCookSession(raw: string | null): CookSession | null {
   if (!Number.isInteger(page) || (page as number) < 0) return null;
   if (typeof savedAt !== "number" || !Number.isFinite(savedAt)) return null;
   if (!Array.isArray(timers)) return null;
-  const valid = timers.filter(
-    (timer): timer is CookTimer =>
-      !!timer &&
-      typeof timer === "object" &&
-      Number.isInteger(timer.step) &&
-      timer.step >= 0 &&
-      typeof timer.endsAt === "number" &&
-      Number.isFinite(timer.endsAt),
-  );
+  const valid = timers
+    .filter(
+      (timer): timer is CookTimer =>
+        !!timer &&
+        typeof timer === "object" &&
+        Number.isInteger(timer.step) &&
+        timer.step >= 0 &&
+        typeof timer.endsAt === "number" &&
+        Number.isFinite(timer.endsAt),
+    )
+    .map(({ step, endsAt, pushId }) =>
+      typeof pushId === "string" && pushId ? { step, endsAt, pushId } : { step, endsAt },
+    );
   // A session saved before portions existed, or one holding nonsense, is the recipe as
   // written rather than a reason to throw the page and the timers away.
   const shown = Number.isInteger(portions) && (portions as number) >= 1 ? (portions as number) : null;

@@ -226,6 +226,13 @@ export const RECIPES = {
   timerDone: { EN: "done", DA: "færdig" },
   restartTimer: { EN: "Restart {time}", DA: "Genstart {time}" },
   startTimer: { EN: "Start {time}", DA: "Start {time}" },
+  /** Beside a running timer, where a locked phone could be told it is done and this one
+   *  has not been given notifications yet. */
+  timerPushOffer: {
+    EN: "Get a notification when a timer is done, even with the phone locked.",
+    DA: "Få besked, når en timer er færdig – også med skærmen låst.",
+  },
+  timerPushTurnOn: { EN: "Turn on", DA: "Slå til" },
   forThisStep: { EN: "For this step", DA: "Til dette trin" },
   notPreparedNotice: {
     EN: "These steps have not been prepared for cooking yet — they will show without their ingredients. Preparing them tidies the steps and works out what each one needs.",

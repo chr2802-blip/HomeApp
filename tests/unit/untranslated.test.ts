@@ -46,6 +46,10 @@ const ALLOWED: Record<string, { strings: string[]; because: string }> = {
     strings: ["Expected JSON", "Not a queue of changes"],
     because: "answered to the offline queue's own code, which reads the status and not the words",
   },
+  "src/app/api/cook-timers/route.ts": {
+    strings: ["Not a timer", "Not found"],
+    because: "answered to action mode's own fetch, which reads the status and not the words",
+  },
   "src/app/api/lists/[id]/version/route.ts": {
     strings: ["Not found"],
     because: "answered to `useListFollow`, which reads the status and not the words",

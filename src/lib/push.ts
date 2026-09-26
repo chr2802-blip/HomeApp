@@ -16,7 +16,15 @@ function configure() {
 
 export async function sendPushToUsers(
   userIds: string[],
-  payload: { title: string; body: string; url?: string },
+  payload: {
+    title: string;
+    body: string;
+    url?: string;
+    /** A notification with the same tag replaces the one before it rather than stacking. */
+    tag?: string;
+    /** Stays on screen until it is dealt with, where the platform honours it. */
+    requireInteraction?: boolean;
+  },
 ) {
   if (!configure() || userIds.length === 0) return 0;
 

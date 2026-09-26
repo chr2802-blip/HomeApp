@@ -8,7 +8,9 @@ import { createPortal } from "react-dom";
 
 import { clockLabel, type CookStep } from "@/lib/cook";
 import { clearCookSession, readCookSession, saveCookSession, type CookTimer } from "@/lib/cook-session";
+import { cancelTimerPushes, requestTimerPush } from "@/lib/cook-timer-client";
 import { cheer, tick } from "@/lib/haptics";
+import { readPushState, turnOnPush, type PushState } from "@/lib/push-client";
 import { PORTIONS_PARAM, timeLabel } from "@/lib/recipes";
 import type { FormAction } from "@/lib/action-result";
 import { Button } from "@/components/ui";
@@ -86,6 +88,14 @@ export function CookMode({
   const [timers, setTimers] = useState<CookTimer[]>([]);
   const [now, setNow] = useState(() => Date.now());
   const rung = useRef(new Set<number>());
+  // What the last render committed, for the answers that arrive after it — a push id
+  // coming back for a timer somebody has since stopped — and for the cleanup on leaving.
+  const timersRef = useRef(timers);
+  const alive = useRef(false);
+  // Shown beside a running timer where this installation could ring a locked phone and
+  // this browser has not been given notifications yet: the moment somebody finds out
+  // they wanted them is the moment they have just set a timer.
+  const [pushOffer, setPushOffer] = useState<"hidden" | "shown" | "busy">("hidden");
 
   // The screen stays on for as long as this is open. Nothing to press: somebody who has
   // opened the cooking view has already said what they are doing for the next half hour.
@@ -115,6 +125,22 @@ export function CookMode({
   // Leaving on purpose — Close, Complete, the back gesture — unmounts this and forgets the
   // session. A page the phone killed never runs this, which is the whole distinction.
   useEffect(() => clearCookSession, []);
+
+  useEffect(() => {
+    timersRef.current = timers;
+  }, [timers]);
+
+  // The same distinction for the pushes: somebody who has left action mode has left its
+  // timers too, and a phone buzzing twenty minutes later about pasta nobody is cooking
+  // is worse than silence. A page the phone killed never cancels, so its timers still
+  // ring — which is what they are for (`lib/cook-timer-push.ts`).
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      cancelTimerPushes(timersRef.current.map((timer) => timer.pushId));
+    };
+  }, []);
 
   // The page behind must not scroll under the surface, the same way a sheet stops it.
   useEffect(() => {
@@ -202,19 +228,65 @@ export function CookMode({
     else back();
   }
 
+  /**
+   * Asks for a timer to ring on the phone once the page has stopped running. It is set
+   * already and counting; the answer only attaches the id to cancel it by — unless the
+   * timer was stopped or restarted while the question was out, in which case the push
+   * belongs to a timer that no longer exists and is taken straight back.
+   */
+  async function ringWhenClosed({ step, endsAt }: CookTimer) {
+    const { id, available } = await requestTimerPush({ recipeId, step, endsAt, portions });
+    const stillRunning = timersRef.current.some((t) => t.step === step && t.endsAt === endsAt);
+    if (id && (!alive.current || !stillRunning)) {
+      cancelTimerPushes([id]);
+      return;
+    }
+    if (id) {
+      setTimers((running) =>
+        running.map((t) => (t.step === step && t.endsAt === endsAt ? { ...t, pushId: id } : t)),
+      );
+    } else if (available && alive.current && (await readPushState()) === "off") {
+      setPushOffer((offer) => (offer === "hidden" ? "shown" : offer));
+    }
+  }
+
   function startTimer(step: number, minutes: number) {
     tick();
-    setTimers((running) => [
-      // One timer per step: pressing the chip again restarts that step's, which is what
-      // somebody who has just put the potatoes back on means by it.
-      ...running.filter((timer) => timer.step !== step),
-      { step, endsAt: Date.now() + minutes * 60_000 },
-    ]);
+    const timer = { step, endsAt: Date.now() + minutes * 60_000 };
+    // One timer per step: pressing the chip again restarts that step's, which is what
+    // somebody who has just put the potatoes back on means by it — and the push set for
+    // the old one would ring at the wrong time.
+    cancelTimerPushes(timers.filter((t) => t.step === step).map((t) => t.pushId));
+    const next = [...timers.filter((t) => t.step !== step), timer];
+    timersRef.current = next;
+    setTimers(next);
     setNow(Date.now());
+    void ringWhenClosed(timer);
   }
 
   function stopTimer(step: number) {
-    setTimers((running) => running.filter((timer) => timer.step !== step));
+    cancelTimerPushes(timers.filter((t) => t.step === step).map((t) => t.pushId));
+    const next = timers.filter((t) => t.step !== step);
+    timersRef.current = next;
+    setTimers(next);
+  }
+
+  /** Turning notifications on from beside a running timer, and then giving the timers
+   *  already counting the push they could not have before. */
+  async function enablePush() {
+    setPushOffer("busy");
+    let state: PushState;
+    try {
+      state = await turnOnPush();
+    } catch {
+      state = "off";
+    }
+    setPushOffer(state === "off" ? "shown" : "hidden");
+    if (state !== "on") return;
+    const current = Date.now();
+    for (const timer of timersRef.current) {
+      if (!timer.pushId && timer.endsAt > current) void ringWhenClosed(timer);
+    }
   }
 
   if (!mounted || typeof document === "undefined") return null;
@@ -291,6 +363,19 @@ export function CookMode({
               </button>
             );
           })}
+          {pushOffer !== "hidden" && (
+            <p className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+              <span>{say(RECIPES.timerPushOffer)}</span>
+              <button
+                type="button"
+                onClick={enablePush}
+                disabled={pushOffer === "busy"}
+                className="font-medium text-[var(--accent)] underline-offset-2 hover:underline disabled:opacity-60"
+              >
+                {say(RECIPES.timerPushTurnOn)}
+              </button>
+            </p>
+          )}
         </div>
       )}
 

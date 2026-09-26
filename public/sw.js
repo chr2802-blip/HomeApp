@@ -264,11 +264,15 @@ self.addEventListener("push", (event) => {
         if (event.data) payload = { ...payload, ...event.data.json() };
       } catch {}
 
+      // `tag` and `requireInteraction` arrive only with a cook-mode timer: one notification
+      // per step, re-announced when the timer is restarted, and left up until it is seen.
       await self.registration.showNotification(payload.title, {
         body: payload.body,
         icon: "/icon.svg",
         badge: "/icon.svg",
         data: { url: payload.url },
+        ...(payload.tag ? { tag: payload.tag, renotify: true } : {}),
+        ...(payload.requireInteraction ? { requireInteraction: true } : {}),
       });
     })(),
   );

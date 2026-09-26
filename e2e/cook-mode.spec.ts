@@ -255,6 +255,52 @@ test("counts a step's own time down while the pages keep turning", async ({ page
   await expect(timer).toHaveCount(0);
 });
 
+test("takes back a timer's push when the timer is stopped, restarted or left", async ({ page }) => {
+  // QStash is not configured for this suite, so the endpoint is answered here: what is
+  // being held is what the page asks for and when it takes it back, which is the half a
+  // unit test cannot see — `tests/integration/cook-timers.test.ts` holds the server's.
+  const scheduled: { step: number; endsAt: number }[] = [];
+  const cancelled: string[][] = [];
+  await page.route("**/api/cook-timers", async (route) => {
+    const request = route.request();
+    if (request.method() === "POST") {
+      scheduled.push(request.postDataJSON());
+      await route.fulfill({ json: { id: `msg_${scheduled.length}`, available: true } });
+    } else {
+      cancelled.push(request.postDataJSON().ids);
+      await route.fulfill({ json: { ok: true } });
+    }
+  });
+
+  const recipe = await seedPrepared();
+  const surface = await openCookMode(page, recipe.id);
+  for (const label of ["Start", "Next", "Next"]) {
+    await surface.getByRole("button", { name: label, exact: true }).click();
+  }
+
+  const before = Date.now();
+  await surface.getByRole("button", { name: "Start 10 min" }).click();
+  await expect.poll(() => scheduled.length).toBe(1);
+  expect(scheduled[0]).toMatchObject({ recipeId: recipe.id, step: 2 });
+  expect(scheduled[0]!.endsAt).toBeGreaterThanOrEqual(before + 10 * 60_000);
+
+  // Stopping it: the push must not ring for a timer that is no longer running.
+  await surface.getByRole("button", { name: /^Step 3 ·/ }).click();
+  await expect.poll(() => cancelled).toEqual([["msg_1"]]);
+
+  // Restarting: the old push would ring at the old time.
+  await surface.getByRole("button", { name: "Start 10 min" }).click();
+  await expect.poll(() => scheduled.length).toBe(2);
+  await surface.getByRole("button", { name: "Restart 10 min" }).click();
+  await expect.poll(() => cancelled).toEqual([["msg_1"], ["msg_2"]]);
+  await expect.poll(() => scheduled.length).toBe(3);
+
+  // Leaving on purpose takes the running one with it.
+  await surface.getByRole("link", { name: "Close" }).click();
+  await expect(page).toHaveURL(`/recipes/${recipe.id}`);
+  await expect.poll(() => cancelled).toEqual([["msg_1"], ["msg_2"], ["msg_3"]]);
+});
+
 test("cooks a recipe nothing has prepared, and offers to prepare it", async ({ page }) => {
   const recipe = await seedPrepared({ cookSteps: null });
   const surface = await openCookMode(page, recipe.id);
