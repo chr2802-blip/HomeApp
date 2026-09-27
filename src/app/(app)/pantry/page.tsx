@@ -24,7 +24,9 @@ import { PANTRY } from "@/lib/copy/pantry";
  * first, under "Not sorted yet" with the button that files them, because that heading is
  * the one asking for something. An empty shelf is not drawn.
  *
- * A search box and an "only run out" switch narrow the shelves — see `PantryShelves`.
+ * Every shelf starts folded, saying what it holds and how much of it has run out, so the
+ * whole cupboard reads on one screen; a search box and an "only run out" switch narrow
+ * the shelves and open the ones that match — see `PantryShelves`.
  *
  * Within a shelf, ordered by name and not by what has run out. The two questions asked of this page are
  * "is the rice in" and "we've run out of rice" — both of them begin by finding rice, and
@@ -77,23 +79,25 @@ export default async function PantryPage() {
         }
       />
 
-      {items.length === 0 ? (
+      {/* Mounted even while the pantry is empty, with the empty state inside it: the
+          shelves open the shelf a new entry lands on by noticing it arrive, and the very
+          first entry would otherwise arrive in a component mounting with it already
+          there — folded away under the heading of the thing just added. */}
+      <PantryShelves
+        items={items.map((item) => ({
+          id: item.id,
+          name: item.name,
+          key: item.key,
+          quantity: item.quantity,
+          unit: item.unit,
+          category: item.category,
+        }))}
+      >
         <EmptyState icon="🧂">
           <p>{say(PANTRY.empty)}</p>
           <p className="mt-2">{say(PANTRY.emptyHint)}</p>
         </EmptyState>
-      ) : (
-        <PantryShelves
-          items={items.map((item) => ({
-            id: item.id,
-            name: item.name,
-            key: item.key,
-            quantity: item.quantity,
-            unit: item.unit,
-            category: item.category,
-          }))}
-        />
-      )}
+      </PantryShelves>
     </>
   );
 }

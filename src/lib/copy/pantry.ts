@@ -124,6 +124,13 @@ export const PANTRY = {
   alreadyKeptAt: { EN: "{name} is already in the pantry.", DA: "{name} står allerede i spisekammeret." },
   showIt: { EN: "Show it", DA: "Vis den" },
 
+  /** The line over the shelves: how much the cupboard holds, then how much of it is out. */
+  overview: {
+    EN: { one: "{count} thing kept in", other: "{count} things kept in" },
+    DA: { one: "{count} ting på lager", other: "{count} ting på lager" },
+  },
+  /** Not a `Plural`, like `andMore`: "1 run out" and "2 run out" are the same words. */
+  overviewRunOut: { EN: "{count} run out", DA: "{count} løbet tør" },
   nothingRunOut: { EN: "Nothing in the pantry has run out.", DA: "Intet i spisekammeret er løbet tør." },
   allAlreadyOnList: {
     EN: "Everything that has run out is already on the list.",
