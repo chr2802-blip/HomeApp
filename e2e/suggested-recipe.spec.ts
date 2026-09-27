@@ -76,9 +76,12 @@ test("is a row on the dashboard, not a picture that fills the first screen", asy
   await page.setViewportSize({ width: 390, height: 680 });
   await page.goto("/dashboard");
 
+  // The innermost section: the dinner is one row of the "Today" card, and that card's
+  // own section holds the same heading further down.
   const dinner = page
     .locator("section")
-    .filter({ has: page.getByRole("heading", { name: "Tonight's dinner" }) });
+    .filter({ has: page.getByRole("heading", { name: "Tonight's dinner" }) })
+    .last();
   await expect(dinner).toBeVisible();
 
   // The suggestion opened with the recipe's photograph across the full width, which on

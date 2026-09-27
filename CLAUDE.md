@@ -37,6 +37,10 @@ it was aiming at.
 
 Integration and browser tests need the local Postgres: `docker start homehub-pg`.
 
+**Stopping a server from the Bash tool: `pkill -f "[n]ext dev"`, never `pkill -f "next dev"`.**
+The pattern appears in the tool's own command line, so the unbracketed form kills the shell
+running it and the command dies with exit 144.
+
 **In a bare container with no Docker daemon** (a fresh Claude Code on the web sandbox),
 there is usually a stopped `pg_lsclusters`-managed cluster already on disk instead:
 `service postgresql start`, then point `DATABASE_URL`/`DIRECT_URL` at it (`ALTER USER
@@ -545,14 +549,25 @@ the dashboard's layout.**
 
 Almost nobody scrolls a dashboard, so every block is spending the only screen there is.
 
-- **The order of the blocks is what each one asks of you**: the week, what is due for you,
-  what is due for somebody else (folded, count on the heading), the dinner, then the lists.
+- **The order of the blocks is what each one asks of you**: the date and greeting with the
+  week's ring beside them, three numbers (due for you, to buy, run out — each a link to
+  the page that answers it), then **Today** — the dinner, what is due for you, and what
+  is due for somebody else (folded, count on the heading) as rows of one card — then the
+  days ahead's dinners, then the lists.
+- **A number is a way in, not a report.** A tile answers a question somebody opens the
+  app with before they have read a row; anything it cannot link to does not get one.
 - **Tonight's dinner is a row, not a hero.** The appetising photograph is one tap away.
-- **The lists stop at `DASHBOARD_LISTS` and offer the rest**, and the query takes one more
-  than it draws so the section knows without counting every list in the home.
-- The home's picture is `short` here and full height on a recipe page — a prop, not a height
-  in `className`, because which of two height utilities wins is decided by the stylesheet.
-- `e2e/suggested-recipe.spec.ts` holds the result: the dinner section under 160px, and the
+  The page asks `tonightsDinner` itself and hands it to `DinnerRow`, because it has to
+  know whether "Today" has anything in it before drawing the card.
+- **A due task is one row**, the date as coloured text rather than a badge — a card per
+  task was ~100px each and three of them pushed everything else off the screen.
+- **The days ahead are drawn only when one of them is planned**, and start tomorrow:
+  tonight is already the dinner row.
+- **The lists stop at `DASHBOARD_LISTS` and offer the rest**, two to a row, and the query
+  takes one more than it draws so the section knows without counting every list.
+- **The home's picture is not on the dashboard** — it is beside the home's name in the
+  header, and the banner's height is what lets the rest fit.
+- `e2e/suggested-recipe.spec.ts` holds the result: the dinner row under 160px, and the
   week, the dinner, what is due and the lists all on one 390×680 screen.
 
 **[`docs/design/week-and-dashboard.md`](docs/design/week-and-dashboard.md) says why each.**

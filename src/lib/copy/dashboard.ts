@@ -11,6 +11,28 @@ export const DASHBOARD = {
   notInAHome: { EN: "You are not in a home at the moment.", DA: "I er ikke i et hjem lige nu." },
   goToYourHomes: { EN: "Go to your homes", DA: "Gå til jeres hjem" },
 
+  // The row of three numbers under the greeting.
+  dueForYouTile: { EN: "due for you", DA: "til dig" },
+  overdueCount: {
+    EN: { one: "{count} overdue", other: "{count} overdue" },
+    DA: { one: "{count} over tid", other: "{count} over tid" },
+  },
+  noneOverdue: { EN: "none overdue", DA: "intet over tid" },
+  toBuy: { EN: "to buy", DA: "at købe" },
+  onLists: {
+    EN: { one: "on {count} list", other: "on {count} lists" },
+    DA: { one: "på {count} liste", other: "på {count} lister" },
+  },
+  runOut: { EN: "run out", DA: "brugt op" },
+  inThePantry: { EN: "in the pantry", DA: "i forrådet" },
+
+  today: { EN: "Today", DA: "I dag" },
+  nothingToday: { EN: "Nothing needs doing today.", DA: "Intet skal gøres i dag." },
+  comingUp: { EN: "Coming up", DA: "De næste dage" },
+  mealPlan: { EN: "Meal plan", DA: "Madplan" },
+  /** Under the fraction in the week's ring. */
+  jobs: { EN: "jobs", DA: "opgaver" },
+
   weekAllDone: { EN: "This week · all {done} done", DA: "Denne uge · alle {done} klaret" },
   weekOfTotalDone: {
     EN: "This week · {done} of {total} jobs done",

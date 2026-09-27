@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
 import { openItemCounts } from "@/lib/list-counts";
-import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
+import { ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 import { completeTask, snoozeTask } from "@/app/actions/tasks";
 import { TaskDoneButton } from "@/components/task-done-button";
 import { TaskSnoozeMenu } from "@/components/task-snooze";
@@ -10,23 +10,26 @@ import { NotificationSetup } from "@/components/notification-setup";
 import { dueLabel, dueTone } from "@/lib/due";
 import type { HomeLanguage } from "@prisma/client";
 import { UNFINISHED, isSnoozable, repeatLabel } from "@/lib/tasks";
-import { PhotoBanner, PhotoThumb } from "@/components/photo";
-import { SuggestedRecipe } from "@/components/suggested-recipe";
+import { PhotoThumb } from "@/components/photo";
+import { DinnerRow } from "@/components/suggested-recipe";
 import { ProgressBar } from "@/components/progress-bar";
-import { homeStreak } from "@/lib/streak";
+import { homeStreak, streakLine } from "@/lib/streak";
 import { weekWorkload } from "@/lib/week";
-import { WeekProgress } from "@/components/week-progress";
+import { WeekRing } from "@/components/week-progress";
 import { Collapsible } from "@/components/collapsible";
+import { tonightsDinner } from "@/lib/recipe-suggestion";
+import { readDayInZone, todayInZone, weekDays } from "@/lib/time";
 import { sayIn } from "@/lib/copy/say";
 import { DASHBOARD } from "@/lib/copy/dashboard";
 import { APP } from "@/lib/copy/app";
+import { DATE } from "@/lib/copy/dates";
+import { MEALS } from "@/lib/copy/meals";
 
 /**
  * How many lists the dashboard draws before it stops and offers the rest.
  *
- * Four is two rows of cards on a desktop and four on a phone, and it is the last block
- * on a page whose first screen is the page — a fifth and a sixth are below the fold
- * either way, where the Lists tab reaches them in one press and this does not. The
+ * Four is two rows of the two-column tiles, and it is the last block on a page whose
+ * first screen is the page — a fifth and a sixth are below the fold either way, where the Lists tab reaches them in one press and this does not. The
  * favourites a household actually keeps are few enough that this rarely bites; what it
  * stops is the home with a dozen lists pushing everything else off the screen.
  */
@@ -65,25 +68,29 @@ type DueTaskRow = {
   assignee: { name: string } | null;
 };
 
+/** The due line's colour: the same meanings the tasks page's badge carries. */
+const TONE_TEXT: Record<ReturnType<typeof dueTone>, string> = {
+  neutral: "text-slate-500",
+  red: "text-red-600",
+  amber: "text-amber-700",
+};
+
 /**
- * One due task, in whichever section it landed in. The "Done" button is on both: naming
- * somebody decides who is reminded, not who is allowed to do the job.
+ * One due task, as a row of the "Today" card. The "Done" button is on every row, in
+ * both groups: naming somebody decides who is reminded, not who is allowed to do the job.
+ *
+ * **One row, not a card of two.** Each task used to be a card of its own — the name on
+ * one row, a due badge and Done on the next — which on a phone was about a hundred
+ * pixels a task, so three of them pushed the dinner and the lists off the first screen.
+ * Here the name truncates on its own line and the date sits under it as coloured text
+ * rather than a badge, which is the width the badge was costing: the name no longer
+ * breaks down the middle of a word, because it no longer shares its line with anything
+ * but the button.
  *
  * Beside it, on the rows where it means anything, the one other answer this page is ever
- * given: not today. This is the screen a household reads in the morning and so the place
- * a task is most often put off, but it reaches three days ahead — and "snooze to
- * tomorrow" about something due on Friday would be bringing it forward, so `isSnoozable`
- * decides.
- *
- * **The name gets a row to itself, and what to do about it gets the next one.** All five
- * pieces used to share one line, wrapping when they ran out of room — which on a phone
- * they always did: the badge and the button are as wide as their own words whatever the
- * screen, so every pixel they took came out of the one column that could give any, and
- * "Tørre køleskab af" came out broken across three lines with a word split down the
- * middle. A task nobody can read is a task nobody does. The second row costs about the
- * height those wrapped lines cost anyway, and spends it on the answer rather than on the
- * question: the date is read from the left, the press is made from the right, and the
- * menu sits out of the thumb's way in the corner above.
+ * given: not today (`isSnoozable`). The three dots are a small icon, not a second button
+ * the size of Done, so a thumb aiming at "later" does not land on the job being marked
+ * done — see `TaskSnoozeMenu`.
  */
 function DueTask({
   task,
@@ -96,36 +103,62 @@ function DueTask({
 }) {
   const say = sayIn(language);
   return (
-    <Card className="py-3">
-      <div className="flex items-start gap-3">
-        {/* Decorative: the task's own name is right beside it. */}
-        {/* eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a PhotoKind glyph, not copy. */}
-        <PhotoThumb photoId={task.photoId} alt="" className="h-11 w-11" placeholder="task" />
-        <div className="min-w-0 flex-1">
-          <p className="font-medium">{task.title}</p>
-          <p className="text-xs text-slate-500">
+    <div className="flex items-center gap-3 px-3 py-2">
+      {/* Decorative: the task's own name is right beside it. */}
+      {/* eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a PhotoKind glyph, not copy. */}
+      <PhotoThumb photoId={task.photoId} alt="" className="h-10 w-10" placeholder="task" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium">{task.title}</p>
+        <p className="truncate text-xs">
+          <span className={TONE_TEXT[dueTone(task.nextDueAt, now)]}>
+            {dueLabel(task.nextDueAt, language, now)}
+          </span>
+          <span className="text-slate-400">
+            {" · "}
             {repeatLabel(task, language)}
             {task.assignee && ` · ${task.assignee.name}`}
-          </p>
-        </div>
-        {/* In the corner rather than beside Done, which is the same distance a thumb
-            aiming at "later" has to miss by — see `TaskSnoozeMenu`. */}
-        {isSnoozable(task, now) && (
-          <TaskSnoozeMenu
-            taskId={task.id}
-            title={task.title}
-            action={snoozeTask}
-            className="-mt-1 -mr-2"
-          />
-        )}
+          </span>
+        </p>
       </div>
-      <div className="mt-2 flex items-center justify-between gap-3">
-        <Badge tone={dueTone(task.nextDueAt, now)}>{dueLabel(task.nextDueAt, language, now)}</Badge>
-        {/* The same press as the one on the tasks page, drawn by the same component so
-            the tick rises out of it in both places. */}
-        <TaskDoneButton taskId={task.id} action={completeTask} label={say(DASHBOARD.done)} />
-      </div>
-    </Card>
+      {isSnoozable(task, now) && (
+        <TaskSnoozeMenu taskId={task.id} title={task.title} action={snoozeTask} className="-mx-1" />
+      )}
+      {/* The same press as the one on the tasks page, drawn by the same component so
+          the tick rises out of it in both places. */}
+      <TaskDoneButton taskId={task.id} action={completeTask} label={say(DASHBOARD.done)} />
+    </div>
+  );
+}
+
+/**
+ * One of the three numbers under the greeting, and the page it is a way into.
+ *
+ * Each answers a question somebody opens the app with — is anything of mine due, what do
+ * we need, what have we run out of — before they have read a row, and each is one press
+ * from the page that answers it at length. No `font-medium` on the words: the recipe
+ * suggestion's test finds tonight's title as the first medium-weight line in `main`.
+ */
+function StatTile({
+  href,
+  value,
+  label,
+  detail,
+  warn = false,
+}: {
+  href: string;
+  value: number;
+  label: string;
+  detail: string;
+  warn?: boolean;
+}) {
+  return (
+    <Link href={href} className="pressable block rounded-xl active:scale-[0.98]">
+      <Card padded={false} className="h-full px-3 py-2 transition hover:border-slate-400">
+        <p className="text-xl leading-tight font-semibold tabular-nums">{value}</p>
+        <p className="truncate text-xs text-slate-700">{label}</p>
+        <p className={`truncate text-[11px] ${warn ? "text-red-600" : "text-slate-400"}`}>{detail}</p>
+      </Card>
+    </Link>
   );
 }
 
@@ -151,8 +184,11 @@ export default async function DashboardPage() {
   const soon = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
 
   const db = homeDb(user.homeId);
+  const today = todayInZone(now);
+  // The six days after today — tonight is already the dinner row in "Today".
+  const ahead = weekDays(today).slice(1);
 
-  const [dueTasks, favorites, recent, open, week, streak] = await Promise.all([
+  const [dueTasks, favorites, recent, open, week, streak, dinner, plans, runOut] = await Promise.all([
     db.task.findMany({
       // A one-off already done is not due, however long its date has been in the past.
       where: { nextDueAt: { lte: soon }, ...UNFINISHED },
@@ -180,6 +216,12 @@ export default async function DashboardPage() {
     // Both sides of the week's work, and which side a task falls on — see lib/week.
     weekWorkload(user.homeId, now),
     homeStreak(user.homeId),
+    tonightsDinner(user.homeId, user.homeLanguage),
+    db.mealPlan.findMany({
+      where: { date: { in: ahead } },
+      select: { date: true, leftoverOf: true, recipe: { select: { title: true } } },
+    }),
+    db.pantryItem.count({ where: { quantity: 0 } }),
   ]);
 
   /*
@@ -199,92 +241,173 @@ export default async function DashboardPage() {
   const lists = all.slice(0, DASHBOARD_LISTS);
   const more = all.length > lists.length;
 
+  const overdue = mine.filter((task) => dueTone(task.nextDueAt, now) === "red").length;
+  // Everything still to buy across the home, and how many lists it is spread over —
+  // `open` already counts every list, not only the four drawn below.
+  const openCounts = [...open.values()].filter((count) => count > 0);
+  const toBuy = openCounts.reduce((sum, count) => sum + count, 0);
+  const planned = new Map(plans.map((plan) => [plan.date, plan]));
+  const firstName = user.name.split(" ")[0]!;
+
   return (
     <>
-      {/* The household's own picture, if it has put one up. Above the greeting rather
-          than behind it: a photograph with text over it is a photograph you cannot
-          quite see and text you cannot quite read. Edge to edge and against the top
-          bar, so the page opens on the picture rather than on a framed copy of it. */}
-      <PhotoBanner
-        photoId={user.homePhotoId}
-        alt={user.homeName ?? say(DASHBOARD.thisHome)}
-        bleed
-        short
-        className="mb-4"
-      />
+      {/*
+        The date, the greeting and the week, in the space a greeting alone used to take.
+        The home's photograph used to open the page as a banner; it is still the
+        household's own picture beside its name in the header, and the height it took
+        here is what lets everything below fit on one screen.
+      */}
+      <header className="mb-3 flex items-center gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold tracking-wide text-[var(--accent)] uppercase">
+            {readDayInZone(today, DATE.weekdayDayMonth, user.homeLanguage)}
+          </p>
+          <h1 className="mt-0.5 text-2xl font-semibold">
+            {say(DASHBOARD.greeting, { name: firstName })}
+          </h1>
+          {streak.weeks > 0 && (
+            <p className="mt-1 text-xs text-slate-500">
+              {streakLine(streak, user.homeLanguage)}
+            </p>
+          )}
+        </div>
+        <WeekRing week={week} language={user.homeLanguage} />
+      </header>
 
-      <PageHeader
-        title={say(DASHBOARD.greeting, { name: user.name.split(" ")[0]! })}
-        description={
-          user.homeName ? say(DASHBOARD.whatNeedsAttention, { home: user.homeName }) : undefined
-        }
-      />
-
-      {/* The household's own rhythm rather than a scoreboard, and still nobody's name
-          on it. It draws nothing at all on a home with no jobs and no history, where
-          every number would be a zero. */}
-      <WeekProgress week={week} streak={streak} language={user.homeLanguage} />
+      <div className="grid grid-cols-3 gap-2">
+        <StatTile
+          href="/tasks"
+          value={mine.length}
+          label={say(DASHBOARD.dueForYouTile)}
+          detail={
+            overdue > 0
+              ? say(DASHBOARD.overdueCount, { count: overdue })
+              : say(DASHBOARD.noneOverdue)
+          }
+          warn={overdue > 0}
+        />
+        <StatTile
+          href="/lists"
+          value={toBuy}
+          label={say(DASHBOARD.toBuy)}
+          detail={say(DASHBOARD.onLists, { count: openCounts.length })}
+        />
+        <StatTile
+          href="/pantry"
+          value={runOut}
+          label={say(DASHBOARD.runOut)}
+          detail={say(DASHBOARD.inThePantry)}
+        />
+      </div>
 
       <NotificationSetup />
 
       {/*
-        Only when there is something due for you. A heading whose body is always
-        "nothing due" teaches nobody anything and costs everybody the scroll past it.
-
-        First of the three blocks below the week, because it is the only one that is
-        somebody's to do something about today. The dinner and the lists are both worth
-        having on the first screen and neither is overdue.
+        Everything that is today's business in one card: the dinner, then what is due for
+        you, then — folded, with its count — what is due for somebody else. A group is
+        drawn only when there is something in it; a heading whose body is always
+        "nothing due" teaches nobody anything.
       */}
-      {mine.length > 0 && (
-        <section className="mt-6">
-          <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
-            {say(DASHBOARD.dueForYou)}
-          </h2>
-          <div className="space-y-2">
-            {mine.map((task) => (
-              <DueTask key={task.id} task={task} now={now} language={user.homeLanguage} />
-            ))}
+      <section className="mt-4">
+        <h2 className="mb-2 text-sm font-semibold text-slate-500 uppercase">
+          {say(DASHBOARD.today)}
+        </h2>
+        {!dinner && dueTasks.length === 0 ? (
+          <p className="text-sm text-slate-500">{say(DASHBOARD.nothingToday)}</p>
+        ) : (
+          <Card padded={false} className="divide-y divide-slate-100">
+            {dinner && <DinnerRow dinner={dinner} language={user.homeLanguage} />}
+
+            {mine.length > 0 && (
+              <section>
+                <h3 className="px-3 pt-2.5 text-[11px] font-semibold text-slate-400 uppercase">
+                  {say(DASHBOARD.dueForYou)}
+                </h3>
+                <div className="divide-y divide-slate-100">
+                  {mine.map((task) => (
+                    <DueTask key={task.id} task={task} now={now} language={user.homeLanguage} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Information rather than a job, so folded away; the count is on the
+                heading, because a heading hiding an unknown quantity is one nobody
+                opens. */}
+            {theirs.length > 0 && (
+              <section>
+                <Collapsible
+                  summary={say(DASHBOARD.dueForSomeoneElse, { count: theirs.length })}
+                  headingClassName="px-3 py-2.5 text-xs font-medium text-slate-500"
+                  triggerClassName="hover:text-slate-700"
+                  panelClassName="divide-y divide-slate-100 border-t border-slate-100"
+                >
+                  {theirs.map((task) => (
+                    <DueTask key={task.id} task={task} now={now} language={user.homeLanguage} />
+                  ))}
+                </Collapsible>
+              </section>
+            )}
+          </Card>
+        )}
+      </section>
+
+      {/*
+        The rest of the week's dinners, so "what are we eating on Thursday" and "do we
+        need to shop for it" are answered here rather than one tab away. Only when
+        anything ahead is planned: a strip of six empty days is a to-do list the
+        household never asked for.
+      */}
+      {plans.length > 0 && (
+        <section className="mt-4">
+          <div className="mb-2 flex items-baseline justify-between gap-3">
+            <h2 className="text-sm font-semibold text-slate-500 uppercase">
+              {say(DASHBOARD.comingUp)}
+            </h2>
+            <Link href="/meals" className="text-xs font-medium text-slate-900 underline">
+              {say(DASHBOARD.mealPlan)}
+            </Link>
+          </div>
+          {/* Scrolls sideways out to the screen's edges rather than squeezing six days
+              into one row, where every title would be two letters wide. */}
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+            {ahead.map((day) => {
+              const plan = planned.get(day);
+              const what = plan?.recipe
+                ? plan.recipe.title
+                : plan?.leftoverOf
+                  ? say(MEALS.leftovers)
+                  : plan
+                    ? say(MEALS.eatingOut)
+                    : say(MEALS.nothingPlanned);
+              return (
+                <Link
+                  key={day}
+                  href="/meals"
+                  className="pressable w-[84px] shrink-0 rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-center active:scale-[0.98]"
+                >
+                  <p className="text-[11px] font-semibold text-slate-400 uppercase">
+                    {readDayInZone(day, DATE.weekdayShort, user.homeLanguage)}
+                  </p>
+                  <p
+                    className={`mt-1 line-clamp-2 text-xs leading-tight ${plan ? "text-slate-800" : "text-slate-300"}`}
+                  >
+                    {what}
+                  </p>
+                </Link>
+              );
+            })}
           </div>
         </section>
       )}
 
-      {/*
-        Only when somebody else has something due, and folded away when there is —
-        it is information rather than a job, and a full card for each of somebody
-        else's tasks is the clearest case on the page of something worth knowing and
-        not worth the screen. The count is on the heading, because a heading hiding an
-        unknown quantity is one nobody opens; the "Done" button inside is still there
-        for whoever gets to it first.
-      */}
-      {theirs.length > 0 && (
-        <section className="mt-6">
-          <Collapsible
-            summary={say(DASHBOARD.dueForSomeoneElse, { count: theirs.length })}
-            headingClassName="mb-3 text-sm font-semibold text-slate-500 uppercase"
-            triggerClassName="hover:text-slate-700"
-            panelClassName="space-y-2"
-          >
-            {theirs.map((task) => (
-              <DueTask key={task.id} task={task} now={now} language={user.homeLanguage} />
-            ))}
-          </Collapsible>
-        </section>
-      )}
-
-      {/* Below what is due, above the lists: a suggestion is a decision to make this
-          evening, not a job that is late. */}
-      <SuggestedRecipe homeId={user.homeId} language={user.homeLanguage} />
-
-      <section className="mt-6">
+      <section className="mt-4">
         {/* The heading and the way out of it on one row: the link only appears when
             there is something it would show that this section does not. */}
-        <div className="mb-3 flex items-baseline justify-between gap-3">
+        <div className="mb-2 flex items-baseline justify-between gap-3">
           <h2 className="text-sm font-semibold text-slate-500 uppercase">
             {starred ? say(DASHBOARD.favouriteLists) : say(DASHBOARD.recentLists)}
           </h2>
-          {/* The same plain link the rest of this page uses for "Create one" and
-              "lists page": the home's colour dresses controls, and this is a
-              sentence's worth of text beside a heading. */}
           {more && (
             <Link href="/lists" className="text-xs font-medium text-slate-900 underline">
               {say(DASHBOARD.seeAll)}
@@ -299,7 +422,9 @@ export default async function DashboardPage() {
             </Link>
           </EmptyState>
         ) : (
-          <div className="grid gap-2 sm:grid-cols-2">
+          // Two to a row at every width: a list tile is a name and a count, and a
+          // full-width card with a picture was twice the height for the same two lines.
+          <div className="grid grid-cols-2 gap-2">
             {lists.map((list) => {
               const total = list._count.items;
               const stillOpen = open.get(list.id) ?? 0;
@@ -310,16 +435,14 @@ export default async function DashboardPage() {
                   href={`/lists/${list.id}`}
                   className="pressable block rounded-xl active:scale-[0.98]"
                 >
-                  <Card className="relative flex items-center gap-3 overflow-hidden transition hover:border-slate-400">
-                    {/* Decorative: the list's own name is right beside it. */}
-                    {/* eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a PhotoKind glyph, not copy. */}
-                    <PhotoThumb photoId={list.photoId} alt="" className="h-11 w-11" placeholder="list" />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium">{list.title}</p>
-                      <p className="text-xs text-slate-500">
-                        {itemsLine(total, stillOpen, user.homeLanguage)}
-                      </p>
-                    </div>
+                  <Card
+                    padded={false}
+                    className="relative overflow-hidden px-3 pt-2.5 pb-3.5 transition hover:border-slate-400"
+                  >
+                    <p className="truncate text-sm font-medium">{list.title}</p>
+                    <p className="text-xs text-slate-500">
+                      {itemsLine(total, stillOpen, user.homeLanguage)}
+                    </p>
                     {/* The same edge the lists page draws, and only where there is
                         something to be a proportion of — a list with nothing on it is
                         not done. */}

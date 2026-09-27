@@ -122,7 +122,7 @@ test("a list keeps a picture, and taking it off removes it", async ({ page, logi
   expect(await prisma().photo.findUnique({ where: { id: photoId } })).toBeNull();
 });
 
-test("the home's own picture reaches the header and the dashboard", async ({ page, loginAs }) => {
+test("the home's own picture reaches the header", async ({ page, loginAs }) => {
   await loginAs(ACCOUNTS.admin);
   await page.goto("/settings");
 
@@ -132,9 +132,9 @@ test("the home's own picture reaches the header and the dashboard", async ({ pag
   await expect(page.getByText("Saved.")).toBeVisible();
 
   await page.goto("/dashboard");
-  // The banner names the home. The header's avatar stands right beside that name, so it
-  // is decorative and is found by where it sits rather than by an alt text.
-  await expect(page.getByAltText("E2E House")).toHaveCount(1);
+  // The header's avatar stands right beside the home's name, so it is decorative and is
+  // found by where it sits rather than by an alt text. The dashboard no longer opens on
+  // a banner of the same picture: that height went to what needs attention.
   await expect(page.locator("header img")).toHaveCount(1);
 });
 
