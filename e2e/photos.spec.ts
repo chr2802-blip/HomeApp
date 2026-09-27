@@ -132,10 +132,11 @@ test("the home's own picture reaches the header and the dashboard", async ({ pag
   await expect(page.getByText("Saved.")).toBeVisible();
 
   await page.goto("/dashboard");
-  // The banner names the home. The header's avatar stands right beside that name, so it
-  // is decorative and is found by where it sits rather than by an alt text.
+  // The square beside the greeting names the home. The top bar's avatar stands right
+  // beside that name, so it is decorative and is found by where it sits rather than by
+  // an alt text — `header` here is the top bar and the dashboard's own greeting row.
   await expect(page.getByAltText("E2E House")).toHaveCount(1);
-  await expect(page.locator("header img")).toHaveCount(1);
+  await expect(page.locator("header img")).toHaveCount(2);
 });
 
 test("a picture is not served to another household", async ({ page, loginAs }) => {
