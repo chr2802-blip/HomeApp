@@ -448,6 +448,54 @@ h3 {
 }
 
 /*
+ * A section folding open or shut. The wrapper is a one-row grid only while it moves, and
+ * the row goes from `0fr` to `1fr`, so the panel eases to whatever height its contents
+ * are without anything measuring them. `FOLD_MS` in `src/components/use-fold.ts` has to
+ * agree with the 220ms here. `both`, so a shut panel stays shut for the moment between
+ * the animation ending and the timer unmounting it.
+ */
+@keyframes fold-open {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+}
+
+@keyframes fold-close {
+  from {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+
+.animate-fold-open,
+.animate-fold-close {
+  display: grid;
+}
+
+.animate-fold-open > *,
+.animate-fold-close > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.animate-fold-open {
+  animation: fold-open 220ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.animate-fold-close {
+  animation: fold-close 220ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+/*
  * Ticking something off. A little overshoot on the way to settled, which is what makes
  * a tick read as satisfying rather than merely acknowledged — the same reason a phone's
  * own toggles overshoot. `scale` as its own property, the way `sheet-in`/`panel-in`

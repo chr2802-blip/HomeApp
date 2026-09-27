@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { useFold } from "@/components/use-fold";
 
 /**
  * A heading that folds what is under it away.
@@ -11,9 +12,8 @@ import { useId, useState } from "react";
  * worth the screen it takes up above what is still outstanding.
  *
  * Folded away to begin with, and it says how much is in there, because a heading that
- * hides an unknown quantity is one nobody opens. The chevron turns rather than the
- * panel sliding: the panel's height is whatever the contents are, and an animation
- * between two unknown heights is one that stutters on the only phone that matters.
+ * hides an unknown quantity is one nobody opens. The chevron turns and the panel folds
+ * open and shut (`useFold`), and it is unmounted once shut.
  */
 export function Collapsible({
   summary,
@@ -38,6 +38,7 @@ export function Collapsible({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const panelId = useId();
+  const fold = useFold(open);
 
   const trigger = (
     <button
@@ -66,9 +67,11 @@ export function Collapsible({
   return (
     <>
       {headingClassName === undefined ? trigger : <h2 className={headingClassName}>{trigger}</h2>}
-      {open && (
-        <div id={panelId} className={panelClassName}>
-          {children}
+      {fold.shown && (
+        <div className={fold.className}>
+          <div id={panelId} className={panelClassName}>
+            {children}
+          </div>
         </div>
       )}
     </>

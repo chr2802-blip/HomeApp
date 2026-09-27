@@ -1179,6 +1179,12 @@ about which words to throw away.
 - `Collapsible` **always says how much is in there** and **starts shut on every visit**.
   Pass `headingClassName` where what folds is a section rather than part of a card. For the
   same reason **a list card counts open items, not all of them**.
+- **Every fold opens and shuts with `useFold`** (`src/components/use-fold.ts`) — both
+  `Collapsible` and the pantry's hand-drawn shelves. It animates a one-row grid from `0fr`
+  to `1fr`, so nothing measures a height, and it keeps the panel present until the shut
+  animation has played: unmount or hide on its `shown`, never on `open`, or the panel is
+  gone before anybody sees it close. `FOLD_MS` and the `fold-*` keyframes have to agree,
+  and `tests/unit/fold.test.ts` holds them together. A new fold uses the hook.
 - `PageTransition` picks the animation **from the two paths**, not from the link pressed.
   Movement that arrives with an element is a **keyframe animation, never a transition between
   two sets of classes** — a transition only runs from a state the browser has already painted.
