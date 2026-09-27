@@ -19,3 +19,28 @@ describe("the fold animation", () => {
     expect(Number(rule![1])).toBe(FOLD_MS);
   });
 });
+
+/**
+ * A fold turned back half way is started part way into the other direction (`useFold`),
+ * which lands at the height it had reached only if both directions share one easing and
+ * that easing is symmetric — the curve turned end for end is itself. The pantry's rows
+ * and preview line fold against each other on the same assumption.
+ */
+describe("the fold easing", () => {
+  const easing = (direction: string) =>
+    stylesheet.match(new RegExp(`\\.animate-fold-${direction}\\s*\\{[^}]*animation:[^;]*?(cubic-bezier\\([^)]*\\))`))?.[1];
+
+  it("is the same in both directions, and the same the chevron turns with", () => {
+    const fold = easing("open");
+    expect(fold).toBeDefined();
+    expect(easing("close")).toBe(fold);
+    expect(stylesheet).toContain(`--fold-ease: ${fold};`);
+    expect(stylesheet).toContain(`--fold-ms: ${FOLD_MS}ms;`);
+  });
+
+  it("is symmetric", () => {
+    const [x1, y1, x2, y2] = easing("open")!.slice("cubic-bezier(".length, -1).split(",").map(Number);
+    expect(x1 + x2).toBeCloseTo(1);
+    expect(y1 + y2).toBeCloseTo(1);
+  });
+});
