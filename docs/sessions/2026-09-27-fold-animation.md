@@ -38,6 +38,12 @@ written again. It forgot `loginAs` (each spec logs in inside its own `beforeEach
 fixture), which cost one e2e run. Catching an animation mid-way also needs CDP's
 `Animation.setPlaybackRate`, because a screenshot takes longer than a 220ms animation.
 
+The push cost the most. The pre-push hook failed three runs in a row, each on a different
+unrelated spec (meals, `ai-wait`, `dialogs`). `e2e/ai-wait.spec.ts` also fails on `main`
+without this change: 2 of 9 runs timed out at 30s with `--repeat-each 3`. That is a real
+flake to fix, not contention. With the user's go-ahead, the branch was pushed with
+`--no-verify`, leaving CI to run the full suite.
+
 ## What CLAUDE.md did not say
 
 That a fold now animates, and how. Added under *Sheets, folds, movement*.
