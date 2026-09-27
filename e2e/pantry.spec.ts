@@ -32,6 +32,18 @@ const quantityBox = (page: Page, name: string) =>
 const shelf = (page: Page, category: string) => page.locator(`section[data-shelf="${category}"]`);
 
 /**
+ * Opens a shelf, which every visit starts with folded. Retried like any other press,
+ * because the fold's button is drawn by the server before it can do anything.
+ */
+async function openShelf(page: Page, category: string) {
+  const toggle = shelf(page, category).locator("[data-shelf-toggle]");
+  await retry(async () => {
+    if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true", { timeout: 1000 });
+  });
+}
+
+/**
  * Presses a control until it takes.
  *
  * Nothing in the markup says when React has hydrated — the server renders the same
@@ -133,6 +145,16 @@ test("the pantry is reached from the home's own name, and kept there", async ({ 
   // And it is still out after a reload, which is the difference between a quantity that
   // was written and one that was only drawn.
   await page.reload();
+  // A fresh visit starts with every shelf folded, and a folded shelf still says what it
+  // holds and how much of it is out — the overview is the point of folding it.
+  const spices = shelf(page, "SPICES");
+  await expect(spices.locator("[data-shelf-toggle]")).toHaveAttribute("aria-expanded", "false");
+  await expect(spices.getByText("1 run out", { exact: true })).toBeVisible();
+  await expect(spices.locator("[data-shelf-toggle]")).toContainText("Salt");
+  await expect(quantityGroup(page, "Salt")).toBeHidden();
+  await expect(page.getByText(/^1 thing kept in · 1 run out$/)).toBeVisible();
+
+  await openShelf(page, "SPICES");
   await expect(quantityBox(page, "Salt")).toHaveValue("0");
   await expect(page.getByText("Run out", { exact: true })).toBeVisible();
 
@@ -174,6 +196,7 @@ test("a good is filed on its shelf, and its shelf and unit are changed in the sh
 
   await expect(shelf(page, "FREEZER").getByRole("group", { name: "Quantity of Ris" })).toBeVisible();
   await page.reload();
+  await openShelf(page, "FREEZER");
   await expect(shelf(page, "FREEZER").getByRole("group", { name: "Quantity of Ris" })).toBeVisible();
   await expect(quantityGroup(page, "Ris").getByTestId("pantry-unit")).toHaveText("g");
   await expect(shelf(page, "DRY_GOODS")).toHaveCount(0);

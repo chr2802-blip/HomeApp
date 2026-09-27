@@ -789,6 +789,14 @@ Picking a kept one adds nothing: it closes the sheet and shows the row, washed i
 The suggestions sit in the sheet's own flow, not floating over it: `ModalBody` scrolls,
 and would clip a list drawn outside it.
 
+**Every shelf starts folded, and a folded shelf still says what is on it** — its count,
+how much of it has run out, and its names on one line — so the whole cupboard reads on one
+screen instead of eight. A shelf opens by itself wherever the answer is its rows: a search
+or "Only run out" opens every shelf holding a match, and an entry that arrives or moves
+opens the shelf it landed on (which is why `PantryShelves` stays mounted, empty state and
+all, from the very first entry). A shut shelf's rows are `hidden` for the reason below —
+which is also why the fold is drawn by hand rather than with `Collapsible`, which unmounts.
+
 **The shelves can be narrowed, and a narrowed row is hidden, never unmounted.**
 `PantryShelves` draws them under a search box (name, key, *and* the shelf's own name, so
 "krydder" is the spice shelf) and an "Only run out" switch; both start empty on every
