@@ -94,6 +94,18 @@ Pass `headingClassName` where what folds is a section of the page rather than pa
 card, and the trigger is wrapped in an `<h2>` — the page's outline must not depend on
 whether the section happens to be open.
 
+It folds open and shut rather than jumping, through `useFold`
+(`src/components/use-fold.ts`), and so do the pantry's shelves. The first version turned
+only the chevron, on the grounds that an animation between two unknown heights stutters
+on a phone — true of easing `height` from a number measured in JavaScript. A one-row grid
+whose row goes from `0fr` to `1fr` has no such number: the browser lays the panel out at
+its natural size and the keyframes interpolate the track, so nothing is measured and
+nothing is guessed. The wrapper is a grid that clips only while it moves, and a plain
+block again once settled, so a card's shadow inside a fold is not cut off. The panel is
+kept for `FOLD_MS` after it is shut, the way a ticked row is kept for `SETTLE_MS` — by a
+timer rather than `animationend`, because a backgrounded tab never finishes the animation
+and would otherwise keep a shut panel on the page.
+
 For the same reason a list card counts **open items, not all of them**. A shopping list
 keeps everything ticked off, so a total climbs for ever and says the same thing about a
 finished list as about one nobody has started.

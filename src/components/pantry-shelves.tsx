@@ -6,6 +6,7 @@ import { Card } from "@/components/ui";
 import { PantryRow } from "@/components/pantry-row";
 import { PantrySortButton } from "@/components/pantry-sort-button";
 import { useLanguage } from "@/components/language-provider";
+import { useFold } from "@/components/use-fold";
 import { PANTRY_CATEGORIES, pantryKey } from "@/lib/pantry";
 import { lookupGood } from "@/lib/pantry-goods";
 import { sayIn } from "@/lib/copy/say";
@@ -261,27 +262,38 @@ export function PantryShelves({
                 </div>
                 {/* Shut is hidden, never unmounted: a row may be holding an optimistic
                     quantity or name on its way to the server. */}
-                <div
-                  hidden={!open}
-                  className="border-t border-slate-100 [&>:not([hidden])~:not([hidden])]:border-t [&>:not([hidden])~:not([hidden])]:border-slate-100"
-                >
-                  {entries.map((item) => (
-                    <div key={item.id} hidden={!shows(item)}>
-                      <PantryRow
-                        id={item.id}
-                        name={item.name}
-                        quantity={item.quantity}
-                        unit={item.unit}
-                        category={item.category}
-                      />
-                    </div>
-                  ))}
-                </div>
+                <ShelfFold open={open}>
+                  <div
+                    className="border-t border-slate-100 [&>:not([hidden])~:not([hidden])]:border-t [&>:not([hidden])~:not([hidden])]:border-slate-100"
+                  >
+                    {entries.map((item) => (
+                      <div key={item.id} hidden={!shows(item)}>
+                        <PantryRow
+                          id={item.id}
+                          name={item.name}
+                          quantity={item.quantity}
+                          unit={item.unit}
+                          category={item.category}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </ShelfFold>
               </Card>
             </section>
           );
         })}
       </div>
     </>
+  );
+}
+
+/** A shelf's rows, folding open and shut — hidden once shut, never unmounted. */
+function ShelfFold({ open, children }: { open: boolean; children: React.ReactNode }) {
+  const fold = useFold(open);
+  return (
+    <div hidden={!fold.shown} className={fold.className}>
+      {children}
+    </div>
   );
 }
