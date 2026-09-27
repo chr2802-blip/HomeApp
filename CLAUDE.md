@@ -565,8 +565,8 @@ Almost nobody scrolls a dashboard, so every block is spending the only screen th
   tonight is already the dinner row.
 - **The lists stop at `DASHBOARD_LISTS` and offer the rest**, two to a row, and the query
   takes one more than it draws so the section knows without counting every list.
-- **The home's picture is not on the dashboard** — it is beside the home's name in the
-  header, and the banner's height is what lets the rest fit.
+- **The home's picture is a square beside the greeting, not a banner** — a banner's
+  height is what the numbers and the days ahead needed. Drawn only when there is one.
 - `e2e/suggested-recipe.spec.ts` holds the result: the dinner row under 160px, and the
   week, the dinner, what is due and the lists all on one 390×680 screen.
 

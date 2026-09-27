@@ -143,7 +143,9 @@ What changed, and why each:
   is not, so it is drawn only when one of them is planned.
 - **Lists are two to a row**, name, count and the edge bar — no thumbnail. A full-width
   card with a picture was twice the height for the same two lines.
-- **The home's banner went.** The picture is beside the home's name in the header on
-  every page, and the banner's height is exactly what the numbers and the strip needed.
-  This was a decision, not a requirement: if a household misses it, a small version
-  beside the greeting would be the place.
+- **The home's banner became a square beside the greeting.** Dropping the picture
+  altogether was tried first, and the household wanted it back: it is what makes the
+  page theirs. Two ways back were shown — a slim banner across the top, or a 64px square
+  beside the greeting — and the square was chosen, because it costs no height at all
+  where the banner pushed the lists below the fold on a busy day. It is drawn only when
+  the household has put a picture up; a placeholder glyph would be decoration.

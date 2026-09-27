@@ -18,7 +18,8 @@ Read the dashboard and its design doc → `npm run setup` → a throwaway demo-h
 and a throwaway Playwright screenshot script → before shot → rough draft with hard-coded
 English → sent both, user said "It's good" → finished it properly (both languages, the
 snooze menu and the fold kept, `DinnerRow` and `WeekRing` split out) → Danish shot, one
-word shortened to fit a tile → updated the three e2e expectations the layout moved →
+word shortened to fit a tile → user asked for the home picture back; showed a square
+beside the greeting and a slim banner, they picked the square → updated the three e2e expectations the layout moved →
 CLAUDE.md and the design doc.
 
 ## Where the time went
@@ -49,7 +50,8 @@ layout.
 
 ## Decided rather than known
 
-- The home's photo banner is gone from the dashboard (the picture stays in the header).
+- The home's picture is a 64px square beside the greeting (the user picked it over a slim
+  banner after seeing both; dropping it entirely was the first draft and they wanted it back).
 - The three tiles are due-for-you, to-buy (open items across all lists) and run-out
   pantry entries. Streak stays as a line under the greeting, not a tile.
 - The meal strip starts tomorrow and is hidden when nothing in the next six days is planned.

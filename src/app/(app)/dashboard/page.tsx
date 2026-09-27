@@ -252,12 +252,21 @@ export default async function DashboardPage() {
   return (
     <>
       {/*
-        The date, the greeting and the week, in the space a greeting alone used to take.
-        The home's photograph used to open the page as a banner; it is still the
-        household's own picture beside its name in the header, and the height it took
-        here is what lets everything below fit on one screen.
+        The home's picture, the date, the greeting and the week, in the space a greeting
+        alone used to take. The picture used to open the page as a banner across the
+        full width; as a square beside the greeting it still says whose home this is
+        and costs no height, which is what lets everything below fit on one screen.
+        Only when the household has put one up — a placeholder glyph here would be
+        decoration on the one screen that has no room for it.
       */}
       <header className="mb-3 flex items-center gap-4">
+        {user.homePhotoId && (
+          <PhotoThumb
+            photoId={user.homePhotoId}
+            alt={user.homeName ?? say(DASHBOARD.thisHome)}
+            className="h-16 w-16"
+          />
+        )}
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold tracking-wide text-[var(--accent)] uppercase">
             {readDayInZone(today, DATE.weekdayDayMonth, user.homeLanguage)}
