@@ -490,8 +490,8 @@ the hearts always inserts, never updates.
   home, never `requireAdmin`. The confirmation is asked inside the sheet rather than in a
   second sheet stacked on it: two `Modal`s each push a history entry and listen for
   `popstate`, so one back press closes both.
-- **On the recipe page the hearts are in a sheet**, behind a heart icon by the title,
-  beside keep-screen-on (`SheetButton`, `src/components/sheet-button.tsx`) — it is about
+- **On the recipe page the hearts are in a sheet**, behind a heart icon by the title
+  (`SheetButton`, `src/components/sheet-button.tsx`) — it is about
   the whole recipe, not the ingredients. The portions and "Add to list" are the same kind
   of icon in the ingredients' heading. As a card, a stepper and a labelled button the
   three crowded out the recipe.
@@ -895,8 +895,9 @@ forward**, as lifting a right-hand page over does.
   all of it.
 - **The surface is portalled to `document.body`**, because `PageTransition` puts a
   `transform` on an ancestor and a transformed ancestor contains a fixed child. It pads
-  its own `env(safe-area-inset-*)`, holds a wake lock through `useWakeLock` (shared with
-  `ScreenAwakeToggle`), and its timers live above the pages so a turn does not end them.
+  its own `env(safe-area-inset-*)`, holds a wake lock through `useWakeLock` — the only
+  thing in the app that keeps the screen on, since the recipe page's toggle was removed —
+  and its timers live above the pages so a turn does not end them.
 - **The timers belong to the kitchen, not to the screen.** Two dishes at once is most
   dinners, and a timer held in action mode's own state ended the moment the cook walked
   over to the second recipe. `KitchenProvider` (`src/components/kitchen.tsx`) sits in the
