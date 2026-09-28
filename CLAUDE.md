@@ -1184,7 +1184,14 @@ about which words to throw away.
   to `1fr`, so nothing measures a height, and it keeps the panel present until the shut
   animation has played: unmount or hide on its `shown`, never on `open`, or the panel is
   gone before anybody sees it close. `FOLD_MS` and the `fold-*` keyframes have to agree,
-  and `tests/unit/fold.test.ts` holds them together. A new fold uses the hook.
+  and `tests/unit/fold.test.ts` holds them together. A new fold uses the hook, and puts
+  its `style` beside its `className`: **both directions share one symmetric easing**, so
+  a fold turned back half way is started part way into the other direction at the height
+  it had reached (a negative `animation-delay`) rather than leaping to the far end first.
+  **The wrapper's one child must be bare** — padding or a border on it is height a `0fr`
+  row cannot take away, and snaps off when the fold lands. Anything in the heading that
+  comes and goes with the fold (the pantry's one-line preview) folds too, the other way,
+  or the heading jumps a line before the panel has started moving.
 - `PageTransition` picks the animation **from the two paths**, not from the link pressed.
   Movement that arrives with an element is a **keyframe animation, never a transition between
   two sets of classes** — a transition only runs from a state the browser has already painted.

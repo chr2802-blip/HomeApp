@@ -50,7 +50,7 @@ export function Collapsible({
     >
       <svg
         viewBox="0 0 20 20"
-        className={`h-3.5 w-3.5 shrink-0 transition-transform duration-150 ${
+        className={`h-3.5 w-3.5 shrink-0 transition-transform duration-(--fold-ms) ease-(--fold-ease) ${
           open ? "rotate-90" : ""
         }`}
         fill="none"
@@ -68,9 +68,11 @@ export function Collapsible({
     <>
       {headingClassName === undefined ? trigger : <h2 className={headingClassName}>{trigger}</h2>}
       {fold.shown && (
-        <div className={fold.className}>
-          <div id={panelId} className={panelClassName}>
-            {children}
+        <div className={fold.className} style={fold.style}>
+          {/* The grid item is bare: padding or a border on it is height the fold cannot
+              take below, and would snap off when it lands. */}
+          <div id={panelId}>
+            <div className={panelClassName}>{children}</div>
           </div>
         </div>
       )}

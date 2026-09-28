@@ -231,7 +231,7 @@ export function PantryShelves({
                   >
                     <svg
                       viewBox="0 0 20 20"
-                      className={`mt-1 h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-150 ${open ? "rotate-90" : ""}`}
+                      className={`mt-1 h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-(--fold-ms) ease-(--fold-ease) ${open ? "rotate-90" : ""}`}
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="2.5"
@@ -249,11 +249,7 @@ export function PantryShelves({
                           </span>
                         )}
                       </span>
-                      {!open && (
-                        <span className="mt-0.5 block truncate text-xs text-slate-500">
-                          {entries.map((entry) => entry.name).join(", ")}
-                        </span>
-                      )}
+                      <ShelfPreview open={!open}>{entries.map((entry) => entry.name).join(", ")}</ShelfPreview>
                     </span>
                   </button>
                   {category === null && (
@@ -292,8 +288,28 @@ export function PantryShelves({
 function ShelfFold({ open, children }: { open: boolean; children: React.ReactNode }) {
   const fold = useFold(open);
   return (
-    <div hidden={!fold.shown} className={fold.className}>
-      {children}
+    <div hidden={!fold.shown} className={fold.className} style={fold.style}>
+      {/* The grid item: bare, because a border or padding here is the height it cannot
+          fold below, left as a pixel's snap when the fold lands. */}
+      <div>{children}</div>
     </div>
+  );
+}
+
+/**
+ * A shut shelf's names on one line, folding away as the rows fold in and back as they
+ * fold out. Dropped in one frame it took a line off the heading the instant the shelf
+ * was pressed — a jump before the rows had even begun to move — and the two folds share
+ * one easing, so together the card grows and shrinks in one movement.
+ */
+function ShelfPreview({ open, children }: { open: boolean; children: React.ReactNode }) {
+  const fold = useFold(open);
+  if (!fold.shown) return null;
+  return (
+    <span className={`block ${fold.className}`} style={fold.style}>
+      <span className="block">
+        <span className="block truncate pt-0.5 text-xs text-slate-500">{children}</span>
+      </span>
+    </span>
   );
 }

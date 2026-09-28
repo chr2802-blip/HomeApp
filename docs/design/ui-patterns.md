@@ -106,6 +106,18 @@ kept for `FOLD_MS` after it is shut, the way a ticked row is kept for `SETTLE_MS
 timer rather than `animationend`, because a backgrounded tab never finishes the animation
 and would otherwise keep a shut panel on the page.
 
+The first version of that still felt jumpy on the pantry, and measuring the card's height
+frame by frame said why, three ways. Its heading dropped the shelf's one-line preview the
+instant it was pressed, so the card shrank a line *before* growing — then the ease-out
+curve covered most of the height in the first frame. Shutting, the preview popped back in
+at once and the ease-in stopped dead at full speed. And a second press mid-movement
+restarted the other keyframe from its far end, leaping to full height before shutting.
+Now both directions use one symmetric easing (`cubic-bezier(0.4, 0, 0.6, 1)`, 260ms): a
+turned-back fold starts the other way `FOLD_MS - t` in, which is the same height; the
+preview line folds against the rows, so the two add up to one movement; the opacity lags
+the height in and leads it out, so rows are never seen squashed; and the chevron turns
+at the same pace through `--fold-ms`/`--fold-ease`.
+
 For the same reason a list card counts **open items, not all of them**. A shopping list
 keeps everything ticked off, so a total climbs for ever and says the same thing about a
 finished list as about one nobody has started.
