@@ -60,9 +60,17 @@ export function showPantryRow(id: string) {
  */
 export function PantryShelves({
   items,
+  addToList,
   children,
 }: {
   items: ShelfEntry[];
+  /**
+   * "Add to list" for what has run out — the same cart icon the recipe's ingredients
+   * carry, drawn beside the run-out count and only while "Only run out" is on. That is
+   * the moment the page is showing exactly what the press would add; the rest of the
+   * time it was a labelled button beside the title taking room from the cupboard.
+   */
+  addToList?: React.ReactNode;
   /** What an empty pantry shows instead of the shelves. */
   children: React.ReactNode;
 }) {
@@ -196,7 +204,8 @@ export function PantryShelves({
         </p>
       )}
 
-      <p className="mt-3 px-1 text-sm text-slate-500">
+      <div className="mt-3 flex min-h-9 items-center justify-between gap-2 px-1">
+      <p className="text-sm text-slate-500">
         {say(PANTRY.overview, { count: total })}
         {runOutTotal > 0 && (
           <>
@@ -211,6 +220,12 @@ export function PantryShelves({
           </>
         )}
       </p>
+      {/* Drawn whenever the filter is on rather than only when something has run out:
+          the quantities are optimistic, so a control that came and went with the count
+          would arrive a beat after the thumb that caused it. Pressed on a full cupboard
+          it says so, which is the same answer. */}
+      {runOutOnly && addToList}
+      </div>
 
       <div className="mt-3 space-y-2">
         {groups.map(({ category, entries, shown, runOut }) => {

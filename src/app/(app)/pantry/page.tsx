@@ -56,26 +56,8 @@ export default async function PantryPage() {
         title={say(PANTRY.title)}
         description={say(PANTRY.description)}
         action={
-          <div className="flex items-center gap-2">
-            {/* Drawn whenever the pantry has anything in it at all, rather than only
-                when something has run out: the quantities are optimistic, so a button
-                that came and went with the count would arrive a beat after the thumb
-                that caused it. Pressed on a full cupboard it says so, which is the same
-                answer. */}
-            {items.length > 0 && (
-              <AddToListMenu
-                lists={shoppingLists.map((list) => ({
-                  id: list.id,
-                  title: list.title,
-                  open: list._count.items,
-                }))}
-                action={addPantryToList}
-                extraData={{}}
-              />
-            )}
-            {/* The green "+" every page adds with, and the sheet behind it. */}
-            <PantryAddDialog kept={items.map((item) => ({ id: item.id, name: item.name, key: item.key }))} />
-          </div>
+          /* The green "+" every page adds with, and the sheet behind it. */
+          <PantryAddDialog kept={items.map((item) => ({ id: item.id, name: item.name, key: item.key }))} />
         }
       />
 
@@ -92,6 +74,18 @@ export default async function PantryPage() {
           unit: item.unit,
           category: item.category,
         }))}
+        addToList={
+          <AddToListMenu
+            sheet
+            lists={shoppingLists.map((list) => ({
+              id: list.id,
+              title: list.title,
+              open: list._count.items,
+            }))}
+            action={addPantryToList}
+            extraData={{}}
+          />
+        }
       >
         <EmptyState icon="🧂">
           <p>{say(PANTRY.empty)}</p>
