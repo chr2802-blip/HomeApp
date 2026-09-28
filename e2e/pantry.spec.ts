@@ -112,7 +112,7 @@ async function newRecipe(page: Page, title: string, ingredients: string) {
   await page.waitForURL(SAVED_RECIPE);
 }
 
-/** The pantry offers its lists as a menu, a recipe's page in a sheet — the same choice. */
+/** The pantry and a recipe's page both offer the lists in a sheet behind a cart icon. */
 async function addToList(page: Page, listTitle: string) {
   const trigger = page.getByRole("button", { name: "Add to list" });
   await expect(trigger).toHaveAttribute("data-ready", "true");
@@ -339,6 +339,9 @@ test("everything that has run out goes onto a list in one press", async ({ page 
   await runOut(page, "Ris");
   await runOut(page, "Mel");
 
+  // The cart is offered only once the page is showing what it would add.
+  await expect(page.getByRole("button", { name: "Add to list" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Only run out" }).click();
   await addToList(page, "Groceries");
   await expect(page.getByText("Added to Groceries.")).toBeVisible();
 

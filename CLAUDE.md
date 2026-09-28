@@ -818,10 +818,12 @@ back at one, an open row is left alone (being out of rice is not a reason to buy
 and what was left alone is named in the note. Row by row rather than in one transaction,
 unlike a recipe's ingredients: every line is independent and the run is idempotent, so a
 press that failed halfway is finished by pressing again — which beats one that undoes
-the rows it managed. The button is drawn whenever the pantry holds anything at all
-rather than only when something is out, because the quantities are optimistic and a
-control that came and went with the count would arrive a beat after the thumb that
-caused it.
+the rows it managed. **It is the cart icon beside the run-out count, and only while
+"Only run out" is on** — the same `SheetButton` the recipe's ingredients carry, drawn at
+the moment the page shows exactly what the press would add, rather than a labelled button
+beside the title taking room on every visit. Under the filter it is drawn whatever the
+count says, because the quantities are optimistic and a control that came and went with
+the count would arrive a beat after the thumb that caused it.
 
 **A stocked entry also counts as a staple for the meal suggestions.** `staplesOf`
 exists so a household need not keep a list of its own cupboard for the ranking to be
