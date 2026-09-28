@@ -21,7 +21,8 @@ of its own because that is the part that can be wrong while everything else work
 run of one is not called a run, and a live run with nothing in the current week says so,
 which is the whole of what a streak is for.
 
-**`WeekProgress` on the dashboard replaced "N tasks completed in the last 7 days".** The
+**`WeekRing` on the dashboard replaced "N tasks completed in the last 7 days"** (first
+as a card with a bar, `WeekProgress`; since 2026-09-27 a ring beside the greeting). The
 number was true and told nobody anything; a proportion has a top. Nobody's name is on
 any of it, which is the same choice the streak makes: a weekly score with names on it
 turns the washing-up into a thing worth being seen to do.
@@ -113,3 +114,38 @@ the way `theme.test.ts` and `storage.test.ts` hold theirs — a `var()` nobody d
 draws an invisible fill, and an `animate-` class naming keyframes nobody wrote is an
 element that simply appears. `e2e/animation.spec.ts` asks the browser what actually
 played.
+
+## 2026-09-27: from a stack of cards to a front page
+
+The household said the dashboard felt generic: a greeting, then a column of equally
+weighted cards, with the dinner and the lists below the fold as soon as three tasks were
+due. Nothing on it read as a summary — it was the other pages' first rows, stacked.
+
+What changed, and why each:
+
+- **The week moved into the header as a ring.** The card it was — a bar and a sentence —
+  was the first block on the page and asked least of anybody. Beside the greeting it costs
+  no height. The sentence is still there for a screen reader (`sr-only`), which is also
+  what `e2e/tasks.spec.ts` reads.
+- **The date is written above the greeting**, in the home's colour. A front page says
+  what day it is; "Hi Christian" alone said nothing that changes.
+- **Three numbers, each a link.** Due for you (with how many are overdue), still to buy
+  across every list, and what the pantry has run out of. These are the three questions
+  somebody opens the app with, answered before a row is read. A number that could not
+  link anywhere was not added: a tile is a way in, not a report.
+- **"Today" is one card.** The dinner, what is due for you, and the fold for somebody
+  else's, as rows separated by hairlines, each group under a small label (the labels keep
+  the headings the tests and screen readers find). A task is one row: the date as
+  coloured text rather than a badge — the width the badge took is what used to break the
+  task's name across three lines.
+- **The days ahead**, tomorrow to six days out, as a sideways strip of the meal plan.
+  "What are we eating on Thursday" is a front-page question; a strip of six empty days
+  is not, so it is drawn only when one of them is planned.
+- **Lists are two to a row**, name, count and the edge bar — no thumbnail. A full-width
+  card with a picture was twice the height for the same two lines.
+- **The home's banner became a square beside the greeting.** Dropping the picture
+  altogether was tried first, and the household wanted it back: it is what makes the
+  page theirs. Two ways back were shown — a slim banner across the top, or a 64px square
+  beside the greeting — and the square was chosen, because it costs no height at all
+  where the banner pushed the lists below the fold on a busy day. It is drawn only when
+  the household has put a picture up; a placeholder glyph would be decoration.

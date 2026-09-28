@@ -20,6 +20,13 @@ integration + e2e tests → docs. `npm run verify` went green on the first full 
 from `untranslated.test.ts` wanting the routes' JSON error strings in `ALLOWED`, and four
 lint warnings from unused mock parameters.
 
+**Merge with `main` (2026-09-28).** #143 had moved the timers out of action mode into a
+kitchen that outlives every screen, which conflicted with this branch in three files and
+changed a rule it relied on: leaving action mode no longer ends a timer. Took main's
+versions and moved the push logic into `KitchenProvider` as one reconciling effect
+(`pushesToCancel`, `attachPush`), so a stop from a chip on any page cancels the push too.
+The e2e test now asserts that leaving keeps the push.
+
 ## Where the time went
 
 | Stage | Roughly | Notes |
@@ -36,6 +43,10 @@ The untranslated-strings test caught the API route's `{ error: "Not a timer" }` 
 full run. Every API route has needed an `ALLOWED` entry for the same reason, and nothing
 says so before you write one. That is a note here rather than a CLAUDE.md rule until it
 comes up again.
+
+A feature touching action mode's timers was built on one branch while #143 redesigned
+them on another, and the merge cost a rewrite of the client half. Nothing was wrong with
+either branch; two sessions on the same component at once is the cost.
 
 ## What CLAUDE.md did not say
 

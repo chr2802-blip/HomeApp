@@ -448,6 +448,74 @@ h3 {
 }
 
 /*
+ * A section folding open or shut. The wrapper is a one-row grid only while it moves, and
+ * the row goes from `0fr` to `1fr`, so the panel eases to whatever height its contents
+ * are without anything measuring them. `FOLD_MS` in `src/components/use-fold.ts` has to
+ * agree with the 260ms here. `both`, so a shut panel stays shut for the moment between
+ * the animation ending and the timer unmounting it.
+ *
+ * Both directions share one easing, and it is symmetric (the curve turned end for end is
+ * itself), so that a fold turned back half way can be started part way into the other
+ * direction at the height it had reached — see `useFold`. It is also what lets two folds
+ * running against each other (a shelf's rows opening while its one-line preview shuts)
+ * add up to a heading that grows smoothly, instead of dipping where an ease-out met an
+ * ease-in. The opacity lags the height on the way in and leads it on the way out, so
+ * rows never show squashed into a sliver.
+ */
+/* The chevron beside a fold turns with it, at the same pace. */
+:root {
+  --fold-ms: 260ms;
+  --fold-ease: cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+@keyframes fold-open {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+  35% {
+    opacity: 0;
+  }
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+}
+
+@keyframes fold-close {
+  from {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+  65% {
+    opacity: 0;
+  }
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+
+.animate-fold-open,
+.animate-fold-close {
+  display: grid;
+}
+
+.animate-fold-open > *,
+.animate-fold-close > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.animate-fold-open {
+  animation: fold-open 260ms cubic-bezier(0.4, 0, 0.6, 1) both;
+}
+
+.animate-fold-close {
+  animation: fold-close 260ms cubic-bezier(0.4, 0, 0.6, 1) both;
+}
+
+/*
  * Ticking something off. A little overshoot on the way to settled, which is what makes
  * a tick read as satisfying rather than merely acknowledged — the same reason a phone's
  * own toggles overshoot. `scale` as its own property, the way `sheet-in`/`panel-in`

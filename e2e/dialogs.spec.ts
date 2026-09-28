@@ -22,6 +22,46 @@ test.describe("a sheet is closed by the browser's back button", () => {
     await expect(page.getByRole("dialog")).toBeHidden();
     await expect(page).toHaveURL(/\/recipes$/);
   });
+
+  // A sheet closed any other way takes its own history entry with it. Left behind, the
+  // next back press lands on the same page and looks like a button that did nothing.
+  test("after a sheet is cancelled, back leaves the page", async ({ page }) => {
+    await page.goto("/dashboard");
+    await page.goto("/recipes");
+    await openDialog(page, "New recipe");
+    await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
+    await expect(page.getByRole("dialog")).toBeHidden();
+
+    await page.goBack();
+
+    await expect(page).toHaveURL(/\/dashboard$/);
+  });
+
+  // The entry is taken off without the router restoring the page as it was when the
+  // sheet opened — which would put the old name back — and a later return to the page
+  // shows the save too.
+  test("after a sheet saves, back leaves the page and the save stands", async ({ page }) => {
+    await page.goto("/lists");
+    await openDialog(page, "New list");
+    await page.getByLabel("List name").fill("Old name");
+    await page.getByRole("button", { name: "Create list" }).click();
+    await page.waitForURL(/\/lists\/[a-z0-9]+$/);
+    const listUrl = page.url();
+
+    await openMenu(page);
+    await openDialog(page, "Edit");
+    await page.getByLabel("List name").fill("New name");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(page.getByRole("dialog")).toBeHidden();
+    await expect(page.getByRole("heading", { name: "New name" })).toBeVisible();
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/lists$/);
+
+    await page.goForward();
+    await expect(page).toHaveURL(listUrl);
+    await expect(page.getByRole("heading", { name: "New name" })).toBeVisible();
+  });
 });
 
 /*
@@ -88,5 +128,34 @@ test.describe("a sheet on a phone-sized screen", () => {
     await expect(sheet).toBeVisible();
     await expect(sheet.getByRole("button", { name: "Delete", exact: true })).toBeInViewport();
     await expect(sheet.getByRole("button", { name: "Cancel" })).toBeInViewport();
+  });
+
+  // A question with two answers is a drawer, and a form is the whole screen: the page
+  // behind a confirmation stays in view above it, and a form's fields get every pixel.
+  test("a confirmation rises only as far as it needs, and a form takes the screen", async ({
+    page,
+  }) => {
+    await page.goto("/lists");
+    await openDialog(page, "New list");
+    const form = page.getByRole("dialog");
+    await expect(form).toHaveAttribute("data-size", "screen");
+    expect((await form.boundingBox())!.height).toBeGreaterThanOrEqual(680 - 1);
+    await page.getByLabel("List name").fill("Weekly shop");
+    await page.getByRole("button", { name: "Create list" }).click();
+    await page.waitForURL(/\/lists\/[a-z0-9]+$/);
+
+    await openMenu(page);
+    await page.getByRole("menuitem", { name: "Delete" }).click();
+
+    const sheet = page.getByRole("dialog");
+    await expect(sheet).toHaveAttribute("data-size", "drawer");
+    // Settled rather than mid-entrance: the drawer slides up, so its box moves until then.
+    await expect
+      .poll(async () => {
+        const box = (await sheet.boundingBox())!;
+        return Math.round(box.y + box.height);
+      })
+      .toBe(680);
+    expect((await sheet.boundingBox())!.height).toBeLessThan(680 / 2);
   });
 });

@@ -18,8 +18,53 @@ import { APP } from "@/lib/copy/app";
 const EXIT_MS = 200;
 
 /**
+ * Takes a closed sheet's history entry back off without the App Router noticing.
+ *
+ * The router answers every `popstate` by restoring the tree it filed under the entry
+ * landed on — for the entry below a sheet, the page as it was when the sheet opened. A
+ * save made in the sheet happened after that, so restoring it would put back what the
+ * save removed. So the one traverse this starts is swallowed before the router's own
+ * listener hears it, and the entry landed on is handed the tree the router has now,
+ * which is what a later back or forward onto it should restore.
+ */
+let ownPop: { tree: unknown } | null = null;
+
+function popOwnEntry() {
+  ownPop = { tree: window.history.state?.__PRIVATE_NEXTJS_INTERNALS_TREE };
+  window.history.back();
+}
+
+if (typeof window !== "undefined") {
+  // Capturing, and registered when this module loads — before the router mounts and adds
+  // its own — so it runs first and can stop the router's.
+  window.addEventListener(
+    "popstate",
+    (event) => {
+      if (!ownPop) return;
+      const { tree } = ownPop;
+      ownPop = null;
+      event.stopImmediatePropagation();
+      if (tree && event.state?.__NA) {
+        window.history.replaceState(
+          { ...event.state, __PRIVATE_NEXTJS_INTERNALS_TREE: tree },
+          "",
+        );
+      }
+    },
+    { capture: true },
+  );
+}
+
+/**
  * Full-screen sheet on mobile, centred dialog from `sm` up.
  * Mounts through a portal so it always sits above the bottom tab bar.
+ *
+ * `size="drawer"` is the same sheet for something small — a stepper, the hearts, a
+ * choice of list, an "are you sure": on a phone it rises from the bottom edge only as
+ * far as its contents need, with the page still showing above it, rather than taking
+ * the whole screen for one row of controls. Anything with fields to fill in stays the
+ * whole screen: a form runs past the fold, and a drawer grown to the full height is a
+ * full-screen sheet with a gap at the top. From `sm` up the two are the same panel.
  *
  * The sheet arrives the way the platform it is on does: up from the bottom edge on a
  * phone, where it fills the screen, and a scale-and-fade on a desktop, where it is a
@@ -37,13 +82,17 @@ export function Modal({
   open,
   onClose,
   title,
+  size = "screen",
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** The whole screen on a phone, or only as tall as the contents. */
+  size?: "screen" | "drawer";
   children: React.ReactNode;
 }) {
+  const drawer = size === "drawer";
   const [mounted, setMounted] = useState(false);
   const [closing, setClosing] = useState(false);
   const say = sayIn(useLanguage());
@@ -84,33 +133,53 @@ export function Modal({
   // every render of whatever opened this, and depending on it directly would tear the
   // listener down and re-push a history entry on every one of those renders.
   //
-  // Closing any other way — Cancel, the × button, Escape, a successful save — leaves
-  // the pushed entry where it is rather than popping it to tidy up. Popping it would
-  // mean calling `history.back()` ourselves, and the App Router keeps its own client
-  // cache keyed to history entries: the entry a self-triggered `back()` lands *on* is a
-  // snapshot frozen from the moment this sheet's entry was pushed, and the router
-  // restores that snapshot outright. A save made from inside the sheet — exactly the
-  // case that closes it — happened *after* that snapshot was taken, so restoring it
-  // would silently undo the very change the sheet just made. Leaving the entry alone
-  // costs an extra back press to fully leave the page after a sheet was opened and
-  // cancelled; popping it costs correctness, on every save. `docs/design/ui-patterns.md`
-  // has the trace that found this the hard way.
+  // Closing any other way — Cancel, the ×, Escape, a successful save — takes that entry
+  // back off, or the next back press lands on the same page and looks like it did
+  // nothing. It is taken off with `popOwnEntry` (above), which hides the traverse from the
+  // App Router: letting the router see it restores a snapshot frozen when the sheet
+  // opened, and undoes the save that closed it. `docs/design/ui-patterns.md` has both.
+  //
+  // The pop is deferred a tick, and a re-run of this effect cancels it, because React's
+  // development double-run closes and reopens every sheet in the same breath.
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
   });
+  const pendingPop = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
     if (!open) return;
-    window.history.pushState({ homehubModal: true }, "");
-    const onPopState = () => onCloseRef.current();
+    if (pendingPop.current !== undefined) {
+      clearTimeout(pendingPop.current);
+      pendingPop.current = undefined;
+    } else {
+      window.history.pushState({ homehubModal: true }, "");
+    }
+    const href = window.location.href;
+    let poppedByBack = false;
+    const onPopState = () => {
+      poppedByBack = true;
+      onCloseRef.current();
+    };
     window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+      if (poppedByBack) return;
+      pendingPop.current = setTimeout(() => {
+        pendingPop.current = undefined;
+        // A save that navigated has already left the entry behind, on a new page.
+        if (window.location.href === href) popOwnEntry();
+      }, 0);
+    };
   }, [open]);
 
   if (!mounted || typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center sm:p-4">
+    <div
+      className={`fixed inset-0 z-50 flex sm:items-center sm:justify-center sm:p-4 ${
+        drawer ? "items-end" : ""
+      }`}
+    >
       <div
         aria-hidden
         onClick={onClose}
@@ -126,9 +195,15 @@ export function Modal({
         // Which way it moves, and how far, is the animation's business: up from the
         // bottom edge on a phone and a scale-and-fade from `sm` up, chosen by the one
         // media query in globals.css rather than by `sm:` classes here.
+        //
+        // A drawer ends on the phone's home indicator, so it pads past the bottom inset
+        // itself — unless it has a footer, which already does.
+        data-size={size}
         className={`relative flex w-full flex-col overflow-hidden bg-white shadow-2xl sm:max-h-[85vh] sm:max-w-lg sm:rounded-2xl ${
-          closing ? "animate-sheet-out" : "animate-sheet-in"
-        }`}
+          drawer
+            ? "max-h-[85dvh] rounded-t-2xl pb-[env(safe-area-inset-bottom)] has-[[data-modal-footer]]:pb-0 sm:pb-0"
+            : ""
+        } ${closing ? "animate-sheet-out" : "animate-sheet-in"}`}
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <h2 className="min-w-0 flex-1 text-lg font-semibold tracking-tight break-words">{title}</h2>
@@ -182,7 +257,10 @@ export function ModalBody({
  */
 export function ModalFooter({ children }: { children: React.ReactNode }) {
   return (
-    <div className="shrink-0 border-t border-slate-100 bg-white px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-4">
+    <div
+      data-modal-footer
+      className="shrink-0 border-t border-slate-100 bg-white px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-4"
+    >
       {children}
     </div>
   );
