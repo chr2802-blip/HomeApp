@@ -948,6 +948,20 @@ forward**, as lifting a right-hand page over does.
   page never does — so `ResumeCooking` sends a fresh load back to the `open` cook, unless
   that load is already on a cook page. A timer still cannot ring while the page is dead;
   it reads done when the cook comes back.
+- **A timer rings on a locked phone through a push sent from QStash**, because a page on
+  a phone stops running the moment it is put down and no browser API can schedule a
+  notification for later. `/api/cook-timers` publishes one QStash message with
+  `notBefore` at the timer's end; QStash calls `/api/cook-timers/ring`, which believes
+  nothing but the signature, and sends the push (`src/lib/cook-timer-push.ts`).
+  **Nothing is stored server-side**: the message id rides on the kitchen's timer
+  (`pushId`), and **the kitchen reconciles, not the buttons** — `KitchenProvider` asks
+  for a push for every running timer without one and cancels every id whose timer has
+  gone (`pushesToCancel`), so a stop, a restart or a dismissal from any screen is
+  covered by the one effect. A killed page never cancels, which is what the push is
+  for. Unconfigured is off, silently; a person with no push device spends no message,
+  and where the installation could ring but this browser has no notifications, action
+  mode's timer bar offers to turn them on (`src/lib/push-client.ts`, shared with
+  `NotificationSetup`).
 - The page turn is `page-turn-next` / `page-turn-back` in `globals.css` — keyframes, and
   no `translate-*`/`rotate-*`/`scale-*` utility on the element playing one.
 

@@ -27,6 +27,9 @@ export const APP = {
   push: {
     taskDue: { EN: "Task due", DA: "Opgave forfalder" },
     testBody: { EN: "Notifications are working.", DA: "Notifikationerne virker." },
+    /** A cook-mode timer run out on a phone whose page was not running; the title is the
+     *  recipe's own. */
+    timerDone: { EN: "The timer for step {number} is done", DA: "Timeren til trin {number} er færdig" },
   },
 
   /** The two screens a page falls back to — something thrown, or nothing there. */

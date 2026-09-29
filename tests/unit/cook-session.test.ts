@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  attachPush,
   EMPTY_KITCHEN,
+  hasTimer,
+  pushesToCancel,
   finishCook,
   isResumable,
   leaveCook,
@@ -81,6 +84,52 @@ describe("parseKitchen", () => {
   it("does not leave open a recipe that is not on the stove", () => {
     const raw = JSON.stringify({ cooks: [{ ...lasagne, savedAt: NOW }], timers: [], open: "rice" });
     expect(parseKitchen(raw)?.open).toBeNull();
+  });
+
+  it("keeps a timer's push id, so a kitchen read back can still cancel it", () => {
+    const raw = JSON.stringify({
+      cooks: [],
+      timers: [
+        { recipeId: "r1", title: "", step: 0, endsAt: NOW, pushId: "msg_1" },
+        { recipeId: "r1", title: "", step: 1, endsAt: NOW, pushId: 42 },
+      ],
+      open: null,
+    });
+    expect(parseKitchen(raw)?.timers).toEqual([
+      { recipeId: "r1", title: "", step: 0, endsAt: NOW, pushId: "msg_1" },
+      { recipeId: "r1", title: "", step: 1, endsAt: NOW },
+    ]);
+  });
+});
+
+describe("a timer's push", () => {
+  const timer = { recipeId: "r1", title: "Rice", step: 2, endsAt: NOW + 10 * MINUTE };
+  const kitchen: Kitchen = { ...EMPTY_KITCHEN, timers: [timer] };
+
+  it("is recorded on the timer it was asked for", () => {
+    expect(attachPush(kitchen, timer, "msg_1").timers).toEqual([{ ...timer, pushId: "msg_1" }]);
+  });
+
+  it("is not recorded on a timer restarted meanwhile, which has a different end", () => {
+    const restarted = { ...timer, endsAt: timer.endsAt + MINUTE };
+    expect(hasTimer(kitchen, restarted)).toBe(false);
+    expect(attachPush(kitchen, restarted, "msg_1")).toBe(kitchen);
+  });
+
+  it("is cancelled when its timer is stopped or restarted", () => {
+    const withPush = [{ ...timer, pushId: "msg_1" }];
+    expect(pushesToCancel(withPush, [], NOW)).toEqual(["msg_1"]);
+    expect(pushesToCancel(withPush, [{ ...timer, endsAt: timer.endsAt + MINUTE }], NOW)).toEqual(["msg_1"]);
+  });
+
+  it("is left alone while its timer is still there", () => {
+    const withPush = [{ ...timer, pushId: "msg_1" }];
+    expect(pushesToCancel(withPush, withPush, NOW)).toEqual([]);
+  });
+
+  it("is nothing to take back once its timer has run out and rung", () => {
+    const rang = [{ ...timer, endsAt: NOW - MINUTE, pushId: "msg_1" }];
+    expect(pushesToCancel(rang, [], NOW)).toEqual([]);
   });
 });
 

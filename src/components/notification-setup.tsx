@@ -1,21 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { saveSubscription, sendTestPush } from "@/app/actions/push";
+import { sendTestPush } from "@/app/actions/push";
+import { readPushState, turnOnPush, type PushState } from "@/lib/push-client";
 import { Button, Card } from "@/components/ui";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
 import { DASHBOARD } from "@/lib/copy/dashboard";
 
-function urlBase64ToUint8Array(base64: string) {
-  const padded = (base64 + "=".repeat((4 - (base64.length % 4)) % 4))
-    .replace(/-/g, "+")
-    .replace(/_/g, "/");
-  const raw = atob(padded);
-  return Uint8Array.from([...raw].map((char) => char.charCodeAt(0)));
-}
-
-type Status = "loading" | "unsupported" | "unconfigured" | "off" | "on" | "blocked";
+type Status = "loading" | PushState;
 
 /**
  * The offer to turn task reminders on, which is also the only place their state is
@@ -29,48 +22,13 @@ export function NotificationSetup({ showEnabled = false }: { showEnabled?: boole
   const say = sayIn(useLanguage());
 
   useEffect(() => {
-    const vapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      setStatus("unsupported");
-      return;
-    }
-    if (!vapid) {
-      setStatus("unconfigured");
-      return;
-    }
-    if (Notification.permission === "denied") {
-      setStatus("blocked");
-      return;
-    }
-    navigator.serviceWorker
-      .register("/sw.js")
-      .then((registration) => registration.pushManager.getSubscription())
-      .then((subscription) => setStatus(subscription ? "on" : "off"))
-      .catch(() => setStatus("unsupported"));
+    readPushState().then(setStatus);
   }, []);
 
   async function enable() {
     setBusy(true);
     try {
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        setStatus(permission === "denied" ? "blocked" : "off");
-        return;
-      }
-      const registration = await navigator.serviceWorker.register("/sw.js");
-      await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(
-          process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY as string,
-        ),
-      });
-      const json = subscription.toJSON() as {
-        endpoint: string;
-        keys: { p256dh: string; auth: string };
-      };
-      await saveSubscription({ endpoint: json.endpoint, keys: json.keys });
-      setStatus("on");
+      setStatus(await turnOnPush());
     } finally {
       setBusy(false);
     }

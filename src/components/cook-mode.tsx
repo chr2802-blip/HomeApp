@@ -104,7 +104,7 @@ export function CookMode({
   const [page, setPage] = useState(0);
   const [turn, setTurn] = useState<"next" | "back" | null>(null);
 
-  const { kitchen, loaded, now, update } = useKitchen();
+  const { kitchen, loaded, now, update, pushOffer, enablePush } = useKitchen();
   const [picking, setPicking] = useState(false);
 
   // The screen stays on for as long as this is open. Nothing to press: somebody who has
@@ -386,6 +386,19 @@ export function CookMode({
               </Link>
             );
           })}
+          {pushOffer !== "hidden" && own.length > 0 && (
+            <p className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+              <span>{say(RECIPES.timerPushOffer)}</span>
+              <button
+                type="button"
+                onClick={enablePush}
+                disabled={pushOffer === "busy"}
+                className="font-medium text-[var(--accent)] underline-offset-2 hover:underline disabled:opacity-60"
+              >
+                {say(RECIPES.timerPushTurnOn)}
+              </button>
+            </p>
+          )}
         </div>
       )}
 

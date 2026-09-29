@@ -29,7 +29,16 @@
  * it did before this existed. Every access is caught for the same reason.
  */
 
-export type CookTimer = { recipeId: string; title: string; step: number; endsAt: number };
+export type CookTimer = {
+  recipeId: string;
+  title: string;
+  step: number;
+  endsAt: number;
+  /** The QStash message that will ring this timer on a phone whose page is not running
+   *  (`lib/cook-timer-push.ts`), kept so the timer going away can cancel it. Absent where
+   *  nothing was scheduled, which is a timer that rings in the page only. */
+  pushId?: string;
+};
 
 export type Cook = {
   recipeId: string;
@@ -85,7 +94,9 @@ function readTimer(value: unknown, fallback?: { recipeId: string; title: string 
   if (!Number.isInteger(step) || (step as number) < 0) return null;
   if (typeof endsAt !== "number" || !Number.isFinite(endsAt)) return null;
   const title = typeof value.title === "string" ? value.title : (fallback?.title ?? "");
-  return { recipeId, title, step: step as number, endsAt };
+  const timer: CookTimer = { recipeId, title, step: step as number, endsAt };
+  if (typeof value.pushId === "string" && value.pushId) timer.pushId = value.pushId;
+  return timer;
 }
 
 /** Reads what was stored, trusting none of it: it came from a browser, possibly from an
@@ -206,6 +217,39 @@ export function stopTimer(kitchen: Kitchen, recipeId: string, step: number): Kit
     ...kitchen,
     timers: kitchen.timers.filter((timer) => !(timer.recipeId === recipeId && timer.step === step)),
   };
+}
+
+/** The one timer a push was asked for, by everything that identifies it: a restart keeps
+ *  the recipe and the step, so only `endsAt` tells the old timer from the new one. */
+function sameTimer(a: Pick<CookTimer, "recipeId" | "step" | "endsAt">, b: CookTimer) {
+  return a.recipeId === b.recipeId && a.step === b.step && a.endsAt === b.endsAt;
+}
+
+export function hasTimer(kitchen: Kitchen, timer: Pick<CookTimer, "recipeId" | "step" | "endsAt">) {
+  return kitchen.timers.some((running) => sameTimer(timer, running));
+}
+
+/** Records the push that will ring a timer. A timer since stopped or restarted is not
+ *  found, and the kitchen is left as it was — the caller cancels that push instead. */
+export function attachPush(
+  kitchen: Kitchen,
+  timer: Pick<CookTimer, "recipeId" | "step" | "endsAt">,
+  pushId: string,
+): Kitchen {
+  if (!hasTimer(kitchen, timer)) return kitchen;
+  return {
+    ...kitchen,
+    timers: kitchen.timers.map((running) => (sameTimer(timer, running) ? { ...running, pushId } : running)),
+  };
+}
+
+/** The pushes whose timers are gone — stopped, restarted, dismissed — and so must not ring.
+ *  One that has already rung (its timer ran out before it went) is nothing to take back. */
+export function pushesToCancel(before: CookTimer[], after: CookTimer[], now: number): string[] {
+  const kept = new Set(after.flatMap((timer) => (timer.pushId ? [timer.pushId] : [])));
+  return before.flatMap((timer) =>
+    timer.pushId && !kept.has(timer.pushId) && timer.endsAt > now ? [timer.pushId] : [],
+  );
 }
 
 export function readKitchen(now: number = Date.now()): Kitchen {

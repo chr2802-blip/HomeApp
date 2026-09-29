@@ -204,6 +204,9 @@ Copy `.env.example` to `.env` and fill it in:
 - `AUTH_SECRET` — generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
 - `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` — generate with `npx web-push generate-vapid-keys`.
 - `CRON_SECRET` — any random string; the reminder endpoint requires it.
+- `QSTASH_TOKEN` / `QSTASH_CURRENT_SIGNING_KEY` / `QSTASH_NEXT_SIGNING_KEY` — optional, from
+  the Upstash console's QStash page. With them, a cook-mode timer also rings as a push
+  notification on a locked phone; without them it counts and buzzes in the page only.
 - `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` — used once, to seed the first account.
 
 2. Create the tables and the first super admin:
