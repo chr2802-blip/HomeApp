@@ -126,6 +126,12 @@ export const PANTRY_GOODS: PantryGood[] = [
   good("Coffee", "Kaffe", "DRINKS", "BAG"),
   good("Tea", "Te", "DRINKS", "PACK"),
 
+  // Baby.
+  good("Baby formula", "Modermælkserstatning", "BABY", "PACK", ["Formula", "Mælkepulver"]),
+  good("Baby food", "Babymos", "BABY", "JAR", ["Babymad", "Babygrød", "Klemmepose"]),
+  good("Nappies", "Bleer", "BABY", "PACK", ["Diapers", "Ble"]),
+  good("Baby wipes", "Vådservietter", "BABY", "PACK", ["Wipes", "Vådserviet"]),
+
   // Other.
   good("Onions", "Løg", "OTHER", null, ["Løg", "Onion"]),
   good("Potatoes", "Kartofler", "OTHER", "KG", ["Potato"]),

@@ -19,6 +19,9 @@ export type ShelfEntry = {
   quantity: number;
   unit: PantryUnit | null;
   category: PantryCategory | null;
+  expiresOn: string | null;
+  /** Days left where the row should warn (`expiryWarning`), else null. */
+  expiresIn: number | null;
 };
 
 /**
@@ -81,7 +84,7 @@ export function PantryShelves({
   // fold in the app, so the first screen is the whole cupboard a shelf to a line.
   const [opened, setOpened] = useState<Set<string>>(() => new Set());
   // Where each entry was last seen. An entry that arrives, or moves shelf — added from
-  // the sheet, filed by the sort, moved in "Shelf and unit" — opens the shelf it landed
+  // the sheet, filed by the sort, moved in "Shelf, unit and date" — opens the shelf it landed
   // on, so the thing just done is on screen rather than folded away under a count.
   // Adjusted during render rather than in an effect, the same trick as the stepper's.
   const [seen, setSeen] = useState(items);
@@ -285,6 +288,8 @@ export function PantryShelves({
                           quantity={item.quantity}
                           unit={item.unit}
                           category={item.category}
+                          expiresOn={item.expiresOn}
+                          expiresIn={item.expiresIn}
                         />
                       </div>
                     ))}

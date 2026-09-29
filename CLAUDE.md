@@ -736,7 +736,7 @@ itself.
 are set once and then left alone, and a control on every row is room taken from the name
 on every row — a unit menu per row is what left long names truncated to a few letters. So
 the row only *reads* its unit beside the number ("2 kg"; nothing for a plain count), and
-"Shelf and unit" in the `ItemMenu` opens one `editPantryItem` sheet of chips for both.
+"Shelf, unit and date" in the `ItemMenu` opens one `editPantryItem` sheet of chips for both.
 `PANTRY_UNITS` (g, kg, dl, l, and the kitchen's own dåse, pose, pakke, glas, bundt) are
 offered with "no unit" as its own choice and not a lesser one: a plain count ("3") is as
 valid an answer as a measured one ("500 g"), the same reason a counted recipe ingredient
@@ -745,8 +745,21 @@ list item's does — finding rice is the first thing every visit does — then t
 then the three dots at the far end. Delete stays last in that menu, a gap away from the
 stepper so a thumb aiming at "we're out of rice" does not land on it.
 
+**A quantity carries one decimal, and an entry may carry an expiry date.** `quantity` is a
+double held to one decimal and at most `MAX_PANTRY_QUANTITY` (9999, because grams) by
+`clampPantryQuantity`, which reads a Danish comma as the point; the row's box is a text
+input with a decimal keyboard, written by `formatPantryQuantity` in the home's own decimal
+mark — a `type="number"` box answers "" for "1,5" in a browser whose locale writes a
+point. `expiresOn` is optional, a day as `"yyyy-MM-dd"` like `MealPlan.date`, set in the
+same sheet and cleared by emptying it. The row draws an amber warning icon (the app's
+"overdue", never the home's colour and never red) from `EXPIRY_WARNING_DAYS` (14) before
+it — **the days are counted by the page on the household's clock (`expiryWarning`), and
+whether any is left by the row from its optimistic quantity (`warnsOfExpiry`)**, so an
+entry stepped down to zero stops warning under the thumb: an empty packet past its date
+is on the shopping list already.
+
 **The page is grouped by shelf.** `PantryCategory` is a fixed set (spices, oil & vinegar,
-sauces, baking, pasta/rice/grains, tins & jars, fridge, freezer, drinks, other), named in
+sauces, baking, pasta/rice/grains, tins & jars, fridge, freezer, drinks, baby, other), named in
 `PANTRY_CATEGORY_LABELS` and drawn in that order, empty shelves not drawn. **Null is "not
 sorted yet" and is not `OTHER`**: `OTHER` is somebody having decided it goes nowhere in
 particular, null is nobody having decided, and they answer different questions. Unsorted

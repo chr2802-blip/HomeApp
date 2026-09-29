@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   alreadyOnListNote,
   ambiguousLines,
+  clampPantryQuantity,
+  expiryText,
+  expiryWarning,
+  readExpiryDate,
+  warnsOfExpiry,
+  formatPantryQuantity,
   namesInWords,
   pantryKey,
   pantryNote,
@@ -275,5 +281,70 @@ describe("the two notes", () => {
   it("reads in the household's own language", () => {
     expect(pantryNote(["Salt", "Olie"], "DA")).toBe("Salt og Olie står allerede i spisekammeret.");
     expect(alreadyOnListNote(["Ris"], "DA")).toBe("Ris står allerede på listen.");
+  });
+});
+
+describe("clampPantryQuantity", () => {
+  it("keeps a cupboard counted in grams past a thousand", () => {
+    expect(clampPantryQuantity(2000)).toBe(2000);
+    expect(clampPantryQuantity("1500")).toBe(1500);
+  });
+
+  it("stops at four digits, and at zero", () => {
+    expect(clampPantryQuantity(20000)).toBe(9999);
+    expect(clampPantryQuantity(-3)).toBe(0);
+    expect(clampPantryQuantity("abc")).toBe(0);
+  });
+});
+
+describe("a pantry quantity with a decimal", () => {
+  it("keeps one decimal, and reads a Danish comma as the point", () => {
+    expect(clampPantryQuantity("1,5")).toBe(1.5);
+    expect(clampPantryQuantity("0.25")).toBe(0.3);
+    expect(clampPantryQuantity(2.04)).toBe(2);
+    // A step of the stepper on a decimal lands on a decimal, not on float noise.
+    expect(clampPantryQuantity(0.1 + 0.2)).toBe(0.3);
+  });
+
+  it("is written the way the household writes a decimal, and a whole number bare", () => {
+    expect(formatPantryQuantity(1.5, "DA")).toBe("1,5");
+    expect(formatPantryQuantity(1.5, "EN")).toBe("1.5");
+    expect(formatPantryQuantity(2000, "DA")).toBe("2000");
+    expect(clampPantryQuantity(formatPantryQuantity(9999.5, "DA"))).toBe(9999);
+  });
+});
+
+describe("an expiry date", () => {
+  // Wednesday evening in Copenhagen, so the calendar day is not the UTC one's neighbour.
+  const now = new Date("2026-09-30T20:00:00Z");
+
+  it("warns from two weeks before, counted by calendar day in the home's zone", () => {
+    expect(expiryWarning("2026-10-14", now)).toBe(14);
+    expect(expiryWarning("2026-10-15", now)).toBeNull();
+    expect(expiryWarning("2026-09-30", now)).toBe(0);
+    expect(expiryWarning("2026-09-01", now)).toBe(-29);
+    expect(expiryWarning(null, now)).toBeNull();
+  });
+
+  it("warns only while there is any left", () => {
+    expect(warnsOfExpiry(3, 1)).toBe(true);
+    expect(warnsOfExpiry(3, 0.5)).toBe(true);
+    expect(warnsOfExpiry(3, 0)).toBe(false);
+    expect(warnsOfExpiry(null, 2)).toBe(false);
+  });
+
+  it("says how close it is, in the household's language", () => {
+    expect(expiryText(1, "EN")).toBe("Expires in 1 day");
+    expect(expiryText(5, "DA")).toBe("Udløber om 5 dage");
+    expect(expiryText(0, "DA")).toBe("Udløber i dag");
+    expect(expiryText(-2, "EN")).toBe("Expired");
+  });
+
+  it("is read from a date input: a day, blank for none, and refused when not a real day", () => {
+    expect(readExpiryDate("2026-10-12")).toBe("2026-10-12");
+    expect(readExpiryDate("")).toBeNull();
+    expect(readExpiryDate(null)).toBeNull();
+    expect(readExpiryDate("2026-02-31")).toBe(false);
+    expect(readExpiryDate("soon")).toBe(false);
   });
 });

@@ -32,6 +32,7 @@ export const PANTRY_CATEGORY_LABELS = {
   FRIDGE: { EN: "Fridge", DA: "Køleskab" },
   FREEZER: { EN: "Freezer", DA: "Fryser" },
   DRINKS: { EN: "Drinks", DA: "Drikkevarer" },
+  BABY: { EN: "Baby", DA: "Baby" },
   OTHER: { EN: "Other", DA: "Andet" },
 } as const satisfies Record<PantryCategory, Phrase>;
 
@@ -108,8 +109,16 @@ export const PANTRY = {
   categoryLabel: { EN: "Shelf", DA: "Hylde" },
   categoryAuto: { EN: "Choose for me", DA: "Vælg for mig" },
   unitLabel: { EN: "Counted in", DA: "Tælles i" },
-  editTitle: { EN: "Shelf and unit", DA: "Hylde og enhed" },
-  editEntry: { EN: "Shelf and unit", DA: "Hylde og enhed" },
+  editTitle: { EN: "Shelf, unit and date", DA: "Hylde, enhed og dato" },
+  editEntry: { EN: "Shelf, unit and date", DA: "Hylde, enhed og dato" },
+  expiryLabel: { EN: "Expiry date (optional)", DA: "Udløbsdato (valgfri)" },
+  expiryInvalid: { EN: "That is not a date.", DA: "Det er ikke en dato." },
+  expired: { EN: "Expired", DA: "Udløbet" },
+  expiresToday: { EN: "Expires today", DA: "Udløber i dag" },
+  expiresIn: {
+    EN: { one: "Expires in {count} day", other: "Expires in {count} days" },
+    DA: { one: "Udløber om {count} dag", other: "Udløber om {count} dage" },
+  },
   suggestions: { EN: "Suggestions", DA: "Forslag" },
   filterLabel: { EN: "Find in the pantry", DA: "Find i spisekammeret" },
   filterPlaceholder: { EN: "Find…", DA: "Søg…" },
