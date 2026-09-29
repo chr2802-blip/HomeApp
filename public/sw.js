@@ -102,6 +102,7 @@ function isKeptAsset(url) {
     url.pathname.startsWith("/_next/static/") ||
     url.pathname.startsWith("/api/photos/") ||
     url.pathname === "/icon.svg" ||
+    url.pathname === "/badge.png" ||
     url.pathname === "/manifest.webmanifest"
   );
 }
@@ -269,7 +270,10 @@ self.addEventListener("push", (event) => {
       await self.registration.showNotification(payload.title, {
         body: payload.body,
         icon: "/icon.svg",
-        badge: "/icon.svg",
+        // The status-bar icon. Android draws a badge from its alpha channel alone, so the
+        // app icon's opaque square came out as a plain white square: this is the house by
+        // itself on transparency, and a PNG because Chrome does not draw an SVG badge.
+        badge: "/badge.png",
         data: { url: payload.url },
         ...(payload.tag ? { tag: payload.tag, renotify: true } : {}),
         ...(payload.requireInteraction ? { requireInteraction: true } : {}),
