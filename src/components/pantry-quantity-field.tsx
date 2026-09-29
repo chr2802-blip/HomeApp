@@ -89,7 +89,9 @@ export function PantryQuantityField({
         }}
         // The spinners are tiny, sit where the thumb already is, and duplicate the
         // two buttons either side of them.
-        className="w-7 [appearance:textfield] border-0 bg-transparent p-0 text-center text-sm tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        // Three digits' room for the everyday count, widening only for a fourth
+        // (grams) so the name beside it keeps its room on every other row.
+        className={`${draft.length > 3 ? "w-10" : "w-7"} [appearance:textfield] border-0 bg-transparent p-0 text-center text-sm tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
       />
       {/* Read, not pressed: the number's own unit, so "2" says "2 kg". Nothing is drawn
           for a plain count, which is the commonest entry and needs no word. */}

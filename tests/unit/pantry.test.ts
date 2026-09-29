@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   alreadyOnListNote,
   ambiguousLines,
+  clampPantryQuantity,
   namesInWords,
   pantryKey,
   pantryNote,
@@ -275,5 +276,18 @@ describe("the two notes", () => {
   it("reads in the household's own language", () => {
     expect(pantryNote(["Salt", "Olie"], "DA")).toBe("Salt og Olie står allerede i spisekammeret.");
     expect(alreadyOnListNote(["Ris"], "DA")).toBe("Ris står allerede på listen.");
+  });
+});
+
+describe("clampPantryQuantity", () => {
+  it("keeps a cupboard counted in grams past a thousand", () => {
+    expect(clampPantryQuantity(2000)).toBe(2000);
+    expect(clampPantryQuantity("1500")).toBe(1500);
+  });
+
+  it("stops at four digits, and at zero", () => {
+    expect(clampPantryQuantity(20000)).toBe(9999);
+    expect(clampPantryQuantity(-3)).toBe(0);
+    expect(clampPantryQuantity("abc")).toBe(0);
   });
 });

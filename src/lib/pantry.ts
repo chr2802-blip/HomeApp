@@ -56,8 +56,9 @@ export function isPantryCategory(value: string): value is PantryCategory {
   return (PANTRY_CATEGORIES as readonly string[]).includes(value);
 }
 
-/** Nothing a household keeps in needs four digits, and a typo should not become one. */
-export const MAX_PANTRY_QUANTITY = 999;
+/** Four digits, because a cupboard counted in grams holds more than 999 of them (2 kg of
+ *  flour is 2000 g); five would only ever be a typo. */
+export const MAX_PANTRY_QUANTITY = 9999;
 
 /**
  * Brings any value into range, the same way `clampAmount` does for a list item's
