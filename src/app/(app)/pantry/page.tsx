@@ -7,6 +7,7 @@ import { PantryAddDialog } from "@/components/pantry-add-dialog";
 import { PantryShelves } from "@/components/pantry-shelves";
 import { sayIn } from "@/lib/copy/say";
 import { PANTRY } from "@/lib/copy/pantry";
+import { expiryWarning } from "@/lib/pantry";
 
 /**
  * What the household keeps in, so that adding a recipe to a shopping list stops asking
@@ -35,6 +36,7 @@ import { PANTRY } from "@/lib/copy/pantry";
  */
 export default async function PantryPage() {
   const user = await requireHomeUser();
+  const now = new Date();
   const say = sayIn(user.homeLanguage);
   const db = homeDb(user.homeId);
 
@@ -73,6 +75,10 @@ export default async function PantryPage() {
           quantity: item.quantity,
           unit: item.unit,
           category: item.category,
+          expiresOn: item.expiresOn,
+          // Counted here, on the household's clock, rather than in the row — a row
+          // counting on the phone's own clock could disagree with this render at midnight.
+          expiresIn: expiryWarning(item.expiresOn, now),
         }))}
         addToList={
           <AddToListMenu

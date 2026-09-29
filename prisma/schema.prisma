@@ -623,6 +623,10 @@ model PantryItem {
   quantity  Float           @default(1)
   /// What the quantity is counted in, or null for a plain count with no unit.
   unit      PantryUnit?
+  /// The day it goes off, in the home's own zone as "yyyy-MM-dd" — a day, like
+  /// `MealPlan.date`, never an instant. Optional: most of a cupboard keeps. The row warns
+  /// from `EXPIRY_WARNING_DAYS` before it while there is any left (`expiryWarning`).
+  expiresOn String?
   /// The shelf it is filed under. Null is "not sorted yet" — waiting for the household or
   /// `sortPantry` — and is deliberately not `OTHER`, which is somebody having decided.
   category  PantryCategory?

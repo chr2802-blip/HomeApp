@@ -1,5 +1,6 @@
 import type { HomeLanguage, PantryCategory, PantryUnit } from "@prisma/client";
 import { shoppingText } from "./recipes";
+import { calendarDaysBetween, dueAtOn } from "./time";
 import { sayIn } from "./copy/say";
 import { PANTRY, PANTRY_CATEGORY_LABELS, PANTRY_UNIT_LABELS } from "./copy/pantry";
 
@@ -72,6 +73,50 @@ export function clampPantryQuantity(value: unknown): number {
   const rounded = Math.round(number * 10) / 10;
   if (!Number.isFinite(rounded)) return 0;
   return Math.min(MAX_PANTRY_QUANTITY, Math.max(0, rounded));
+}
+
+/** How close to its expiry date an entry has to be before its row warns. */
+export const EXPIRY_WARNING_DAYS = 14;
+
+/**
+ * A date input's value as an expiry date: the day itself, blank for none, or `false`
+ * for something that is not a real day ("2026-02-31") — which is refused rather than
+ * quietly read as "no date", since the person meant one.
+ */
+export function readExpiryDate(value: unknown): string | null | false {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  return dueAtOn(raw) ? raw : false;
+}
+
+/**
+ * Days until an entry goes off, counted by calendar day in the home's zone — negative
+ * once it has — or null when it is further off than `EXPIRY_WARNING_DAYS`, or has no
+ * date. Takes the clock as an argument, as `weekWorkload` does.
+ */
+export function expiryWarning(expiresOn: string | null, now: Date): number | null {
+  const day = expiresOn ? dueAtOn(expiresOn) : null;
+  if (!day) return null;
+  const days = calendarDaysBetween(day, now);
+  return days <= EXPIRY_WARNING_DAYS ? days : null;
+}
+
+/**
+ * Whether a row warns: close to its date, and only while there is any left. Something
+ * run out is going on the shopping list anyway, and an empty jar past its date is
+ * noise. Kept apart from `expiryWarning` because the quantity it is asked with is the
+ * row's optimistic one, while the days are counted once, on the server's render.
+ */
+export function warnsOfExpiry(days: number | null, quantity: number): days is number {
+  return days !== null && quantity > 0;
+}
+
+/** What the warning says, for a person: "Expires in 3 days", "Expires today", "Expired". */
+export function expiryText(days: number, language: HomeLanguage): string {
+  const say = sayIn(language);
+  if (days < 0) return say(PANTRY.expired);
+  if (days === 0) return say(PANTRY.expiresToday);
+  return say(PANTRY.expiresIn, { count: days });
 }
 
 /** A quantity as the household writes it: a comma in Danish, a point in English, and no

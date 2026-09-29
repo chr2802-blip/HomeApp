@@ -10,6 +10,7 @@ import {
   test,
 } from "./helpers/fixtures";
 import { CATEGORIES } from "./helpers/database";
+import { dueAtDaysFrom, formatInZone } from "../src/lib/time";
 
 /**
  * The household's basic goods, kept from the header's own menu and read again by the
@@ -186,7 +187,7 @@ test("a good is filed on its shelf, and its shelf and unit are changed in the sh
   await expect(quantityGroup(page, "Ris").getByTestId("pantry-unit")).toHaveText("kg");
 
   await openMenu(page, { label: "Ris" });
-  await page.getByRole("menuitem", { name: "Shelf and unit" }).click();
+  await page.getByRole("menuitem", { name: "Shelf, unit and date" }).click();
   // The chips are what is pressed; the radios under them are visually hidden.
   const sheet = page.getByRole("dialog");
   await sheet.getByText("Freezer", { exact: true }).click();
@@ -200,6 +201,32 @@ test("a good is filed on its shelf, and its shelf and unit are changed in the sh
   await expect(shelf(page, "FREEZER").getByRole("group", { name: "Quantity of Ris" })).toBeVisible();
   await expect(quantityGroup(page, "Ris").getByTestId("pantry-unit")).toHaveText("g");
   await expect(shelf(page, "DRY_GOODS")).toHaveCount(0);
+});
+
+test("an entry close to its expiry date warns on its row, until it has run out", async ({ page }) => {
+  await page.goto("/pantry");
+  await keepIn(page, "Ris");
+  await keepIn(page, "Pasta");
+  const warning = (name: string) =>
+    page.locator("[id^=pantry-]").filter({ has: quantityGroup(page, name) }).getByTestId("pantry-expiry-warning");
+
+  // Two weeks is the edge of the warning; a year away says nothing.
+  const expireIn = async (name: string, days: number) => {
+    await openMenu(page, { label: name });
+    await page.getByRole("menuitem", { name: "Shelf, unit and date" }).click();
+    await page.getByLabel("Expiry date (optional)").fill(formatInZone(dueAtDaysFrom(days), "yyyy-MM-dd"));
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(page.getByRole("dialog")).toBeHidden();
+  };
+  await expireIn("Ris", 5);
+  await expireIn("Pasta", 365);
+
+  await expect(warning("Ris")).toHaveAttribute("aria-label", "Expires in 5 days");
+  await expect(warning("Pasta")).toHaveCount(0);
+
+  // An empty packet past its date is not worth a warning; it is on the shopping list.
+  await runOut(page, "Ris");
+  await expect(warning("Ris")).toHaveCount(0);
 });
 
 test("a name the free list does not know is sorted onto a shelf after it is added", async ({ page }) => {

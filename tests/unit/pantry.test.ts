@@ -3,6 +3,10 @@ import {
   alreadyOnListNote,
   ambiguousLines,
   clampPantryQuantity,
+  expiryText,
+  expiryWarning,
+  readExpiryDate,
+  warnsOfExpiry,
   formatPantryQuantity,
   namesInWords,
   pantryKey,
@@ -307,5 +311,40 @@ describe("a pantry quantity with a decimal", () => {
     expect(formatPantryQuantity(1.5, "EN")).toBe("1.5");
     expect(formatPantryQuantity(2000, "DA")).toBe("2000");
     expect(clampPantryQuantity(formatPantryQuantity(9999.5, "DA"))).toBe(9999);
+  });
+});
+
+describe("an expiry date", () => {
+  // Wednesday evening in Copenhagen, so the calendar day is not the UTC one's neighbour.
+  const now = new Date("2026-09-30T20:00:00Z");
+
+  it("warns from two weeks before, counted by calendar day in the home's zone", () => {
+    expect(expiryWarning("2026-10-14", now)).toBe(14);
+    expect(expiryWarning("2026-10-15", now)).toBeNull();
+    expect(expiryWarning("2026-09-30", now)).toBe(0);
+    expect(expiryWarning("2026-09-01", now)).toBe(-29);
+    expect(expiryWarning(null, now)).toBeNull();
+  });
+
+  it("warns only while there is any left", () => {
+    expect(warnsOfExpiry(3, 1)).toBe(true);
+    expect(warnsOfExpiry(3, 0.5)).toBe(true);
+    expect(warnsOfExpiry(3, 0)).toBe(false);
+    expect(warnsOfExpiry(null, 2)).toBe(false);
+  });
+
+  it("says how close it is, in the household's language", () => {
+    expect(expiryText(1, "EN")).toBe("Expires in 1 day");
+    expect(expiryText(5, "DA")).toBe("Udløber om 5 dage");
+    expect(expiryText(0, "DA")).toBe("Udløber i dag");
+    expect(expiryText(-2, "EN")).toBe("Expired");
+  });
+
+  it("is read from a date input: a day, blank for none, and refused when not a real day", () => {
+    expect(readExpiryDate("2026-10-12")).toBe("2026-10-12");
+    expect(readExpiryDate("")).toBeNull();
+    expect(readExpiryDate(null)).toBeNull();
+    expect(readExpiryDate("2026-02-31")).toBe(false);
+    expect(readExpiryDate("soon")).toBe(false);
   });
 });
