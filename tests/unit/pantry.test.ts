@@ -3,6 +3,7 @@ import {
   alreadyOnListNote,
   ambiguousLines,
   clampPantryQuantity,
+  formatPantryQuantity,
   namesInWords,
   pantryKey,
   pantryNote,
@@ -289,5 +290,22 @@ describe("clampPantryQuantity", () => {
     expect(clampPantryQuantity(20000)).toBe(9999);
     expect(clampPantryQuantity(-3)).toBe(0);
     expect(clampPantryQuantity("abc")).toBe(0);
+  });
+});
+
+describe("a pantry quantity with a decimal", () => {
+  it("keeps one decimal, and reads a Danish comma as the point", () => {
+    expect(clampPantryQuantity("1,5")).toBe(1.5);
+    expect(clampPantryQuantity("0.25")).toBe(0.3);
+    expect(clampPantryQuantity(2.04)).toBe(2);
+    // A step of the stepper on a decimal lands on a decimal, not on float noise.
+    expect(clampPantryQuantity(0.1 + 0.2)).toBe(0.3);
+  });
+
+  it("is written the way the household writes a decimal, and a whole number bare", () => {
+    expect(formatPantryQuantity(1.5, "DA")).toBe("1,5");
+    expect(formatPantryQuantity(1.5, "EN")).toBe("1.5");
+    expect(formatPantryQuantity(2000, "DA")).toBe("2000");
+    expect(clampPantryQuantity(formatPantryQuantity(9999.5, "DA"))).toBe(9999);
   });
 });

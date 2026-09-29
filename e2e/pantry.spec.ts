@@ -26,7 +26,7 @@ const quantityGroup = (page: Page, name: string) =>
 
 /** The row's own number box, inside the stepper above. */
 const quantityBox = (page: Page, name: string) =>
-  page.getByRole("spinbutton", { name: `Quantity of ${name}`, exact: true });
+  page.getByRole("textbox", { name: `Quantity of ${name}`, exact: true });
 
 /** A shelf's own section, by the category it holds ("UNSORTED" for none yet). */
 const shelf = (page: Page, category: string) => page.locator(`section[data-shelf="${category}"]`);

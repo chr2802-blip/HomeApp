@@ -619,8 +619,8 @@ model PantryItem {
   /// The same thing as the shopping list would write it: `pantryKey(name)`.
   key       String
   /// How much the household has of it. Zero is what `inStock: false` used to mean;
-  /// anything more is what `true` did.
-  quantity  Int             @default(1)
+  /// anything more is what `true` did. One decimal at most, held by `clampPantryQuantity`.
+  quantity  Float           @default(1)
   /// What the quantity is counted in, or null for a plain count with no unit.
   unit      PantryUnit?
   /// The shelf it is filed under. Null is "not sorted yet" — waiting for the household or

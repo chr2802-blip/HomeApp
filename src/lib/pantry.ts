@@ -66,9 +66,19 @@ export const MAX_PANTRY_QUANTITY = 9999;
  * quantity's own meaning ("run out"), not out-of-range input to be corrected away from.
  */
 export function clampPantryQuantity(value: unknown): number {
-  const rounded = Math.round(Number(value));
+  // One decimal and no more: "1,5 kg" is a cupboard, "1,537 kg" is a scale. A comma is
+  // read as the point, because that is how a Danish household types one.
+  const number = Number(typeof value === "string" ? value.trim().replace(",", ".") : value);
+  const rounded = Math.round(number * 10) / 10;
   if (!Number.isFinite(rounded)) return 0;
   return Math.min(MAX_PANTRY_QUANTITY, Math.max(0, rounded));
+}
+
+/** A quantity as the household writes it: a comma in Danish, a point in English, and no
+ *  decimal at all for a whole number. Read back through `clampPantryQuantity`. */
+export function formatPantryQuantity(quantity: number, language: HomeLanguage): string {
+  const written = String(Math.round(quantity * 10) / 10);
+  return language === "DA" ? written.replace(".", ",") : written;
 }
 
 /** A unit this app actually offers, or nothing — what `setPantryQuantity` holds a
