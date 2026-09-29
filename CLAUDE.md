@@ -746,7 +746,7 @@ then the three dots at the far end. Delete stays last in that menu, a gap away f
 stepper so a thumb aiming at "we're out of rice" does not land on it.
 
 **The page is grouped by shelf.** `PantryCategory` is a fixed set (spices, oil & vinegar,
-sauces, baking, pasta/rice/grains, tins & jars, fridge, freezer, drinks, other), named in
+sauces, baking, pasta/rice/grains, tins & jars, fridge, freezer, drinks, baby, other), named in
 `PANTRY_CATEGORY_LABELS` and drawn in that order, empty shelves not drawn. **Null is "not
 sorted yet" and is not `OTHER`**: `OTHER` is somebody having decided it goes nowhere in
 particular, null is nobody having decided, and they answer different questions. Unsorted

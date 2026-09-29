@@ -584,6 +584,7 @@ enum PantryCategory {
   FRIDGE
   FREEZER
   DRINKS
+  BABY
   OTHER
 }
 
