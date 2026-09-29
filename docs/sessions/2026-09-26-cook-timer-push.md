@@ -27,6 +27,13 @@ versions and moved the push logic into `KitchenProvider` as one reconciling effe
 (`pushesToCancel`, `attachPush`), so a stop from a chip on any page cancels the push too.
 The e2e test now asserts that leaving keeps the push.
 
+**CI on the merge (2026-09-29)** failed on `list-directory.spec.ts`'s bottom-edge check,
+which this branch does not touch: it read the card's box and the bar's box in two round
+trips during the page's entrance animation, so they could come from two different frames
+(3.3px apart against a 2px slack). Fixed in the test by waiting out finite animations and
+reading both boxes in one frame. `ai-wait.spec.ts` was flaky in the same run and passed on
+its retry — the same one #151's session note names on `main`.
+
 ## Where the time went
 
 | Stage | Roughly | Notes |
