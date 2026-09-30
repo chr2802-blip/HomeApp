@@ -146,3 +146,31 @@ export const PANTRY = {
     DA: "Alt det, der er løbet tør, står allerede på listen.",
   },
 } as const satisfies Record<string, Phrase | Plural>;
+
+/** "What can we cook?" — the recipes that use most of what is in. */
+export const PANTRY_COOK = {
+  button: { EN: "What can we cook?", DA: "Hvad kan vi lave?" },
+  extraLabel: { EN: "Anything else in the kitchen?", DA: "Har I andet i køkkenet?" },
+  extraPlaceholder: { EN: "e.g. chicken", DA: "fx kylling" },
+  extraAdd: { EN: "Add", DA: "Tilføj" },
+  extraHint: {
+    EN: "Counted with the pantry for now. Nothing here is saved.",
+    DA: "Regnes med sammen med spisekammeret lige nu. Intet her bliver gemt.",
+  },
+  removeExtra: { EN: "Remove {name}", DA: "Fjern {name}" },
+  have: {
+    EN: { one: "You have {have} of {count} ingredient", other: "You have {have} of {count} ingredients" },
+    DA: { one: "I har {have} af {count} ingrediens", other: "I har {have} af {count} ingredienser" },
+  },
+  missing: { EN: "Missing: {names}", DA: "Mangler: {names}" },
+  haveAll: { EN: "You have everything it needs", DA: "I har alt, den skal bruge" },
+  loading: { EN: "Looking through your recipes…", DA: "Kigger jeres opskrifter igennem…" },
+  none: {
+    EN: "None of your recipes use what you have in yet.",
+    DA: "Ingen af jeres opskrifter bruger endnu det, I har hjemme.",
+  },
+  failed: {
+    EN: "Couldn't look through the recipes. Try again.",
+    DA: "Kunne ikke kigge opskrifterne igennem. Prøv igen.",
+  },
+} as const;

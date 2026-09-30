@@ -95,6 +95,7 @@ const FEATURE_NAME = {
   recipe_import: AI_TIMES.import,
   cook_steps: AI_TIMES.save,
   pantry_sort: AI_TIMES.pantrySort,
+  aisle_sort: AI_TIMES.aisleSort,
 } as const;
 
 /** Seconds to one decimal, with the decimal mark the household's own language writes. */

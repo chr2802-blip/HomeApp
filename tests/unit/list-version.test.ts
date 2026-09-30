@@ -15,7 +15,9 @@ const item = (overrides: Partial<VersionedList["items"][number]> = {}) => ({
 const list = (items: VersionedList["items"], overrides: Partial<VersionedList> = {}) => ({
   title: "Shopping",
   trackAmounts: true,
+  groupByAisle: false,
   photoId: null,
+  aisles: {},
   items,
   ...overrides,
 });
@@ -60,5 +62,7 @@ describe("listVersion", () => {
     expect(listVersion(list(items, { title: "Weekend" }))).not.toBe(base);
     expect(listVersion(list(items, { trackAmounts: false }))).not.toBe(base);
     expect(listVersion(list(items, { photoId: "p1" }))).not.toBe(base);
+    expect(listVersion(list(items, { groupByAisle: true }))).not.toBe(base);
+    expect(listVersion(list(items, { aisles: { milk: "DAIRY" } }))).not.toBe(base);
   });
 });

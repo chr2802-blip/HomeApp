@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
 import { listVersion } from "@/lib/list-version";
+import { rememberedAisles } from "@/lib/aisle-memory";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     select: {
       title: true,
       trackAmounts: true,
+      groupByAisle: true,
       photoId: true,
       items: {
         select: {
@@ -45,8 +47,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   });
   if (!list) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Asked exactly as the page asks it, so the two hash the same answer.
+  const aisles = list.groupByAisle
+    ? await rememberedAisles(user.homeId, list.items.map((item) => item.text))
+    : {};
+
   const version = listVersion({
     ...list,
+    aisles,
     items: list.items.map(({ sources, ...item }) => ({
       ...item,
       sourceIds: sources.map((source) => source.recipeId),

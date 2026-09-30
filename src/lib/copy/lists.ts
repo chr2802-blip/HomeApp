@@ -1,3 +1,4 @@
+import type { ShopAisle } from "@prisma/client";
 import type { Phrase, Plural } from "./say";
 
 /** `/lists`, a list's own page, and everything a row on one can do. */
@@ -21,6 +22,15 @@ export const LISTS = {
     EN: "Each item gets a quantity, starting at 1 — for a shopping list rather than a list of jobs.",
     DA: "Hver ting får en mængde, startende ved 1 — til en indkøbsliste snarere end en liste over opgaver.",
   },
+
+  groupByAisle: { EN: "Group by aisle", DA: "Sortér efter afdeling" },
+  groupByAisleHint: {
+    EN: "Items are sorted into the shop's aisles, fruit and vegetables first — for a list you take round a shop.",
+    DA: "Varerne sorteres efter butikkens afdelinger, frugt og grønt først — til en liste I tager med rundt i butikken.",
+  },
+  unsortedAisle: { EN: "Not sorted yet", DA: "Ikke sorteret endnu" },
+  moveAisle: { EN: "Move {name} to another aisle", DA: "Flyt {name} til en anden afdeling" },
+  whichAisle: { EN: "Which aisle is {name} in?", DA: "Hvor i butikken ligger {name}?" },
 
   empty: {
     EN: "Nothing on the shelf yet — create your first list with the button above.",
@@ -120,3 +130,23 @@ export const LISTS = {
     DA: "Ingen af ugens opskrifter har ingredienser at tilføje endnu.",
   },
 } as const satisfies Record<string, Phrase | Plural>;
+
+/** What each aisle of a shop is called, in the order a list grouped by aisle draws them
+ *  — `Record<ShopAisle, Phrase>`, so an aisle added to the schema without a name here
+ *  fails to compile. `SHOP_AISLES` in `src/lib/shop-goods.ts` reads its order from this
+ *  object. */
+export const SHOP_AISLE_LABELS = {
+  PRODUCE: { EN: "Fruit & vegetables", DA: "Frugt & grønt" },
+  BAKERY: { EN: "Bread & bakery", DA: "Brød & bageri" },
+  MEAT_FISH: { EN: "Meat & fish", DA: "Kød & fisk" },
+  DAIRY: { EN: "Dairy & eggs", DA: "Mejeri & æg" },
+  DRY_GOODS: { EN: "Pasta, rice & baking", DA: "Pasta, ris & bagning" },
+  TINS_JARS: { EN: "Tins & jars", DA: "Dåser & glas" },
+  SPICES_SAUCES: { EN: "Spices, oil & sauces", DA: "Krydderier, olie & saucer" },
+  SNACKS: { EN: "Snacks & sweets", DA: "Snacks & slik" },
+  DRINKS: { EN: "Drinks", DA: "Drikkevarer" },
+  FROZEN: { EN: "Frozen", DA: "Frost" },
+  HOUSEHOLD: { EN: "Household & toiletries", DA: "Husholdning & personlig pleje" },
+  BABY: { EN: "Baby", DA: "Baby" },
+  OTHER: { EN: "Other", DA: "Andet" },
+} as const satisfies Record<ShopAisle, Phrase>;
