@@ -335,7 +335,7 @@ test.describe("marking a task done", () => {
     );
     await forget(page);
 
-    await page.getByRole("button", { name: "Mark done" }).click();
+    await page.getByRole("button", { name: "Done", exact: true }).click();
 
     await expectPlayed(page, "stamp");
   });

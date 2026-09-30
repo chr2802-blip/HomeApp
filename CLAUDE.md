@@ -39,7 +39,17 @@ Integration and browser tests need the local Postgres: `docker start homehub-pg`
 
 **Stopping a server from the Bash tool: `pkill -f "[n]ext dev"`, never `pkill -f "next dev"`.**
 The pattern appears in the tool's own command line, so the unbracketed form kills the shell
-running it and the command dies with exit 144.
+running it and the command dies with exit 144. The same goes for `pgrep -f` in a wait loop
+(`while pgrep -f dev-setup.mjs`): it matches its own shell and never ends.
+
+**Deleting or renaming a component while `npm run dev` is running** leaves `.next` holding
+the old import, and every page answers 500 naming the missing file. Stop the server,
+`rm -rf .next`, start it again.
+
+**A dev database for screenshots has nobody in it**, and `npm run db:seed` makes only a
+super admin (from `SUPER_ADMIN_EMAIL`/`SUPER_ADMIN_PASSWORD`). A throwaway `tsx` script run
+with `node --env-file=.env --import tsx` that upserts a home, two members and a handful of
+rows is the quickest way to something worth a screenshot.
 
 **In a bare container with no Docker daemon** (a fresh Claude Code on the web sandbox),
 there is usually a stopped `pg_lsclusters`-managed cluster already on disk instead:
@@ -358,6 +368,15 @@ already is, because a card left open on a phone overnight is a card offering yes
 answer. It lives in the three dots on `/tasks` and in a menu of its own on the
 dashboard's due rows, rather than as a button beside Done: two buttons the same size
 next to each other is how a job gets marked done by a thumb aiming at "later".
+
+**A task is one row, wherever it is listed, and the row is a way into its own page.**
+`TaskRow` in `src/components/task-row.tsx` draws it on `/tasks` and on the dashboard alike:
+picture, name, and one line of due · rhythm · who, with the three dots and Done beside it
+as siblings of the link (a link cannot hold a button). Pressing the rest of it opens
+`/tasks/[id]`, which is where the notes, the history and the picture at size live — the
+row carries only what somebody scanning the list decides on. A task deleted from its own
+page lands back on `/tasks` (`deleteTask` redirects), and `refreshTaskViews` revalidates
+the `/tasks` *layout* so the page under it is refreshed too.
 
 Which kind is being written is submitted in its own field (`REPEAT_FIELD`), never
 inferred from a blank interval — a number that failed to arrive would otherwise turn a
