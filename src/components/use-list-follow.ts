@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { followListSignal } from "@/components/list-signal";
 
 /**
  * How often an open list asks whether somebody else has changed it.
@@ -13,7 +14,23 @@ import { useRouter } from "next/navigation";
 export const FOLLOW_MS = 3000;
 
 /**
+ * How often an open list still asks while its home's Realtime channel is joined.
+ *
+ * A pushed nudge (`followListSignal`) is what normally brings a change in, within a few
+ * hundred milliseconds. Broadcast is at most once, though — a nudge sent while the socket
+ * was quietly reconnecting is never heard — so the poll stays on underneath as the safety
+ * net, just far less often.
+ */
+export const LIVE_FOLLOW_MS = 30_000;
+
+/**
  * Keeps an open list up to date with what the rest of the household does to it.
+ *
+ * Two things ask the same question. A nudge from the home's Realtime channel asks at
+ * once (`followListSignal`, `src/lib/realtime.ts`); the timer asks every `FOLLOW_MS`, or
+ * only every `LIVE_FOLLOW_MS` while the channel is joined. Either way the question and
+ * the answer are the ones below, so the push only changes *when* a list finds out, never
+ * what it does about it.
  *
  * Every `FOLLOW_MS`, while the page is actually being looked at, it asks
  * `/api/lists/<id>/version` for the list's fingerprint and compares it with the one the
@@ -45,11 +62,21 @@ export function useListFollow(listId: string, version: string) {
   useEffect(() => {
     let asking = false;
     let stopped = false;
+    let live = false;
+    let lastAsked = 0;
+    // A nudge that lands while a question is already out is asked again once that one is
+    // back: the answer in flight may have been read before the change it announces.
+    let askAgain = false;
 
     async function ask() {
-      if (asking || stopped) return;
+      if (stopped) return;
+      if (asking) {
+        askAgain = true;
+        return;
+      }
       if (document.visibilityState !== "visible" || !navigator.onLine) return;
       asking = true;
+      lastAsked = Date.now();
       try {
         const response = await fetch(`/api/lists/${listId}/version`, { cache: "no-store" });
         if (!response.ok) return;
@@ -64,10 +91,24 @@ export function useListFollow(listId: string, version: string) {
         // the offline queue's to report, not this.
       } finally {
         asking = false;
+        if (askAgain) {
+          askAgain = false;
+          void ask();
+        }
       }
     }
 
-    const timer = setInterval(ask, FOLLOW_MS);
+    const timer = setInterval(() => {
+      if (live && Date.now() - lastAsked < LIVE_FOLLOW_MS) return;
+      void ask();
+    }, FOLLOW_MS);
+    const leaveSignal = followListSignal(
+      listId,
+      () => void ask(),
+      (joined) => {
+        live = joined;
+      },
+    );
     const cameBack = () => {
       if (document.visibilityState === "visible") void ask();
     };
@@ -77,6 +118,7 @@ export function useListFollow(listId: string, version: string) {
     return () => {
       stopped = true;
       clearInterval(timer);
+      leaveSignal();
       document.removeEventListener("visibilitychange", cameBack);
       window.removeEventListener("online", cameBack);
     };
