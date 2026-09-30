@@ -107,7 +107,7 @@ test("a task deleted from its own page goes back to the tasks", async ({ page })
   await clickAndConfirm(page, "Delete");
 
   await page.waitForURL(/\/tasks$/);
-  await expect(page.getByText("No tasks yet — add the first one above.")).toBeVisible();
+  await expect(page.getByText("No chores written down yet. Lucky you — or add the first one above.")).toBeVisible();
 });
 
 test("pressing a task on the dashboard opens its page", async ({ page }) => {
