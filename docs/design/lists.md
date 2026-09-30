@@ -112,3 +112,45 @@ Like `ListItem` it carries no `homeId`, so `homeDb` refuses it and pages read it
 include on a list query that went through `homeDb`. Both ids the action is given — the
 recipe's and the list's — are checked against the caller's homes, because one press
 sends both.
+
+## An open list follows the household, pushed by Supabase and confirmed by asking
+
+The first version was a poll: every three seconds the list asked
+`/api/lists/<id>/version` whether its fingerprint had moved. It worked, and it was always
+up to three seconds behind — long enough to reach for a carton somebody else had just put
+in their basket. A shorter interval only trades the delay for requests.
+
+**The push had to be somebody else's socket.** The app runs on serverless functions,
+which cannot hold a connection to a phone, and Postgres's own `LISTEN` needs a session
+connection that the transaction pooler does not give. Supabase Realtime already holds
+sockets, and its Broadcast accepts a message as one plain HTTP POST, which a function can
+send and forget. Postgres Changes, the other Realtime feature, was not the tool: it
+authorises every row change against RLS on the app's own tables, which Prisma does not
+use.
+
+**The message is a nudge, not the change.** Broadcasting the new rows would have been a
+second description of what a list looks like, beside the page's query, and the one that
+disagreed would be the one on the other phone. So the payload is a list id, and hearing
+it means asking the version route exactly as the timer would. The poll's two guards —
+refresh only when the fingerprint differs, never twice for the same one — therefore cover
+the push too, and a spoofed or doubled nudge costs one cheap question.
+
+**It is sent from the write, not from a database trigger.** `realtime.send()` in a
+trigger would catch every writer automatically, but the `realtime` schema exists only on
+Supabase: every local, test and shadow database would need the trigger guarded, and
+`db:check` could say nothing about it. `announceListsChanged` sits beside the
+`revalidatePath` of the list's own page instead — the moment this server's copy goes
+stale is the moment everybody else's does — and runs in `after`, so the press never waits.
+
+**Private channels, one per home.** A public channel would have needed nothing but the
+publishable key, which is in every browser, and a list id — and a public channel also
+lets any client *send*. So the server signs a short token (15 minutes, the window a removed
+member could go on hearing "something changed" in) listing the person's homes, and one
+policy on `realtime.messages` reads the home back out of the topic. No insert policy: only
+the server, holding the secret key, broadcasts. One channel per home rather than per list,
+so a phone holds one subscription however it moves between lists, and filters by id.
+
+**The poll stays, slower.** Broadcast is at most once: a nudge sent while a phone's socket
+was reconnecting is gone. Joining the channel asks once to catch up, and while joined the
+timer still asks every 30 seconds. With Realtime unconfigured — every test suite, every
+laptop — nothing is loaded and the list polls every three seconds, exactly as before.
