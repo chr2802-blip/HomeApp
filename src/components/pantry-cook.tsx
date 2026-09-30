@@ -59,14 +59,17 @@ export function PantryCook() {
 
   return (
     <>
+      {/* An icon, like the cart that takes its place under "Only run out": a label
+          beside the count wrapped the count onto two lines on a phone. */}
       <button
         type="button"
         onClick={show}
         aria-haspopup="dialog"
-        className="pressable inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-[var(--accent)] bg-white px-3 text-sm font-medium text-[var(--accent-text)] hover:bg-slate-50 active:scale-[0.96]"
+        aria-label={say(PANTRY_COOK.button)}
+        title={say(PANTRY_COOK.button)}
+        className="pressable inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 active:scale-[0.92]"
       >
         <PotIcon />
-        {say(PANTRY_COOK.button)}
       </button>
       <Modal open={open} onClose={() => setOpen(false)} title={say(PANTRY_COOK.button)}>
         <ModalBody>
@@ -181,7 +184,7 @@ function MatchRing({ have, total }: { have: number; total: number }) {
 
 function PotIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <path d="M4 10h16v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-6Z" strokeLinejoin="round" />
       <path d="M2 10h2M20 10h2M9 6c0-1 1-1 1-2M14 6c0-1 1-1 1-2" strokeLinecap="round" />
     </svg>

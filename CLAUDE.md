@@ -43,7 +43,10 @@ running it and the command dies with exit 144.
 
 **Restart `npm run dev` after `prisma generate`.** A dev server already running keeps the
 client it loaded, so a column added to the schema reads as `undefined` — a new boolean is
-simply false and the page draws the old behaviour with no error anywhere.
+simply false and the page draws the old behaviour with no error anywhere. **And after
+anything that builds into `.next`** — `npm run e2e:build`, or a push whose pre-push hook
+runs the browser suite — a running dev server answers every action with `Cannot read
+properties of undefined (reading 'call')`: stop it, `rm -rf .next`, start it again.
 
 **In a bare container with no Docker daemon** (a fresh Claude Code on the web sandbox),
 there is usually a stopped `pg_lsclusters`-managed cluster already on disk instead:
@@ -653,6 +656,32 @@ HTTP request, and a phone that hears it asks the same question the poll always a
 
 **[`docs/design/lists.md`](docs/design/lists.md) has the reasoning.**
 
+### A shopping list can be drawn in the order the shop is walked
+
+`List.groupByAisle` is a setting per list (`AisleField`, beside `AmountsField` in the
+create and edit sheets), because a shopping list is taken round a shop and a packing list
+is not. On, the open items are drawn under `ShopAisle` headings in one fixed order,
+produce first and the freezer late; ticked items fold into "Completed" as ever.
+
+- **Where an item goes is answered three ways, in this order:** what the household said
+  (`AisleChoice`, one row per home per `pantryKey`), the built-in list (`lookupAisle` in
+  `src/lib/shop-goods.ts`, which also reads the pantry's goods across from their shelf),
+  and otherwise nowhere yet — "Not sorted yet", drawn first. `aisleOf` is that sentence,
+  and it runs in the browser, so a row typed a moment ago lands in its aisle at once.
+- **Per home, not per list.** Cream is in the same aisle on every list and every week, so
+  a move by hand (`moveListItemAisle`, the ⇅ where the drag handle would be) is made once.
+- **The model is asked only about what nobody could place**, by `sortListAisles`, sent in
+  the background by an open grouped list that notices such a row. `sortShopAisles`
+  (`src/lib/aisle-sort.ts`) is the fourth model reader, bounded like the pantry's —
+  `overMonthlyLimit` inside it, `checkRateLimit("aisle-sort", …)` (40, because it fires on
+  its own), `tests/unit/ai-readers.test.ts` holding the request's shape. Its answers are
+  written with `skipDuplicates`, so it never overrules a move made while it was thinking.
+- **A grouped list is not dragged.** The shop decides the order; moving a row between
+  aisles is the one kind of "put it somewhere else" it has.
+- **The remembered aisles are hashed into `listVersion`**, and asked for by the page and
+  the version route through the one function (`rememberedAisles`), so a move on one phone
+  moves the row on the other.
+
 ### An item can say which recipe put it there
 
 `ListItemSource` pairs a list item with a recipe, and "Add to list" on a recipe writes them.
@@ -872,6 +901,16 @@ the moment the page shows exactly what the press would add, rather than a labell
 beside the title taking room on every visit. Under the filter it is drawn whatever the
 count says, because the quantities are optimistic and a control that came and went with
 the count would arrive a beat after the thumb that caused it.
+
+**"What can we cook?" asks the cupboard the other way round.** The pot icon beside the
+pantry's count opens `PantryCook`: the five recipes whose lines the kitchen covers the
+largest share of (`rankByPantry` in `src/lib/pantry-cook.ts`, ranked like `rankByOverlap`
+and for the same reason), with a box for what is in the kitchen but not in the pantry —
+the chicken bought yesterday. **What is typed there is never stored**: it is today's
+fridge, not the cupboard. The recipes are fetched when the sheet opens
+(`pantryCookCandidates`) and ranked in the browser, so an extra re-ranks at once. Derived
+staples are left out of both sides, and a line counts as had by `lineInStock`, which is
+looser than `stripStocked` on purpose — a wrong answer here only moves a suggestion up.
 
 **A stocked entry also counts as a staple for the meal suggestions.** `staplesOf`
 exists so a household need not keep a list of its own cupboard for the ranking to be

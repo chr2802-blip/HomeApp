@@ -34,6 +34,7 @@ const { MAX_INPUT_CHARS, PREPARE_MAX_RETRIES, PREPARE_TIMEOUT_MS, prepareCookSte
 const { NORMALIZE_MAX_RETRIES, NORMALIZE_TIMEOUT_MS, normalizeRecipe } = await import("@/lib/recipe-normalize");
 const { ingredientRules, languageRules } = await import("@/lib/ingredient-line");
 const { sortPantryGoods, MAX_GOODS_PER_SORT } = await import("@/lib/pantry-sort");
+const { sortShopAisles, MAX_ITEMS_PER_AISLE_SORT, readAisles } = await import("@/lib/aisle-sort");
 // The real price table, beside the mock above. Loaded here rather than inside the test that
 // uses it: it drags in the generated Prisma client, and a cold import of that inside a test
 // body counts against the test's own 5s — which a busy Vercel build machine ran past.
@@ -191,6 +192,11 @@ describe("a home past its month's allowance", () => {
     expect(await sortPantryGoods(["Gochujang"], "home")).toEqual({ ok: false, reason: "over-limit" });
     expect(parse).not.toHaveBeenCalled();
   });
+
+  it("gets no aisle sorting either", async () => {
+    expect(await sortShopAisles(["Gochujang"], "home")).toEqual({ ok: false, reason: "over-limit" });
+    expect(parse).not.toHaveBeenCalled();
+  });
 });
 
 describe("the pantry's shelf reader", () => {
@@ -223,6 +229,52 @@ describe("the pantry's shelf reader", () => {
   });
 });
 
+describe("the shopping list's aisle reader", () => {
+  it("sends every item numbered in one call, and never more than it may", async () => {
+    parse.mockResolvedValue({
+      parsed_output: { items: [{ index: 0, aisle: "SPICES_SAUCES" }] },
+      stop_reason: "end_turn",
+      usage: { input_tokens: 10, output_tokens: 5 },
+    });
+    const names = Array.from({ length: MAX_ITEMS_PER_AISLE_SORT + 5 }, (_, i) => `Vare ${i}`);
+
+    const outcome = await sortShopAisles(names, "home");
+
+    expect(outcome).toEqual({ ok: true, aisles: new Map([[0, "SPICES_SAUCES"]]) });
+    expect(parse).toHaveBeenCalledTimes(1);
+    const sent = parse.mock.calls[0]![0].messages[0].content as string;
+    expect(sent).toContain(`${MAX_ITEMS_PER_AISLE_SORT - 1}. Vare ${MAX_ITEMS_PER_AISLE_SORT - 1}`);
+    expect(sent).not.toContain(`Vare ${MAX_ITEMS_PER_AISLE_SORT}`);
+  });
+
+  it("asks nothing about nothing", async () => {
+    expect(await sortShopAisles([], "home")).toEqual({ ok: true, aisles: new Map() });
+    expect(overMonthlyLimit).not.toHaveBeenCalled();
+    expect(parse).not.toHaveBeenCalled();
+  });
+
+  it("answers as down, rather than throwing, when the API will not answer", async () => {
+    parse.mockRejectedValue(new Error("boom"));
+    expect(await sortShopAisles(["Panko"], "home")).toEqual({ ok: false, reason: "unavailable" });
+  });
+
+  it("keeps only answers naming an item it was sent and an aisle that exists", () => {
+    const read = readAisles(
+      {
+        items: [
+          { index: 0, aisle: "frozen" },
+          { index: 0, aisle: "DAIRY" },
+          { index: 1, aisle: "GARDEN_CENTRE" },
+          { index: 2, aisle: "DAIRY" },
+          { index: 1.5, aisle: "DAIRY" },
+        ],
+      },
+      2,
+    );
+    expect(read).toEqual(new Map([[0, "FROZEN"]]));
+  });
+});
+
 /*
  * What goes on the wire, for the one thing the e2e stub can never tell us: whether the
  * real API accepts it. Haiku 4.5 answers `output_config.effort` with a 400 and has no
@@ -241,8 +293,10 @@ describe("the request every reader sends", () => {
     );
     parse.mockResolvedValue({ ...answer("end_turn"), parsed_output: { goods: [] } });
     await sortPantryGoods(["Panko"], "home");
+    parse.mockResolvedValue({ ...answer("end_turn"), parsed_output: { items: [] } });
+    await sortShopAisles(["Panko"], "home");
 
-    expect(parse).toHaveBeenCalledTimes(3);
+    expect(parse).toHaveBeenCalledTimes(4);
     for (const [request] of parse.mock.calls) {
       expect(costMicros(request.model, 1_000_000, 0)).toBeGreaterThan(0);
       expect(request.thinking).toBeUndefined();
