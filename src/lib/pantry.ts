@@ -192,7 +192,7 @@ function displayKey(key: string): string {
 function matchLine(
   text: string,
   stocked: Set<string>,
-): { matchedKeys: string[]; fullyExact: boolean } {
+): { matchedKeys: string[]; fullyExact: boolean; everyPart: boolean } {
   const split = text
     .split(CONJUNCTION)
     .map((part) => part.trim())
@@ -203,7 +203,18 @@ function matchLine(
   const matchedKeys = matches.filter((key): key is string => key !== null);
   const fullyExact = matches.every((key, i) => key !== null && key === pantryKey(parts[i]));
 
-  return { matchedKeys, fullyExact };
+  return { matchedKeys, fullyExact, everyPart: matchedKeys.length === parts.length };
+}
+
+/**
+ * Whether the kitchen has what a line asks for, for a question that writes nothing:
+ * "what can we cook". Looser than `stripStocked` on purpose — a qualifier dropped to
+ * find the entry ("røget paprika" against "paprika") counts as having it, because the
+ * worst a wrong answer costs here is a recipe ranked one place too high, where the same
+ * guess on the shopping list silently leaves something unbought.
+ */
+export function lineInStock(text: string, stocked: Set<string>): boolean {
+  return matchLine(text, stocked).everyPart;
 }
 
 /**

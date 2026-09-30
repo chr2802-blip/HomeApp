@@ -64,6 +64,7 @@ export function showPantryRow(id: string) {
 export function PantryShelves({
   items,
   addToList,
+  cook,
   children,
 }: {
   items: ShelfEntry[];
@@ -74,6 +75,8 @@ export function PantryShelves({
    * time it was a labelled button beside the title taking room from the cupboard.
    */
   addToList?: React.ReactNode;
+  /** "What can we cook?", beside the count — the cupboard as a whole is what it asks about. */
+  cook?: React.ReactNode;
   /** What an empty pantry shows instead of the shelves. */
   children: React.ReactNode;
 }) {
@@ -227,7 +230,9 @@ export function PantryShelves({
           the quantities are optimistic, so a control that came and went with the count
           would arrive a beat after the thumb that caused it. Pressed on a full cupboard
           it says so, which is the same answer. */}
-      {runOutOnly && addToList}
+      <div className="flex shrink-0 items-center gap-2">
+        {runOutOnly ? addToList : cook}
+      </div>
       </div>
 
       <div className="mt-3 space-y-2">

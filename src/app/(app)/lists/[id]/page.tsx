@@ -6,6 +6,7 @@ import { Card, Input, Label } from "@/components/ui";
 import { ListItems } from "@/components/list-items";
 import { ItemMenu } from "@/components/item-menu";
 import { AmountsField } from "@/components/amounts-field";
+import { AisleField } from "@/components/aisle-field";
 import { FavoriteButton } from "@/components/favorite-button";
 import { AddItemForm } from "@/components/add-item-form";
 import { PhotoField } from "@/components/photo-field";
@@ -13,6 +14,7 @@ import { PhotoThumb } from "@/components/photo";
 import { sayIn } from "@/lib/copy/say";
 import { LISTS } from "@/lib/copy/lists";
 import { listVersion } from "@/lib/list-version";
+import { rememberedAisles } from "@/lib/aisle-memory";
 
 export default async function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -49,6 +51,12 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   ]);
   if (!list) notFound();
 
+  // Where this household said its things are bought, for a list drawn by aisle — asked
+  // exactly as the version route asks it (`rememberedAisles`).
+  const aisles = list.groupByAisle
+    ? await rememberedAisles(user.homeId, list.items.map((item) => item.text))
+    : {};
+
   const ticked = list.items.filter((item) => item.done);
   const items = list.items.map((item) => ({
     ...item,
@@ -58,6 +66,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   // has changed it since — see `useListFollow`.
   const version = listVersion({
     ...list,
+    aisles,
     items: items.map((item) => ({
       ...item,
       sourceIds: item.sources.map((source) => source.id),
@@ -96,6 +105,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
             <Input id="title" name="title" defaultValue={list.title} required autoFocus />
           </div>
           <AmountsField defaultChecked={list.trackAmounts} language={user.homeLanguage} />
+          <AisleField defaultChecked={list.groupByAisle} language={user.homeLanguage} />
           <PhotoField defaultPhotoId={list.photoId} />
         </ItemMenu>
       </div>
@@ -117,6 +127,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
           me={{ id: user.id, name: user.name, photoId: user.photoId }}
           shared={members > 1}
           version={version}
+          aisles={list.groupByAisle ? aisles : null}
         />
       </Card>
     </>

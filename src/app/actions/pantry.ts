@@ -25,6 +25,9 @@ import { checkRateLimit, recordFailedAttempt } from "@/lib/rate-limit";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { sayIn, type Say } from "@/lib/copy/say";
 import { PANTRY } from "@/lib/copy/pantry";
+import { cookLines, type CookCandidate } from "@/lib/pantry-cook";
+import { stockedKeys } from "@/lib/pantry-stock";
+import { staplesOf } from "@/lib/meal-suggestions";
 
 /**
  * The household's basic goods: adding one, renaming it, saying it has run out, and
@@ -374,4 +377,36 @@ export async function addPantryToList(formData: FormData): Promise<ActionResult>
   announceListsChanged(list.homeId, [list.id]);
 
   return ok(alreadyOnListNote(already, user.homeLanguage));
+}
+
+/**
+ * What "What can we cook?" ranks: every recipe in the home, reduced to the lines it asks
+ * the kitchen for, and what the pantry says is in.
+ *
+ * Fetched when the sheet opens rather than with the page — the pantry is visited far more
+ * often than it is asked for dinner — and ranked in the browser, so the extra things a
+ * cook types in re-rank at once without asking again. Read, not written: nothing here
+ * touches the pantry, and nothing the cook types in is kept.
+ */
+export async function pantryCookCandidates(): Promise<{
+  candidates: CookCandidate[];
+  stocked: string[];
+}> {
+  const user = await requireHomeUser();
+  const [recipes, stocked] = await Promise.all([
+    homeDb(user.homeId).recipe.findMany({
+      select: { id: true, title: true, photoId: true, ingredients: true },
+    }),
+    stockedKeys(user.homeId),
+  ]);
+  const staples = staplesOf(recipes);
+  return {
+    candidates: recipes.map((recipe) => ({
+      id: recipe.id,
+      title: recipe.title,
+      photoId: recipe.photoId,
+      lines: cookLines(recipe.ingredients, staples),
+    })),
+    stocked: [...stocked],
+  };
 }

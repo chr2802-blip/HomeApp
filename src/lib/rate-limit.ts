@@ -19,7 +19,7 @@ const WINDOW_MS = 15 * 60 * 1000;
  * steps, some restarted, is a dozen; going over is silent too — the timer still counts
  * in the page, it just cannot ring with the page closed.
  */
-const MAX_ATTEMPTS: Record<string, number> = { prepare: 30, "cook-timer": 40 };
+const MAX_ATTEMPTS: Record<string, number> = { prepare: 30, "cook-timer": 40, "aisle-sort": 40 };
 const DEFAULT_MAX_ATTEMPTS = 8;
 
 export function attemptsAllowed(scope: string): number {

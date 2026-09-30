@@ -134,6 +134,7 @@ export const AI_TIMES = {
   import: { EN: "Import", DA: "Import" },
   save: { EN: "Save", DA: "Gem" },
   pantrySort: { EN: "Pantry shelves", DA: "Spisekammerets hylder" },
+  aisleSort: { EN: "Shop aisles", DA: "Butikkens afdelinger" },
   calls: {
     EN: { one: "{count} call", other: "{count} calls" },
     DA: { one: "{count} kald", other: "{count} kald" },

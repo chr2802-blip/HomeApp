@@ -15,12 +15,16 @@ import { clampAmount, MIN_AMOUNT } from "@/lib/amount";
 import { ingredientLines, shoppingText } from "@/lib/recipes";
 import {
   ambiguousLines,
+  pantryKey,
   pantryNote,
   readPantryKeep,
   stripStocked,
   type PantryDecision,
 } from "@/lib/pantry";
 import { stockedKeys } from "@/lib/pantry-stock";
+import { isShopAisle, lookupAisle } from "@/lib/shop-goods";
+import { MAX_ITEMS_PER_AISLE_SORT, sortShopAisles } from "@/lib/aisle-sort";
+import { checkRateLimit, recordFailedAttempt } from "@/lib/rate-limit";
 import { weekDays, weekStartInZone, weekStartOn } from "@/lib/time";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
@@ -86,6 +90,7 @@ const listSchema = (say: Say) =>
   z.object({
     title: requiredText(say(LISTS.nameRequired)),
     trackAmounts: checkbox,
+    groupByAisle: checkbox,
   });
 /*
  * The same ceiling `opsSchema` puts on a queued add (`lib/offline-ops.ts`). The two have
@@ -111,6 +116,7 @@ export async function createList(_prev: ActionResult, formData: FormData): Promi
     data: {
       title: form.fields.title,
       trackAmounts: form.fields.trackAmounts,
+      groupByAisle: form.fields.groupByAisle,
       photoId: photo.photoId ?? null,
       homeId: user.homeId,
       createdById: user.id,
@@ -145,6 +151,7 @@ export async function updateList(_prev: ActionResult, formData: FormData): Promi
     data: {
       title: form.fields.title,
       trackAmounts: form.fields.trackAmounts,
+      groupByAisle: form.fields.groupByAisle,
       photoId: photo.photoId,
     },
   });
@@ -594,4 +601,78 @@ export async function addMealPlanIngredients(
   if (added === 0) return fail(say(LISTS.pantryHasAll));
 
   return ok(pantryNote(covered, user.homeLanguage));
+}
+
+/**
+ * Says which aisle a list item is bought in, for this household, from now on.
+ *
+ * Remembered by the item's key rather than written on the item: cream is in the same
+ * aisle on every list and every week, and a choice made once should not have to be made
+ * again for the next carton. Wins over the built-in list and over the model, both of
+ * which are only guesses at a shop this household actually walks round.
+ */
+export async function moveListItemAisle(formData: FormData) {
+  const item = await itemInScope(String(formData.get("itemId")));
+  const aisle = String(formData.get("aisle"));
+  const key = item ? pantryKey(item.text) : "";
+  if (!item || !key || !isShopAisle(aisle)) return;
+
+  await homeDb(item.list.homeId).aisleChoice.upsert({
+    where: { homeId_key: { homeId: item.list.homeId, key } },
+    create: { homeId: item.list.homeId, key, aisle },
+    update: { aisle },
+  });
+  listChanged(item.list);
+}
+
+/**
+ * Files the open items no one has placed yet — not in the built-in list, not remembered
+ * — by asking the model, and remembers the answers for the household.
+ *
+ * Sent by an open list grouped by aisle when it notices such an item, and waited on by
+ * nobody: the item is already on the list under "Not sorted yet". Silent when it cannot
+ * help (no key, over a limit), because nobody pressed anything to be told otherwise.
+ */
+export async function sortListAisles(formData: FormData) {
+  const user = await requireHomeUser();
+  const list = await listInScope(String(formData.get("listId")));
+  if (!list.groupByAisle) return;
+  const db = homeDb(list.homeId);
+
+  const items = await db.list.findUnique({
+    where: { id: list.id },
+    select: { items: { where: { done: false }, select: { text: true } } },
+  });
+  const keys = new Map<string, string>();
+  for (const { text } of items?.items ?? []) {
+    const key = pantryKey(text);
+    if (key && !lookupAisle(text) && !keys.has(key)) keys.set(key, text);
+  }
+  if (keys.size === 0) return;
+
+  const known = await db.aisleChoice.findMany({
+    where: { key: { in: [...keys.keys()] } },
+    select: { key: true },
+  });
+  for (const { key } of known) keys.delete(key);
+  if (keys.size === 0) return;
+
+  const limit = await checkRateLimit("aisle-sort", user.id);
+  if (!limit.allowed) return;
+  await recordFailedAttempt("aisle-sort", user.id);
+
+  const asked = [...keys].slice(0, MAX_ITEMS_PER_AISLE_SORT);
+  const sorted = await sortShopAisles(
+    asked.map(([, text]) => text),
+    list.homeId,
+  );
+  if (!sorted.ok || sorted.aisles.size === 0) return;
+
+  // skipDuplicates: an item somebody moved by hand while the model was thinking keeps
+  // the aisle they chose.
+  await db.aisleChoice.createMany({
+    data: [...sorted.aisles].map(([index, aisle]) => ({ homeId: list.homeId, key: asked[index]![0], aisle })),
+    skipDuplicates: true,
+  });
+  listChanged(list);
 }

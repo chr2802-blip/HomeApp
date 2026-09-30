@@ -41,6 +41,10 @@ Integration and browser tests need the local Postgres: `docker start homehub-pg`
 The pattern appears in the tool's own command line, so the unbracketed form kills the shell
 running it and the command dies with exit 144.
 
+**Restart `npm run dev` after `prisma generate`.** A dev server already running keeps the
+client it loaded, so a column added to the schema reads as `undefined` — a new boolean is
+simply false and the page draws the old behaviour with no error anywhere.
+
 **In a bare container with no Docker daemon** (a fresh Claude Code on the web sandbox),
 there is usually a stopped `pg_lsclusters`-managed cluster already on disk instead:
 `service postgresql start`, then point `DATABASE_URL`/`DIRECT_URL` at it (`ALTER USER

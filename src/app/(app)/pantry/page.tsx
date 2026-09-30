@@ -5,6 +5,7 @@ import { EmptyState, PageHeader } from "@/components/ui";
 import { AddToListMenu } from "@/components/add-to-list-menu";
 import { PantryAddDialog } from "@/components/pantry-add-dialog";
 import { PantryShelves } from "@/components/pantry-shelves";
+import { PantryCook } from "@/components/pantry-cook";
 import { sayIn } from "@/lib/copy/say";
 import { PANTRY } from "@/lib/copy/pantry";
 import { expiryWarning } from "@/lib/pantry";
@@ -80,6 +81,7 @@ export default async function PantryPage() {
           // counting on the phone's own clock could disagree with this render at midnight.
           expiresIn: expiryWarning(item.expiresOn, now),
         }))}
+        cook={<PantryCook />}
         addToList={
           <AddToListMenu
             sheet
