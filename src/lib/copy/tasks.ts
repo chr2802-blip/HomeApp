@@ -28,6 +28,13 @@ export const TASKS = {
   lastDoneOn: { EN: "{rhythm} · last done {when}", DA: "{rhythm} · sidst klaret {when}" },
   neverCompleted: { EN: "{rhythm} · never completed", DA: "{rhythm} · aldrig udført" },
 
+  // The task's own page
+  repeatsRow: { EN: "Repeats", DA: "Gentages" },
+  assignedRow: { EN: "For", DA: "Til" },
+  everyone: { EN: "Everyone", DA: "Alle" },
+  lastDoneRow: { EN: "Last done", DA: "Sidst klaret" },
+  neverDone: { EN: "Not yet", DA: "Endnu ikke" },
+
   // The edit sheet
   taskField: { EN: "Task", DA: "Opgave" },
   due: { EN: "Due", DA: "Forfalder" },
@@ -37,6 +44,8 @@ export const TASKS = {
   deleteTaskMessage: { EN: 'Delete the task "{title}"?', DA: 'Slet opgaven "{title}"?' },
   reopen: { EN: "Reopen", DA: "Genåbn" },
   markDone: { EN: "Mark done", DA: "Marker som klaret" },
+  // A row's button, where "Mark done" would take the width the task's name needs.
+  doneButton: { EN: "Done", DA: "Klaret" },
   snoozeToTomorrow: { EN: "Snooze to tomorrow", DA: "Udsæt til i morgen" },
 
   // RepeatField

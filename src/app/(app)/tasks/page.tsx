@@ -8,66 +8,35 @@ import {
   snoozeTask,
   updateTask,
 } from "@/app/actions/tasks";
-import { Badge, EmptyState, Input, Label, PageHeader, Textarea } from "@/components/ui";
-import { dueLabel, dueTone } from "@/lib/due";
-import {
-  FINISHED,
-  UNFINISHED,
-  isFinished,
-  isOneOff,
-  isSnoozable,
-  repeatLabel,
-} from "@/lib/tasks";
-import { formatInZone, readInZone, todayInZone } from "@/lib/time";
-import { DATE } from "@/lib/copy/dates";
+import { Card, EmptyState, Input, Label, PageHeader, Textarea } from "@/components/ui";
+import { FINISHED, UNFINISHED, isFinished, isSnoozable } from "@/lib/tasks";
+import { todayInZone } from "@/lib/time";
 import { sayIn } from "@/lib/copy/say";
+import { APP } from "@/lib/copy/app";
 import { TASKS } from "@/lib/copy/tasks";
 import type { HomeLanguage } from "@prisma/client";
 import { FormDialog } from "@/components/form-dialog";
 import { AssigneeField, type MemberOption } from "@/components/assignee-field";
 import { RepeatField } from "@/components/repeat-field";
-import { TaskCard } from "@/components/task-card";
+import { ItemMenu } from "@/components/item-menu";
+import { SnoozeMenuItem } from "@/components/task-snooze";
+import { SubmitButton } from "@/components/submit-button";
+import { TaskDoneButton } from "@/components/task-done-button";
+import { TaskFields, TaskRow, type TaskSummary } from "@/components/task-row";
 import { Collapsible } from "@/components/collapsible";
 import { PhotoField } from "@/components/photo-field";
-import { PhotoThumb } from "@/components/photo";
 
-type TaskRow = {
-  id: string;
-  title: string;
-  notes: string | null;
-  intervalDays: number | null;
-  nextDueAt: Date;
-  lastCompletedAt: Date | null;
-  assigneeId: string | null;
-  photoId: string | null;
-  assignee: { id: string; name: string } | null;
-};
+type TaskItemRow = TaskSummary & { notes: string | null; assigneeId: string | null };
 
 /**
- * The line under the title: how often the task comes round, and what it has to say
- * about the last time it was done.
+ * One task as a row of the page's card. Pressing it opens the task's own page; the
+ * three dots carry snooze, edit and delete, as they do on every other stored thing; and
+ * the button at the end is the press this page is mostly for.
  *
- * A one-off that has never been done says only what it is — "never completed" belongs
- * to a task that keeps coming back, where it means nobody has got to it yet. On a thing
- * you do once it would read as a reproach.
- */
-function historyLine(task: TaskRow, language: HomeLanguage) {
-  const say = sayIn(language);
-  const rhythm = repeatLabel(task, language);
-
-  if (task.lastCompletedAt) {
-    const when = readInZone(task.lastCompletedAt, DATE.dayMonthYear, language);
-    return isFinished(task)
-      ? say(TASKS.doneOn, { rhythm, when })
-      : say(TASKS.lastDoneOn, { rhythm, when });
-  }
-
-  return isOneOff(task) ? rhythm : say(TASKS.neverCompleted, { rhythm });
-}
-
-/**
- * One task and its edit sheet. Both sections draw the same card: what is done and what
- * is still to do differ in where they sit on the page, not in what they are.
+ * A finished one-off shows the way back instead of Done. It is the same button in the
+ * same place because it is the same thought a moment later — pressing Done on the wrong
+ * row is the mistake this undoes, and hiding the undo behind the menu would make finding
+ * it the hard part.
  */
 function TaskItem({
   task,
@@ -75,78 +44,50 @@ function TaskItem({
   now,
   language,
 }: {
-  task: TaskRow;
+  task: TaskItemRow;
   members: MemberOption[];
   now: Date;
   language: HomeLanguage;
 }) {
-  const finished = isFinished(task);
   const say = sayIn(language);
 
   return (
-    <TaskCard
-      taskId={task.id}
-      title={task.title}
-      finished={finished}
-      snoozable={isSnoozable(task, now)}
-      updateAction={updateTask}
-      completeAction={completeTask}
-      snoozeAction={snoozeTask}
-      reopenAction={reopenTask}
-      deleteAction={deleteTask}
-      photo={
-        // eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a PhotoKind glyph, not copy.
-        <PhotoThumb photoId={task.photoId} alt="" className="h-14 w-14" placeholder="task" />
-      }
-      summary={
+    <TaskRow
+      task={task}
+      now={now}
+      language={language}
+      trailing={
         <>
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-medium">{task.title}</p>
-            {/* A finished one-off has no due date worth showing: it came and went, and
-                saying how overdue it was would be telling somebody off for a job they
-                have already done. */}
-            {finished ? (
-              <Badge tone="green">{say(TASKS.doneBadge)}</Badge>
-            ) : (
-              <Badge tone={dueTone(task.nextDueAt, now)}>{dueLabel(task.nextDueAt, language, now)}</Badge>
-            )}
-            {/* Only when somebody is named: "everyone" is the resting state
-                and labelling it on every card would say nothing. */}
-            {task.assignee && <Badge>{say(TASKS.forName, { name: task.assignee.name })}</Badge>}
-          </div>
-          {task.notes && <p className="mt-1 text-sm text-slate-600">{task.notes}</p>}
-          <p className="mt-1 text-xs text-slate-500">{historyLine(task, language)}</p>
+          <ItemMenu
+            name="taskId"
+            id={task.id}
+            label={task.title}
+            editTitle={say(TASKS.editTask)}
+            editAction={updateTask}
+            deleteAction={deleteTask}
+            deleteMessage={say(TASKS.deleteTaskMessage, { title: task.title })}
+            extraItems={
+              isSnoozable(task, now) && <SnoozeMenuItem taskId={task.id} action={snoozeTask} />
+            }
+            className="-mx-1"
+          >
+            <TaskFields task={task} members={members} language={language} />
+          </ItemMenu>
+          {isFinished(task) ? (
+            // Reopening is a correction rather than an achievement, so it stays a plain
+            // form: the tick rising out of the button would be celebrating an undo.
+            <form action={reopenTask}>
+              <input type="hidden" name="taskId" value={task.id} />
+              <SubmitButton variant="secondary" pendingLabel={say(APP.saving)}>
+                {say(TASKS.reopen)}
+              </SubmitButton>
+            </form>
+          ) : (
+            <TaskDoneButton taskId={task.id} action={completeTask} label={say(TASKS.doneButton)} />
+          )}
         </>
       }
-    >
-      <div className="space-y-1">
-        <Label htmlFor={`title-${task.id}`}>{say(TASKS.taskField)}</Label>
-        <Input id={`title-${task.id}`} name="title" defaultValue={task.title} required />
-      </div>
-      <RepeatField intervalDays={task.intervalDays} />
-      <div className="space-y-1">
-        <Label htmlFor={`due-${task.id}`}>
-          {task.intervalDays === null ? say(TASKS.due) : say(TASKS.nextDue)}
-        </Label>
-        <Input
-          id={`due-${task.id}`}
-          name="nextDueAt"
-          type="date"
-          defaultValue={formatInZone(task.nextDueAt, "yyyy-MM-dd")}
-        />
-      </div>
-      <AssigneeField
-        members={members}
-        selected={task.assigneeId}
-        id={`assignee-${task.id}`}
-        language={language}
-      />
-      <div className="space-y-1">
-        <Label htmlFor={`notes-${task.id}`}>{say(TASKS.notes)}</Label>
-        <Textarea id={`notes-${task.id}`} name="notes" rows={2} defaultValue={task.notes ?? ""} />
-      </div>
-      <PhotoField defaultPhotoId={task.photoId} />
-    </TaskCard>
+    />
   );
 }
 
@@ -156,13 +97,13 @@ function TaskList({
   now,
   language,
 }: {
-  tasks: TaskRow[];
+  tasks: TaskItemRow[];
   members: MemberOption[];
   now: Date;
   language: HomeLanguage;
 }) {
   return (
-    <div className="space-y-3">
+    <Card padded={false} className="divide-y divide-slate-100">
       {tasks.map((task, index) => (
         <div
           key={task.id}
@@ -172,7 +113,7 @@ function TaskList({
           <TaskItem task={task} members={members} now={now} language={language} />
         </div>
       ))}
-    </div>
+    </Card>
   );
 }
 

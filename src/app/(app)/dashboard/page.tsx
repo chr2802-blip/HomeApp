@@ -7,9 +7,10 @@ import { completeTask, snoozeTask } from "@/app/actions/tasks";
 import { TaskDoneButton } from "@/components/task-done-button";
 import { TaskSnoozeMenu } from "@/components/task-snooze";
 import { NotificationSetup } from "@/components/notification-setup";
-import { dueLabel, dueTone } from "@/lib/due";
+import { dueTone } from "@/lib/due";
 import type { HomeLanguage } from "@prisma/client";
-import { UNFINISHED, isSnoozable, repeatLabel } from "@/lib/tasks";
+import { UNFINISHED, isSnoozable } from "@/lib/tasks";
+import { TaskRow, type TaskSummary } from "@/components/task-row";
 import { PhotoThumb } from "@/components/photo";
 import { DinnerRow } from "@/components/suggested-recipe";
 import { ProgressBar } from "@/components/progress-bar";
@@ -57,35 +58,14 @@ function itemsLine(total: number, open: number, language: HomeLanguage) {
   return say(APP.addToList.open, { count: open });
 }
 
-type DueTaskRow = {
-  id: string;
-  title: string;
-  intervalDays: number | null;
-  nextDueAt: Date;
-  /** Only so `isSnoozable` can be asked; everything on this page is unfinished. */
-  lastCompletedAt: Date | null;
-  photoId: string | null;
-  assignee: { name: string } | null;
-};
-
-/** The due line's colour: the same meanings the tasks page's badge carries. */
-const TONE_TEXT: Record<ReturnType<typeof dueTone>, string> = {
-  neutral: "text-slate-500",
-  red: "text-red-600",
-  amber: "text-amber-700",
-};
-
 /**
- * One due task, as a row of the "Today" card. The "Done" button is on every row, in
- * both groups: naming somebody decides who is reminded, not who is allowed to do the job.
+ * One due task, as a row of the "Today" card — the same `TaskRow` as `/tasks`, so
+ * pressing it opens the task's own page. The "Done" button is on every row, in both
+ * groups: naming somebody decides who is reminded, not who is allowed to do the job.
  *
  * **One row, not a card of two.** Each task used to be a card of its own — the name on
  * one row, a due badge and Done on the next — which on a phone was about a hundred
  * pixels a task, so three of them pushed the dinner and the lists off the first screen.
- * Here the name truncates on its own line and the date sits under it as coloured text
- * rather than a badge, which is the width the badge was costing: the name no longer
- * breaks down the middle of a word, because it no longer shares its line with anything
- * but the button.
  *
  * Beside it, on the rows where it means anything, the one other answer this page is ever
  * given: not today (`isSnoozable`). The three dots are a small icon, not a second button
@@ -97,36 +77,27 @@ function DueTask({
   now,
   language,
 }: {
-  task: DueTaskRow;
+  task: TaskSummary;
   now: Date;
   language: HomeLanguage;
 }) {
   const say = sayIn(language);
   return (
-    <div className="flex items-center gap-3 px-3 py-2">
-      {/* Decorative: the task's own name is right beside it. */}
-      {/* eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a PhotoKind glyph, not copy. */}
-      <PhotoThumb photoId={task.photoId} alt="" className="h-10 w-10" placeholder="task" />
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{task.title}</p>
-        <p className="truncate text-xs">
-          <span className={TONE_TEXT[dueTone(task.nextDueAt, now)]}>
-            {dueLabel(task.nextDueAt, language, now)}
-          </span>
-          <span className="text-slate-400">
-            {" · "}
-            {repeatLabel(task, language)}
-            {task.assignee && ` · ${task.assignee.name}`}
-          </span>
-        </p>
-      </div>
-      {isSnoozable(task, now) && (
-        <TaskSnoozeMenu taskId={task.id} title={task.title} action={snoozeTask} className="-mx-1" />
-      )}
-      {/* The same press as the one on the tasks page, drawn by the same component so
-          the tick rises out of it in both places. */}
-      <TaskDoneButton taskId={task.id} action={completeTask} label={say(DASHBOARD.done)} />
-    </div>
+    <TaskRow
+      task={task}
+      now={now}
+      language={language}
+      trailing={
+        <>
+          {isSnoozable(task, now) && (
+            <TaskSnoozeMenu taskId={task.id} title={task.title} action={snoozeTask} className="-mx-1" />
+          )}
+          {/* The same press as the one on the tasks page, drawn by the same component so
+              the tick rises out of it in both places. */}
+          <TaskDoneButton taskId={task.id} action={completeTask} label={say(DASHBOARD.done)} />
+        </>
+      }
+    />
   );
 }
 
