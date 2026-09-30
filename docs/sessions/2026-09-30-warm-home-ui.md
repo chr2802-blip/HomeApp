@@ -43,6 +43,9 @@ making the mark decorative where the name is already written.
 - **`tests/unit/language.test.ts` silently skips arrays.** Rotating phrasings written as
   an array compiled and passed while escaping every language check; caught by reading the
   test, not by a failure. Now a rule in CLAUDE.md (key them).
+- **Two pushes refused by the pre-push hook on contention**, each on a different
+  `ai-wait.spec.ts` test that passed alone. `E2E_WORKERS=3` got the third through with
+  every suite still run. Now in CLAUDE.md beside the flake advice.
 - **Splitting a JSX element over lines moves a prop out of its `eslint-disable-next-line`.**
   Cost one verify round.
 
@@ -53,6 +56,7 @@ making the mark decorative where the name is already written.
 - The dev server keeps the old Prisma client after `prisma generate` — added to *Show the
   change on screen first*.
 - The language test does not walk arrays — added to the new section.
+- Pushing from a 4-CPU container wants `E2E_WORKERS=3` — added beside the flake advice.
 
 ## Decided rather than known
 
