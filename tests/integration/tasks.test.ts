@@ -17,6 +17,7 @@ import {
 } from "../helpers/factories";
 import { dueAtDaysFrom, formatInZone, todayInZone } from "@/lib/time";
 import { REPEAT_DAYS, REPEAT_FIELD, REPEAT_ONCE } from "@/lib/tasks";
+import { expectRedirect } from "../helpers/expect";
 
 let home: Awaited<ReturnType<typeof createHomeWithMembers>>["home"];
 let admin: Awaited<ReturnType<typeof createHomeWithMembers>>["admin"];
@@ -591,7 +592,7 @@ describe("deleteTask", () => {
   it("removes the task", async () => {
     const task = await seedTask({ homeId: home.id, createdById: member.id });
 
-    await deleteTask(formData({ taskId: task.id }));
+    await expectRedirect(() => deleteTask(formData({ taskId: task.id })), "/tasks");
 
     expect(await prisma.task.count()).toBe(0);
   });

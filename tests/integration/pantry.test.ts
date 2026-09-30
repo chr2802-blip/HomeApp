@@ -11,6 +11,7 @@ import {
   editPantryItem,
   renamePantryItem,
   setPantryQuantity,
+  pantryCookCandidates,
   sortPantry,
 } from "@/app/actions/pantry";
 import { addListItem, addMealPlanIngredients, addRecipeIngredients } from "@/app/actions/lists";
@@ -571,5 +572,28 @@ describe("filing things on shelves", () => {
 
     await sortPantry();
     expect((await entry("Panko")).category).toBe("BAKING");
+  });
+});
+
+describe("what can we cook", () => {
+  it("hands over every recipe as the lines it buys, and only what is still in", async () => {
+    await recipeFor({ title: "Omelet", ingredients: "3 æg\n1 dl mælk" });
+    await keepIn("Æg");
+    await keepIn("Mælk", 0);
+
+    const { candidates, stocked } = await pantryCookCandidates();
+
+    expect(candidates).toEqual([
+      expect.objectContaining({ title: "Omelet", lines: ["Æg", "Mælk"] }),
+    ]);
+    expect(stocked).toEqual(["æg"]);
+  });
+
+  it("sees only the caller's own home", async () => {
+    const other = await createHome();
+    await createRecipe({ homeId: other.id, createdById: (await createUser({ homeId: other.id })).id, title: "Theirs" });
+
+    const { candidates } = await pantryCookCandidates();
+    expect(candidates).toEqual([]);
   });
 });

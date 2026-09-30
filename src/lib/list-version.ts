@@ -22,7 +22,13 @@
 export type VersionedList = {
   title: string;
   trackAmounts: boolean;
+  groupByAisle: boolean;
   photoId: string | null;
+  /**
+   * Where this household said the items are bought (`rememberedAisles`), on a list grouped
+   * by aisle — an item moved on one phone moves on the other. Empty on any other list.
+   */
+  aisles: Record<string, string>;
   items: {
     id: string;
     text: string;
@@ -42,7 +48,9 @@ export function listVersion(list: VersionedList): string {
   const text = JSON.stringify([
     list.title,
     list.trackAmounts,
+    list.groupByAisle,
     list.photoId,
+    Object.entries(list.aisles).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
     items.map((item) => [
       item.id,
       item.text,

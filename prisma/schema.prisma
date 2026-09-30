@@ -99,6 +99,7 @@ model Home {
   pantry           PantryItem[]
   /// What this home's AI calls have cost — see AiUsage.
   aiUsage          AiUsage[]
+  aisleChoices     AisleChoice[]
   /// Every picture filed under this home, whatever it is attached to.
   photos           Photo[]          @relation("PhotoHome")
   photo            Photo?           @relation("HomePhoto", fields: [photoId], references: [id], onDelete: SetNull)
@@ -209,6 +210,9 @@ model List {
   /// Whether items on this list carry a quantity. Chosen when the list is made: a
   /// shopping list wants "2 milk", a to-do list does not.
   trackAmounts Boolean  @default(false)
+  /// Whether the open items are drawn under the shop's aisles (`ShopAisle`). Chosen per
+  /// list, because a shopping list is walked through a shop and a packing list is not.
+  groupByAisle Boolean  @default(false)
   /**
    * The face the household gave it — one emoji from `EMOJI_CHOICES` in
    * `src/lib/emoji.ts`, drawn on its tile where there is no picture. Null is "nobody
@@ -236,6 +240,51 @@ model List {
  * its list, which is what carries the home. Pages read it as an include on a list query
  * they already made through homeDb; a lint rule stops them reaching it directly.
  */
+/**
+ * Where in a shop something is bought, for a list grouped by aisle. A fixed set in a
+ * fixed order — the order a typical supermarket is walked in, produce first and the
+ * freezer last — for the same reason `PantryCategory` is fixed: every shop has these,
+ * the set can be named in both languages once (`SHOP_AISLE_LABELS`), and it is the only
+ * kind of answer a model can be held to.
+ */
+enum ShopAisle {
+  PRODUCE
+  BAKERY
+  MEAT_FISH
+  DAIRY
+  DRY_GOODS
+  TINS_JARS
+  SPICES_SAUCES
+  SNACKS
+  DRINKS
+  FROZEN
+  HOUSEHOLD
+  BABY
+  OTHER
+}
+
+/**
+ * Which aisle this household buys a thing in, remembered.
+ * Keyed by `pantryKey` of the item's text — the same key the pantry matches by — so
+ * "2 dl fløde" and "Fløde" are one answer. A row is written when somebody moves an item
+ * by hand, and when the model files a name the built-in list (`shop-goods.ts`) has never
+ * heard of; a name the list knows needs no row. Rows win over the list, so a household
+ * whose shop keeps eggs beside the bread can say so once. The model's answers are
+ * written with `skipDuplicates`, so it never overrules a choice made by hand meanwhile.
+ * Per home rather than per list: a household buys cream in the same aisle whichever of
+ * its lists cream is on.
+ */
+model AisleChoice {
+  homeId    String
+  key       String
+  aisle     ShopAisle
+  createdAt DateTime  @default(now())
+
+  home Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
+
+  @@id([homeId, key])
+}
+
 model ListFavorite {
   userId    String
   listId    String

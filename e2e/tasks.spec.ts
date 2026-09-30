@@ -2,13 +2,28 @@ import { ACCOUNTS, clickAndConfirm, expect, openDialog, openMenu, test } from ".
 import type { Page } from "@playwright/test";
 import { dueAtDaysFrom, formatInZone } from "../src/lib/time";
 
-/**
- * A task is edited by pressing its card, which is a button whose name starts with the
- * task's own. Anchored, because the card's three-dot menu is named after it too.
- */
+/** A task is edited from its three dots, on its row or on its own page. */
 async function openTask(page: Page, title: string) {
-  await page.getByRole("button", { name: new RegExp(`^${title}`) }).click();
+  await openMenu(page, { label: title });
+  await page.getByRole("menuitem", { name: "Edit" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
+}
+
+/** Pressing a task's row opens its own page. */
+async function openTaskPage(page: Page, title: string) {
+  await page.getByRole("link", { name: new RegExp(`^${title}`) }).click();
+  await page.waitForURL(/\/tasks\/[^/]+$/);
+  await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
+}
+
+/** The row's own Done, not the "Done (n)" fold of finished tasks. */
+function doneButton(page: Page) {
+  return page.getByRole("button", { name: "Done", exact: true });
+}
+
+/** The one line a row says about a task, beside its name. */
+function row(page: Page, title: string) {
+  return page.getByRole("link", { name: new RegExp(`^${title}`) });
 }
 
 test.beforeEach(async ({ loginAs, page }) => {
@@ -49,23 +64,58 @@ test("the empty state says there are no tasks", async ({ page }) => {
   await expect(page.getByText("No chores written down yet. Lucky you — or add the first one above.")).toBeVisible();
 });
 
-test("a new task appears as due today and never completed", async ({ page }) => {
+test("a new task appears as due today, and its page says the rest", async ({ page }) => {
   await addTask(page, { title: "Water the plants", intervalDays: "7", notes: "Both windowsills" });
 
-  await expect(page.getByText("Due today")).toBeVisible();
+  await expect(row(page, "Water the plants")).toContainText("Due today · Every 7 days");
+  // The notes and the history are the task's own page's to say, not the row's.
+  await expect(page.getByText("Both windowsills")).toBeHidden();
+
+  await openTaskPage(page, "Water the plants");
   await expect(page.getByText("Both windowsills")).toBeVisible();
-  await expect(page.getByText("Every 7 days · never completed")).toBeVisible();
+  await expect(page.getByText("Not yet")).toBeVisible();
 });
 
 test("completing a task reschedules it and records the completion", async ({ page }) => {
   await addTask(page, { title: "Change the filter", intervalDays: "30" });
   await expect(page.getByText("Due today")).toBeVisible();
 
+  await doneButton(page).click();
+
+  // Due today becomes a date 30 days out, and the task's page notes today's completion.
+  await expect(page.getByText("Due today")).toBeHidden();
+  await openTaskPage(page, "Change the filter");
+  await expect(page.getByText("Not yet")).toBeHidden();
+});
+
+test("a task can be marked done from its own page", async ({ page }) => {
+  await addTask(page, { title: "Change the filter", intervalDays: "30" });
+  await openTaskPage(page, "Change the filter");
+  await expect(page.getByText("Not yet")).toBeVisible();
+
   await page.getByRole("button", { name: "Mark done" }).click();
 
-  // Due today becomes a date 30 days out, and the footer notes today's completion.
+  await expect(page.getByText("Not yet")).toBeHidden();
   await expect(page.getByText("Due today")).toBeHidden();
-  await expect(page.getByText(/Every 30 days · last done/)).toBeVisible();
+});
+
+test("a task deleted from its own page goes back to the tasks", async ({ page }) => {
+  await addTask(page, { title: "Doomed task" });
+  await openTaskPage(page, "Doomed task");
+
+  await openMenu(page, { label: "Doomed task" });
+  await clickAndConfirm(page, "Delete");
+
+  await page.waitForURL(/\/tasks$/);
+  await expect(page.getByText("No tasks yet — add the first one above.")).toBeVisible();
+});
+
+test("pressing a task on the dashboard opens its page", async ({ page }) => {
+  await addTask(page, { title: "Water the plants", notes: "Both windowsills" });
+
+  await page.goto("/dashboard");
+  await openTaskPage(page, "Water the plants");
+  await expect(page.getByText("Both windowsills")).toBeVisible();
 });
 
 test("the dashboard says how much of the week's work is behind you", async ({ page }) => {
@@ -77,8 +127,8 @@ test("the dashboard says how much of the week's work is behind you", async ({ pa
   await expect(page.getByText("This week · 0 of 2 jobs done")).toBeVisible();
 
   await page.goto("/tasks");
-  await page.getByRole("button", { name: "Mark done" }).first().click();
-  await expect(page.getByText(/last done/)).toBeVisible();
+  await doneButton(page).first().click();
+  await expect(page.getByText("Due today")).toHaveCount(1);
 
   await page.goto("/dashboard");
   // One done, one still owed. A task booked in for next month is not owed today, which
@@ -95,7 +145,7 @@ test("a task can be edited", async ({ page }) => {
   await page.getByRole("button", { name: "Save changes" }).click();
 
   await expect(page.getByText("New title", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Every 14 days/)).toBeVisible();
+  await expect(row(page, "New title")).toContainText("Every 14 days");
 });
 
 test("a task can be deleted from its own menu", async ({ page }) => {
@@ -115,8 +165,10 @@ test("a due task can be put off until tomorrow from its own menu", async ({ page
   await page.getByRole("menuitem", { name: "Snooze to tomorrow" }).click();
 
   await expect(page.getByText("Due tomorrow")).toBeVisible();
-  // Put off, not done: the task still has never been completed and still repeats.
-  await expect(page.getByText("Every 7 days · never completed")).toBeVisible();
+  // Put off, not done: the task still repeats, and still has never been completed.
+  await expect(row(page, "Bins")).toContainText("Every 7 days");
+  await openTaskPage(page, "Bins");
+  await expect(page.getByText("Not yet")).toBeVisible();
 });
 
 test("a task due later is not offered a snooze, which would bring it forward", async ({ page }) => {
@@ -175,24 +227,24 @@ test("the browser blocks an interval below the allowed minimum", async ({ page }
 test("a task is everyone's until somebody is named", async ({ page }) => {
   await addTask(page, { title: "Bins" });
 
-  await expect(page.getByText(`For ${ACCOUNTS.admin.name}`)).toBeHidden();
+  await expect(row(page, "Bins")).not.toContainText(ACCOUNTS.admin.name);
 
   await openTask(page, "Bins");
   await page.getByLabel("Assigned to").selectOption({ label: ACCOUNTS.admin.name });
   await page.getByRole("button", { name: "Save changes" }).click();
 
-  await expect(page.getByText(`For ${ACCOUNTS.admin.name}`)).toBeVisible();
+  await expect(row(page, "Bins")).toContainText(ACCOUNTS.admin.name);
 });
 
 test("a task can be handed back to the whole home", async ({ page }) => {
   await addTask(page, { title: "Bins", assignTo: ACCOUNTS.admin.name });
-  await expect(page.getByText(`For ${ACCOUNTS.admin.name}`)).toBeVisible();
+  await expect(row(page, "Bins")).toContainText(ACCOUNTS.admin.name);
 
   await openTask(page, "Bins");
   await page.getByLabel("Assigned to").selectOption({ label: "Everyone in the home" });
   await page.getByRole("button", { name: "Save changes" }).click();
 
-  await expect(page.getByText(`For ${ACCOUNTS.admin.name}`)).toBeHidden();
+  await expect(row(page, "Bins")).not.toContainText(ACCOUNTS.admin.name);
 });
 
 test("the dashboard separates what is yours from what is somebody else's", async ({ page }) => {
@@ -237,29 +289,32 @@ test("anyone can complete a task that names somebody else", async ({ page }) => 
   await addTask(page, { title: "Ada's task", intervalDays: "30", assignTo: ACCOUNTS.admin.name });
 
   // Naming somebody decides who is reminded, not who is allowed to do the job.
-  await page.getByRole("button", { name: "Mark done" }).click();
+  await doneButton(page).click();
 
-  await expect(page.getByText(/Every 30 days · last done/)).toBeVisible();
-  await expect(page.getByText(`For ${ACCOUNTS.admin.name}`)).toBeVisible();
+  await expect(page.getByText("Due today")).toBeHidden();
+  await expect(row(page, "Ada's task")).toContainText(ACCOUNTS.admin.name);
 });
 
-test("pressing a card opens that task and no other", async ({ page }) => {
+test("pressing a row opens that task and no other", async ({ page }) => {
   await addTask(page, { title: "Water the plants" });
   await addTask(page, { title: "Descale the kettle", intervalDays: "90" });
 
-  await openTask(page, "Descale the kettle");
+  await openTaskPage(page, "Descale the kettle");
+  await expect(page.getByText("Every 90 days")).toBeVisible();
 
+  await openTask(page, "Descale the kettle");
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByLabel("Task", { exact: true })).toHaveValue("Descale the kettle");
   await expect(dialog.getByLabel("Repeat every (days)")).toHaveValue("90");
 });
 
-test("marking a task done does not open its sheet", async ({ page }) => {
+test("marking a task done does not leave the list", async ({ page }) => {
   await addTask(page, { title: "Water the plants", intervalDays: "30" });
 
-  await page.getByRole("button", { name: "Mark done" }).click();
+  await doneButton(page).click();
 
-  await expect(page.getByText(/Every 30 days · last done/)).toBeVisible();
+  await expect(page.getByText("Due today")).toBeHidden();
+  await expect(page).toHaveURL(/\/tasks$/);
   await expect(page.getByRole("dialog")).toBeHidden();
 });
 
@@ -274,9 +329,7 @@ test("a one-off is added with no interval to give", async ({ page }) => {
 
   await page.getByRole("button", { name: "Add task" }).click();
 
-  await expect(page.getByText("Book the plumber", { exact: true })).toBeVisible();
-  await expect(page.getByText("One-off", { exact: true })).toBeVisible();
-  await expect(page.getByText("Due today")).toBeVisible();
+  await expect(row(page, "Book the plumber")).toContainText("Due today · One-off");
 });
 
 test("the done list stays away until a one-off is finished, and then stays folded", async ({
@@ -286,7 +339,7 @@ test("the done list stays away until a one-off is finished, and then stays folde
 
   await expect(page.getByRole("heading", { name: "Done" })).toBeHidden();
 
-  await page.getByRole("button", { name: "Mark done" }).click();
+  await doneButton(page).click();
 
   await expect(page.getByRole("heading", { name: "Done" })).toBeVisible();
   await expect(page.getByText("Everything is done. Feet up — you have earned it.")).toBeVisible();
@@ -303,7 +356,7 @@ test("the done list stays away until a one-off is finished, and then stays folde
 
 test("a finished one-off can be brought back exactly as it was", async ({ page }) => {
   await addTask(page, { title: "Book the plumber", once: true });
-  await page.getByRole("button", { name: "Mark done" }).click();
+  await doneButton(page).click();
   await expect(page.getByRole("heading", { name: "Done" })).toBeVisible();
 
   // The way back is inside the folded section, with the task it belongs to.
@@ -319,9 +372,9 @@ test("completing a recurring task leaves the done list empty", async ({ page }) 
   // the bottom of the page.
   await addTask(page, { title: "Water the plants", intervalDays: "30" });
 
-  await page.getByRole("button", { name: "Mark done" }).click();
+  await doneButton(page).click();
 
-  await expect(page.getByText(/Every 30 days · last done/)).toBeVisible();
+  await expect(page.getByText("Due today")).toBeHidden();
   await expect(page.getByRole("heading", { name: "Done" })).toBeHidden();
 });
 
@@ -332,8 +385,8 @@ test("a recurring task can be turned into a one-off", async ({ page }) => {
   await page.getByLabel("Repeat", { exact: true }).selectOption({ label: "Just once" });
   await page.getByRole("button", { name: "Save changes" }).click();
 
-  await expect(page.getByText("One-off", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Every 30 days/)).toBeHidden();
+  await expect(row(page, "Water the plants")).toContainText("One-off");
+  await expect(row(page, "Water the plants")).not.toContainText("Every 30 days");
 });
 
 test("a one-off due for somebody else shows on the dashboard like any other", async ({ page }) => {
@@ -354,7 +407,7 @@ test("a one-off due for somebody else shows on the dashboard like any other", as
 
 test("a one-off that has been done drops off the dashboard", async ({ page }) => {
   await addTask(page, { title: "Book the plumber", once: true });
-  await page.getByRole("button", { name: "Mark done" }).click();
+  await doneButton(page).click();
   await expect(page.getByRole("heading", { name: "Done" })).toBeVisible();
 
   await page.goto("/dashboard");

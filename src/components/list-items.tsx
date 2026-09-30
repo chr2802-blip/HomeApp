@@ -29,11 +29,17 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   deleteListItem,
+  moveListItemAisle,
   renameListItem,
   reorderListItems,
   setListItemAmount,
+  sortListAisles,
   toggleListItem,
 } from "@/app/actions/lists";
+import type { ShopAisle } from "@prisma/client";
+import { AisleMoveButton } from "@/components/aisle-move-button";
+import { aisleOf, SHOP_AISLES } from "@/lib/shop-goods";
+import { pantryKey } from "@/lib/pantry";
 import { ConfirmButton } from "@/components/confirm-button";
 import { AmountPicker } from "@/components/amount-picker";
 import { Collapsible } from "@/components/collapsible";
@@ -49,7 +55,7 @@ import { cheer, tick } from "@/lib/haptics";
 import { MIN_AMOUNT } from "@/lib/amount";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
-import { LISTS } from "@/lib/copy/lists";
+import { LISTS, SHOP_AISLE_LABELS } from "@/lib/copy/lists";
 
 /**
  * One row, defined beside the overlay that has to be able to make one — an item added
@@ -119,6 +125,7 @@ const SETTLE_MS = 420;
 function Row({
   item,
   draggable,
+  aisleSlot,
   showAmount,
   showWho,
   settling,
@@ -130,6 +137,8 @@ function Row({
 }: {
   item: Item;
   draggable: boolean;
+  /** On a list grouped by aisle, what stands where the drag handle would. */
+  aisleSlot?: React.ReactNode;
   showAmount: boolean;
   /** Whether to say who ticked it — see `ListItems`. */
   showWho: boolean;
@@ -183,7 +192,9 @@ function Row({
         isDragging ? "relative z-10 opacity-80 shadow-md" : ""
       } ${settling ? "animate-tick-off" : ""}`}
     >
-      {draggable ? (
+      {aisleSlot ? (
+        aisleSlot
+      ) : draggable ? (
         <button
           type="button"
           {...attributes}
@@ -336,6 +347,7 @@ export function ListItems({
   me,
   shared,
   version,
+  aisles,
 }: {
   listId: string;
   items: Item[];
@@ -357,6 +369,13 @@ export function ListItems({
    * something off changes it, and this page then redraws — see `useListFollow`.
    */
   version: string;
+  /**
+   * On a list grouped by aisle, where this household said its things are bought
+   * (`rememberedAisles`); null on a list drawn in its own order. Everything else about
+   * which aisle a row is in is worked out here, from its text (`aisleOf`), so a row typed
+   * a moment ago lands in its aisle without waiting for the server.
+   */
+  aisles: Record<string, ShopAisle> | null;
 }) {
   const { pending, record, onlyOnline, reconcile, online, sending } = useOfflineList(listId);
   useListFollow(listId, version);
@@ -375,6 +394,43 @@ export function ListItems({
   const base = useMemo(() => applyPending(items, pending, me), [items, pending, me]);
   const [optimisticItems, applyChange] = useOptimistic(base, applyTo);
   const [, startTransition] = useTransition();
+
+  /*
+   * Aisles moved on this phone and not yet drawn back by the server. Dropped whenever the
+   * server's answer changes, which is the refresh that carries the move — or another
+   * phone's, which is then the newer word on it.
+   */
+  const [moved, setMoved] = useState<Record<string, ShopAisle>>({});
+  const [movedFor, setMovedFor] = useState(aisles);
+  if (movedFor !== aisles) {
+    setMovedFor(aisles);
+    setMoved({});
+  }
+  const remembered = aisles ? { ...aisles, ...moved } : null;
+
+  /*
+   * What nobody has placed yet — not in the built-in list, not remembered — is asked of
+   * the model once, in the background. Keyed by what was asked, so a refresh that brings
+   * the same unplaced item back does not ask again.
+   */
+  const askedAisles = useRef(new Set<string>());
+  const unplaced = remembered
+    ? optimisticItems
+        .filter((item) => !item.done && aisleOf(item.text, remembered) === null)
+        .map((item) => pantryKey(item.text))
+        .filter((key) => key && !askedAisles.current.has(key))
+    : [];
+  const unplacedKey = [...new Set(unplaced)].sort().join("\n");
+  useEffect(() => {
+    if (!unplacedKey) return;
+    for (const key of unplacedKey.split("\n")) askedAisles.current.add(key);
+    const data = new FormData();
+    data.set("listId", listId);
+    sortListAisles(data).catch(() => {
+      // Offline or down: the rows wait under "Not sorted yet", where they can be moved
+      // by hand, and nothing was pressed that needs telling.
+    });
+  }, [unplacedKey, listId]);
 
   // Anything the server now agrees with is finished with, whoever made it happen.
   useEffect(() => {
@@ -546,6 +602,25 @@ export function ListItems({
         key={item.id}
         item={item}
         draggable={draggable}
+        aisleSlot={
+          remembered && !item.done ? (
+            <AisleMoveButton
+              name={item.text}
+              current={aisleOf(item.text, remembered)}
+              onMove={(aisle) => {
+                const data = new FormData();
+                data.set("itemId", item.id);
+                data.set("aisle", aisle);
+                setMoved((current) => ({ ...current, [pantryKey(item.text)]: aisle }));
+                // Online-only, like a rename: where cream is sold is a kitchen-table
+                // decision, and the row simply moves back if it did not reach the server.
+                startTransition(async () => {
+                  await onlyOnline(() => moveListItemAisle(data));
+                });
+              }}
+            />
+          ) : undefined
+        }
         showAmount={trackAmounts}
         showWho={shared}
         settling={settling.has(item.id)}
@@ -632,16 +707,38 @@ export function ListItems({
         </div>
       </div>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        modifiers={[restrictToVerticalAxis]}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext items={open.map((item) => item.id)} strategy={verticalListSortingStrategy}>
-          <div className="divide-y divide-slate-100">{open.map((item) => rowFor(item, true))}</div>
-        </SortableContext>
-      </DndContext>
+      {remembered ? (
+        /* Grouped by aisle: the shop decides the order, so nothing here is dragged. The
+           rows nobody has placed come first, under a heading of their own, because they
+           are the ones asking for something. */
+        <div>
+          {[null, ...SHOP_AISLES].map((aisle) => {
+            const rows = open.filter((item) => aisleOf(item.text, remembered) === aisle);
+            if (rows.length === 0) return null;
+            return (
+              <section key={aisle ?? "UNSORTED"} data-aisle={aisle ?? "UNSORTED"}>
+                <h3 className="border-t border-slate-100 bg-slate-50 px-4 py-1.5 text-xs font-semibold text-slate-500">
+                  {aisle ? say(SHOP_AISLE_LABELS[aisle]) : say(LISTS.unsortedAisle)}
+                </h3>
+                <div className="divide-y divide-slate-100 border-t border-slate-100">
+                  {rows.map((item) => rowFor(item, false))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      ) : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis]}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={open.map((item) => item.id)} strategy={verticalListSortingStrategy}>
+            <div className="divide-y divide-slate-100">{open.map((item) => rowFor(item, true))}</div>
+          </SortableContext>
+        </DndContext>
+      )}
 
       {open.length === 0 && (
         <p className="animate-row-in p-6 text-center text-sm text-slate-500">

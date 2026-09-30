@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireHomeUser } from "@/lib/auth";
@@ -38,7 +39,8 @@ function intervalSchema(say: Say) {
 }
 
 function refreshTaskViews() {
-  revalidatePath("/tasks");
+  // The layout, so a task's own page under it is refreshed along with the list.
+  revalidatePath("/tasks", "layout");
   revalidatePath("/dashboard");
 }
 
@@ -247,4 +249,7 @@ export async function deleteTask(formData: FormData) {
   // added to.
   await discardPhoto(task.homeId, task.photoId);
   refreshTaskViews();
+  // The task's own page is one of the places it is deleted from, and it has nothing
+  // left to show; `/tasks` is where it would have been listed either way.
+  redirect("/tasks");
 }

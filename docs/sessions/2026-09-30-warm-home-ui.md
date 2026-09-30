@@ -21,6 +21,11 @@ was built and screenshotted in turn at 390×844, in English and in an empty Dani
 repeated the name beside it), which was a real accessibility duplicate and was fixed by
 making the mark decorative where the name is already written.
 
+Merging `main` afterwards (#158 tasks as one-line rows, #159 aisles) conflicted in six
+files. The list ones were both-sides additions. The task ones moved: #158 put both task
+screens onto one `TaskRow`/`TaskFields`, so the face, the assignee mark (`showWho`) and
+the picker moved into that component rather than being re-applied per page.
+
 ## Where the time went
 
 | Stage | Roughly | Notes |

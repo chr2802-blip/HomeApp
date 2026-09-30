@@ -22,7 +22,7 @@ import {
   signOut,
   submit,
 } from "../helpers/factories";
-import { captureRedirect } from "../helpers/expect";
+import { captureRedirect, expectRedirect } from "../helpers/expect";
 
 const HOUR = 60 * 60 * 1000;
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * HOUR);
@@ -413,7 +413,7 @@ describe("replacing and removing", () => {
     await prisma.task.update({ where: { id: task.id }, data: { photoId: photo.id } });
     await signIn(member);
 
-    await deleteTask(formData({ taskId: task.id }));
+    await expectRedirect(() => deleteTask(formData({ taskId: task.id })), "/tasks");
 
     expect(await prisma.photo.findUnique({ where: { id: photo.id } })).toBeNull();
   });
