@@ -9,12 +9,13 @@ import {
   setPantryQuantity,
 } from "@/app/actions/pantry";
 import { ItemMenu } from "@/components/item-menu";
+import { Input } from "@/components/ui";
 import { PantryQuantityField } from "@/components/pantry-quantity-field";
 import { tick } from "@/lib/haptics";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
 import { PANTRY, PANTRY_CATEGORY_LABELS, PANTRY_UNIT_LABELS } from "@/lib/copy/pantry";
-import { PANTRY_CATEGORIES, PANTRY_UNITS } from "@/lib/pantry";
+import { PANTRY_CATEGORIES, PANTRY_UNITS, expiryText, warnsOfExpiry } from "@/lib/pantry";
 
 /**
  * One basic good: how much the household has of it, what it is counted in, what it is
@@ -47,12 +48,17 @@ export function PantryRow({
   quantity,
   unit,
   category,
+  expiresOn,
+  expiresIn,
 }: {
   id: string;
   name: string;
   quantity: number;
   unit: PantryUnit | null;
   category: PantryCategory | null;
+  expiresOn: string | null;
+  /** Days left, where close enough to warn — `expiryWarning`, counted by the page. */
+  expiresIn: number | null;
 }) {
   const [stock, setStock] = useOptimistic(quantity);
   /*
@@ -147,6 +153,27 @@ export function PantryRow({
             ordinary state of a cupboard and the quantity already says it; having run
             out is what somebody scans the column for, and it names exactly what "Add
             to list" at the top of the page will take. */}
+        {/* Amber, the app's "overdue", in every home — never the home's own colour, and
+            never red, which means "about to be deleted". An icon rather than words
+            because the row has no room for a sentence; the sentence is its label. */}
+        {warnsOfExpiry(expiresIn, stock) && (
+          <span
+            role="img"
+            aria-label={expiryText(expiresIn, language)}
+            title={expiryText(expiresIn, language)}
+            data-testid="pantry-expiry-warning"
+            className="shrink-0 text-amber-500"
+          >
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-4 w-4">
+              <path
+                fillRule="evenodd"
+                d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 6a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 6Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </span>
+        )}
+
         {stock === 0 && (
           <span className="shrink-0 text-xs text-slate-500">{say(PANTRY.runOut)}</span>
         )}
@@ -174,7 +201,7 @@ export function PantryRow({
           deleteConfirmLabel={say(PANTRY.removeConfirm)}
           className="-mr-2 ml-1"
         >
-          <PantryEditFields category={category} unit={unit} language={language} />
+          <PantryEditFields category={category} unit={unit} expiresOn={expiresOn} language={language} />
         </ItemMenu>
       </div>
 
@@ -204,10 +231,12 @@ export function PantryRow({
 export function PantryEditFields({
   category,
   unit,
+  expiresOn,
   language,
 }: {
   category: PantryCategory | null;
   unit: PantryUnit | null;
+  expiresOn: string | null;
   language: HomeLanguage;
 }) {
   const say = sayIn(language);
@@ -236,6 +265,11 @@ export function PantryEditFields({
           ))}
         </div>
       </fieldset>
+      {/* Optional, and cleared by emptying it: most of a cupboard keeps. */}
+      <label className="block">
+        <span className="mb-2 block text-sm font-medium text-slate-700">{say(PANTRY.expiryLabel)}</span>
+        <Input type="date" name="expiresOn" defaultValue={expiresOn ?? ""} />
+      </label>
     </div>
   );
 }

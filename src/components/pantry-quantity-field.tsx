@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { HomeLanguage, PantryUnit } from "@prisma/client";
-import { MAX_PANTRY_QUANTITY, clampPantryQuantity } from "@/lib/pantry";
+import { MAX_PANTRY_QUANTITY, clampPantryQuantity, formatPantryQuantity } from "@/lib/pantry";
 import { sayIn } from "@/lib/copy/say";
 import { PANTRY, PANTRY_UNIT_LABELS } from "@/lib/copy/pantry";
 
@@ -38,7 +38,8 @@ export function PantryQuantityField({
   language: HomeLanguage;
 }) {
   const say = sayIn(language);
-  const [draft, setDraft] = useState(String(quantity));
+  const written = (value: number) => formatPantryQuantity(value, language);
+  const [draft, setDraft] = useState(written(quantity));
   const [shown, setShown] = useState(quantity);
 
   // The quantity can change underneath us — another person's edit arriving, or our own
@@ -46,12 +47,12 @@ export function PantryQuantityField({
   // effect that would fight whatever is being typed. Same trick as `AmountPicker`.
   if (quantity !== shown) {
     setShown(quantity);
-    setDraft(String(quantity));
+    setDraft(written(quantity));
   }
 
-  function commit(next: number) {
+  function commit(next: number | string) {
     const clamped = clampPantryQuantity(next);
-    setDraft(String(clamped));
+    setDraft(written(clamped));
     if (clamped !== quantity) onChange(clamped);
   }
 
@@ -73,23 +74,24 @@ export function PantryQuantityField({
         −
       </button>
       <input
-        type="number"
-        inputMode="numeric"
+        // Text rather than `number`: a number input answers "" for "1,5" in a browser
+        // whose locale writes a point, and the box has to take the Danish comma.
+        type="text"
+        inputMode="decimal"
         aria-label={say(PANTRY.quantityAria, { name: label })}
         value={draft}
-        min={0}
-        max={MAX_PANTRY_QUANTITY}
         onChange={(event) => setDraft(event.target.value)}
-        onBlur={() => commit(Number(draft))}
+        onBlur={() => commit(draft)}
         onKeyDown={(event) => {
           if (event.key === "Enter") {
             event.preventDefault();
             event.currentTarget.blur();
           }
         }}
-        // The spinners are tiny, sit where the thumb already is, and duplicate the
-        // two buttons either side of them.
-        className="w-7 [appearance:textfield] border-0 bg-transparent p-0 text-center text-sm tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        // Three characters' room for the everyday count, widening only for "1500" or
+        // "2,5" and up, so the name beside it keeps its room on every other row.
+        style={{ width: `${Math.max(3, draft.length) + 0.5}ch` }}
+        className="border-0 bg-transparent p-0 text-center text-sm tabular-nums outline-none"
       />
       {/* Read, not pressed: the number's own unit, so "2" says "2 kg". Nothing is drawn
           for a plain count, which is the commonest entry and needs no word. */}

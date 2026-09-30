@@ -16,6 +16,10 @@ export const DATE = {
   dayMonthYear: { EN: "d MMM yyyy", DA: "d. MMM yyyy" },
   /** The full weekday name, used once — the meal plan's day headings. */
   weekday: { EN: "EEEE", DA: "EEEE" },
+  /** "Mon", "man." — the dashboard's strip of the days ahead. */
+  weekdayShort: { EN: "EEE", DA: "EEE" },
+  /** "Sunday 27 September" — the date the dashboard opens on. */
+  weekdayDayMonth: { EN: "EEEE d MMMM", DA: "EEEE d. MMMM" },
   /** A bare month, for comparing two dates' months against each other. */
   month: { EN: "MMM", DA: "MMM" },
   /** An instant with the time of day, for admin and reminder timestamps. */

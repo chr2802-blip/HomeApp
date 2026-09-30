@@ -27,6 +27,9 @@ export const APP = {
   push: {
     taskDue: { EN: "Task due", DA: "Opgave forfalder" },
     testBody: { EN: "Notifications are working.", DA: "Notifikationerne virker." },
+    /** A cook-mode timer run out on a phone whose page was not running; the title is the
+     *  recipe's own. */
+    timerDone: { EN: "The timer for step {number} is done", DA: "Timeren til trin {number} er færdig" },
   },
 
   /** The two screens a page falls back to — something thrown, or nothing there. */
@@ -48,16 +51,6 @@ export const APP = {
       EN: "This page does not exist, or it belongs to a different home.",
       DA: "Siden findes ikke, eller den hører til et andet hjem.",
     },
-  },
-
-  /** The recipe page's toggle that keeps the phone awake while somebody cooks. */
-  keepScreenOn: {
-    label: { EN: "Keep screen on", DA: "Hold skærmen tændt" },
-    whileOn: {
-      EN: "Screen will stay on — tap to allow it to sleep",
-      DA: "Skærmen forbliver tændt — tryk for at lade den slukke",
-    },
-    whileOff: { EN: "Keep screen on while cooking", DA: "Hold skærmen tændt under madlavningen" },
   },
 
   /** The header's home menu — pantry, settings, profile, and the other homes. */

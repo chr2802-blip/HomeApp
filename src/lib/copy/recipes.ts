@@ -147,6 +147,19 @@ export const RECIPES = {
     EN: { one: "Your last rating: {count} heart", other: "Your last rating: {count} hearts" },
     DA: { one: "Din seneste bedømmelse: {count} hjerte", other: "Din seneste bedømmelse: {count} hjerter" },
   },
+  // Resetting a recipe's ratings: the home's admins only, from the rating sheet.
+  resetRatings: { EN: "Reset ratings", DA: "Nulstil bedømmelser" },
+  resetRatingsMessage: {
+    EN: {
+      one: "Delete {count} rating? The average starts again from nothing.",
+      other: "Delete all {count} ratings? The average starts again from nothing.",
+    },
+    DA: {
+      one: "Slet {count} bedømmelse? Gennemsnittet starter forfra.",
+      other: "Slet alle {count} bedømmelser? Gennemsnittet starter forfra.",
+    },
+  },
+  resetRatingsConfirm: { EN: "Reset", DA: "Nulstil" },
 
   // Recipe fields, shared by the create dialog, the standalone form and the card's own menu
   categories: { EN: "Categories", DA: "Kategorier" },
@@ -224,8 +237,27 @@ export const RECIPES = {
   stepOfTotal: { EN: "Step {number} of {total}", DA: "Trin {number} af {total}" },
   stepNumber: { EN: "Step {number}", DA: "Trin {number}" },
   timerDone: { EN: "done", DA: "færdig" },
+  timerOf: { EN: "{title} · {step}", DA: "{title} · {step}" },
+  timersRegion: { EN: "Timers", DA: "Timere" },
+  stopTimer: { EN: "Stop timer: {label}", DA: "Stop timeren: {label}" },
+  dismissTimer: { EN: "Dismiss timer: {label}", DA: "Fjern timer: {label}" },
+  // The recipes on the stove — src/components/cook-mode.tsx, cook-picker.tsx
+  onTheStove: { EN: "On the stove", DA: "På komfuret" },
+  cookAnother: { EN: "Cook another recipe", DA: "Lav en ret mere" },
+  cookAnotherTitle: { EN: "What else is cooking?", DA: "Hvad skal der ellers laves?" },
+  tonightOnPlan: { EN: "On tonight's plan", DA: "På planen i aften" },
+  stillCooking: { EN: "Still cooking", DA: "Laves stadig" },
+  noRecipesMatch: { EN: "No recipe matches that.", DA: "Ingen opskrift passer på det." },
+  stopCooking: { EN: "Stop cooking {title}", DA: "Stop med at lave {title}" },
   restartTimer: { EN: "Restart {time}", DA: "Genstart {time}" },
   startTimer: { EN: "Start {time}", DA: "Start {time}" },
+  /** Beside a running timer, where a locked phone could be told it is done and this one
+   *  has not been given notifications yet. */
+  timerPushOffer: {
+    EN: "Get a notification when a timer is done, even with the phone locked.",
+    DA: "Få besked, når en timer er færdig – også med skærmen låst.",
+  },
+  timerPushTurnOn: { EN: "Turn on", DA: "Slå til" },
   forThisStep: { EN: "For this step", DA: "Til dette trin" },
   notPreparedNotice: {
     EN: "These steps have not been prepared for cooking yet — they will show without their ingredients. Preparing them tidies the steps and works out what each one needs.",

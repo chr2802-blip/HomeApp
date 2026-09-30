@@ -165,6 +165,17 @@ describe("keeping the pantry", () => {
     expect((await prisma.pantryItem.findFirstOrThrow()).quantity).toBe(0);
   });
 
+  it("keeps one decimal of a quantity, written with either a comma or a point", async () => {
+    await submit(createPantryItem, { name: "Ris" });
+    const item = await prisma.pantryItem.findFirstOrThrow();
+
+    await setPantryQuantity(formData({ pantryItemId: item.id, quantity: "1,5" }));
+    expect((await prisma.pantryItem.findFirstOrThrow()).quantity).toBe(1.5);
+
+    await setPantryQuantity(formData({ pantryItemId: item.id, quantity: "2.25" }));
+    expect((await prisma.pantryItem.findFirstOrThrow()).quantity).toBe(2.3);
+  });
+
   it("clamps a quantity to the floor of zero, and writes nothing but the quantity", async () => {
     await submit(createPantryItem, { name: "Ris" });
     const item = await prisma.pantryItem.findFirstOrThrow();
@@ -464,6 +475,32 @@ describe("filing things on shelves", () => {
     // And one it does not offer is no choice at all, so the list decides.
     await submit(createPantryItem, { name: "Mælk", category: "CELLAR" });
     expect(await entry("Mælk")).toMatchObject({ category: "FRIDGE" });
+  });
+
+  it("keeps an optional expiry date from the sheet, and takes it off when emptied", async () => {
+    await submit(createPantryItem, { name: "Kiks" });
+    const item = await entry("Kiks");
+    const edit = (expiresOn?: string) =>
+      submit(editPantryItem, {
+        pantryItemId: item.id,
+        category: "DRY_GOODS",
+        unit: "PACK",
+        ...(expiresOn === undefined ? {} : { expiresOn }),
+      });
+
+    expect(await edit("2026-10-12")).toEqual({ ok: true });
+    expect((await entry("Kiks")).expiresOn).toBe("2026-10-12");
+
+    // A form that never mentioned the date leaves it alone.
+    await edit();
+    expect((await entry("Kiks")).expiresOn).toBe("2026-10-12");
+
+    // Not a real day is refused rather than read as "no date", and changes nothing.
+    expect(await edit("2026-02-31")).toMatchObject({ ok: false });
+    expect((await entry("Kiks")).expiresOn).toBe("2026-10-12");
+
+    await edit("");
+    expect((await entry("Kiks")).expiresOn).toBeNull();
   });
 
   it("changes the shelf and the unit from the sheet, holding both to what is offered", async () => {

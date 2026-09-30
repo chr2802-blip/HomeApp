@@ -14,6 +14,7 @@ import { MIN_AMOUNT } from "@/lib/amount";
 import {
   alreadyOnListNote,
   clampPantryQuantity,
+  readExpiryDate,
   isPantryCategory,
   isPantryUnit,
   pantryKey,
@@ -222,11 +223,15 @@ export async function editPantryItem(
 
   const rawUnit = String(formData.get("unit") ?? "");
   const rawCategory = String(formData.get("category") ?? "");
+  // Blank is "no date", which is how one is taken off again.
+  const expiresOn = readExpiryDate(formData.get("expiresOn"));
+  if (expiresOn === false) return fail(say(PANTRY.expiryInvalid));
 
   await prisma.pantryItem.update({
     where: { id: item.id },
     data: {
       unit: isPantryUnit(rawUnit) ? rawUnit : null,
+      ...(formData.has("expiresOn") ? { expiresOn } : {}),
       ...(isPantryCategory(rawCategory) ? { category: rawCategory } : {}),
     },
   });

@@ -38,10 +38,19 @@ async function addToList(page: Page, listTitle: string) {
   const trigger = page.getByRole("button", { name: "Add to list" });
   await expect(trigger).toHaveAttribute("data-ready", "true");
   await trigger.click();
+  // Waited on as the action's own response, not the snackbar: a second add to the same
+  // list says the same words, so the first one's message would pass for it while the
+  // second is still in flight — and a `goto` then cancels it, along with the sheet's
+  // tidying of its history entry.
+  const added = page.waitForResponse(
+    (response) => response.request().method() === "POST" && !!response.request().headers()["next-action"],
+  );
   await page
     .getByRole("dialog", { name: "Add to list" })
     .getByRole("button", { name: new RegExp(`^${listTitle}`) })
     .click();
+  await added;
+  await expect(page.getByRole("dialog", { name: "Add to list" })).toBeHidden();
   await expect(page.getByText(`Added to ${listTitle}.`)).toBeVisible();
 }
 

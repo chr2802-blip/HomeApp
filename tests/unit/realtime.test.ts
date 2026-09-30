@@ -110,7 +110,7 @@ describe("the topic and the policy that guards it", () => {
   // The migration reads the home id back out of the topic by position, so the two have to
   // agree on the prefix — a renamed topic would lock every phone out, silently.
   const sql = readFileSync(
-    "prisma/migrations/20260926120000_realtime_home_channels/migration.sql",
+    "prisma/migrations/20260930120000_realtime_home_channels/migration.sql",
     "utf8",
   );
   const prefix = homeTopic("");

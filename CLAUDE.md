@@ -37,6 +37,10 @@ it was aiming at.
 
 Integration and browser tests need the local Postgres: `docker start homehub-pg`.
 
+**Stopping a server from the Bash tool: `pkill -f "[n]ext dev"`, never `pkill -f "next dev"`.**
+The pattern appears in the tool's own command line, so the unbracketed form kills the shell
+running it and the command dies with exit 144.
+
 **In a bare container with no Docker daemon** (a fresh Claude Code on the web sandbox),
 there is usually a stopped `pg_lsclusters`-managed cluster already on disk instead:
 `service postgresql start`, then point `DATABASE_URL`/`DIRECT_URL` at it (`ALTER USER
@@ -485,8 +489,13 @@ the hearts always inserts, never updates.
   person's own newest rating, not the average.
 - The card's meta line is **time · ♥ average**. It used to say "Includes a video"; that went.
 - Hearts are the home's `--accent`, never red: red means "about to be deleted".
-- **On the recipe page the hearts are in a sheet**, behind a heart icon by the title,
-  beside keep-screen-on (`SheetButton`, `src/components/sheet-button.tsx`) — it is about
+- **A home's admins can reset a recipe's ratings** — every row, everybody's — from the
+  rating sheet (`resetRecipeRatings`). It is gated by `assertHomeAdmin` on the recipe's own
+  home, never `requireAdmin`. The confirmation is asked inside the sheet rather than in a
+  second sheet stacked on it: two `Modal`s each push a history entry and listen for
+  `popstate`, so one back press closes both.
+- **On the recipe page the hearts are in a sheet**, behind a heart icon by the title
+  (`SheetButton`, `src/components/sheet-button.tsx`) — it is about
   the whole recipe, not the ingredients. The portions and "Add to list" are the same kind
   of icon in the ingredients' heading. As a card, a stepper and a labelled button the
   three crowded out the recipe.
@@ -540,14 +549,25 @@ the dashboard's layout.**
 
 Almost nobody scrolls a dashboard, so every block is spending the only screen there is.
 
-- **The order of the blocks is what each one asks of you**: the week, what is due for you,
-  what is due for somebody else (folded, count on the heading), the dinner, then the lists.
+- **The order of the blocks is what each one asks of you**: the date and greeting with the
+  week's ring beside them, three numbers (due for you, to buy, run out — each a link to
+  the page that answers it), then **Today** — the dinner, what is due for you, and what
+  is due for somebody else (folded, count on the heading) as rows of one card — then the
+  days ahead's dinners, then the lists.
+- **A number is a way in, not a report.** A tile answers a question somebody opens the
+  app with before they have read a row; anything it cannot link to does not get one.
 - **Tonight's dinner is a row, not a hero.** The appetising photograph is one tap away.
-- **The lists stop at `DASHBOARD_LISTS` and offer the rest**, and the query takes one more
-  than it draws so the section knows without counting every list in the home.
-- The home's picture is `short` here and full height on a recipe page — a prop, not a height
-  in `className`, because which of two height utilities wins is decided by the stylesheet.
-- `e2e/suggested-recipe.spec.ts` holds the result: the dinner section under 160px, and the
+  The page asks `tonightsDinner` itself and hands it to `DinnerRow`, because it has to
+  know whether "Today" has anything in it before drawing the card.
+- **A due task is one row**, the date as coloured text rather than a badge — a card per
+  task was ~100px each and three of them pushed everything else off the screen.
+- **The days ahead are drawn only when one of them is planned**, and start tomorrow:
+  tonight is already the dinner row.
+- **The lists stop at `DASHBOARD_LISTS` and offer the rest**, two to a row, and the query
+  takes one more than it draws so the section knows without counting every list.
+- **The home's picture is a square beside the greeting, not a banner** — a banner's
+  height is what the numbers and the days ahead needed. Drawn only when there is one.
+- `e2e/suggested-recipe.spec.ts` holds the result: the dinner row under 160px, and the
   week, the dinner, what is due and the lists all on one 390×680 screen.
 
 **[`docs/design/week-and-dashboard.md`](docs/design/week-and-dashboard.md) says why each.**
@@ -747,7 +767,7 @@ itself.
 are set once and then left alone, and a control on every row is room taken from the name
 on every row — a unit menu per row is what left long names truncated to a few letters. So
 the row only *reads* its unit beside the number ("2 kg"; nothing for a plain count), and
-"Shelf and unit" in the `ItemMenu` opens one `editPantryItem` sheet of chips for both.
+"Shelf, unit and date" in the `ItemMenu` opens one `editPantryItem` sheet of chips for both.
 `PANTRY_UNITS` (g, kg, dl, l, and the kitchen's own dåse, pose, pakke, glas, bundt) are
 offered with "no unit" as its own choice and not a lesser one: a plain count ("3") is as
 valid an answer as a measured one ("500 g"), the same reason a counted recipe ingredient
@@ -756,8 +776,21 @@ list item's does — finding rice is the first thing every visit does — then t
 then the three dots at the far end. Delete stays last in that menu, a gap away from the
 stepper so a thumb aiming at "we're out of rice" does not land on it.
 
+**A quantity carries one decimal, and an entry may carry an expiry date.** `quantity` is a
+double held to one decimal and at most `MAX_PANTRY_QUANTITY` (9999, because grams) by
+`clampPantryQuantity`, which reads a Danish comma as the point; the row's box is a text
+input with a decimal keyboard, written by `formatPantryQuantity` in the home's own decimal
+mark — a `type="number"` box answers "" for "1,5" in a browser whose locale writes a
+point. `expiresOn` is optional, a day as `"yyyy-MM-dd"` like `MealPlan.date`, set in the
+same sheet and cleared by emptying it. The row draws an amber warning icon (the app's
+"overdue", never the home's colour and never red) from `EXPIRY_WARNING_DAYS` (14) before
+it — **the days are counted by the page on the household's clock (`expiryWarning`), and
+whether any is left by the row from its optimistic quantity (`warnsOfExpiry`)**, so an
+entry stepped down to zero stops warning under the thumb: an empty packet past its date
+is on the shopping list already.
+
 **The page is grouped by shelf.** `PantryCategory` is a fixed set (spices, oil & vinegar,
-sauces, baking, pasta/rice/grains, tins & jars, fridge, freezer, drinks, other), named in
+sauces, baking, pasta/rice/grains, tins & jars, fridge, freezer, drinks, baby, other), named in
 `PANTRY_CATEGORY_LABELS` and drawn in that order, empty shelves not drawn. **Null is "not
 sorted yet" and is not `OTHER`**: `OTHER` is somebody having decided it goes nowhere in
 particular, null is nobody having decided, and they answer different questions. Unsorted
@@ -800,6 +833,14 @@ Picking a kept one adds nothing: it closes the sheet and shows the row, washed i
 The suggestions sit in the sheet's own flow, not floating over it: `ModalBody` scrolls,
 and would clip a list drawn outside it.
 
+**Every shelf starts folded, and a folded shelf still says what is on it** — its count,
+how much of it has run out, and its names on one line — so the whole cupboard reads on one
+screen instead of eight. A shelf opens by itself wherever the answer is its rows: a search
+or "Only run out" opens every shelf holding a match, and an entry that arrives or moves
+opens the shelf it landed on (which is why `PantryShelves` stays mounted, empty state and
+all, from the very first entry). A shut shelf's rows are `hidden` for the reason below —
+which is also why the fold is drawn by hand rather than with `Collapsible`, which unmounts.
+
 **The shelves can be narrowed, and a narrowed row is hidden, never unmounted.**
 `PantryShelves` draws them under a search box (name, key, *and* the shelf's own name, so
 "krydder" is the spice shelf) and an "Only run out" switch; both start empty on every
@@ -821,10 +862,12 @@ back at one, an open row is left alone (being out of rice is not a reason to buy
 and what was left alone is named in the note. Row by row rather than in one transaction,
 unlike a recipe's ingredients: every line is independent and the run is idempotent, so a
 press that failed halfway is finished by pressing again — which beats one that undoes
-the rows it managed. The button is drawn whenever the pantry holds anything at all
-rather than only when something is out, because the quantities are optimistic and a
-control that came and went with the count would arrive a beat after the thumb that
-caused it.
+the rows it managed. **It is the cart icon beside the run-out count, and only while
+"Only run out" is on** — the same `SheetButton` the recipe's ingredients carry, drawn at
+the moment the page shows exactly what the press would add, rather than a labelled button
+beside the title taking room on every visit. Under the filter it is drawn whatever the
+count says, because the quantities are optimistic and a control that came and went with
+the count would arrive a beat after the thumb that caused it.
 
 **A stocked entry also counts as a staple for the meal suggestions.** `staplesOf`
 exists so a household need not keep a list of its own cupboard for the ranking to be
@@ -921,16 +964,48 @@ forward**, as lifting a right-hand page over does.
   all of it.
 - **The surface is portalled to `document.body`**, because `PageTransition` puts a
   `transform` on an ancestor and a transformed ancestor contains a fixed child. It pads
-  its own `env(safe-area-inset-*)`, holds a wake lock through `useWakeLock` (shared with
-  `ScreenAwakeToggle`), and its timers live above the pages so a turn does not end them.
+  its own `env(safe-area-inset-*)`, holds a wake lock through `useWakeLock` — the only
+  thing in the app that keeps the screen on, since the recipe page's toggle was removed —
+  and its timers live above the pages so a turn does not end them.
+- **The timers belong to the kitchen, not to the screen.** Two dishes at once is most
+  dinners, and a timer held in action mode's own state ended the moment the cook walked
+  over to the second recipe. `KitchenProvider` (`src/components/kitchen.tsx`) sits in the
+  app layout and holds the *kitchen* — `cooks`, the recipes on the stove with the page
+  each was left on, and `timers`, each carrying its recipe's id and title. Action mode
+  draws every timer, another recipe's as a way over to it; every other page draws them
+  above the tab bar (`KitchenTimers`). **A timer stops only when it is stopped**, and a
+  recipe leaves the stove only when its last step is completed or it goes
+  `RESUME_WITHIN_MS` untouched — never because its screen went away.
+- **More than one recipe on the stove is a row of tabs in action mode**, and the "+" by
+  Close puts another on (`CookPicker`: what is still cooking, then tonight's `MealPlan`
+  recipe, then every recipe, as a partition). Tabs and another recipe's timer switch with
+  `router.replace` — a timer to the step it is for (`turnCook`) — so back does not walk
+  every tab; completing one recipe goes on to the next still on the stove. The page gets
+  `key={recipe.id}`, so switching is a fresh `CookMode` and never one carrying the last
+  recipe's page.
 - **Where a cook is survives the phone discarding the page.** An installed app killed in
   the background is relaunched at the manifest's `start_url` (`/dashboard`), not where it
-  was — on an iPhone, half an hour in another app did exactly that mid-dinner. So the page
-  and the timers (each an `endsAt`, never a countdown) are written to `localStorage` on
-  every change (`src/lib/cook-session.ts`), cleared when action mode *unmounts* — which a
-  killed page never does — and `ResumeCooking` in the app layout sends a fresh load back
-  to the cook page while one is saved and `isResumable`. A timer still cannot ring while
-  the page is dead; it reads done when the cook comes back.
+  was — on an iPhone, half an hour in another app did exactly that mid-dinner. So the
+  kitchen (each timer an `endsAt`, never a countdown) is written to `localStorage` on
+  every change (`src/lib/cook-session.ts`). **`open` is the one statement about the
+  screen**: set while action mode is mounted, cleared when it *unmounts* — which a killed
+  page never does — so `ResumeCooking` sends a fresh load back to the `open` cook, unless
+  that load is already on a cook page. A timer still cannot ring while the page is dead;
+  it reads done when the cook comes back.
+- **A timer rings on a locked phone through a push sent from QStash**, because a page on
+  a phone stops running the moment it is put down and no browser API can schedule a
+  notification for later. `/api/cook-timers` publishes one QStash message with
+  `notBefore` at the timer's end; QStash calls `/api/cook-timers/ring`, which believes
+  nothing but the signature, and sends the push (`src/lib/cook-timer-push.ts`).
+  **Nothing is stored server-side**: the message id rides on the kitchen's timer
+  (`pushId`), and **the kitchen reconciles, not the buttons** — `KitchenProvider` asks
+  for a push for every running timer without one and cancels every id whose timer has
+  gone (`pushesToCancel`), so a stop, a restart or a dismissal from any screen is
+  covered by the one effect. A killed page never cancels, which is what the push is
+  for. Unconfigured is off, silently; a person with no push device spends no message,
+  and where the installation could ring but this browser has no notifications, action
+  mode's timer bar offers to turn them on (`src/lib/push-client.ts`, shared with
+  `NotificationSetup`).
 - The page turn is `page-turn-next` / `page-turn-back` in `globals.css` — keyframes, and
   no `translate-*`/`rotate-*`/`scale-*` utility on the element playing one.
 
@@ -1147,16 +1222,36 @@ about which words to throw away.
 - `Modal` lays its contents out as a column: `ModalBody` scrolls, `ModalFooter` does not.
   **Never put a form's buttons — or the reason a submission was refused — inside
   `ModalBody`.** On a phone a Save button below the fold is a form people abandon.
+- **A sheet is the whole screen or a drawer, and which is decided by what is in it.**
+  `Modal`'s `size="drawer"` rises on a phone only as far as its contents need, with the
+  page still visible above it: `SheetButton` (portions, rating, "Add to list"),
+  `ConfirmDialog` and `ConfirmButton` use it. Anything with fields to fill in stays
+  `"screen"` — a form runs past the fold, and a drawer grown to full height is a
+  full-screen sheet with a gap at the top. From `sm` up both are the same centred panel.
+  A drawer pads past the home indicator itself unless it has a `ModalFooter`, which does.
 - **A sheet closes on the browser's back button and a phone's back gesture**, by pushing
-  one history entry when it opens and closing on the `popstate` that leaves it. **It never
-  calls `history.back()` itself to tidy that entry away on a Cancel or a save** — the App
-  Router's client cache freezes the entry *below* the one a sheet pushed at the moment the
-  sheet opened, and a save made inside the sheet happens after that: popping back to it
-  restores the frozen snapshot and silently undoes the save. Costs one extra back press to
-  leave a page after a sheet was opened and cancelled; the alternative cost correctness.
+  one history entry when it opens and closing on the `popstate` that leaves it. **Closed
+  any other way, it takes that entry back off through `popOwnEntry` and nothing else** —
+  a bare `history.back()` lets the App Router restore the page as it was when the sheet
+  opened, which silently undoes the save that closed it. `popOwnEntry` swallows its own
+  traverse before the router hears it and hands the entry below the router's current
+  tree. Left on, the entry makes the next back press land on the same page.
 - `Collapsible` **always says how much is in there** and **starts shut on every visit**.
   Pass `headingClassName` where what folds is a section rather than part of a card. For the
   same reason **a list card counts open items, not all of them**.
+- **Every fold opens and shuts with `useFold`** (`src/components/use-fold.ts`) — both
+  `Collapsible` and the pantry's hand-drawn shelves. It animates a one-row grid from `0fr`
+  to `1fr`, so nothing measures a height, and it keeps the panel present until the shut
+  animation has played: unmount or hide on its `shown`, never on `open`, or the panel is
+  gone before anybody sees it close. `FOLD_MS` and the `fold-*` keyframes have to agree,
+  and `tests/unit/fold.test.ts` holds them together. A new fold uses the hook, and puts
+  its `style` beside its `className`: **both directions share one symmetric easing**, so
+  a fold turned back half way is started part way into the other direction at the height
+  it had reached (a negative `animation-delay`) rather than leaping to the far end first.
+  **The wrapper's one child must be bare** — padding or a border on it is height a `0fr`
+  row cannot take away, and snaps off when the fold lands. Anything in the heading that
+  comes and goes with the fold (the pantry's one-line preview) folds too, the other way,
+  or the heading jumps a line before the panel has started moving.
 - `PageTransition` picks the animation **from the two paths**, not from the link pressed.
   Movement that arrives with an element is a **keyframe animation, never a transition between
   two sets of classes** — a transition only runs from a state the browser has already painted.
@@ -1301,6 +1396,36 @@ Open a branch, keep `npm run verify` green, and open a PR rather than pushing to
 formatted by it, so it rewraps every file it is pointed at to 80 columns. ESLint is the
 formatter check that runs.
 Explain in the PR what changed and why, and flag anything you decided rather than knew.
+
+### Show the change on screen first, before finishing it
+
+**Anything a person will see is shown to the user as a screenshot as early as it can be
+drawn** — the first rough version, before the tests, the edge cases, the copy in both
+languages and `npm run verify`. The user iterates on what they can see; a change built out
+completely before anybody looked at it is a change that gets built twice when the first
+look says "not like that".
+
+- **The first screenshot goes out as soon as the change renders at all**, even with
+  placeholder data or a hard-coded string. Then a new one after each round of feedback,
+  and a final one of the finished state before the PR.
+- **At a phone's width, 390×844**, because that is where this app is used and where layout
+  goes wrong. Add a desktop shot only where the change looks different there. A home with
+  a Danish language is worth a second shot whenever the change has words in it — Danish is
+  longer and is what truncates.
+- **Sent with `SendUserFile`** (the cloud session's way to put an image in front of the
+  user), with a one-line caption saying what to look at. Say what is not built yet, so the
+  rough edges are not taken for the design.
+- **Ask, then wait for the answer** before building the rest, whenever the screenshot
+  settles a choice (a layout, a placement, which of two variants). Where it settles
+  nothing, carry on and let the user interrupt.
+- **The quickest route to a screenshot is `npm run dev` and a throwaway Playwright
+  script** against it (the dev server needs no `next build`, which the e2e server does),
+  logging in through the form the way `logInThroughForm` in `e2e/helpers/fixtures.ts`
+  does. There is no one-command "screenshot this path" helper yet — sessions have
+  copied helpers into a throwaway spec each time; whoever writes one should note it here.
+  The throwaway is not committed.
+- A change with nothing to see (a migration, a lib function, a test) has nothing to show,
+  and this rule does not ask for a screenshot of a terminal.
 
 ### Every session leaves a note behind
 

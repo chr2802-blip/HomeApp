@@ -55,7 +55,7 @@ export function ConfirmButton({
         {children}
       </Button>
 
-      <Modal open={open} onClose={() => setOpen(false)} title={title ?? say(APP.areYouSure)}>
+      <Modal open={open} onClose={() => setOpen(false)} title={title ?? say(APP.areYouSure)} size="drawer">
         <ModalBody>
           <p className="text-sm text-slate-600">{message}</p>
         </ModalBody>

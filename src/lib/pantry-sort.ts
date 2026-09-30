@@ -84,6 +84,7 @@ const SHELVES: Record<PantryCategory, string> = {
   FRIDGE: "anything kept chilled: dairy, eggs, fresh herbs, fresh vegetables kept in the fridge",
   FREEZER: "anything kept frozen",
   DRINKS: "coffee, tea, juice, squash, soft drinks, wine and beer",
+  BABY: "anything bought for a baby: formula, baby food pouches and jars, porridge, nappies, wipes",
   OTHER: "anything that fits none of the shelves above",
 };
 

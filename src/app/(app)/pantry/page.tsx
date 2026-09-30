@@ -7,6 +7,7 @@ import { PantryAddDialog } from "@/components/pantry-add-dialog";
 import { PantryShelves } from "@/components/pantry-shelves";
 import { sayIn } from "@/lib/copy/say";
 import { PANTRY } from "@/lib/copy/pantry";
+import { expiryWarning } from "@/lib/pantry";
 
 /**
  * What the household keeps in, so that adding a recipe to a shopping list stops asking
@@ -24,7 +25,9 @@ import { PANTRY } from "@/lib/copy/pantry";
  * first, under "Not sorted yet" with the button that files them, because that heading is
  * the one asking for something. An empty shelf is not drawn.
  *
- * A search box and an "only run out" switch narrow the shelves — see `PantryShelves`.
+ * Every shelf starts folded, saying what it holds and how much of it has run out, so the
+ * whole cupboard reads on one screen; a search box and an "only run out" switch narrow
+ * the shelves and open the ones that match — see `PantryShelves`.
  *
  * Within a shelf, ordered by name and not by what has run out. The two questions asked of this page are
  * "is the rice in" and "we've run out of rice" — both of them begin by finding rice, and
@@ -33,6 +36,7 @@ import { PANTRY } from "@/lib/copy/pantry";
  */
 export default async function PantryPage() {
   const user = await requireHomeUser();
+  const now = new Date();
   const say = sayIn(user.homeLanguage);
   const db = homeDb(user.homeId);
 
@@ -54,46 +58,46 @@ export default async function PantryPage() {
         title={say(PANTRY.title)}
         description={say(PANTRY.description)}
         action={
-          <div className="flex items-center gap-2">
-            {/* Drawn whenever the pantry has anything in it at all, rather than only
-                when something has run out: the quantities are optimistic, so a button
-                that came and went with the count would arrive a beat after the thumb
-                that caused it. Pressed on a full cupboard it says so, which is the same
-                answer. */}
-            {items.length > 0 && (
-              <AddToListMenu
-                lists={shoppingLists.map((list) => ({
-                  id: list.id,
-                  title: list.title,
-                  open: list._count.items,
-                }))}
-                action={addPantryToList}
-                extraData={{}}
-              />
-            )}
-            {/* The green "+" every page adds with, and the sheet behind it. */}
-            <PantryAddDialog kept={items.map((item) => ({ id: item.id, name: item.name, key: item.key }))} />
-          </div>
+          /* The green "+" every page adds with, and the sheet behind it. */
+          <PantryAddDialog kept={items.map((item) => ({ id: item.id, name: item.name, key: item.key }))} />
         }
       />
 
-      {items.length === 0 ? (
+      {/* Mounted even while the pantry is empty, with the empty state inside it: the
+          shelves open the shelf a new entry lands on by noticing it arrive, and the very
+          first entry would otherwise arrive in a component mounting with it already
+          there — folded away under the heading of the thing just added. */}
+      <PantryShelves
+        items={items.map((item) => ({
+          id: item.id,
+          name: item.name,
+          key: item.key,
+          quantity: item.quantity,
+          unit: item.unit,
+          category: item.category,
+          expiresOn: item.expiresOn,
+          // Counted here, on the household's clock, rather than in the row — a row
+          // counting on the phone's own clock could disagree with this render at midnight.
+          expiresIn: expiryWarning(item.expiresOn, now),
+        }))}
+        addToList={
+          <AddToListMenu
+            sheet
+            lists={shoppingLists.map((list) => ({
+              id: list.id,
+              title: list.title,
+              open: list._count.items,
+            }))}
+            action={addPantryToList}
+            extraData={{}}
+          />
+        }
+      >
         <EmptyState icon="🧂">
           <p>{say(PANTRY.empty)}</p>
           <p className="mt-2">{say(PANTRY.emptyHint)}</p>
         </EmptyState>
-      ) : (
-        <PantryShelves
-          items={items.map((item) => ({
-            id: item.id,
-            name: item.name,
-            key: item.key,
-            quantity: item.quantity,
-            unit: item.unit,
-            category: item.category,
-          }))}
-        />
-      )}
+      </PantryShelves>
     </>
   );
 }

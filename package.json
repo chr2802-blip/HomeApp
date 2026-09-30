@@ -35,6 +35,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@prisma/client": "6.19.3",
     "@supabase/realtime-js": "^2.117.2",
+    "@upstash/qstash": "^2.11.3",
     "@vercel/analytics": "^2.0.1",
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",

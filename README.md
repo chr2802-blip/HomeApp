@@ -204,6 +204,9 @@ Copy `.env.example` to `.env` and fill it in:
 - `AUTH_SECRET` — generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
 - `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` — generate with `npx web-push generate-vapid-keys`.
 - `CRON_SECRET` — any random string; the reminder endpoint requires it.
+- `QSTASH_TOKEN` / `QSTASH_CURRENT_SIGNING_KEY` / `QSTASH_NEXT_SIGNING_KEY` — optional, from
+  the Upstash console's QStash page. With them, a cook-mode timer also rings as a push
+  notification on a locked phone; without them it counts and buzzes in the page only.
 - `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` — used once, to seed the first account.
 
 2. Create the tables and the first super admin:
@@ -445,7 +448,7 @@ project:
 4. Add all four to Vercel and redeploy. The deploy's migration creates the policy that lets
    a phone listen only to its own home's channel. If its build log shows
    `Could not create the Realtime home channel policy`, run the `CREATE POLICY` from
-   `prisma/migrations/20260926120000_realtime_home_channels/migration.sql` in the SQL editor.
+   `prisma/migrations/20260930120000_realtime_home_channels/migration.sql` in the SQL editor.
 
 To check it works, open the same list on two phones and tick something on one: the other
 should move within a second. In the browser's network tab, `/api/realtime/token` should

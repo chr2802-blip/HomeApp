@@ -10,6 +10,9 @@ import { Modal } from "@/components/modal";
  * the page shows only an icon, and what it currently says where there is something worth
  * seeing at a glance (the portions being cooked for, the average) beside it.
  *
+ * Its sheet is a drawer: one control does not need the whole screen, and the recipe
+ * staying in view above it is what the control is being changed for.
+ *
  * `children` is handed the way to close the sheet, for a sheet whose one press is also
  * its last one — choosing a list closes it; a heart does not.
  *
@@ -57,7 +60,7 @@ export function SheetButton({
           <span aria-hidden="true">{value}</span>
         )}
       </button>
-      <Modal open={open} onClose={() => setOpen(false)} title={title}>
+      <Modal open={open} onClose={() => setOpen(false)} title={title} size="drawer">
         {children(() => setOpen(false))}
       </Modal>
     </>

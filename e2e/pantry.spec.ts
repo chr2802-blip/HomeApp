@@ -10,6 +10,7 @@ import {
   test,
 } from "./helpers/fixtures";
 import { CATEGORIES } from "./helpers/database";
+import { dueAtDaysFrom, formatInZone } from "../src/lib/time";
 
 /**
  * The household's basic goods, kept from the header's own menu and read again by the
@@ -26,10 +27,22 @@ const quantityGroup = (page: Page, name: string) =>
 
 /** The row's own number box, inside the stepper above. */
 const quantityBox = (page: Page, name: string) =>
-  page.getByRole("spinbutton", { name: `Quantity of ${name}`, exact: true });
+  page.getByRole("textbox", { name: `Quantity of ${name}`, exact: true });
 
 /** A shelf's own section, by the category it holds ("UNSORTED" for none yet). */
 const shelf = (page: Page, category: string) => page.locator(`section[data-shelf="${category}"]`);
+
+/**
+ * Opens a shelf, which every visit starts with folded. Retried like any other press,
+ * because the fold's button is drawn by the server before it can do anything.
+ */
+async function openShelf(page: Page, category: string) {
+  const toggle = shelf(page, category).locator("[data-shelf-toggle]");
+  await retry(async () => {
+    if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true", { timeout: 1000 });
+  });
+}
 
 /**
  * Presses a control until it takes.
@@ -100,7 +113,7 @@ async function newRecipe(page: Page, title: string, ingredients: string) {
   await page.waitForURL(SAVED_RECIPE);
 }
 
-/** The pantry offers its lists as a menu, a recipe's page in a sheet — the same choice. */
+/** The pantry and a recipe's page both offer the lists in a sheet behind a cart icon. */
 async function addToList(page: Page, listTitle: string) {
   const trigger = page.getByRole("button", { name: "Add to list" });
   await expect(trigger).toHaveAttribute("data-ready", "true");
@@ -133,6 +146,16 @@ test("the pantry is reached from the home's own name, and kept there", async ({ 
   // And it is still out after a reload, which is the difference between a quantity that
   // was written and one that was only drawn.
   await page.reload();
+  // A fresh visit starts with every shelf folded, and a folded shelf still says what it
+  // holds and how much of it is out — the overview is the point of folding it.
+  const spices = shelf(page, "SPICES");
+  await expect(spices.locator("[data-shelf-toggle]")).toHaveAttribute("aria-expanded", "false");
+  await expect(spices.getByText("1 run out", { exact: true })).toBeVisible();
+  await expect(spices.locator("[data-shelf-toggle]")).toContainText("Salt");
+  await expect(quantityGroup(page, "Salt")).toBeHidden();
+  await expect(page.getByText(/^1 thing kept in · 1 run out$/)).toBeVisible();
+
+  await openShelf(page, "SPICES");
   await expect(quantityBox(page, "Salt")).toHaveValue("0");
   await expect(page.getByText("Run out", { exact: true })).toBeVisible();
 
@@ -164,7 +187,7 @@ test("a good is filed on its shelf, and its shelf and unit are changed in the sh
   await expect(quantityGroup(page, "Ris").getByTestId("pantry-unit")).toHaveText("kg");
 
   await openMenu(page, { label: "Ris" });
-  await page.getByRole("menuitem", { name: "Shelf and unit" }).click();
+  await page.getByRole("menuitem", { name: "Shelf, unit and date" }).click();
   // The chips are what is pressed; the radios under them are visually hidden.
   const sheet = page.getByRole("dialog");
   await sheet.getByText("Freezer", { exact: true }).click();
@@ -174,9 +197,36 @@ test("a good is filed on its shelf, and its shelf and unit are changed in the sh
 
   await expect(shelf(page, "FREEZER").getByRole("group", { name: "Quantity of Ris" })).toBeVisible();
   await page.reload();
+  await openShelf(page, "FREEZER");
   await expect(shelf(page, "FREEZER").getByRole("group", { name: "Quantity of Ris" })).toBeVisible();
   await expect(quantityGroup(page, "Ris").getByTestId("pantry-unit")).toHaveText("g");
   await expect(shelf(page, "DRY_GOODS")).toHaveCount(0);
+});
+
+test("an entry close to its expiry date warns on its row, until it has run out", async ({ page }) => {
+  await page.goto("/pantry");
+  await keepIn(page, "Ris");
+  await keepIn(page, "Pasta");
+  const warning = (name: string) =>
+    page.locator("[id^=pantry-]").filter({ has: quantityGroup(page, name) }).getByTestId("pantry-expiry-warning");
+
+  // Two weeks is the edge of the warning; a year away says nothing.
+  const expireIn = async (name: string, days: number) => {
+    await openMenu(page, { label: name });
+    await page.getByRole("menuitem", { name: "Shelf, unit and date" }).click();
+    await page.getByLabel("Expiry date (optional)").fill(formatInZone(dueAtDaysFrom(days), "yyyy-MM-dd"));
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(page.getByRole("dialog")).toBeHidden();
+  };
+  await expireIn("Ris", 5);
+  await expireIn("Pasta", 365);
+
+  await expect(warning("Ris")).toHaveAttribute("aria-label", "Expires in 5 days");
+  await expect(warning("Pasta")).toHaveCount(0);
+
+  // An empty packet past its date is not worth a warning; it is on the shopping list.
+  await runOut(page, "Ris");
+  await expect(warning("Ris")).toHaveCount(0);
 });
 
 test("a name the free list does not know is sorted onto a shelf after it is added", async ({ page }) => {
@@ -316,6 +366,9 @@ test("everything that has run out goes onto a list in one press", async ({ page 
   await runOut(page, "Ris");
   await runOut(page, "Mel");
 
+  // The cart is offered only once the page is showing what it would add.
+  await expect(page.getByRole("button", { name: "Add to list" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Only run out" }).click();
   await addToList(page, "Groceries");
   await expect(page.getByText("Added to Groceries.")).toBeVisible();
 
@@ -369,7 +422,15 @@ test("checking that line in the dialog adds it anyway", async ({ page }) => {
 
   const decision = page.getByRole("dialog", { name: "Already have some of this?" });
   await decision.getByRole("checkbox", { name: /Salt og peber/ }).check();
+  // Waited on as the action's own response and the sheet being gone, as `addToList` in
+  // recipe-ingredients.spec.ts is: a `goto` while either is still under way is cancelled
+  // by the sheet taking its history entry back off (net::ERR_ABORTED).
+  const added = page.waitForResponse(
+    (response) => response.request().method() === "POST" && !!response.request().headers()["next-action"],
+  );
   await decision.getByRole("button", { name: "Add checked" }).click();
+  await added;
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 
   await page.goto("/lists");
   await page.getByRole("link", { name: /Groceries/ }).click();

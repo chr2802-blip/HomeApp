@@ -25,26 +25,36 @@ what the router would otherwise do with either gesture. `Modal` pushes one histo
 when it opens (`{ homehubModal: true }`, no url — the address never changes) and closes
 itself on a `popstate` instead.
 
-**It never pops that entry itself.** The first version did, in the cleanup that runs when
-the sheet closes some other way — Cancel, the × button, Escape, a successful save — on
-the theory that leaving it there costs a later back press "an entry that closes nothing
-and shows no new page". That theory is true only when nothing changed while the sheet was
-open. The App Router keeps a client-side cache of each route's rendered tree, keyed to the
-history entry current when it was fetched; a background save — exactly what closes a
-sheet on success — updates the *entry the sheet pushed*, because that is the current one
-while the sheet is open, and leaves the entry **below** it exactly as it was the moment the
-sheet opened. Popping back to that entry with `history.back()` restores that frozen
-snapshot outright, which silently undid the very save that had just been made: deleting a
-list's last item left the item on screen, renaming a list left the old name — both fixed by
-a `revalidatePath` the traverse never saw, because it never asked the server again. Found
-by the full browser suite, not by the two tests written for the feature, because both used
-the one dialog in the app that never mutates anything (choosing "start from scratch")
-— **`e2e/lists.spec.ts`'s "an item can be removed outright" and "a list can be renamed"
-are the regression cover**, not a test living beside this file.
+**The first version popped that entry with a plain `history.back()`**, in the cleanup that
+runs when the sheet closes some other way — Cancel, the × button, Escape, a successful
+save. The App Router answers every `popstate` by restoring the tree it filed under the
+entry landed on, and the entry **below** a sheet was filed the moment the sheet opened. A
+background save — exactly what closes a sheet on success — happened after that, so the
+restore silently undid it: deleting a list's last item left the item on screen, renaming a
+list left the old name. Found by the full browser suite, not by the two tests written for
+the feature, because both used the one dialog in the app that never mutates anything —
+**`e2e/lists.spec.ts`'s "an item can be removed outright" and "a list can be renamed"
+are the regression cover.**
 
-So the entry stays. The cost is a page that opened and cancelled a sheet needing one
-extra back press to be left entirely — never a second call to `history.back()` from this
-component, which is the only way to reintroduce the bug above.
+**The second version never popped it**, and paid for that in a bug people reported: after
+any sheet had been opened and closed, back landed on the same page and looked like a
+button that did nothing — once per sheet opened.
+
+**So the entry is popped, and the router is not told.** `popOwnEntry` in `modal.tsx` notes
+the tree the router has *now* (the entry's `__PRIVATE_NEXTJS_INTERNALS_TREE`, which a save
+has already updated), then calls `history.back()`. A `popstate` listener registered when
+the module loads — capturing, so ahead of the router's own, which is only added once the
+router mounts — swallows that one traverse with `stopImmediatePropagation` and writes the
+noted tree onto the entry landed on, so a later back or forward onto it restores the page
+as it is. Nothing is restored in between, because nothing needs to be: the address never
+changed and the router's in-memory state is already current.
+
+Two guards. A save that navigated (an action ending in `redirect`) has left the sheet's
+entry behind on another page, so the pop happens only if the address is still the one the
+sheet opened on. And the pop is deferred a tick and cancelled by a reopen, because React's
+development double-run closes and reopens every sheet at once. `e2e/dialogs.spec.ts` holds
+both halves: back after a Cancel leaves the page, and back after a save leaves it with the
+save standing when it is returned to.
 
 ## A sheet's actions stay on screen
 
@@ -53,6 +63,22 @@ Every dialog puts its buttons — and the reason a submission was refused — in
 so they are in view from the moment it opens. **Never put a form's buttons inside
 `ModalBody`.** On a phone the sheet is the whole screen and the longer forms run well past
 it; a Save button below the fold is a form people abandon believing it did not work.
+
+## Small sheets are drawers
+
+A sheet holding one control — the portions stepper, the hearts, a choice of list, an "are
+you sure" — used to take the whole phone screen like the recipe form does, which read as
+far too much ceremony for one press, and hid the recipe the control was being changed for.
+So `Modal` takes `size="drawer"`: anchored to the bottom edge, rounded along its top, only
+as tall as its contents (capped at 85dvh), with the page dimmed but visible above it. The
+same `sheet-in` keyframes carry it, since they move a sheet by its own height.
+
+What stays full screen is everything with fields to fill in. The deciding question is
+whether the contents can run past the fold: a drawer that grows to the full height is a
+full-screen sheet with a strip of page at the top, and the rule above about a form's
+buttons would then be the only thing keeping Save in view. Swipe-down-to-dismiss was not
+added: the backdrop, the ×, Escape and back already close it, and a drag gesture would
+have to be told apart from scrolling a drawer's own body.
 
 ## What is finished folds away
 
@@ -67,6 +93,30 @@ outstanding is what the page is for.
 Pass `headingClassName` where what folds is a section of the page rather than part of a
 card, and the trigger is wrapped in an `<h2>` — the page's outline must not depend on
 whether the section happens to be open.
+
+It folds open and shut rather than jumping, through `useFold`
+(`src/components/use-fold.ts`), and so do the pantry's shelves. The first version turned
+only the chevron, on the grounds that an animation between two unknown heights stutters
+on a phone — true of easing `height` from a number measured in JavaScript. A one-row grid
+whose row goes from `0fr` to `1fr` has no such number: the browser lays the panel out at
+its natural size and the keyframes interpolate the track, so nothing is measured and
+nothing is guessed. The wrapper is a grid that clips only while it moves, and a plain
+block again once settled, so a card's shadow inside a fold is not cut off. The panel is
+kept for `FOLD_MS` after it is shut, the way a ticked row is kept for `SETTLE_MS` — by a
+timer rather than `animationend`, because a backgrounded tab never finishes the animation
+and would otherwise keep a shut panel on the page.
+
+The first version of that still felt jumpy on the pantry, and measuring the card's height
+frame by frame said why, three ways. Its heading dropped the shelf's one-line preview the
+instant it was pressed, so the card shrank a line *before* growing — then the ease-out
+curve covered most of the height in the first frame. Shutting, the preview popped back in
+at once and the ease-in stopped dead at full speed. And a second press mid-movement
+restarted the other keyframe from its far end, leaping to full height before shutting.
+Now both directions use one symmetric easing (`cubic-bezier(0.4, 0, 0.6, 1)`, 260ms): a
+turned-back fold starts the other way `FOLD_MS - t` in, which is the same height; the
+preview line folds against the rows, so the two add up to one movement; the opacity lags
+the height in and leads it out, so rows are never seen squashed; and the chevron turns
+at the same pace through `--fold-ms`/`--fold-ease`.
 
 For the same reason a list card counts **open items, not all of them**. A shopping list
 keeps everything ticked off, so a total climbs for ever and says the same thing about a

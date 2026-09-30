@@ -124,8 +124,20 @@ test.describe("favourites", () => {
     const bar = card.locator("[data-progress]");
     await expect(bar).toHaveAttribute("data-progress", "50");
 
-    const cardBox = (await card.boundingBox())!;
-    const barBox = (await bar.boundingBox())!;
+    // The page arrives with an entrance animation, so two boxes read in two round trips
+    // can be taken at two different points of it and disagree by a few pixels. Wait for
+    // the finite animations to finish, then read both in one frame.
+    await page.waitForFunction(() =>
+      document
+        .getAnimations()
+        .every((a) => a.playState !== "running" || a.effect?.getComputedTiming().endTime === Infinity),
+    );
+    const [cardBox, barBox] = await bar.evaluate((element) =>
+      [element.parentElement!, element].map((node) => {
+        const { x, y, width, height } = node.getBoundingClientRect();
+        return { x, y, width, height };
+      }),
+    );
 
     // Edge to edge and flush with the bottom, rather than a rounded bar floating in the
     // card's padding. Both are inside the card's 1px border, which is the whole of the
