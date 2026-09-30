@@ -9,7 +9,7 @@ test.beforeEach(async ({ loginAs, page }) => {
 
 test("the empty state invites you to make a first list", async ({ page }) => {
   await expect(
-    page.getByText("Nothing on the shelf yet — create your first list with the button above."),
+    page.getByText("No lists yet. Start one for the next shop with the button above."),
   ).toBeVisible();
 });
 

@@ -20,6 +20,7 @@ import { optionalText, readForm, requiredText } from "@/lib/form";
 import { discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { THEMES, THEME_FIELD } from "@/lib/theme";
 import { LANGUAGES, LANGUAGE_FIELD } from "@/lib/language";
+import { SEASONAL_FIELD } from "@/lib/season";
 import { sayIn, type Say } from "@/lib/copy/say";
 import { SETTINGS } from "@/lib/copy/settings";
 
@@ -57,6 +58,11 @@ function editHomeSchema(say: Say) {
   return homeSchema(say).extend({
     [THEME_FIELD]: z.enum(THEMES, { error: say(SETTINGS.pickAColor) }).optional(),
     [LANGUAGE_FIELD]: z.enum(LANGUAGES, { error: say(SETTINGS.language.invalid) }).optional(),
+    // "on" or "off" from `SeasonalField`; absent is left alone, the way a colour is.
+    [SEASONAL_FIELD]: z
+      .enum(["on", "off"])
+      .optional()
+      .transform((value) => (value === undefined ? undefined : value === "on")),
   });
 }
 

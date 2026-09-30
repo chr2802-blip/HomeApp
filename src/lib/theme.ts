@@ -48,7 +48,7 @@ export const DEFAULT_THEME: HomeTheme = "SLATE";
  * entirely correct in a browser and shows up on a phone as a seam a millimetre above the
  * header.
  */
-export const BAND = "#e5e7eb";
+export const BAND = "#f3ebdf";
 
 /** The field the picker submits under, read by `updateHome`. */
 export const THEME_FIELD = "theme";

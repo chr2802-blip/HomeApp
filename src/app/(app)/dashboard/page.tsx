@@ -11,6 +11,9 @@ import { dueLabel, dueTone } from "@/lib/due";
 import type { HomeLanguage } from "@prisma/client";
 import { UNFINISHED, isSnoozable, repeatLabel } from "@/lib/tasks";
 import { PhotoThumb } from "@/components/photo";
+import { PersonMark } from "@/components/person-mark";
+import { faceOf } from "@/lib/emoji";
+import { dayLine, greeting } from "@/lib/greeting";
 import { DinnerRow } from "@/components/suggested-recipe";
 import { ProgressBar } from "@/components/progress-bar";
 import { homeStreak, streakLine } from "@/lib/streak";
@@ -65,7 +68,8 @@ type DueTaskRow = {
   /** Only so `isSnoozable` can be asked; everything on this page is unfinished. */
   lastCompletedAt: Date | null;
   photoId: string | null;
-  assignee: { name: string } | null;
+  emoji: string | null;
+  assignee: { name: string; photoId: string | null } | null;
 };
 
 /** The due line's colour: the same meanings the tasks page's badge carries. */
@@ -96,17 +100,36 @@ function DueTask({
   task,
   now,
   language,
+  showWho = false,
 }: {
   task: DueTaskRow;
   now: Date;
   language: HomeLanguage;
+  /** Only in "due for someone else": on your own jobs it would be your own face on
+   *  every row, saying nothing the heading did not. */
+  showWho?: boolean;
 }) {
   const say = sayIn(language);
   return (
     <div className="flex items-center gap-3 px-3 py-2">
       {/* Decorative: the task's own name is right beside it. */}
-      {/* eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a PhotoKind glyph, not copy. */}
-      <PhotoThumb photoId={task.photoId} alt="" className="h-10 w-10" placeholder="task" />
+      <span className="relative shrink-0">
+        <PhotoThumb
+          photoId={task.photoId}
+          alt=""
+          className="h-10 w-10"
+          // eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a PhotoKind glyph, not copy.
+          placeholder="task"
+          emoji={faceOf(task)}
+        />
+        {showWho && task.assignee && (
+          <PersonMark
+            name={task.assignee.name}
+            photoId={task.assignee.photoId}
+            className="absolute -right-1.5 -bottom-1.5 h-5 w-5 ring-2 ring-white"
+          />
+        )}
+      </span>
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{task.title}</p>
         <p className="truncate text-xs">
@@ -193,7 +216,7 @@ export default async function DashboardPage() {
       // A one-off already done is not due, however long its date has been in the past.
       where: { nextDueAt: { lte: soon }, ...UNFINISHED },
       orderBy: { nextDueAt: "asc" },
-      include: { assignee: { select: { name: true } } },
+      include: { assignee: { select: { name: true, photoId: true } } },
     }),
     // The caller's own stars. Favourites are personal, so two people in one home see
     // different lists here.
@@ -271,14 +294,24 @@ export default async function DashboardPage() {
           <p className="text-xs font-semibold tracking-wide text-[var(--accent)] uppercase">
             {readDayInZone(today, DATE.weekdayDayMonth, user.homeLanguage)}
           </p>
-          <h1 className="mt-0.5 text-2xl font-semibold">
-            {say(DASHBOARD.greeting, { name: firstName })}
-          </h1>
-          {streak.weeks > 0 && (
-            <p className="mt-1 text-xs text-slate-500">
-              {streakLine(streak, user.homeLanguage)}
-            </p>
-          )}
+          <h1 className="mt-0.5 text-2xl">{greeting(firstName, now, user.homeLanguage)}</h1>
+          {/* One line under the greeting, never two — the header shares its height with
+              the week's ring, and a second line is height the first screen needs. A
+              streak running is the better thing to say, so it wins; otherwise the day
+              is said in words. */}
+          <p className="mt-1 text-xs text-slate-500">
+            {streak.weeks > 0
+              ? streakLine(streak, user.homeLanguage)
+              : dayLine(
+                  {
+                    dish: dinner?.suggestable ? dinner.title : null,
+                    dueCount: mine.length,
+                    seasonal: user.homeSeasonal,
+                  },
+                  now,
+                  user.homeLanguage,
+                )}
+          </p>
         </div>
         <WeekRing week={week} language={user.homeLanguage} />
       </header>
@@ -352,7 +385,7 @@ export default async function DashboardPage() {
                   panelClassName="divide-y divide-slate-100 border-t border-slate-100"
                 >
                   {theirs.map((task) => (
-                    <DueTask key={task.id} task={task} now={now} language={user.homeLanguage} />
+                    <DueTask key={task.id} task={task} now={now} language={user.homeLanguage} showWho />
                   ))}
                 </Collapsible>
               </section>
@@ -448,7 +481,14 @@ export default async function DashboardPage() {
                     padded={false}
                     className="relative overflow-hidden px-3 pt-2.5 pb-3.5 transition hover:border-slate-400"
                   >
-                    <p className="truncate text-sm font-medium">{list.title}</p>
+                    <p className="truncate text-sm font-medium">
+                      {faceOf(list) && (
+                        <span aria-hidden="true" className="mr-1.5">
+                          {faceOf(list)}
+                        </span>
+                      )}
+                      {list.title}
+                    </p>
                     <p className="text-xs text-slate-500">
                       {itemsLine(total, stillOpen, user.homeLanguage)}
                     </p>

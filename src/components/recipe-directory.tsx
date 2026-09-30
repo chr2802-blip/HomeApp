@@ -115,7 +115,7 @@ export function RecipeDirectory({
 
   if (recipes.length === 0) {
     return (
-      <EmptyState icon={categories.length === 0 ? "🗂️" : "🍳"}>
+      <EmptyState {...(categories.length === 0 ? { icon: "🗂️" } : { art: "pot" as const })}>
         {categories.length === 0 ? say(RECIPES.noCategoriesYet) : say(RECIPES.noRecipesYet)}
       </EmptyState>
     );

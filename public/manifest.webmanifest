@@ -4,8 +4,8 @@
   "description": "Lists, recurring tasks and recipes for your home.",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#f8fafc",
-  "theme_color": "#e5e7eb",
+  "background_color": "#faf6f0",
+  "theme_color": "#f3ebdf",
   "icons": [
     {
       "src": "/icon.svg",

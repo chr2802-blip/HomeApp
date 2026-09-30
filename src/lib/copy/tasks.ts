@@ -17,8 +17,11 @@ export const TASKS = {
     EN: "Optional — a picture of the filter, the plant, the meter.",
     DA: "Valgfrit — et billede af filteret, planten, måleren.",
   },
-  empty: { EN: "No tasks yet — add the first one above.", DA: "Ingen opgaver endnu — tilføj den første ovenfor." },
-  allDone: { EN: "Nothing left to do — nice work.", DA: "Ikke mere at gøre — flot klaret." },
+  empty: {
+    EN: "No chores written down yet. Lucky you — or add the first one above.",
+    DA: "Ingen pligter skrevet ned endnu. Heldige jer — eller tilføj den første ovenfor.",
+  },
+  allDone: { EN: "Everything is done. Feet up — you have earned it.", DA: "Alt er klaret. Fødderne op — det har I fortjent." },
   done: { EN: "Done ({count})", DA: "Afsluttede ({count})" },
 
   // The card's summary

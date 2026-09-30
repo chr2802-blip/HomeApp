@@ -40,14 +40,17 @@ export function WeekRing({ week, language }: { week: WeekWork; language: HomeLan
   if (total === 0) return null;
 
   return (
-    <div className="relative h-16 w-16 shrink-0">
+    // A whole week done is the one moment on this page worth a flourish: the ring
+    // bounces once as the page arrives and the fraction becomes the house, which is
+    // what all those jobs were for. Once — `animate-week-done` does not repeat.
+    <div className={`relative h-16 w-16 shrink-0 ${outstanding === 0 ? "animate-week-done" : ""}`}>
       <span className="sr-only">
         {outstanding === 0
           ? say(DASHBOARD.weekAllDone, { done })
           : say(DASHBOARD.weekOfTotalDone, { done, total })}
       </span>
       <svg viewBox="0 0 36 36" className="h-16 w-16 -rotate-90" aria-hidden="true">
-        <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--band)" strokeWidth="3.5" />
+        <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--color-slate-200)" strokeWidth="3.5" />
         {done > 0 && (
           <circle
             cx="18"
@@ -65,10 +68,16 @@ export function WeekRing({ week, language }: { week: WeekWork; language: HomeLan
         aria-hidden="true"
         className="absolute inset-0 flex flex-col items-center justify-center leading-none"
       >
-        <span className="text-sm font-semibold tabular-nums">
-          {done}/{total}
-        </span>
-        <span className="mt-0.5 text-[9px] text-slate-500">{say(DASHBOARD.jobs)}</span>
+        {outstanding === 0 ? (
+          <span className="text-2xl">🏡</span>
+        ) : (
+          <>
+            <span className="text-sm font-semibold tabular-nums">
+              {done}/{total}
+            </span>
+            <span className="mt-0.5 text-[9px] text-slate-500">{say(DASHBOARD.jobs)}</span>
+          </>
+        )}
       </div>
     </div>
   );

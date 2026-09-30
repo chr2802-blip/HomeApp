@@ -93,7 +93,7 @@ export default async function PantryPage() {
           />
         }
       >
-        <EmptyState icon="🧂">
+        <EmptyState art="jars">
           <p>{say(PANTRY.empty)}</p>
           <p className="mt-2">{say(PANTRY.emptyHint)}</p>
         </EmptyState>

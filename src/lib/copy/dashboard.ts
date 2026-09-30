@@ -2,7 +2,6 @@ import type { Phrase, Plural } from "./say";
 
 /** `/dashboard` — the greeting, the due-task sections, and the lists shelf. */
 export const DASHBOARD = {
-  greeting: { EN: "Hi {name}", DA: "Hej {name}" },
   thisHome: { EN: "This home", DA: "Dette hjem" },
   whatNeedsAttention: { EN: "{home} · what needs attention", DA: "{home} · hvad der skal ses på" },
 
@@ -27,7 +26,7 @@ export const DASHBOARD = {
   inThePantry: { EN: "in the pantry", DA: "i forrådet" },
 
   today: { EN: "Today", DA: "I dag" },
-  nothingToday: { EN: "Nothing needs doing today.", DA: "Intet skal gøres i dag." },
+  nothingToday: { EN: "Nothing needs doing today. Enjoy it.", DA: "Intet skal gøres i dag. Nyd det." },
   comingUp: { EN: "Coming up", DA: "De næste dage" },
   mealPlan: { EN: "Meal plan", DA: "Madplan" },
   /** Under the fraction in the week's ring. */
@@ -112,3 +111,41 @@ export const STREAK = {
     DA: "🔥 {weeks} uger i træk · intet klaret endnu denne uge",
   },
 } as const satisfies Record<string, Phrase | Plural>;
+
+/** The greeting follows the household's clock (`partOfDay` in `src/lib/greeting.ts`). */
+export const GREETING = {
+  morning: { EN: "Good morning, {name}", DA: "Godmorgen, {name}" },
+  afternoon: { EN: "Hi, {name}", DA: "Hej, {name}" },
+  evening: { EN: "Good evening, {name}", DA: "Godaften, {name}" },
+  night: { EN: "Still up, {name}?", DA: "Stadig oppe, {name}?" },
+} as const satisfies Record<string, Phrase>;
+
+/**
+ * The line under the greeting, one of each set a day (`dayLine`). Each set answers one
+ * situation — which is decided first — and only the wording rotates, so it reads like a
+ * person rather than a status bar and never says something untrue. Keyed rather than
+ * listed, so `tests/unit/language.test.ts` (which does not walk arrays) reads every one.
+ */
+export const DAY_LINE = {
+  /** A quiet day in a festive week, for a home that switched its seasonal touches on. */
+  festive: {
+    christmas: { EN: "Nothing pressing — time for some hygge. 🎄", DA: "Intet presserende — tid til lidt hygge. 🎄" },
+    newYear: { EN: "A quiet day between the years. 🎆", DA: "En stille dag i romjulen. 🎆" },
+    halloween: { EN: "All calm. Suspiciously calm. 🎃", DA: "Helt roligt. Mistænkeligt roligt. 🎃" },
+  },
+  dinner: {
+    first: { EN: "{dish} is on tonight.", DA: "Der er {dish} i aften." },
+    second: { EN: "Tonight it's {dish}. Lovely.", DA: "I aften bliver det {dish}. Dejligt." },
+    third: { EN: "Something to look forward to: {dish}.", DA: "Noget at glæde sig til: {dish}." },
+  },
+  busy: {
+    first: { EN: "A few things want doing today.", DA: "Der er et par ting, der skal gøres i dag." },
+    second: { EN: "One thing at a time. You've got this.", DA: "Én ting ad gangen. I klarer det." },
+    third: { EN: "Busy day — here's what's waiting.", DA: "Travl dag — her er det, der venter." },
+  },
+  calm: {
+    first: { EN: "Nothing pressing today. Put the kettle on.", DA: "Intet presserende i dag. Sæt kedlen over." },
+    second: { EN: "A quiet day at home. Enjoy it.", DA: "En stille dag derhjemme. Nyd det." },
+    third: { EN: "All calm here. Nice work, everyone.", DA: "Helt roligt her. Godt gået, alle sammen." },
+  },
+} as const satisfies Record<string, Record<string, Phrase>>;

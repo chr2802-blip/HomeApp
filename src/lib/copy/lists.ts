@@ -23,8 +23,8 @@ export const LISTS = {
   },
 
   empty: {
-    EN: "Nothing on the shelf yet — create your first list with the button above.",
-    DA: "Ikke noget på hylden endnu — opret jeres første liste med knappen ovenfor.",
+    EN: "No lists yet. Start one for the next shop with the button above.",
+    DA: "Ingen lister endnu. Start en til næste indkøbstur med knappen ovenfor.",
   },
   openTotal: { EN: "{open} open · {total} total", DA: "{open} åbne · {total} i alt" },
   editList: { EN: "Edit list", DA: "Rediger liste" },

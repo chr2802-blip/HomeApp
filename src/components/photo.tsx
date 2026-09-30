@@ -183,22 +183,36 @@ export function PhotoCover({ photoId, alt, className = "" }: PhotoProps) {
   );
 }
 
-/** A small square beside a row of text. */
+/**
+ * A small square beside a row of text: the thing's picture, else its face (an emoji —
+ * see `faceOf` in `src/lib/emoji.ts`), else the glyph for its kind.
+ *
+ * The two stand-ins sit on a wash of the home's own colour rather than on grey. A grey
+ * square with a grey icon in it is what made every list, task and dinner look like the
+ * same empty slot; tinted, the tile is this household's, the same reasoning as the ring
+ * round `PhotoAvatar` below.
+ */
 export function PhotoThumb({
   photoId,
   alt,
   className = "",
   placeholder,
-}: PhotoProps & { placeholder?: PhotoKind }) {
-  if (!photoId && !placeholder) return null;
+  emoji = null,
+}: PhotoProps & { placeholder?: PhotoKind; emoji?: string | null }) {
+  if (!photoId && !placeholder && !emoji) return null;
 
   if (!photoId) {
-    const Glyph = GLYPHS[placeholder!];
+    const Glyph = placeholder ? GLYPHS[placeholder] : null;
     return (
       <div
-        className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 text-slate-300 ${className}`}
+        aria-hidden="true"
+        className={`accent-tint-bg flex shrink-0 items-center justify-center overflow-hidden rounded-xl text-[var(--accent-text)] ${className}`}
       >
-        <Glyph className="h-1/2 w-1/2" />
+        {emoji ? (
+          <span className="text-[1.5em] leading-none">{emoji}</span>
+        ) : (
+          Glyph && <Glyph className="h-1/2 w-1/2 opacity-70" />
+        )}
       </div>
     );
   }

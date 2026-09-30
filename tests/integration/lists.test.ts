@@ -68,6 +68,14 @@ describe("createList", () => {
     expect((await prisma.list.findFirstOrThrow()).trackAmounts).toBe(true);
   });
 
+  it("stores the face that was picked, and none when the app is to guess", async () => {
+    await captureRedirect(() => createList(undefined, formData({ title: "Gifts", emoji: "🎁" })));
+    await captureRedirect(() => createList(undefined, formData({ title: "Groceries", emoji: "" })));
+
+    const lists = await prisma.list.findMany({ orderBy: { title: "asc" } });
+    expect(lists.map((list) => list.emoji)).toEqual(["🎁", null]);
+  });
+
   it("allows two lists with the same name", async () => {
     await captureRedirect(() => createList(undefined, formData({ title: "Shopping" })));
     await captureRedirect(() => createList(undefined, formData({ title: "Shopping" })));
@@ -85,6 +93,19 @@ describe("updateList", () => {
     expect((await prisma.list.findUniqueOrThrow({ where: { id: list.id } })).title).toBe(
       "Weekly shop",
     );
+  });
+
+  it("changes the face when the form picks one, and leaves it alone when it says nothing", async () => {
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+
+    await updateList(undefined, formData({ listId: list.id, title: "Shopping", emoji: "🥦" }));
+    expect((await prisma.list.findUniqueOrThrow({ where: { id: list.id } })).emoji).toBe("🥦");
+
+    await updateList(undefined, formData({ listId: list.id, title: "Weekly shop" }));
+    expect((await prisma.list.findUniqueOrThrow({ where: { id: list.id } })).emoji).toBe("🥦");
+
+    await updateList(undefined, formData({ listId: list.id, title: "Weekly shop", emoji: "" }));
+    expect((await prisma.list.findUniqueOrThrow({ where: { id: list.id } })).emoji).toBeNull();
   });
 
   it("ignores a blank new title", async () => {

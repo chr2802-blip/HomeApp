@@ -98,8 +98,8 @@ export const RECIPES = {
     DA: "Ingen opskriftskategorier endnu — en admin tilføjer dem under Indstillinger, og så kan opskrifter gemmes.",
   },
   noRecipesYet: {
-    EN: "No recipes yet — save your first one with the button above.",
-    DA: "Ingen opskrifter endnu — gem jeres første med knappen ovenfor.",
+    EN: "The cookbook is empty. Start with the family favourite — the button is above.",
+    DA: "Kogebogen er tom. Start med familiens livret — knappen er ovenfor.",
   },
   noRecipeMatch: { EN: "No recipe matches “{query}”.", DA: "Ingen opskrift matcher “{query}”." },
   noneUnderTime: { EN: "No recipes under {min} min.", DA: "Ingen opskrifter under {min} min." },

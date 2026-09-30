@@ -6,6 +6,7 @@ import { Input, Label, PageHeader } from "@/components/ui";
 import { FormDialog } from "@/components/form-dialog";
 import { AmountsField } from "@/components/amounts-field";
 import { PhotoField } from "@/components/photo-field";
+import { EmojiField } from "@/components/emoji-field";
 import { ListDirectory, type ListSummary } from "@/components/list-directory";
 import { sayIn } from "@/lib/copy/say";
 import { LISTS } from "@/lib/copy/lists";
@@ -38,6 +39,7 @@ export default async function ListsPage() {
       id: list.id,
       title: list.title,
       photoId: list.photoId,
+      emoji: list.emoji,
       trackAmounts: list.trackAmounts,
       open: open.get(list.id) ?? 0,
       total: list._count.items,
@@ -64,6 +66,7 @@ export default async function ListsPage() {
               <Input id="title" name="title" placeholder={say(LISTS.namePlaceholder)} required autoFocus />
             </div>
             <AmountsField language={user.homeLanguage} />
+            <EmojiField language={user.homeLanguage} />
             <PhotoField hint={say(LISTS.photoHint)} />
           </FormDialog>
         }

@@ -33,6 +33,7 @@ function user(
       name: home.id,
       photoId: null,
       theme: "SLATE" as const,
+      seasonal: false,
       language: "EN" as const,
       role: home.role,
     })),
@@ -42,6 +43,7 @@ function user(
     photoId: null,
     homeTheme: "SLATE",
     homeLanguage: "EN",
+    homeSeasonal: false,
     homeRole: homes.find((home) => home.id === active)?.role ?? null,
   };
 }

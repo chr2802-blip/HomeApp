@@ -30,6 +30,9 @@ import { TaskCard } from "@/components/task-card";
 import { Collapsible } from "@/components/collapsible";
 import { PhotoField } from "@/components/photo-field";
 import { PhotoThumb } from "@/components/photo";
+import { EmojiField } from "@/components/emoji-field";
+import { PersonMark } from "@/components/person-mark";
+import { faceOf } from "@/lib/emoji";
 
 type TaskRow = {
   id: string;
@@ -40,7 +43,8 @@ type TaskRow = {
   lastCompletedAt: Date | null;
   assigneeId: string | null;
   photoId: string | null;
-  assignee: { id: string; name: string } | null;
+  emoji: string | null;
+  assignee: { id: string; name: string; photoId: string | null } | null;
 };
 
 /**
@@ -95,8 +99,23 @@ function TaskItem({
       reopenAction={reopenTask}
       deleteAction={deleteTask}
       photo={
-        // eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a PhotoKind glyph, not copy.
-        <PhotoThumb photoId={task.photoId} alt="" className="h-14 w-14" placeholder="task" />
+        <span className="relative shrink-0">
+          <PhotoThumb
+            photoId={task.photoId}
+            alt=""
+            className="h-14 w-14"
+            // eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a PhotoKind glyph, not copy.
+            placeholder="task"
+            emoji={faceOf(task)}
+          />
+          {task.assignee && (
+            <PersonMark
+              name={task.assignee.name}
+              photoId={task.assignee.photoId}
+              className="absolute -right-1.5 -bottom-1.5 h-6 w-6 ring-2 ring-white"
+            />
+          )}
+        </span>
       }
       summary={
         <>
@@ -145,6 +164,7 @@ function TaskItem({
         <Label htmlFor={`notes-${task.id}`}>{say(TASKS.notes)}</Label>
         <Textarea id={`notes-${task.id}`} name="notes" rows={2} defaultValue={task.notes ?? ""} />
       </div>
+      <EmojiField selected={task.emoji} idPrefix={`emoji-${task.id}`} language={language} />
       <PhotoField defaultPhotoId={task.photoId} />
     </TaskCard>
   );
@@ -182,7 +202,7 @@ export default async function TasksPage() {
   const today = todayInZone(now);
 
   const db = homeDb(user.homeId);
-  const assignee = { assignee: { select: { id: true, name: true } } };
+  const assignee = { assignee: { select: { id: true, name: true, photoId: true } } };
 
   /*
    * Two queries rather than one read and split in memory, unlike the dashboard: that
@@ -239,15 +259,16 @@ export default async function TasksPage() {
               <Label htmlFor="notes">{say(TASKS.notesOptional)}</Label>
               <Textarea id="notes" name="notes" rows={2} />
             </div>
+            <EmojiField language={user.homeLanguage} />
             <PhotoField hint={say(TASKS.photoHint)} />
           </FormDialog>
         }
       />
 
       {todo.length === 0 && done.length === 0 ? (
-        <EmptyState icon="🧺">{say(TASKS.empty)}</EmptyState>
+        <EmptyState art="home">{say(TASKS.empty)}</EmptyState>
       ) : todo.length === 0 ? (
-        <EmptyState icon="✨">{say(TASKS.allDone)}</EmptyState>
+        <EmptyState art="mug">{say(TASKS.allDone)}</EmptyState>
       ) : (
         <TaskList tasks={todo} members={members} now={now} language={user.homeLanguage} />
       )}

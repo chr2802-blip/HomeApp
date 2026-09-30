@@ -93,7 +93,7 @@ export function HomeMenu({
         {/* The household's own picture. A home without one simply has no avatar rather
             than a placeholder standing in for it. */}
         <PhotoAvatar photoId={photoId} alt="" className="h-7 w-7 ring-2 ring-[var(--accent-line)]" />
-        <span className="truncate">{label}</span>
+        <span className="font-display truncate">{label}</span>
         <svg
           viewBox="0 0 20 20"
           className={`h-4 w-4 shrink-0 text-slate-400 transition-[rotate] duration-200 ${

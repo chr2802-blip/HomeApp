@@ -8,6 +8,7 @@ import { homeDb } from "@/lib/home-db";
 import { homeScoped } from "@/lib/scoped";
 import { optionalText, readForm, requiredText } from "@/lib/form";
 import { dueAtDaysFrom, dueAtOn } from "@/lib/time";
+import { readEmojiChoice } from "@/lib/emoji";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import {
   MAX_INTERVAL_DAYS,
@@ -115,6 +116,7 @@ export async function createTask(_prev: ActionResult, formData: FormData): Promi
       intervalDays: repeat.intervalDays,
       nextDueAt: due.dueAt ?? dueAtDaysFrom(0),
       assigneeId: assignee.assigneeId,
+      emoji: readEmojiChoice(formData) ?? null,
       photoId: photo.photoId ?? null,
       createdById: user.id,
     },
@@ -150,6 +152,7 @@ export async function updateTask(_prev: ActionResult, formData: FormData): Promi
       intervalDays: repeat.intervalDays,
       nextDueAt: due.dueAt ?? task.nextDueAt,
       assigneeId: assignee.assigneeId,
+      emoji: readEmojiChoice(formData),
       photoId: photo.photoId,
       // Giving a finished one-off a repeat brings it back to life, and a task that is
       // back on the list has not been done yet. Left alone it would show as recurring

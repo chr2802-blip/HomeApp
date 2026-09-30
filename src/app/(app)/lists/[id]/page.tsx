@@ -10,6 +10,8 @@ import { FavoriteButton } from "@/components/favorite-button";
 import { AddItemForm } from "@/components/add-item-form";
 import { PhotoField } from "@/components/photo-field";
 import { PhotoThumb } from "@/components/photo";
+import { EmojiField } from "@/components/emoji-field";
+import { faceOf } from "@/lib/emoji";
 import { sayIn } from "@/lib/copy/say";
 import { LISTS } from "@/lib/copy/lists";
 import { listVersion } from "@/lib/list-version";
@@ -69,7 +71,13 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
       <div className="mb-6 flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-1">
           {/* Decorative: the title is right beside it. */}
-          <PhotoThumb photoId={list.photoId} alt="" className="mr-3 h-11 w-11 shrink-0" placeholder="list" />
+          <PhotoThumb
+            photoId={list.photoId}
+            alt=""
+            className="mr-3 h-11 w-11 shrink-0"
+            placeholder="list"
+            emoji={faceOf(list)}
+          />
           <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight break-words">
             {list.title}
           </h1>
@@ -96,6 +104,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
             <Input id="title" name="title" defaultValue={list.title} required autoFocus />
           </div>
           <AmountsField defaultChecked={list.trackAmounts} language={user.homeLanguage} />
+          <EmojiField selected={list.emoji} language={user.homeLanguage} />
           <PhotoField defaultPhotoId={list.photoId} />
         </ItemMenu>
       </div>

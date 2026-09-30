@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ComponentProps } from "react";
+import { Illustration, type ArtKind } from "@/components/illustration";
 
 const base =
   "pressable inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium active:scale-[0.96] disabled:opacity-50 disabled:active:scale-100";
@@ -167,14 +168,20 @@ export function PageHeader({
  */
 export function EmptyState({
   icon,
+  art,
   children,
 }: {
   icon?: string;
+  /** A drawing (`Illustration`) in place of the emoji, for the screens a household
+   *  meets first — an empty shelf of lists, a cookbook with nothing in it. */
+  art?: ArtKind;
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-      {icon && (
+    <div className="rounded-3xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
+      {art ? (
+        <Illustration kind={art} className="mx-auto mb-3 h-24 w-32" />
+      ) : icon && (
         <div
           aria-hidden="true"
           className="accent-tint-bg mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full text-2xl"

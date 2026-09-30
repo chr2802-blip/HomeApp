@@ -26,15 +26,21 @@ export function PersonMark({
 }: {
   name: string;
   photoId: string | null;
-  /** What they did, as the label reads it: "Ticked off by Mo". */
-  what: string;
+  /**
+   * What they did, as the label reads it: "Ticked off by Mo". Left out where the name
+   * is already written beside the mark in words — a task's corner, whose badge says
+   * "For Mo" — and the mark is then decoration, hidden from a screen reader rather than
+   * reading the same name twice.
+   */
+  what?: string;
   className?: string;
 }) {
-  const label = `${what} ${name}`;
+  const label = what ? `${what} ${name}` : name;
 
   return (
     <span
       title={label}
+      aria-hidden={what ? undefined : true}
       className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-200 text-[10px] font-semibold text-slate-600 ${className}`}
     >
       {photoId ? (
@@ -51,7 +57,7 @@ export function PersonMark({
       ) : (
         <span aria-hidden="true">{initials(name)}</span>
       )}
-      <span className="sr-only">{label}</span>
+      {what && <span className="sr-only">{label}</span>}
     </span>
   );
 }

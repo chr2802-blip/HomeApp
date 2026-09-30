@@ -212,8 +212,8 @@ function Row({
           aria-label={item.done ? say(LISTS.markNotDone) : say(LISTS.markDone)}
           aria-pressed={item.done}
           onClick={() => onPress(!item.done)}
-          className={`pressable flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs active:scale-90 ${
-            item.done ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white"
+          className={`pressable flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-[1.5px] text-xs active:scale-90 ${
+            item.done ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-slate-300 bg-white"
           } ${settling ? "animate-check-pop" : ""}`}
         >
           {item.done ? "✓" : ""}

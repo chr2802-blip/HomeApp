@@ -32,7 +32,7 @@ export default async function HomesPage() {
       />
 
       {user.homes.length === 0 ? (
-        <EmptyState icon="🏠">
+        <EmptyState art="home">
           <p>{say(HOMES.notInAHomeYet)}</p>
         </EmptyState>
       ) : (

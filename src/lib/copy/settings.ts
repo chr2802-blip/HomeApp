@@ -42,6 +42,13 @@ export const SETTINGS = {
     },
   },
 
+  seasonal: {
+    label: { EN: "Seasonal touches", DA: "Sæsonens pynt" },
+    hint: {
+      EN: "A little 🎄 beside the name in December, a 🌷 in spring, and a festive word on the dashboard now and then.",
+      DA: "Et lille 🎄 ved navnet i december, en 🌷 om foråret og et festligt ord på forsiden en gang imellem.",
+    },
+  },
   language: {
     legend: { EN: "Language", DA: "Sprog" },
     hint: {

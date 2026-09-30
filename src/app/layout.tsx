@@ -32,6 +32,19 @@ const heading = localFont({
 });
 
 /**
+ * The storybook serif on page titles, sheet titles and the household's own name — see
+ * `.font-display` in globals.css for where it lands. Fraunces, vendored for the same
+ * reason as Quicksand above: the Latin subset (which carries æ, ø and å) of Google's
+ * variable file for weights 500–700 and every optical size, fetched once and checked in.
+ */
+const display = localFont({
+  src: "./fonts/fraunces-variable.woff2",
+  weight: "500 700",
+  variable: "--font-display",
+  display: "swap",
+});
+
+/**
  * A function rather than the static object this used to be, so the description can
  * follow the reader's home the way everything else here does. `title` and
  * `appleWebApp.title` stay "HomeHub" in both languages — a proper noun, the same as the
@@ -113,7 +126,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html
       lang={HTML_LANG[user?.homeLanguage ?? DEFAULT_LANGUAGE]}
       data-theme={user?.homeTheme ?? DEFAULT_THEME}
-      className={heading.variable}
+      className={`${heading.variable} ${display.variable}`}
     >
       {/* The page's own colour is in globals.css, beside the band the canvas behind it
           wears: the two are a pair, and a class here would put half of it elsewhere. */}
