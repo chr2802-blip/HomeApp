@@ -35,9 +35,10 @@ describe("a list's or a task's face", () => {
     expect(guessEmoji("Tandlægen")).toBe("🦷");
   });
 
-  it("offers each face once, in whole rows of the picker's eight", () => {
+  it("offers each face once, filling the picker's four rows on a phone and its eight columns wider", () => {
     expect(new Set(EMOJI_CHOICES).size).toBe(EMOJI_CHOICES.length);
-    expect(EMOJI_CHOICES.length % 8).toBe(0);
+    // `EmojiField` draws sixteen columns on a phone (four rows) and eight from `sm` up.
+    expect(EMOJI_CHOICES.length).toBe(4 * 16);
   });
 
   it("prefers the household's own choice, and follows the title when there is none", () => {

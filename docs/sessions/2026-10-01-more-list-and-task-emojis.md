@@ -14,7 +14,9 @@ went to 64, four new rows of eight, and the title guesser learned a few of the n
 
 Read `src/lib/emoji.ts` and `EmojiField` → appended four rows → added guesses for the
 new faces → caught that the doctor's "lægen" sits inside "tandlægen" and moved it below
-the dentist → tests → screenshot of the "New list" sheet at 390×844.
+the dentist → tests → screenshot of the "New list" sheet at 390×844 → the user asked for
+four rows scrolled sideways on a phone → the choices regrouped into four themed rows of
+sixteen, and the picker became a 16-column scroller (eight columns from `sm`).
 
 ## Where the time went
 
@@ -31,6 +33,10 @@ the dentist → tests → screenshot of the "New list" sheet at 390×844.
 The screenshot. `npm run setup` reported ready, but the dev database it points at had no
 tables, so the throwaway seed failed and needed `prisma migrate deploy` first.
 
+The sideways grid widened the whole sheet at first: a `<fieldset>` defaults to
+`min-inline-size: min-content`, so it grew to the grid's full sixteen columns. `min-w-0`
+on the fieldset fixed it, which took a second screenshot to notice.
+
 ## What CLAUDE.md did not say
 
 That the dev database is left unmigrated by `npm run setup`. Added to the "A dev database
@@ -42,5 +48,8 @@ for screenshots has nobody in it" paragraph.
   home (soap, toilet roll, house plant, bath, wrench, window, key, fire extinguisher),
   leisure (running, football, games, art, music, toys, paws, aquarium) and admin/travel
   (calendar, note, letter, phone, hospital, plane, tent, pumpkin).
+- Showing seven and a half columns on a phone, so the cut-off one says it scrolls, plus
+  snap scrolling. A face already chosen further along the row is not scrolled into view
+  when an edit sheet opens.
 - The new guesses. They come before the old ones in `GUESSES`, except the doctor, which
   has to be checked after the dentist.

@@ -16,19 +16,16 @@ export const EMOJI_FIELD = "emoji";
  * What the picker offers. A fixed set rather than any emoji at all: it is what lets the
  * action hold a form to something (a form can say anything, and a tile drawing whatever
  * arrived would draw a paragraph), and a household choosing among sixty-odd is quicker
- * than one hunting through a keyboard of three thousand. Rows of eight, because that is
- * how many columns `EmojiField` draws; order is free to change, since what is stored is
- * the emoji itself and never its position.
+ * than one hunting through a keyboard of three thousand. Written as `EmojiField` draws
+ * it on a phone — four rows, one theme each, scrolled sideways — and a wider screen
+ * folds each row into two of eight. Order is free to change, since what is stored is the
+ * emoji itself and never its position.
  */
 export const EMOJI_CHOICES = [
-  "🛒", "🥦", "🍎", "🥖", "🧀", "🍷", "☕", "🍽️",
-  "🧹", "🧺", "🧽", "🗑️", "♻️", "🛏️", "🌱", "💡",
-  "🔨", "🧰", "🚗", "📦", "🎁", "🎄", "🎂", "🧳",
-  "👶", "🐶", "🐱", "💊", "🦷", "📚", "💰", "🏡",
-  "🥩", "🐟", "🥚", "🥛", "🍝", "🍕", "🍪", "🍺",
-  "🧼", "🧻", "🪴", "🛁", "🔧", "🪟", "🔑", "🧯",
-  "🏃", "⚽", "🎮", "🎨", "🎵", "🧸", "🐾", "🐠",
-  "📅", "📝", "✉️", "📞", "🏥", "✈️", "⛺", "🎃",
+  "🛒", "🥦", "🍎", "🥖", "🧀", "🥩", "🐟", "🥚", "🥛", "🍝", "🍕", "🍪", "🍽️", "☕", "🍷", "🍺",
+  "🧹", "🧺", "🧽", "🧼", "🧻", "🗑️", "♻️", "🛏️", "🛁", "🪟", "🌱", "🪴", "💡", "🔨", "🔧", "🧰",
+  "👶", "🧸", "🐶", "🐱", "🐾", "🐠", "🏃", "⚽", "🎮", "🎨", "🎵", "📚", "🎁", "🎂", "🎄", "🎃",
+  "🏡", "🔑", "🧯", "🚗", "✈️", "🧳", "⛺", "📦", "📅", "📝", "✉️", "📞", "💰", "💊", "🦷", "🏥",
 ] as const;
 
 const CHOSEN = new Set<string>(EMOJI_CHOICES);
