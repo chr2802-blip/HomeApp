@@ -15,14 +15,20 @@ export const EMOJI_FIELD = "emoji";
 /**
  * What the picker offers. A fixed set rather than any emoji at all: it is what lets the
  * action hold a form to something (a form can say anything, and a tile drawing whatever
- * arrived would draw a paragraph), and a household choosing among thirty is quicker than
- * one hunting through a keyboard of three thousand.
+ * arrived would draw a paragraph), and a household choosing among sixty-odd is quicker
+ * than one hunting through a keyboard of three thousand. Rows of eight, because that is
+ * how many columns `EmojiField` draws; order is free to change, since what is stored is
+ * the emoji itself and never its position.
  */
 export const EMOJI_CHOICES = [
   "🛒", "🥦", "🍎", "🥖", "🧀", "🍷", "☕", "🍽️",
   "🧹", "🧺", "🧽", "🗑️", "♻️", "🛏️", "🌱", "💡",
   "🔨", "🧰", "🚗", "📦", "🎁", "🎄", "🎂", "🧳",
   "👶", "🐶", "🐱", "💊", "🦷", "📚", "💰", "🏡",
+  "🥩", "🐟", "🥚", "🥛", "🍝", "🍕", "🍪", "🍺",
+  "🧼", "🧻", "🪴", "🛁", "🔧", "🪟", "🔑", "🧯",
+  "🏃", "⚽", "🎮", "🎨", "🎵", "🧸", "🐾", "🐠",
+  "📅", "📝", "✉️", "📞", "🏥", "✈️", "⛺", "🎃",
 ] as const;
 
 const CHOSEN = new Set<string>(EMOJI_CHOICES);
@@ -34,6 +40,17 @@ const CHOSEN = new Set<string>(EMOJI_CHOICES);
  * a tile rather than a line missing from the shop.
  */
 const GUESSES: [string[], string][] = [
+  [["halloween"], "🎃"],
+  [["camping", "telt"], "⛺"],
+  [["aquarium", "akvarie"], "🐠"],
+  [["football", "soccer", "fodbold"], "⚽"],
+  [["gym", "fitness", "workout", "træning", "løbetur"], "🏃"],
+  [["toy", "legetøj"], "🧸"],
+  [["window", "vindue"], "🪟"],
+  [["toilet"], "🧻"],
+  [["smoke alarm", "røgalarm", "brandslukker"], "🧯"],
+  [["butcher", "slagter", "kød"], "🥩"],
+  [["pizza"], "🍕"],
   [["grocer", "shopping", "supermarket", "indkøb", "netto", "føtex", "rema", "lidl", "bilka"], "🛒"],
   [["hardware", "diy", "tool", "byggemarked", "værktøj", "silvan", "bauhaus", "jem & fix"], "🔨"],
   [["christmas", "xmas", "jul"], "🎄"],
@@ -45,6 +62,7 @@ const GUESSES: [string[], string][] = [
   [["the cat", "cat food", "kattemad", "katten"], "🐱"],
   [["pharmac", "medicine", "apotek", "medicin", "pill"], "💊"],
   [["dentist", "tandlæge", "teeth", "tænder"], "🦷"],
+  [["doctor", "hospital", "lægen", "lægetid"], "🏥"],
   [["recycl", "genbrug", "pantflask"], "♻️"],
   [["rubbish", "trash", "garbage", "bins", "skrald"], "🗑️"],
   [["laundry", "washing", "vasketøj", "vask tøj", "tøjvask"], "🧺"],

@@ -25,9 +25,19 @@ describe("a list's or a task's face", () => {
   });
 
   it("only ever guesses a face the picker also offers", () => {
-    for (const title of ["Groceries", "Hardware", "Jul", "Tandlæge", "Støvsug", "Kaffe", "Aftensmad"]) {
+    for (const title of [
+      "Groceries", "Hardware", "Jul", "Tandlæge", "Støvsug", "Kaffe", "Aftensmad",
+      "Halloween", "Camping", "Fodbold", "Pudse vinduer", "Toiletpapir", "Røgalarm", "Lægen", "Pizzaaften",
+    ]) {
       expect(EMOJI_CHOICES).toContain(guessEmoji(title));
     }
+    // The doctor's "lægen" sits inside "tandlægen", so the dentist has to be asked first.
+    expect(guessEmoji("Tandlægen")).toBe("🦷");
+  });
+
+  it("offers each face once, in whole rows of the picker's eight", () => {
+    expect(new Set(EMOJI_CHOICES).size).toBe(EMOJI_CHOICES.length);
+    expect(EMOJI_CHOICES.length % 8).toBe(0);
   });
 
   it("prefers the household's own choice, and follows the title when there is none", () => {
