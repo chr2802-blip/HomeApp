@@ -50,6 +50,9 @@ the old import, and every page answers 500 naming the missing file. Stop the ser
 super admin (from `SUPER_ADMIN_EMAIL`/`SUPER_ADMIN_PASSWORD`). A throwaway `tsx` script run
 with `node --env-file=.env --import tsx` that upserts a home, two members and a handful of
 rows is the quickest way to something worth a screenshot.
+`npm run setup` creates that database but does not migrate it, so run `npx prisma migrate
+deploy` first; and in the script a user's homes are `memberships: { create: … }` and the
+pointer `activeHome: { connect: … }`, not `homes`/`activeHomeId`.
 
 **Restart `npm run dev` after `prisma generate`.** A dev server already running keeps the
 client it loaded, so a column added to the schema reads as `undefined` — a new boolean is
