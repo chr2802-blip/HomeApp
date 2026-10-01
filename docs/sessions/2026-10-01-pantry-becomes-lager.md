@@ -33,9 +33,13 @@ The screenshot: `npm run setup` leaves the dev database without tables, and the 
 script guessed `homes`/`activeHomeId` on `User` before finding `memberships`/`activeHome`.
 Two failed seed runs.
 
+Then the push: three pre-push runs each failed one different, unrelated browser test
+(dialogs back button, a sheet's close animation, ai-wait), each passing alone. `E2E_WORKERS=3`
+and `=2` both failed; `=1` passed in 11 minutes. About 30 minutes of the session.
+
 ## What CLAUDE.md did not say
 
-Both of the above — now written under "A dev database for screenshots has nobody in it".
+The seed details, and that only one worker reliably gets a push through here — now written under "A dev database for screenshots has nobody in it" and beside `E2E_WORKERS`.
 
 ## Decided rather than known
 

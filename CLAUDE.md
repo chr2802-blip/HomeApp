@@ -88,6 +88,9 @@ re-running the whole suite on a guess. **The pre-push hook runs the same full su
 fail the same way**; push with `E2E_WORKERS=3 git push …` there (read by `e2eWorkerCount`
 in `e2e/helpers/servers.ts`) — every suite still runs, with one less worker fighting for
 the CPUs. It took two failed pushes, each on a different `ai-wait.spec.ts` test, to find.
+On 2026-10-01 even 3 and 2 workers each dropped a different test; `E2E_WORKERS=1` passed
+all 297 in about 11 minutes — go straight there if the container is slow, and run the push
+in the background, since it outlasts a single 10-minute tool call.
 
 ## Conventions that are not optional
 
