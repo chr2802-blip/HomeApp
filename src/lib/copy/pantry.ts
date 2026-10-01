@@ -55,7 +55,7 @@ export const PANTRY = {
     EN: "Write what it is called, not how much of it.",
     DA: "Skriv hvad det hedder, ikke hvor meget I har.",
   },
-  empty: { EN: "Nothing in the pantry yet.", DA: "Spisekammeret er tomt endnu." },
+  empty: { EN: "The cupboard is bare, for now.", DA: "Skabet er tomt, indtil videre." },
   emptyHint: {
     EN: "Add the lines your recipes open with — salt, pepper, oil, butter, flour — and they will stop turning up on the shopping.",
     DA: "Tilføj de ting jeres opskrifter altid starter med — salt, peber, olie, smør, mel — så holder de op med at dukke op på indkøbslisten.",

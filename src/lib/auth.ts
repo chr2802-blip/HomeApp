@@ -68,6 +68,8 @@ export type Membership = {
   theme: HomeTheme;
   /** The language it is read in and its imports are stored in. */
   language: HomeLanguage;
+  /** Whether it wears the season in its header. */
+  seasonal: boolean;
   role: MemberRole;
 };
 
@@ -99,6 +101,8 @@ export type SessionUser = {
    * `homeTheme` is.
    */
   homeLanguage: HomeLanguage;
+  /** Whether that home has switched on its seasonal touches (`src/lib/season.ts`). */
+  homeSeasonal: boolean;
   /**
    * What they may do in that home, or null when it is not one of theirs — which only
    * a super admin, looking into a household they are not in, ever is.
@@ -134,12 +138,12 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
-      activeHome: { select: { id: true, name: true, photoId: true, theme: true, language: true } },
+      activeHome: { select: { id: true, name: true, photoId: true, theme: true, language: true, seasonal: true } },
       memberships: {
         orderBy: { createdAt: "asc" },
         select: {
           role: true,
-          home: { select: { id: true, name: true, photoId: true, theme: true, language: true } },
+          home: { select: { id: true, name: true, photoId: true, theme: true, language: true, seasonal: true } },
         },
       },
     },
@@ -182,6 +186,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     // Same fallback, same reason: English is what the app is in before a household has
     // said otherwise.
     homeLanguage: active?.language ?? DEFAULT_LANGUAGE,
+    homeSeasonal: active?.seasonal ?? false,
     homeRole: homes.find((home) => home.id === active?.id)?.role ?? null,
   };
 });

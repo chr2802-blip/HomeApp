@@ -199,6 +199,24 @@ describe("updateHome", () => {
     expect((await prisma.home.findUniqueOrThrow({ where: { id: home.id } })).theme).toBe("OCEAN");
   });
 
+  it("switches the seasonal touches on and off, and leaves them alone when not mentioned", async () => {
+    const { home, admin } = await createHomeWithMembers();
+    await signIn(admin);
+    const seasonal = async () => (await prisma.home.findUniqueOrThrow({ where: { id: home.id } })).seasonal;
+
+    expect(await seasonal()).toBe(false);
+
+    // The hidden "off" and the ticked box's "on", in the order the form sends them.
+    await updateHome(undefined, formData({ homeId: home.id, name: home.name, seasonal: ["off", "on"] }));
+    expect(await seasonal()).toBe(true);
+
+    await updateHome(undefined, formData({ homeId: home.id, name: home.name }));
+    expect(await seasonal()).toBe(true);
+
+    await updateHome(undefined, formData({ homeId: home.id, name: home.name, seasonal: "off" }));
+    expect(await seasonal()).toBe(false);
+  });
+
   it("starts a new home in the app's own colours", async () => {
     const home = await seedHome();
 

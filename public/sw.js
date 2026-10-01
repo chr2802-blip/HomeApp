@@ -246,7 +246,7 @@ async function offlinePage() {
     `<!doctype html><html lang="${language.toLowerCase()}"><head><meta charset="utf-8">` +
       `<meta name="viewport" content="width=device-width,initial-scale=1">` +
       `<title>${t.offlineTitle}</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;` +
-      `display:grid;place-items:center;min-height:100vh;background:#e5e7eb;color:#0f172a}` +
+      `display:grid;place-items:center;min-height:100vh;background:#f3ebdf;color:#221c17}` +
       `div{max-width:22rem;padding:2rem;text-align:center}a{color:inherit}</style></head>` +
       `<body><div><h1>${t.offlineTitle}</h1>` +
       `<p>${t.offlineBody}</p>` +

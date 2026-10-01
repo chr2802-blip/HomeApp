@@ -1,5 +1,36 @@
 @import "tailwindcss";
 
+/*
+ * The app's neutrals are warm, the colour of paper and a wooden table rather than of an
+ * office. Every grey in the codebase is written as Tailwind's `slate`, so redefining the
+ * scale here is what warms all of them at once, and a new screen written the ordinary
+ * way comes out warm without anybody remembering to. Each step keeps the contrast
+ * against a card that slate's own step had against white (500 and up clear 4.5:1 as
+ * words), so nothing that was legible stops being. `white` is a card's cream, which is
+ * what keeps a card from reading as a hole cut in the page.
+ *
+ * Never a second neutral family beside this one (`stone`, `zinc`): a screen written in
+ * one would sit next to the rest a shade colder, which is the seam this closes.
+ */
+@theme {
+  --color-slate-50: #fbf8f3;
+  --color-slate-100: #f4ede3;
+  --color-slate-200: #eadfd0;
+  --color-slate-300: #d9cab6;
+  --color-slate-400: #a89783;
+  --color-slate-500: #76675a;
+  --color-slate-600: #5e5145;
+  --color-slate-700: #483d33;
+  --color-slate-800: #312922;
+  --color-slate-900: #221c17;
+  --color-slate-950: #15110d;
+  --color-white: #fffdf9;
+
+  /* A card rests on the table rather than floating over it: a hairline of warm shadow
+     at its foot and a long, faint one under it, instead of a grey smudge. */
+  --shadow-sm: 0 1px 0 rgb(120 90 60 / 0.05), 0 8px 22px -16px rgb(120 90 60 / 0.4);
+}
+
 /**
  * The two colours the app itself is, whichever home is open.
  *
@@ -13,7 +44,7 @@
  * top stayed whichever colour was there first while the header below it changed home
  * under it — the seam this file exists to close, worn permanently instead. So the band
  * is now one colour, declared identically in every theme block below rather than varying
- * with the household, and it is `#e5e7eb` rather than white so that the frame reads as a
+ * with the household, and it is a warm linen rather than white so that the frame reads as a
  * colour and not as an absence of one.
  *
  * Four painters still carry it to the edges of the screen and they are not equally
@@ -35,7 +66,7 @@
  * something scrolls under it, and a strip the phone paints can follow none of that.
  */
 :root {
-  --page: #f8fafc;
+  --page: #faf6f0;
 }
 
 /*
@@ -136,6 +167,20 @@ h3 {
 }
 
 /*
+ * A page's own title, a sheet's, and the household's name in the header wear a
+ * storybook serif — the one voice that says "our home" rather than "an app". Only those:
+ * the small uppercase section labels stay in the rounded face above, because a serif at
+ * 12px in capitals reads as a legal notice.
+ */
+h1,
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  font-optical-sizing: auto;
+}
+
+/*
  * A wash of the home's own colour, for decoration rather than a control — an empty
  * state's icon, a ring round somebody's picture. `color-mix` rather than a new
  * per-theme variable: a second colour per theme is exactly what `--accent-soft` used
@@ -179,15 +224,15 @@ h3 {
  */
 :root,
 [data-theme="SLATE"] {
-  --band: #e5e7eb;
-  --accent: #0f172a;
-  --accent-hover: #334155;
-  --accent-text: #0f172a;
-  --accent-line: #e2e8f0;
+  --band: #f3ebdf;
+  --accent: #2a211b;
+  --accent-hover: #483d33;
+  --accent-text: #2a211b;
+  --accent-line: #eadfd0;
 }
 
 [data-theme="OCEAN"] {
-  --band: #e5e7eb;
+  --band: #f3ebdf;
   --accent: #0369a1;
   --accent-hover: #075985;
   --accent-text: #075985;
@@ -195,7 +240,7 @@ h3 {
 }
 
 [data-theme="INDIGO"] {
-  --band: #e5e7eb;
+  --band: #f3ebdf;
   --accent: #4f46e5;
   --accent-hover: #4338ca;
   --accent-text: #4338ca;
@@ -203,7 +248,7 @@ h3 {
 }
 
 [data-theme="VIOLET"] {
-  --band: #e5e7eb;
+  --band: #f3ebdf;
   --accent: #7c3aed;
   --accent-hover: #6d28d9;
   --accent-text: #6d28d9;
@@ -211,7 +256,7 @@ h3 {
 }
 
 [data-theme="PLUM"] {
-  --band: #e5e7eb;
+  --band: #f3ebdf;
   --accent: #a21caf;
   --accent-hover: #86198f;
   --accent-text: #86198f;
@@ -219,7 +264,7 @@ h3 {
 }
 
 [data-theme="SAND"] {
-  --band: #e5e7eb;
+  --band: #f3ebdf;
   --accent: #57534e;
   --accent-hover: #44403c;
   --accent-text: #44403c;
@@ -524,17 +569,83 @@ h3 {
 @keyframes check-pop {
   0% {
     scale: 1;
+    rotate: 0deg;
   }
-  45% {
-    scale: 1.16;
+  35% {
+    scale: 1.35;
+    rotate: -8deg;
+  }
+  65% {
+    scale: 0.92;
+    rotate: 4deg;
   }
   100% {
     scale: 1;
+    rotate: 0deg;
   }
 }
 
 .animate-check-pop {
-  animation: check-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: check-pop 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/*
+ * A whole week of jobs done: the dashboard's ring hops once as the page arrives, a
+ * little later than the page itself so it is seen landing rather than lost inside the
+ * page's own entrance. Once, and never on a loop — a thing that keeps bouncing is a
+ * thing asking for attention, and this one is only saying well done.
+ */
+@keyframes week-done {
+  0%,
+  40% {
+    scale: 1;
+    translate: 0 0;
+  }
+  60% {
+    scale: 1.12;
+    translate: 0 -6px;
+  }
+  80% {
+    scale: 0.96;
+    translate: 0 0;
+  }
+  100% {
+    scale: 1;
+    translate: 0 0;
+  }
+}
+
+.animate-week-done {
+  animation: week-done 900ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/*
+ * The season's mark beside the home's name swings in once, like a decoration hung on a
+ * nail, and then hangs still — the header is in view on every screen, and anything in
+ * it that kept moving would be the one thing nobody could stop seeing.
+ */
+@keyframes season-in {
+  0% {
+    opacity: 0;
+    rotate: -25deg;
+    scale: 0.6;
+  }
+  60% {
+    opacity: 1;
+    rotate: 10deg;
+    scale: 1.1;
+  }
+  100% {
+    opacity: 1;
+    rotate: 0deg;
+    scale: 1;
+  }
+}
+
+.animate-season-in {
+  display: inline-block;
+  transform-origin: 50% 0;
+  animation: season-in 700ms cubic-bezier(0.34, 1.56, 0.64, 1) 300ms both;
 }
 
 /*

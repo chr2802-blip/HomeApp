@@ -5,6 +5,9 @@ import { Input, Label, Textarea } from "@/components/ui";
 import { RepeatField } from "@/components/repeat-field";
 import { AssigneeField, type MemberOption } from "@/components/assignee-field";
 import { PhotoField } from "@/components/photo-field";
+import { PersonMark } from "@/components/person-mark";
+import { EmojiField } from "@/components/emoji-field";
+import { faceOf } from "@/lib/emoji";
 import { dueLabel, dueTone } from "@/lib/due";
 import { isFinished, isOneOff, repeatLabel } from "@/lib/tasks";
 import { formatInZone, readInZone } from "@/lib/time";
@@ -20,7 +23,9 @@ export type TaskSummary = {
   nextDueAt: Date;
   lastCompletedAt: Date | null;
   photoId: string | null;
-  assignee: { name: string } | null;
+  /** The household's chosen face, or null to guess one from the title (`faceOf`). */
+  emoji: string | null;
+  assignee: { name: string; photoId: string | null } | null;
 };
 
 /** The due line's colour: the same meanings the details page's badge carries. */
@@ -69,11 +74,18 @@ export function TaskRow({
   now,
   language,
   trailing,
+  showWho = false,
 }: {
   task: TaskSummary;
   now: Date;
   language: HomeLanguage;
   trailing?: React.ReactNode;
+  /**
+   * Whether the tile carries the assignee's mark in its corner. On `/tasks`, and under
+   * the dashboard's "due for someone else"; not under "due for you", where it would be
+   * your own face on every row, saying nothing the heading did not.
+   */
+  showWho?: boolean;
 }) {
   const finished = isFinished(task);
 
@@ -84,7 +96,23 @@ export function TaskRow({
         className="pressable flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-slate-50 active:scale-[0.98] active:bg-slate-100"
       >
         {/* Decorative: the task's own name is right beside it. */}
-        <PhotoThumb photoId={task.photoId} alt="" className="h-10 w-10" placeholder="task" />
+        <span className="relative shrink-0">
+          <PhotoThumb
+            photoId={task.photoId}
+            alt=""
+            className="h-10 w-10"
+            placeholder="task"
+            emoji={faceOf(task)}
+          />
+          {/* Decoration: the name is in the line beside it. */}
+          {showWho && task.assignee && (
+            <PersonMark
+              name={task.assignee.name}
+              photoId={task.assignee.photoId}
+              className="absolute -right-1.5 -bottom-1.5 h-5 w-5 ring-2 ring-white"
+            />
+          )}
+        </span>
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium">{task.title}</p>
           <p className="truncate text-xs">
@@ -156,6 +184,7 @@ export function TaskFields({
         <Label htmlFor={`notes-${task.id}`}>{say(TASKS.notes)}</Label>
         <Textarea id={`notes-${task.id}`} name="notes" rows={2} defaultValue={task.notes ?? ""} />
       </div>
+      <EmojiField selected={task.emoji} idPrefix={`emoji-${task.id}`} language={language} />
       <PhotoField defaultPhotoId={task.photoId} />
     </>
   );

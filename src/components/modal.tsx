@@ -206,7 +206,7 @@ export function Modal({
         } ${closing ? "animate-sheet-out" : "animate-sheet-in"}`}
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-          <h2 className="min-w-0 flex-1 text-lg font-semibold tracking-tight break-words">{title}</h2>
+          <h2 className="font-display min-w-0 flex-1 text-xl break-words">{title}</h2>
           <button
             type="button"
             onClick={onClose}

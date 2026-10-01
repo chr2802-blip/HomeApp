@@ -11,3 +11,13 @@ export const FORMS = {
     DA: "Det er for langt — hold det under {limit} tegn.",
   },
 } as const satisfies Record<string, Phrase>;
+
+/** The face picker on a list's or a task's sheet (`EmojiField`). */
+export const FACE = {
+  label: { EN: "Icon", DA: "Ikon" },
+  auto: { EN: "Pick for me", DA: "Vælg for mig" },
+  hint: {
+    EN: "Shown on its tile when it has no picture.",
+    DA: "Vises på dens felt, når den ikke har et billede.",
+  },
+} as const satisfies Record<string, Phrase>;

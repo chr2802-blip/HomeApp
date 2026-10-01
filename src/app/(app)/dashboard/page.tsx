@@ -12,6 +12,8 @@ import type { HomeLanguage } from "@prisma/client";
 import { UNFINISHED, isSnoozable } from "@/lib/tasks";
 import { TaskRow, type TaskSummary } from "@/components/task-row";
 import { PhotoThumb } from "@/components/photo";
+import { faceOf } from "@/lib/emoji";
+import { dayLine, greeting } from "@/lib/greeting";
 import { DinnerRow } from "@/components/suggested-recipe";
 import { ProgressBar } from "@/components/progress-bar";
 import { homeStreak, streakLine } from "@/lib/streak";
@@ -76,10 +78,14 @@ function DueTask({
   task,
   now,
   language,
+  showWho = false,
 }: {
   task: TaskSummary;
   now: Date;
   language: HomeLanguage;
+  /** Only in "due for someone else": on your own jobs it would be your own face on
+   *  every row, saying nothing the heading did not. */
+  showWho?: boolean;
 }) {
   const say = sayIn(language);
   return (
@@ -87,6 +93,7 @@ function DueTask({
       task={task}
       now={now}
       language={language}
+      showWho={showWho}
       trailing={
         <>
           {isSnoozable(task, now) && (
@@ -164,7 +171,7 @@ export default async function DashboardPage() {
       // A one-off already done is not due, however long its date has been in the past.
       where: { nextDueAt: { lte: soon }, ...UNFINISHED },
       orderBy: { nextDueAt: "asc" },
-      include: { assignee: { select: { name: true } } },
+      include: { assignee: { select: { name: true, photoId: true } } },
     }),
     // The caller's own stars. Favourites are personal, so two people in one home see
     // different lists here.
@@ -242,14 +249,24 @@ export default async function DashboardPage() {
           <p className="text-xs font-semibold tracking-wide text-[var(--accent)] uppercase">
             {readDayInZone(today, DATE.weekdayDayMonth, user.homeLanguage)}
           </p>
-          <h1 className="mt-0.5 text-2xl font-semibold">
-            {say(DASHBOARD.greeting, { name: firstName })}
-          </h1>
-          {streak.weeks > 0 && (
-            <p className="mt-1 text-xs text-slate-500">
-              {streakLine(streak, user.homeLanguage)}
-            </p>
-          )}
+          <h1 className="mt-0.5 text-2xl">{greeting(firstName, now, user.homeLanguage)}</h1>
+          {/* One line under the greeting, never two — the header shares its height with
+              the week's ring, and a second line is height the first screen needs. A
+              streak running is the better thing to say, so it wins; otherwise the day
+              is said in words. */}
+          <p className="mt-1 text-xs text-slate-500">
+            {streak.weeks > 0
+              ? streakLine(streak, user.homeLanguage)
+              : dayLine(
+                  {
+                    dish: dinner?.suggestable ? dinner.title : null,
+                    dueCount: mine.length,
+                    seasonal: user.homeSeasonal,
+                  },
+                  now,
+                  user.homeLanguage,
+                )}
+          </p>
         </div>
         <WeekRing week={week} language={user.homeLanguage} />
       </header>
@@ -323,7 +340,7 @@ export default async function DashboardPage() {
                   panelClassName="divide-y divide-slate-100 border-t border-slate-100"
                 >
                   {theirs.map((task) => (
-                    <DueTask key={task.id} task={task} now={now} language={user.homeLanguage} />
+                    <DueTask key={task.id} task={task} now={now} language={user.homeLanguage} showWho />
                   ))}
                 </Collapsible>
               </section>
@@ -419,7 +436,14 @@ export default async function DashboardPage() {
                     padded={false}
                     className="relative overflow-hidden px-3 pt-2.5 pb-3.5 transition hover:border-slate-400"
                   >
-                    <p className="truncate text-sm font-medium">{list.title}</p>
+                    <p className="truncate text-sm font-medium">
+                      {faceOf(list) && (
+                        <span aria-hidden="true" className="mr-1.5">
+                          {faceOf(list)}
+                        </span>
+                      )}
+                      {list.title}
+                    </p>
                     <p className="text-xs text-slate-500">
                       {itemsLine(total, stillOpen, user.homeLanguage)}
                     </p>

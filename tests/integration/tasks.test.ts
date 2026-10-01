@@ -185,6 +185,20 @@ describe("completeTask", () => {
   });
 });
 
+describe("a task's face", () => {
+  it("is stored when picked, kept when the edit says nothing, and cleared to be guessed", async () => {
+    await createTask(undefined, formData({ title: "Walk the dog", intervalDays: "1", emoji: "🐶" }));
+    const task = await prisma.task.findFirstOrThrow();
+    expect(task.emoji).toBe("🐶");
+
+    await updateTask(undefined, formData({ taskId: task.id, title: "Walk Bella", intervalDays: "1" }));
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: task.id } })).emoji).toBe("🐶");
+
+    await updateTask(undefined, formData({ taskId: task.id, title: "Walk Bella", intervalDays: "1", emoji: "" }));
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: task.id } })).emoji).toBeNull();
+  });
+});
+
 describe("updateTask", () => {
   it("changes the title, notes, interval and due date", async () => {
     const task = await seedTask({ homeId: home.id, createdById: member.id });

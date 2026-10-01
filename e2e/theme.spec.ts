@@ -1,6 +1,7 @@
 import { ACCOUNTS, expect, openHomeMenu, test } from "./helpers/fixtures";
 import { HOME_NAME, OTHER_HOME_NAME, prisma } from "./helpers/database";
 import type { Page } from "@playwright/test";
+import { BAND } from "../src/lib/theme";
 
 /**
  * A home's own colour, through the browser.
@@ -36,7 +37,7 @@ const themeOf = (page: Page) => page.locator("html");
  */
 const barOf = (page: Page) => page.locator('meta[name="theme-color"]');
 
-/** `rgb(229, 231, 235)` as `#e5e7eb`, so a computed colour can be read against a hex. */
+/** `rgb(243, 235, 223)` as `#f3ebdf`, so a computed colour can be read against a hex. */
 function asHex(colour: string) {
   const [red, green, blue] = colour.match(/\d+/g)!.map(Number);
   return `#${[red, green, blue]
@@ -100,7 +101,7 @@ test.describe("as a home admin", () => {
     await expect(themeOf(page)).toHaveAttribute("data-theme", "OCEAN");
     // The controls go with the household; the frame does not — the header, the tab bar
     // and the tag the phone reads stay the one band whichever theme is picked.
-    await expectOneBand(page, "#e5e7eb");
+    await expectOneBand(page, BAND);
     expect(
       await page.evaluate(
         () => (window as unknown as { __alive?: boolean }).__alive === true,
@@ -191,7 +192,7 @@ test.describe("somebody in two homes", () => {
     await expect(themeOf(page)).toHaveAttribute("data-theme", "SAND");
     // The controls came with them; the band did not need to, because it was never the
     // home's to begin with.
-    await expectOneBand(page, "#e5e7eb");
+    await expectOneBand(page, BAND);
   });
 
   /**
@@ -213,7 +214,7 @@ test.describe("somebody in two homes", () => {
     await dress(OTHER_HOME_NAME, "SAND");
 
     await loginAs(ACCOUNTS.member);
-    await expect(barOf(page)).toHaveAttribute("content", "#e5e7eb");
+    await expect(barOf(page)).toHaveAttribute("content", BAND);
 
     await page.evaluate(() => {
       (window as unknown as { __alive?: boolean }).__alive = true;
@@ -225,7 +226,7 @@ test.describe("somebody in two homes", () => {
       page.getByRole("button", { name: `${OTHER_HOME_NAME} — home menu` }),
     ).toBeVisible();
 
-    await expect(barOf(page)).toHaveAttribute("content", "#e5e7eb");
+    await expect(barOf(page)).toHaveAttribute("content", BAND);
     expect(await barOf(page).count()).toBe(1);
 
     const alive = await page.evaluate(
@@ -244,5 +245,5 @@ test("the login page wears the app's own colours, belonging to no home", async (
   await expect(themeOf(page)).toHaveAttribute("data-theme", "SLATE");
   // The one band, same as every home and the same the manifest carries — what somebody
   // sees before they are in a home at all.
-  await expectOneBand(page, "#e5e7eb");
+  await expectOneBand(page, BAND);
 });

@@ -23,6 +23,7 @@ import { SnoozeMenuItem } from "@/components/task-snooze";
 import { SubmitButton } from "@/components/submit-button";
 import { TaskDoneButton } from "@/components/task-done-button";
 import { TaskFields, TaskRow, type TaskSummary } from "@/components/task-row";
+import { EmojiField } from "@/components/emoji-field";
 import { Collapsible } from "@/components/collapsible";
 import { PhotoField } from "@/components/photo-field";
 
@@ -56,6 +57,7 @@ function TaskItem({
       task={task}
       now={now}
       language={language}
+      showWho
       trailing={
         <>
           <ItemMenu
@@ -123,7 +125,7 @@ export default async function TasksPage() {
   const today = todayInZone(now);
 
   const db = homeDb(user.homeId);
-  const assignee = { assignee: { select: { id: true, name: true } } };
+  const assignee = { assignee: { select: { id: true, name: true, photoId: true } } };
 
   /*
    * Two queries rather than one read and split in memory, unlike the dashboard: that
@@ -180,15 +182,16 @@ export default async function TasksPage() {
               <Label htmlFor="notes">{say(TASKS.notesOptional)}</Label>
               <Textarea id="notes" name="notes" rows={2} />
             </div>
+            <EmojiField language={user.homeLanguage} />
             <PhotoField hint={say(TASKS.photoHint)} />
           </FormDialog>
         }
       />
 
       {todo.length === 0 && done.length === 0 ? (
-        <EmptyState icon="🧺">{say(TASKS.empty)}</EmptyState>
+        <EmptyState art="home">{say(TASKS.empty)}</EmptyState>
       ) : todo.length === 0 ? (
-        <EmptyState icon="✨">{say(TASKS.allDone)}</EmptyState>
+        <EmptyState art="mug">{say(TASKS.allDone)}</EmptyState>
       ) : (
         <TaskList tasks={todo} members={members} now={now} language={user.homeLanguage} />
       )}

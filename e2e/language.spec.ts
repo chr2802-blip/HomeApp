@@ -121,7 +121,7 @@ test("speaks the pantry, the importer's own copy, and the hardest sentence in th
   // planned yet for this household.
   await page.goto("/tasks");
   await expect(page.getByRole("heading", { name: "Opgaver", level: 1 })).toBeVisible();
-  await expect(page.getByText("Ingen opgaver endnu — tilføj den første ovenfor.")).toBeVisible();
+  await expect(page.getByText("Ingen pligter skrevet ned endnu. Heldige jer — eller tilføj den første ovenfor.")).toBeVisible();
 
   // The meals area is converted too — the week's own heading, and an unplanned day
   // saying so in Danish. Not a count of all seven: `tonightsDinner` auto-plans today
@@ -134,7 +134,7 @@ test("speaks the pantry, the importer's own copy, and the hardest sentence in th
   // The dashboard is converted too — the greeting, and the "Indkøb" list made earlier
   // showing under its Danish heading.
   await page.goto("/dashboard");
-  await expect(page.getByRole("heading", { name: /^Hej /, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^(Godmorgen|Hej|Godaften|Stadig oppe), /, level: 1 })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Seneste lister" })).toBeVisible();
 
   // /homes is converted too — the page's own heading, and this member's role on their

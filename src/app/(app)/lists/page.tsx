@@ -7,6 +7,7 @@ import { FormDialog } from "@/components/form-dialog";
 import { AmountsField } from "@/components/amounts-field";
 import { AisleField } from "@/components/aisle-field";
 import { PhotoField } from "@/components/photo-field";
+import { EmojiField } from "@/components/emoji-field";
 import { ListDirectory, type ListSummary } from "@/components/list-directory";
 import { sayIn } from "@/lib/copy/say";
 import { LISTS } from "@/lib/copy/lists";
@@ -39,6 +40,7 @@ export default async function ListsPage() {
       id: list.id,
       title: list.title,
       photoId: list.photoId,
+      emoji: list.emoji,
       trackAmounts: list.trackAmounts,
       groupByAisle: list.groupByAisle,
       open: open.get(list.id) ?? 0,
@@ -67,6 +69,7 @@ export default async function ListsPage() {
             </div>
             <AmountsField language={user.homeLanguage} />
             <AisleField language={user.homeLanguage} />
+            <EmojiField language={user.homeLanguage} />
             <PhotoField hint={say(LISTS.photoHint)} />
           </FormDialog>
         }

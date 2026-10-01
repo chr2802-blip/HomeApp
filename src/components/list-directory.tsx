@@ -11,6 +11,8 @@ import { FavoriteButton } from "@/components/favorite-button";
 import { ItemMenu } from "@/components/item-menu";
 import { PhotoField } from "@/components/photo-field";
 import { PhotoThumb } from "@/components/photo";
+import { EmojiField } from "@/components/emoji-field";
+import { faceOf } from "@/lib/emoji";
 import { ProgressBar } from "@/components/progress-bar";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
@@ -21,6 +23,8 @@ export type ListSummary = {
   title: string;
   /** The list's picture, if it has one. Only the id: the thumbnail is fetched by URL. */
   photoId: string | null;
+  /** The face the household chose, or null to guess one from the title. */
+  emoji: string | null;
   open: number;
   total: number;
   favorite: boolean;
@@ -57,9 +61,14 @@ function ListCards({ lists }: { lists: ListSummary[] }) {
           >
             {/* Decorative: the title is right beside it, and a screen reader
                 reading the same words twice helps nobody. */}
-            {/* eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a
-                PhotoKind glyph, not copy. */}
-            <PhotoThumb photoId={list.photoId} alt="" className="h-11 w-11" placeholder="list" />
+            <PhotoThumb
+              photoId={list.photoId}
+              alt=""
+              className="h-11 w-11"
+              // eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a PhotoKind glyph, not copy.
+              placeholder="list"
+              emoji={faceOf(list)}
+            />
             <div className="min-w-0 flex-1">
               <p className="font-medium hover:underline">{list.title}</p>
               <p className="mt-1 text-xs text-slate-500">
@@ -86,6 +95,7 @@ function ListCards({ lists }: { lists: ListSummary[] }) {
             </div>
             <AmountsField defaultChecked={list.trackAmounts} language={language} />
             <AisleField defaultChecked={list.groupByAisle} language={language} />
+            <EmojiField selected={list.emoji} idPrefix={`emoji-${list.id}`} language={language} />
             <PhotoField defaultPhotoId={list.photoId} />
           </ItemMenu>
 
@@ -119,7 +129,7 @@ export function ListDirectory({ lists }: { lists: ListSummary[] }) {
     : lists;
 
   if (lists.length === 0) {
-    return <EmptyState icon="📝">{say(LISTS.empty)}</EmptyState>;
+    return <EmptyState art="basket">{say(LISTS.empty)}</EmptyState>;
   }
 
   // A finished list folds away like a finished task, for the same reason: it is worth

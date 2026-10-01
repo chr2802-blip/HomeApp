@@ -12,7 +12,7 @@ export function BottomNav({ showAdmin }: { showAdmin: boolean }) {
   const items = navItemsFor(showAdmin, language);
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--accent-line)] bg-[var(--band)] md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 rounded-t-3xl border-t border-[var(--accent-line)] bg-[var(--band)] shadow-[0_-10px_28px_-18px_rgb(80_55_30/0.45)] md:hidden">
       {/* The tabs sit above the phone's gesture bar and the band behind them runs on
           underneath it: the page is laid out to the bottom edge of the screen, so this
           padding is the only thing keeping the row off the bar, and the strip it leaves

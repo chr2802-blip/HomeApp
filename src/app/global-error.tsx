@@ -38,7 +38,7 @@ export default function GlobalError({
           padding: "2rem",
           margin: 0,
           fontFamily: "system-ui, sans-serif",
-          background: "#f8fafc",
+          background: "#faf6f0",
           color: "#0f172a",
         }}
       >

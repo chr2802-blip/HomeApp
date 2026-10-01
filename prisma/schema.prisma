@@ -70,6 +70,13 @@ model Home {
   /// are stored in. Switching changes only what happens next — nothing already stored
   /// is rewritten.
   language  HomeLanguage @default(EN)
+  /**
+   * Whether the header wears the season — a 🎄 beside the name in December, a 🌷 in
+   * spring — and the dashboard says so on a quiet day. Off until the household's admins
+   * turn it on in Settings, because a picture beside the name nobody asked for is the
+   * app decorating somebody else's home.
+   */
+  seasonal  Boolean      @default(false)
   createdAt DateTime     @default(now())
 
   /// Everybody who belongs to this home, and what each of them may do in it.
@@ -206,6 +213,13 @@ model List {
   /// Whether the open items are drawn under the shop's aisles (`ShopAisle`). Chosen per
   /// list, because a shopping list is walked through a shop and a packing list is not.
   groupByAisle Boolean  @default(false)
+  /**
+   * The face the household gave it — one emoji from `EMOJI_CHOICES` in
+   * `src/lib/emoji.ts`, drawn on its tile where there is no picture. Null is "nobody
+   * chose", and the tile then guesses one from the title (`faceOf`) without storing the
+   * guess, so renaming "Groceries" to "Hardware" changes the face with it.
+   */
+  emoji        String?
   photoId      String?
   createdById  String
   createdAt    DateTime @default(now())
@@ -356,6 +370,13 @@ model Task {
   notes           String?
   /// How many days between repeats, or null for a one-off.
   intervalDays    Int?
+  /**
+   * The face the household gave it — one emoji from `EMOJI_CHOICES` in
+   * `src/lib/emoji.ts`, drawn on its tile where there is no picture. Null is "nobody
+   * chose", and the tile then guesses one from the title (`faceOf`) without storing the
+   * guess, so renaming "Groceries" to "Hardware" changes the face with it.
+   */
+  emoji           String?
   nextDueAt       DateTime
   lastCompletedAt DateTime?
   lastNotifiedAt  DateTime?

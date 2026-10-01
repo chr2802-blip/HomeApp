@@ -11,6 +11,7 @@ import {
 import { Card } from "@/components/ui";
 import { ItemMenu } from "@/components/item-menu";
 import { PhotoBanner, PhotoThumb } from "@/components/photo";
+import { faceOf } from "@/lib/emoji";
 import { SnoozeMenuItem } from "@/components/task-snooze";
 import { SubmitButton } from "@/components/submit-button";
 import { TaskDoneButton } from "@/components/task-done-button";
@@ -51,7 +52,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
   const [task, memberships] = await Promise.all([
     db.task.findUnique({
       where: { id },
-      include: { assignee: { select: { id: true, name: true } } },
+      include: { assignee: { select: { id: true, name: true, photoId: true } } },
     }),
     db.homeMember.findMany({
       orderBy: { user: { name: "asc" } },
@@ -69,7 +70,13 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
         <div className="flex min-w-0 flex-1 items-center gap-3">
           {!task.photoId && (
             // Decorative: the title is right beside it.
-            <PhotoThumb photoId={null} alt="" className="h-11 w-11" placeholder="task" />
+            <PhotoThumb
+              photoId={null}
+              alt=""
+              className="h-11 w-11"
+              placeholder="task"
+              emoji={faceOf(task)}
+            />
           )}
           <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight break-words">
             {task.title}

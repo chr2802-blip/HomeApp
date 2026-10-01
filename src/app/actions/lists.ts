@@ -10,6 +10,7 @@ import { homeDb } from "@/lib/home-db";
 import { homeScoped } from "@/lib/scoped";
 import { announceListsChanged } from "@/lib/realtime";
 import { readForm, requiredText } from "@/lib/form";
+import { readEmojiChoice } from "@/lib/emoji";
 import { MAX_ITEM_TEXT } from "@/lib/offline-ops";
 import { clampAmount, MIN_AMOUNT } from "@/lib/amount";
 import { ingredientLines, shoppingText } from "@/lib/recipes";
@@ -117,6 +118,7 @@ export async function createList(_prev: ActionResult, formData: FormData): Promi
       title: form.fields.title,
       trackAmounts: form.fields.trackAmounts,
       groupByAisle: form.fields.groupByAisle,
+      emoji: readEmojiChoice(formData) ?? null,
       photoId: photo.photoId ?? null,
       homeId: user.homeId,
       createdById: user.id,
@@ -152,6 +154,7 @@ export async function updateList(_prev: ActionResult, formData: FormData): Promi
       title: form.fields.title,
       trackAmounts: form.fields.trackAmounts,
       groupByAisle: form.fields.groupByAisle,
+      emoji: readEmojiChoice(formData),
       photoId: photo.photoId,
     },
   });

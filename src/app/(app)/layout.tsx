@@ -13,6 +13,8 @@ import { LanguageProvider } from "@/components/language-provider";
 import { SnackbarProvider } from "@/components/snackbar";
 import { sayIn } from "@/lib/copy/say";
 import { APP } from "@/lib/copy/app";
+import { SEASON_MARK, seasonOn } from "@/lib/season";
+import { todayInZone } from "@/lib/time";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
@@ -57,6 +59,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                     photoId={user.homePhotoId}
                     canAdminister={canAdministerCurrentHome(user)}
                   />
+                  {/* Outside the menu's button so its accessible name stays the home's
+                      own, and only where the household switched the season on. */}
+                  {user.homeSeasonal && (
+                    <span aria-hidden="true" className="animate-season-in shrink-0 text-lg leading-none">
+                      {SEASON_MARK[seasonOn(todayInZone())]}
+                    </span>
+                  )}
                 </div>
                 <NavLinks showAdmin={showAdmin} />
                 <div className="ml-auto flex items-center gap-3 text-sm">

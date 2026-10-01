@@ -81,7 +81,10 @@ default worker count against 4 CPUs, and a different single spec times out on ea
 twice, and never anything the diff under test touched). Before treating a lone failure as a
 real regression, re-run just that spec alone (`npx playwright test <file> -g "<test
 name>"`): it passes in a couple of seconds when it was contention, and that is cheaper than
-re-running the whole suite on a guess.
+re-running the whole suite on a guess. **The pre-push hook runs the same full suite, so a push can
+fail the same way**; push with `E2E_WORKERS=3 git push …` there (read by `e2eWorkerCount`
+in `e2e/helpers/servers.ts`) — every suite still runs, with one less worker fighting for
+the CPUs. It took two failed pushes, each on a different `ai-wait.spec.ts` test, to find.
 
 ## Conventions that are not optional
 
@@ -165,8 +168,8 @@ Home card on `/settings`, and named in the header so nobody adds milk to the wro
   so it *is* the colour rather than a copy that drifts.
 - **The attribute goes on `<html>`, set by the root layout from the session.** Not on a
   wrapper inside the app: sheets and the three-dot panel are portalled into `<body>`.
-- **`--band` is one literal (`#e5e7eb`), declared identically in every theme block, and
-  opaque.** It does not follow the household. No theme block may bring back an
+- **`--band` is one literal (`#f3ebdf`, a warm linen), declared identically in every theme
+  block, and opaque.** It does not follow the household. No theme block may bring back an
   `--accent-soft` of its own — that would be a second colour for the same strip.
 - **The colour dresses the controls and the household's own progress, never the meanings
   inside them.** Green is "added", red "about to be deleted", amber "overdue", in every
@@ -183,6 +186,52 @@ Home card on `/settings`, and named in the header so nobody adds milk to the wro
 the band's alpha as strictly as its hex, and holds all three insets together.
 **Why each of these is the rule, and what broke before it was — five paragraphs of it — is
 in [`docs/design/theme-and-frame.md`](docs/design/theme-and-frame.md).**
+
+### A home should feel like somebody's home, not like an app
+
+The screens used to read as a well-made admin tool: cold grey, the same empty grey tile
+on every row, one voice for everything. What replaced that is a handful of rules, and each
+one is a place a new screen inherits the warmth without anybody remembering to add it.
+
+- **Every neutral is warm, and they are all `slate`.** `globals.css` redefines Tailwind's
+  `slate` scale (and `white`, a card's cream, and `shadow-sm`) in its `@theme` block, so
+  an ordinary `text-slate-500` comes out warm. **Never write `stone`, `zinc`, `gray` or
+  `neutral`**: a screen in a second neutral family sits a shade colder than the rest.
+  Each step keeps the contrast slate's own step had on white.
+- **Titles wear the serif, labels do not.** `h1` and `.font-display` (the header's home
+  name, a sheet's title) are Fraunces, vendored in `src/app/fonts` like Quicksand. The
+  small uppercase section headings stay in Quicksand — a 12px serif in capitals reads as
+  small print.
+- **A list or a task has a face.** `emoji` on `List` and `Task` is the household's pick
+  from `EMOJI_CHOICES` (`src/lib/emoji.ts`), and **null means "guess from the title"**,
+  never a stored guess — `faceOf` is the one place a row becomes the face a tile draws,
+  so renaming a list changes its face with it. `readEmojiChoice` reads the field the way
+  `THEME_FIELD` is read: not mentioned is left alone, empty is null, and anything off the
+  list is ignored rather than failing the save. `PhotoThumb` draws picture, else face,
+  else the kind's glyph, and **both stand-ins sit on the home's own tint, never grey**.
+- **A mark whose name is written beside it is decoration.** `PersonMark` without `what`
+  is `aria-hidden` — a task tile's corner, whose badge already says "For Mo". With `what`
+  it is the only statement of who, and reads it out.
+- **The greeting and the line under it are decided, then worded.** `src/lib/greeting.ts`
+  takes the clock as an argument and reads the household's zone. `dayLine` decides the
+  situation first (tonight's dinner, else work due, else a quiet day) and only the wording
+  rotates, **once a day and the same for everybody** — so it is never cheerful about three
+  overdue jobs, and never a different sentence on every refresh. It shares one line with
+  the streak, and the streak wins: the header's height is the dashboard's first screen.
+- **A set of alternative phrasings is keyed, not listed** (`DAY_LINE.calm.first`, not
+  `[…]`): `tests/unit/language.test.ts` does not walk arrays, so a phrase in one would
+  escape every check that holds the two languages together.
+- **An empty screen gets a drawing** (`Illustration`, `EmptyState`'s `art`) — inline SVG
+  in `--accent-text` on the home's tint, so it changes colour with the household.
+- **Seasonal touches are off until a household's admins turn them on** (`Home.seasonal`,
+  `src/lib/season.ts`): the season's mark beside the name, and a festive line on a quiet
+  dashboard day — never on a day with work due. `seasonOn` takes the household's day, not
+  an instant. The checkbox sends a hidden `"off"` before its `"on"` under the same name,
+  because an unticked box says nothing and `updateHome` leaves an unmentioned field alone.
+- **Movement that celebrates happens once**: the tick's pop, the week ring's hop when the
+  week is done, the season's mark swinging in. Nothing in view loops.
+
+**[`docs/design/warmth.md`](docs/design/warmth.md) has the reasoning.**
 
 ### A home is read in a language, and it dresses the words
 
@@ -1480,6 +1529,9 @@ look says "not like that".
 - **Ask, then wait for the answer** before building the rest, whenever the screenshot
   settles a choice (a layout, a placement, which of two variants). Where it settles
   nothing, carry on and let the user interrupt.
+- **A dev server started before a `prisma generate` keeps the old client** and answers
+  every page with the global error screen ("Unknown field" in its log) once a new column
+  is selected. Restart it (`pkill -f "[n]ext dev"`) after any schema change.
 - **The quickest route to a screenshot is `npm run dev` and a throwaway Playwright
   script** against it (the dev server needs no `next build`, which the e2e server does),
   logging in through the form the way `logInThroughForm` in `e2e/helpers/fixtures.ts`

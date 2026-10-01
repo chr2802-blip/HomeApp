@@ -28,6 +28,7 @@ import { PhotoAvatar } from "@/components/photo";
 import { PhotoField } from "@/components/photo-field";
 import { ThemeField } from "@/components/theme-field";
 import { LanguageField } from "@/components/language-field";
+import { SeasonalField } from "@/components/seasonal-field";
 import { sayIn } from "@/lib/copy/say";
 import { SETTINGS } from "@/lib/copy/settings";
 import { RECIPES } from "@/lib/copy/recipes";
@@ -117,6 +118,9 @@ export default async function SettingsPage() {
                 what it looks like. */}
             <div className="sm:col-span-2">
               <LanguageField defaultLanguage={home.language} />
+            </div>
+            <div className="sm:col-span-2">
+              <SeasonalField defaultOn={home.seasonal} language={home.language} />
             </div>
           </ActionForm>
         </Card>
