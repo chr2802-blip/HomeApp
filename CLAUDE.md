@@ -47,7 +47,9 @@ the old import, and every page answers 500 naming the missing file. Stop the ser
 `rm -rf .next`, start it again.
 
 **A dev database for screenshots has nobody in it**, and `npm run db:seed` makes only a
-super admin (from `SUPER_ADMIN_EMAIL`/`SUPER_ADMIN_PASSWORD`). A throwaway `tsx` script run
+super admin (from `SUPER_ADMIN_EMAIL`/`SUPER_ADMIN_PASSWORD`). In a fresh container it
+has no tables either — `npm run setup` migrates only the test templates, so run `npx prisma
+migrate deploy` first or the seed fails with "table `public.Home` does not exist". A throwaway `tsx` script run
 with `node --env-file=.env --import tsx` that upserts a home, two members and a handful of
 rows is the quickest way to something worth a screenshot.
 `npm run setup` creates that database but does not migrate it, so run `npx prisma migrate
