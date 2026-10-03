@@ -68,7 +68,7 @@ test("speaks the pantry, the importer's own copy, and the hardest sentence in th
   // own label is itself translated ("Dette hjem og dig"), which is a fact for a test
   // about the frame rather than one about the pantry.
   await page.goto("/pantry");
-  await expect(page.getByRole("heading", { name: "Spisekammer", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Forråd", level: 1 })).toBeVisible();
 
   await keepIn(page, "Salt");
   await keepIn(page, "Peber");

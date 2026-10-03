@@ -15,7 +15,7 @@ export const APP = {
   nav: {
     dashboard: { EN: "Home", DA: "Hjem" },
     food: { EN: "Food", DA: "Mad" },
-    shopping: { EN: "Shopping", DA: "Indkøb" },
+    lists: { EN: "Lists", DA: "Lister" },
     tasks: { EN: "Tasks", DA: "Opgaver" },
     admin: { EN: "Admin", DA: "Admin" },
   },

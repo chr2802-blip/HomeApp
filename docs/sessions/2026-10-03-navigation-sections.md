@@ -9,7 +9,7 @@
 
 The tab bar had five tabs (six for the super admin), and some were closely tied (Meals and
 Recipes). Asked how it would look starting over. It became four tabs, each an area with
-segments: Home · Food (Plan | Recipes) · Shopping (Lists | Forråd) · Tasks. The pantry
+segments: Home · Food/Mad (Recipes | Plan, opening on Recipes) · Lists/Lister (Lists | Forråd) · Tasks. The pantry
 becomes "Forråd"/Supplies because it now holds non-food too (toilet paper).
 
 ## The route
@@ -17,8 +17,9 @@ becomes "Forråd"/Supplies because it now holds non-food too (toilet paper).
 Two rounds of discussion in chat, then a rough build: nav items carry `also` paths for
 their other segments, a `SectionTabs` switcher is drawn in the app layout on a segment's
 top-level page, `BackButton`'s roots include the new segment pages, and the pantry's title
-is renamed. Seeded a dev DB with an EN and a DA home and took 390×844 screenshots. No tests
-touched yet; the e2e specs that walk the old tabs will need updating once the design settles.
+is renamed. Seeded a dev DB with an EN and a DA home and took 390×844 screenshots. Three browser
+specs (the meals tab, the Danish pantry title, the page-animation walk) failed the first push and
+were updated; the e2e specs that walk the old tabs will need updating once the design settles.
 
 ## Where the time went
 
@@ -46,8 +47,8 @@ in the "dev database for screenshots" paragraph of CLAUDE.md.
 
 ## Decided rather than known
 
-- Tab names (Food/Mad, Shopping/Indkøb) and segment labels (Plan/Madplan, Supplies/Forråd).
-  These are open questions to the user.
+- Tab names were settled by the user after the first screenshot: Mad and Lister (not
+  Indkøb), and Mad opens on Opskrifter rather than the plan.
 - The switcher is a pill-style segmented control; segment links use `replace`, so back
   doesn't walk the segments.
 - The pantry stays `/pantry` and `PantryItem` internally; only the visible name changed.

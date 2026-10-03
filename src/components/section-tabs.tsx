@@ -13,8 +13,8 @@ import { useLanguage } from "./language-provider";
  */
 const SECTIONS: { href: string; key: keyof typeof APP.sections }[][] = [
   [
-    { href: "/meals", key: "meals" },
     { href: "/recipes", key: "recipes" },
+    { href: "/meals", key: "meals" },
   ],
   [
     { href: "/lists", key: "lists" },

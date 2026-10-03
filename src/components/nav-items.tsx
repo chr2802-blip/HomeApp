@@ -34,8 +34,8 @@ const NAV_ICONS: Record<keyof typeof APP.nav, { href: string; also?: string[]; i
     ),
   },
   food: {
-    href: "/meals",
-    also: ["/recipes"],
+    href: "/recipes",
+    also: ["/meals"],
     icon: ({ className }) => (
       <svg viewBox="0 0 24 24" className={className} {...stroke}>
         <path d="M7 3.5v8M10 3.5v8M8.5 11.5V21M7 3.5a1.5 1.5 0 0 0-1.5 1.5v3A2.5 2.5 0 0 0 8 10.5h1" />
@@ -43,13 +43,15 @@ const NAV_ICONS: Record<keyof typeof APP.nav, { href: string; also?: string[]; i
       </svg>
     ),
   },
-  shopping: {
+  lists: {
     href: "/lists",
     also: ["/pantry"],
     icon: ({ className }) => (
       <svg viewBox="0 0 24 24" className={className} {...stroke}>
-        <path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8z" />
-        <path d="M9 8V6.5a3 3 0 0 1 6 0V8" />
+        <path d="m3 6 1.6 1.6L7.5 4.7" />
+        <path d="m3 13 1.6 1.6 2.9-2.9" />
+        <path d="m3 20 1.6 1.6 2.9-2.9" />
+        <path d="M11 6.5h10M11 13.5h10M11 20.5h10" />
       </svg>
     ),
   },
@@ -86,8 +88,8 @@ const NAV_ICONS: Record<keyof typeof APP.nav, { href: string; also?: string[]; i
 export function navItemsFor(showAdmin: boolean, language: HomeLanguage): NavItem[] {
   const say = sayIn(language);
   const keys: (keyof typeof APP.nav)[] = showAdmin
-    ? ["dashboard", "food", "shopping", "tasks", "admin"]
-    : ["dashboard", "food", "shopping", "tasks"];
+    ? ["dashboard", "food", "lists", "tasks", "admin"]
+    : ["dashboard", "food", "lists", "tasks"];
 
   return keys.map((key) => ({ ...NAV_ICONS[key], label: say(APP.nav[key]) }));
 }
