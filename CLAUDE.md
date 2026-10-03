@@ -55,6 +55,8 @@ rows is the quickest way to something worth a screenshot.
 `npm run setup` creates that database but does not migrate it, so run `npx prisma migrate
 deploy` first; and in the script a user's homes are `memberships: { create: … }` and the
 pointer `activeHome: { connect: … }`, not `homes`/`activeHomeId`.
+Name the script `.mts` if it uses top-level `await`: `tsx` compiles a `.ts` file as
+CommonJS here and refuses it.
 
 **Restart `npm run dev` after `prisma generate`.** A dev server already running keeps the
 client it loaded, so a column added to the schema reads as `undefined` — a new boolean is
