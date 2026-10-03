@@ -57,7 +57,7 @@ async function retry(attempt: () => Promise<void>) {
 /** Opens the add sheet from the green "+" beside the page's title. */
 async function openAdd(page: Page) {
   await retry(async () => {
-    await page.getByRole("button", { name: "Add to pantry" }).click();
+    await page.getByRole("button", { name: "Add to supplies" }).click();
     await expect(page.getByRole("dialog")).toBeVisible({ timeout: 1000 });
   });
 }
@@ -134,7 +134,7 @@ test.beforeEach(async ({ loginAs }) => {
 test("the pantry is reached from the home's own name, and kept there", async ({ page }) => {
   await page.goto("/dashboard");
   await openHomeMenu(page);
-  await page.getByRole("menuitem", { name: "Pantry" }).click();
+  await page.getByRole("menuitem", { name: "Supplies" }).click();
   await page.waitForURL("/pantry");
 
   await keepIn(page, "Salt");
@@ -250,7 +250,7 @@ test("the add box points at what the pantry already keeps rather than adding it 
   await openAdd(page);
   const name = page.getByLabel("Something you keep in");
   await name.fill("ri");
-  await expect(page.getByText("Already in the pantry", { exact: true })).toBeVisible();
+  await expect(page.getByText("Already in your supplies", { exact: true })).toBeVisible();
   // Picking it adds nothing: the sheet closes onto the row.
   await page.getByRole("option", { name: "Ris" }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
@@ -259,7 +259,7 @@ test("the add box points at what the pantry already keeps rather than adding it 
   // A name that is exactly one already kept says so before the press.
   await openAdd(page);
   await name.fill("ris");
-  await expect(page.getByText("Ris is already in the pantry.")).toBeVisible();
+  await expect(page.getByText("Ris is already in your supplies.")).toBeVisible();
 
   // And the shelf the list knows is previewed on "choose for me".
   await name.fill("spidskommen");
@@ -278,7 +278,7 @@ test("the shelves narrow to a search or to what has run out, and widen again", a
   await keepIn(page, "Spidskommen");
   await runOut(page, "Ris");
 
-  const find = page.getByRole("searchbox", { name: "Find in the pantry" });
+  const find = page.getByRole("searchbox", { name: "Find in supplies" });
 
   await find.fill("ris");
   await expect(quantityGroup(page, "Ris")).toBeVisible();
@@ -298,7 +298,7 @@ test("the shelves narrow to a search or to what has run out, and widen again", a
 
   // Nothing matching says so, and offers the way back.
   await find.fill("kaffe");
-  await expect(page.getByText("Nothing in the pantry matches “kaffe”.")).toBeVisible();
+  await expect(page.getByText("Nothing in your supplies matches “kaffe”.")).toBeVisible();
   await page.getByRole("button", { name: "Show everything" }).click();
   await expect(quantityGroup(page, "Salt")).toBeVisible();
 
@@ -326,7 +326,7 @@ test("a name the household already keeps is refused, and the row says what it sa
   await page.getByLabel("Edit Sukker").fill("salt");
   await page.getByLabel("Edit Sukker").press("Enter");
 
-  await expect(page.getByText("“salt” is already in the pantry.")).toBeVisible();
+  await expect(page.getByText("“salt” is already in your supplies.")).toBeVisible();
   await expect(quantityGroup(page, "Sukker")).toBeVisible();
 });
 
@@ -345,7 +345,7 @@ test("a recipe leaves the pantry's own lines off the shopping list", async ({ pa
 
   // What was left out is said where the press happened: a line that quietly never
   // arrives reads as one the app forgot.
-  await expect(page.getByText("Salt already in the pantry.")).toBeVisible();
+  await expect(page.getByText("Salt already in your supplies.")).toBeVisible();
 
   await page.goto("/lists");
   await page.getByRole("link", { name: /Groceries/ }).click();
@@ -395,13 +395,13 @@ test("a line naming two things the pantry only partly has is asked about, not gu
 
   const decision = page.getByRole("dialog", { name: "Already have some of this?" });
   await expect(decision).toBeVisible();
-  await expect(decision.getByText("Salt already in the pantry.")).toBeVisible();
+  await expect(decision.getByText("Salt already in your supplies.")).toBeVisible();
 
   // Left unchecked, the default, leaves the line off — the same as a line the pantry
   // answered for outright.
   await decision.getByRole("button", { name: "Add checked" }).click();
 
-  await expect(page.getByText("Salt og peber already in the pantry.")).toBeVisible();
+  await expect(page.getByText("Salt og peber already in your supplies.")).toBeVisible();
 
   await page.goto("/lists");
   await page.getByRole("link", { name: /Groceries/ }).click();

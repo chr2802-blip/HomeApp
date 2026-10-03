@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 
 /**
  * A word about a press that already landed — "Added to Shopping. Salt, Pepper and 5
- * more are already in the pantry" — rather than a question or a thing to read closely.
+ * more are already in your supplies" — rather than a question or a thing to read closely.
  * It used to be a line of text pushed into whatever card held the button that caused
  * it, which on a recipe's ingredients meant a sentence about the shopping list wrapping
  * in among the very lines it was reporting on. Said here instead: one at a time, fixed

@@ -63,7 +63,7 @@ export const APP = {
   homeMenu: {
     ariaLabel: { EN: "{name} — home menu", DA: "{name} — hjemmemenu" },
     menuLabel: { EN: "This home and you", DA: "Dette hjem og dig" },
-    pantry: { EN: "Pantry", DA: "Spisekammer" },
+    pantry: { EN: "Supplies", DA: "Forråd" },
     settings: { EN: "Settings", DA: "Indstillinger" },
     profile: { EN: "Profile", DA: "Profil" },
     current: { EN: "Current", DA: "Nuværende" },

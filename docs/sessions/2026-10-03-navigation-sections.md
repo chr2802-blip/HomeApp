@@ -52,3 +52,10 @@ in the "dev database for screenshots" paragraph of CLAUDE.md.
 - The switcher is a pill-style segmented control; segment links use `replace`, so back
   doesn't walk the segments.
 - The pantry stays `/pantry` and `PantryItem` internally; only the visible name changed.
+
+## The merge
+
+`main` merged #162 while this branch was open, renaming the pantry to "Storage / Lager" in
+all 14 files that name it. The user chose Forråd, so the merge takes #162's coverage (every
+phrase it found) and rewords each one: "i forrådet" for "på lageret", "your supplies" for
+"storage". Settings' "Lagerplads" (disk space) is a different word and was left alone.

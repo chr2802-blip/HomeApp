@@ -23,7 +23,7 @@ export const DASHBOARD = {
     DA: { one: "på {count} liste", other: "på {count} lister" },
   },
   runOut: { EN: "run out", DA: "brugt op" },
-  inThePantry: { EN: "in the pantry", DA: "i forrådet" },
+  inThePantry: { EN: "in supplies", DA: "i forrådet" },
 
   today: { EN: "Today", DA: "I dag" },
   nothingToday: { EN: "Nothing needs doing today. Enjoy it.", DA: "Intet skal gøres i dag. Nyd det." },
