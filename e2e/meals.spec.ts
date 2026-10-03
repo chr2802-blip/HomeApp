@@ -216,10 +216,14 @@ test("an address naming a day that never existed falls back to this week", async
   await expect(page.getByRole("link", { name: "Back to this week" })).toHaveCount(0);
 });
 
-test("the tab is in the bar, and leads here", async ({ page }) => {
+test("the Food tab opens on the recipes, and the plan is the segment beside them", async ({
+  page,
+}) => {
   await page.goto("/dashboard");
-  await page.getByRole("link", { name: "Meals" }).first().click();
+  await page.getByRole("link", { name: "Food" }).first().click();
+  await expect(page).toHaveURL(/\/recipes$/);
 
+  await page.getByRole("link", { name: "Plan", exact: true }).click();
   await expect(page).toHaveURL(/\/meals$/);
   await expect(page.getByRole("heading", { name: "Meals" })).toBeVisible();
 });

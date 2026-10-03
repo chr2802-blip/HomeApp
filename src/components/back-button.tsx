@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { LinkPending } from "./link-pending";
 
 /** Top-level destinations — these are the tabs, so there is nothing to go back to. */
-const ROOTS = new Set(["/dashboard", "/lists", "/tasks", "/recipes", "/admin"]);
+const ROOTS = new Set(["/dashboard", "/lists", "/pantry", "/tasks", "/meals", "/recipes", "/admin"]);
 
 /**
  * Walks one segment up the URL rather than using history, so the target is the same

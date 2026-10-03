@@ -274,12 +274,12 @@ describe("the two notes", () => {
   });
 
   it("name what the press left alone, from either end", () => {
-    expect(pantryNote(["Salt", "Olie"], "EN")).toBe("Salt and Olie already in storage.");
+    expect(pantryNote(["Salt", "Olie"], "EN")).toBe("Salt and Olie already in your supplies.");
     expect(alreadyOnListNote(["Ris"], "EN")).toBe("Ris already on the list.");
   });
 
   it("reads in the household's own language", () => {
-    expect(pantryNote(["Salt", "Olie"], "DA")).toBe("Salt og Olie står allerede på lageret.");
+    expect(pantryNote(["Salt", "Olie"], "DA")).toBe("Salt og Olie står allerede i forrådet.");
     expect(alreadyOnListNote(["Ris"], "DA")).toBe("Ris står allerede på listen.");
   });
 });

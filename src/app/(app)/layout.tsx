@@ -3,6 +3,7 @@ import { canAdministerCurrentHome } from "@/lib/access";
 import { logout } from "@/app/actions/auth";
 import { NavLinks } from "@/components/nav-links";
 import { BottomNav } from "@/components/bottom-nav";
+import { SectionTabs } from "@/components/section-tabs";
 import { PageTransition } from "@/components/page-transition";
 import { BackButton } from "@/components/back-button";
 import { HomeMenu } from "@/components/home-menu";
@@ -84,6 +85,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 so what clears it has to be too — a fixed 7rem leaves the last card under the
                 tabs on a phone that reserves anything at the bottom. */}
             <main className="mx-auto max-w-5xl pt-8 pb-[calc(7rem+env(safe-area-inset-bottom))] pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))] md:pb-10">
+              <SectionTabs />
               <PageTransition>{children}</PageTransition>
             </main>
 

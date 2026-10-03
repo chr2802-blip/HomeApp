@@ -108,7 +108,7 @@ describe("keeping the pantry", () => {
 
     expect(await submit(createPantryItem, { name: "salt" })).toEqual({
       ok: false,
-      error: "“salt” is already in storage.",
+      error: "“salt” is already in your supplies.",
     });
     expect(await prisma.pantryItem.count()).toBe(1);
   });
@@ -144,7 +144,7 @@ describe("keeping the pantry", () => {
 
     expect(await renamePantryItem(formData({ pantryItemId: sukker.id, name: "salt" }))).toEqual({
       ok: false,
-      error: "“salt” is already in storage.",
+      error: "“salt” is already in your supplies.",
     });
     // Reported rather than thrown, because the row that was typed into is what puts the
     // name back and says why.
@@ -204,13 +204,13 @@ describe("keeping the pantry", () => {
 
     expect(await renamePantryItem(formData({ pantryItemId: theirs.id, name: "Sukker" }))).toEqual({
       ok: false,
-      error: "That is no longer in storage.",
+      error: "That is no longer in your supplies.",
     });
     await deletePantryItem(formData({ pantryItemId: theirs.id }));
     await setPantryQuantity(formData({ pantryItemId: theirs.id, quantity: "0" }));
     expect(
       await submit(editPantryItem, { pantryItemId: theirs.id, category: "FREEZER", unit: "KG" }),
-    ).toEqual({ ok: false, error: "That is no longer in storage." });
+    ).toEqual({ ok: false, error: "That is no longer in your supplies." });
     // Sorting is this home's unsorted entries and nobody else's.
     await sortPantry();
 
@@ -241,7 +241,7 @@ describe("what the pantry does to a recipe's ingredients", () => {
     const result = await addRecipeIngredients(formData({ recipeId: recipe.id, listId: list.id }));
 
     expect(await textsOnList()).toEqual(["Hakket oksekød"]);
-    expect(result).toEqual({ ok: true, note: "Salt and Olivenolie already in storage." });
+    expect(result).toEqual({ ok: true, note: "Salt and Olivenolie already in your supplies." });
   });
 
   // The second half of the boolean, and the reason running out is an untick rather than
@@ -254,7 +254,7 @@ describe("what the pantry does to a recipe's ingredients", () => {
 
     expect(await addRecipeIngredients(formData({ recipeId: recipe.id, listId: list.id }))).toEqual({
       ok: true,
-      note: "Salt already in storage.",
+      note: "Salt already in your supplies.",
     });
     expect(await textsOnList()).toEqual(["Ris"]);
   });
@@ -266,7 +266,7 @@ describe("what the pantry does to a recipe's ingredients", () => {
 
     expect(await addRecipeIngredients(formData({ recipeId: recipe.id, listId: list.id }))).toEqual({
       ok: false,
-      error: "Nothing to add — storage already has all of it.",
+      error: "Nothing to add — your supplies already cover all of it.",
     });
     // Nothing written, and no note left behind pointing at a recipe that added nothing.
     expect(await prisma.listItem.count()).toBe(0);
@@ -310,7 +310,7 @@ describe("what the pantry does to a recipe's ingredients", () => {
     const result = await addMealPlanIngredients(formData({ listId: list.id, week: monday }));
 
     // Named once across the run, however many of the week's recipes wanted it.
-    expect(result).toEqual({ ok: true, note: "Salt already in storage." });
+    expect(result).toEqual({ ok: true, note: "Salt already in your supplies." });
     expect((await textsOnList()).sort()).toEqual(["Gulerødder", "Oksekød"]);
   });
 
@@ -325,7 +325,7 @@ describe("what the pantry does to a recipe's ingredients", () => {
     const result = await addRecipeIngredients(formData({ recipeId: recipe.id, listId: list.id }));
 
     expect(await textsOnList()).toEqual(["Hakket oksekød"]);
-    expect(result).toEqual({ ok: true, note: "Salt og peber already in storage." });
+    expect(result).toEqual({ ok: true, note: "Salt og peber already in your supplies." });
   });
 
   describe("a combined line the pantry only partly answers for", () => {
@@ -357,7 +357,7 @@ describe("what the pantry does to a recipe's ingredients", () => {
       );
 
       expect(await textsOnList()).toEqual(["Hakket oksekød"]);
-      expect(result).toEqual({ ok: true, note: "Salt og peber already in storage." });
+      expect(result).toEqual({ ok: true, note: "Salt og peber already in your supplies." });
     });
 
     it("adds the line whole once told to keep it", async () => {
@@ -429,7 +429,7 @@ describe("putting what has run out on a list", () => {
 
     expect(await addPantryToList(formData({ listId: list.id }))).toEqual({
       ok: false,
-      error: "Nothing in storage has run out.",
+      error: "Nothing in your supplies has run out.",
     });
 
     await keepIn("Ris", 0);

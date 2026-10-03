@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { navItemsFor } from "./nav-items";
+import { isInTab, navItemsFor } from "./nav-items";
 import { LinkPending } from "./link-pending";
 import { useLanguage } from "./language-provider";
 
@@ -14,7 +14,7 @@ export function NavLinks({ showAdmin }: { showAdmin: boolean }) {
   return (
     <nav className="hidden items-center gap-1 text-sm md:flex">
       {navItemsFor(showAdmin, language).map((item) => {
-        const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const active = isInTab(item, pathname);
         return (
           <Link
             key={item.href}

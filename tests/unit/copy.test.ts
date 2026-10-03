@@ -12,13 +12,13 @@ import { namesInWords, pantryNote } from "@/lib/pantry";
  */
 describe("sayIn", () => {
   it("says a plain phrase in the language asked for", () => {
-    expect(sayIn("EN")(PANTRY.title)).toBe("Storage");
-    expect(sayIn("DA")(PANTRY.title)).toBe("Lager");
+    expect(sayIn("EN")(PANTRY.title)).toBe("Supplies");
+    expect(sayIn("DA")(PANTRY.title)).toBe("Forråd");
   });
 
   it("fills a phrase's slot", () => {
-    expect(sayIn("EN")(PANTRY.duplicate, { name: "Salt" })).toBe("“Salt” is already in storage.");
-    expect(sayIn("DA")(PANTRY.duplicate, { name: "Salt" })).toBe("“Salt” står allerede på lageret.");
+    expect(sayIn("EN")(PANTRY.duplicate, { name: "Salt" })).toBe("“Salt” is already in your supplies.");
+    expect(sayIn("DA")(PANTRY.duplicate, { name: "Salt" })).toBe("“Salt” står allerede i forrådet.");
   });
 
   it("picks the singular form at one and the plural otherwise", () => {
@@ -30,7 +30,7 @@ describe("sayIn", () => {
 
   it("leaves an unfilled slot exactly as written, rather than as the word undefined", () => {
     expect(sayIn("EN")(PANTRY.duplicate, { name: undefined as unknown as string })).toBe(
-      "“{name}” is already in storage.",
+      "“{name}” is already in your supplies.",
     );
   });
 });
@@ -62,7 +62,7 @@ describe("pantryNote", () => {
   });
 
   it("names what the press left alone, in the household's language", () => {
-    expect(pantryNote(["Salt", "Olie"], "EN")).toBe("Salt and Olie already in storage.");
-    expect(pantryNote(["Salt", "Olie"], "DA")).toBe("Salt og Olie står allerede på lageret.");
+    expect(pantryNote(["Salt", "Olie"], "EN")).toBe("Salt and Olie already in your supplies.");
+    expect(pantryNote(["Salt", "Olie"], "DA")).toBe("Salt og Olie står allerede i forrådet.");
   });
 });

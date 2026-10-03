@@ -41,14 +41,14 @@ export const PANTRY_CATEGORY_LABELS = {
  * writes back about what it found already in stock.
  */
 export const PANTRY = {
-  title: { EN: "Storage", DA: "Lager" },
+  title: { EN: "Supplies", DA: "Forråd" },
   description: {
     EN: "The things you always have in. A recipe added to a shopping list leaves these off — bring anything you have run out of down to zero and it goes back on.",
     DA: "De ting I altid har hjemme. En opskrift lagt på en indkøbsliste springer dem over — sæt det, I er løbet tør for, til nul, og det kommer med igen.",
   },
   nameLabel: { EN: "Something you keep in", DA: "Noget I altid har hjemme" },
   namePlaceholder: { EN: "Salt", DA: "Salt" },
-  add: { EN: "Add to storage", DA: "Tilføj til lager" },
+  add: { EN: "Add to supplies", DA: "Tilføj til forrådet" },
   addSubmit: { EN: "Add", DA: "Tilføj" },
   nameRequired: { EN: "Write what you keep in.", DA: "Skriv, hvad I har stående." },
   noKeyLeft: {
@@ -66,16 +66,16 @@ export const PANTRY = {
   increaseQuantity: { EN: "Increase {name}", DA: "Forøg {name}" },
   noUnit: { EN: "No unit", DA: "Ingen enhed" },
   editAria: { EN: "Edit {name}", DA: "Rediger {name}" },
-  removeTitle: { EN: "Remove from storage", DA: "Fjern fra lager" },
+  removeTitle: { EN: "Remove from supplies", DA: "Fjern fra forrådet" },
   removeMessage: {
     EN: "Stop treating “{name}” as something you always have in? Recipes asking for it will put it on the shopping list again.",
     DA: "Stop med at behandle “{name}” som noget I altid har hjemme? Opskrifter der bruger det, sætter det på indkøbslisten igen.",
   },
   removeConfirm: { EN: "Remove", DA: "Fjern" },
-  noItemAnyMore: { EN: "That is no longer in storage.", DA: "Det står ikke længere på lageret." },
+  noItemAnyMore: { EN: "That is no longer in your supplies.", DA: "Det står ikke længere i forrådet." },
 
-  duplicate: { EN: "“{name}” is already in storage.", DA: "“{name}” står allerede på lageret." },
-  covered: { EN: "{names} already in storage.", DA: "{names} står allerede på lageret." },
+  duplicate: { EN: "“{name}” is already in your supplies.", DA: "“{name}” står allerede i forrådet." },
+  covered: { EN: "{names} already in your supplies.", DA: "{names} står allerede i forrådet." },
   onList: { EN: "{names} already on the list.", DA: "{names} står allerede på listen." },
   /** The last two names of a list, joined — see `namesInWords` in `src/lib/pantry.ts`. */
   lastTwo: { EN: "{most} and {last}", DA: "{most} og {last}" },
@@ -87,7 +87,7 @@ export const PANTRY = {
   unsorted: { EN: "Not sorted yet", DA: "Ikke sorteret endnu" },
   sort: { EN: "Sort with AI", DA: "Sortér med AI" },
   sorting: { EN: "Sorting…", DA: "Sorterer…" },
-  sortWaitTitle: { EN: "Sorting your storage", DA: "Sorterer jeres lager" },
+  sortWaitTitle: { EN: "Sorting your supplies", DA: "Sorterer jeres forråd" },
   sortWaitDetail: {
     EN: "Finding the right shelf for the things we did not recognise.",
     DA: "Finder den rigtige hylde til de ting, vi ikke kendte.",
@@ -120,27 +120,27 @@ export const PANTRY = {
     DA: { one: "Udløber om {count} dag", other: "Udløber om {count} dage" },
   },
   suggestions: { EN: "Suggestions", DA: "Forslag" },
-  filterLabel: { EN: "Find in storage", DA: "Find på lageret" },
+  filterLabel: { EN: "Find in supplies", DA: "Find i forrådet" },
   filterPlaceholder: { EN: "Find…", DA: "Søg…" },
   onlyRunOut: { EN: "Only run out", DA: "Kun løbet tør" },
   noMatches: {
-    EN: "Nothing in storage matches “{query}”.",
-    DA: "Intet på lageret passer til “{query}”.",
+    EN: "Nothing in your supplies matches “{query}”.",
+    DA: "Intet i forrådet passer til “{query}”.",
   },
   clearFilter: { EN: "Show everything", DA: "Vis alt" },
-  alreadyKept: { EN: "Already in storage", DA: "Står allerede på lageret" },
+  alreadyKept: { EN: "Already in your supplies", DA: "Står allerede i forrådet" },
   commonGoods: { EN: "Common basics", DA: "Almindelige basisvarer" },
-  alreadyKeptAt: { EN: "{name} is already in storage.", DA: "{name} står allerede på lageret." },
+  alreadyKeptAt: { EN: "{name} is already in your supplies.", DA: "{name} står allerede i forrådet." },
   showIt: { EN: "Show it", DA: "Vis den" },
 
   /** The line over the shelves: how much the cupboard holds, then how much of it is out. */
   overview: {
     EN: { one: "{count} thing kept in", other: "{count} things kept in" },
-    DA: { one: "{count} ting på lager", other: "{count} ting på lager" },
+    DA: { one: "{count} ting i forrådet", other: "{count} ting i forrådet" },
   },
   /** Not a `Plural`, like `andMore`: "1 run out" and "2 run out" are the same words. */
   overviewRunOut: { EN: "{count} run out", DA: "{count} løbet tør" },
-  nothingRunOut: { EN: "Nothing in storage has run out.", DA: "Intet på lageret er løbet tør." },
+  nothingRunOut: { EN: "Nothing in your supplies has run out.", DA: "Intet i forrådet er løbet tør." },
   allAlreadyOnList: {
     EN: "Everything that has run out is already on the list.",
     DA: "Alt det, der er løbet tør, står allerede på listen.",
@@ -154,8 +154,8 @@ export const PANTRY_COOK = {
   extraPlaceholder: { EN: "e.g. chicken", DA: "fx kylling" },
   extraAdd: { EN: "Add", DA: "Tilføj" },
   extraHint: {
-    EN: "Counted with storage for now. Nothing here is saved.",
-    DA: "Regnes med sammen med lageret lige nu. Intet her bliver gemt.",
+    EN: "Counted with your supplies for now. Nothing here is saved.",
+    DA: "Regnes med sammen med forrådet lige nu. Intet her bliver gemt.",
   },
   removeExtra: { EN: "Remove {name}", DA: "Fjern {name}" },
   have: {

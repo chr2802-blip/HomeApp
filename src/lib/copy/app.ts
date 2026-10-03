@@ -14,11 +14,17 @@ export const APP = {
   },
   nav: {
     dashboard: { EN: "Home", DA: "Hjem" },
+    food: { EN: "Food", DA: "Mad" },
     lists: { EN: "Lists", DA: "Lister" },
     tasks: { EN: "Tasks", DA: "Opgaver" },
-    meals: { EN: "Meals", DA: "Måltider" },
-    recipes: { EN: "Recipes", DA: "Opskrifter" },
     admin: { EN: "Admin", DA: "Admin" },
+  },
+  /** The segments inside a tab — a tab is an area, and these are its pages. */
+  sections: {
+    meals: { EN: "Plan", DA: "Madplan" },
+    recipes: { EN: "Recipes", DA: "Opskrifter" },
+    lists: { EN: "Lists", DA: "Lister" },
+    supplies: { EN: "Supplies", DA: "Forråd" },
   },
   logOut: { EN: "Log out", DA: "Log ud" },
 
@@ -57,7 +63,7 @@ export const APP = {
   homeMenu: {
     ariaLabel: { EN: "{name} — home menu", DA: "{name} — hjemmemenu" },
     menuLabel: { EN: "This home and you", DA: "Dette hjem og dig" },
-    pantry: { EN: "Storage", DA: "Lager" },
+    pantry: { EN: "Supplies", DA: "Forråd" },
     settings: { EN: "Settings", DA: "Indstillinger" },
     profile: { EN: "Profile", DA: "Profil" },
     current: { EN: "Current", DA: "Nuværende" },

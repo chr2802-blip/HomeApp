@@ -16,7 +16,7 @@ const htmlOf = (page: Page) => page.locator("html");
 /** Through the green "+" and its sheet, whose every word is Danish here too. */
 async function keepIn(page: Page, name: string) {
   await expect(async () => {
-    await page.getByRole("button", { name: "Tilføj til lager" }).click();
+    await page.getByRole("button", { name: "Tilføj til forrådet" }).click();
     await expect(page.getByRole("dialog")).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 20_000 });
   await page.getByLabel("Noget I altid har hjemme").fill(name);
@@ -68,7 +68,7 @@ test("speaks the pantry, the importer's own copy, and the hardest sentence in th
   // own label is itself translated ("Dette hjem og dig"), which is a fact for a test
   // about the frame rather than one about the pantry.
   await page.goto("/pantry");
-  await expect(page.getByRole("heading", { name: "Lager", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Forråd", level: 1 })).toBeVisible();
 
   await keepIn(page, "Salt");
   await keepIn(page, "Peber");
@@ -107,7 +107,7 @@ test("speaks the pantry, the importer's own copy, and the hardest sentence in th
   // Salt and Peber are each their own line, each fully covered by their own pantry
   // entry, so this is the plain sentence rather than the ambiguous-line dialog — and
   // it is the pantry's own conjunction, "og", not "and" glued on from the side.
-  await expect(page.getByText("Salt og Peber står allerede på lageret.")).toBeVisible();
+  await expect(page.getByText("Salt og Peber står allerede i forrådet.")).toBeVisible();
 
   await page.goto("/lists");
   await page.getByRole("link", { name: /Indkøb/ }).click();

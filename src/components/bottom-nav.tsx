@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { navItemsFor } from "./nav-items";
+import { isInTab, navItemsFor } from "./nav-items";
 import { LinkPending } from "./link-pending";
 import { useLanguage } from "./language-provider";
 
@@ -20,7 +20,7 @@ export function BottomNav({ showAdmin }: { showAdmin: boolean }) {
           manifest's. */}
       <ul className="mx-auto flex max-w-lg items-stretch pb-[env(safe-area-inset-bottom)]">
         {items.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const active = isInTab(item, pathname);
           const Icon = item.icon;
           return (
             <li key={item.href} className="flex-1">
