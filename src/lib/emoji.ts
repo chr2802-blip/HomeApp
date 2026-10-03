@@ -15,9 +15,9 @@ export const EMOJI_FIELD = "emoji";
 /**
  * What the picker offers. A fixed set rather than any emoji at all: it is what lets the
  * action hold a form to something (a form can say anything, and a tile drawing whatever
- * arrived would draw a paragraph), and a household choosing among sixty-odd is quicker
+ * arrived would draw a paragraph), and a household choosing among a hundred-odd is quicker
  * than one hunting through a keyboard of three thousand. Written as `EmojiField` draws
- * it on a phone — four rows, one theme each, scrolled sideways — and a wider screen
+ * it on a phone — six rows, one theme each, scrolled sideways — and a wider screen
  * folds each row into two of eight. Order is free to change, since what is stored is the
  * emoji itself and never its position.
  */
@@ -26,6 +26,8 @@ export const EMOJI_CHOICES = [
   "🧹", "🧺", "🧽", "🧼", "🧻", "🗑️", "♻️", "🛏️", "🛁", "🪟", "🌱", "🪴", "💡", "🔨", "🔧", "🧰",
   "👶", "🧸", "🐶", "🐱", "🐾", "🐠", "🏃", "⚽", "🎮", "🎨", "🎵", "📚", "🎁", "🎂", "🎄", "🎃",
   "🏡", "🔑", "🧯", "🚗", "✈️", "🧳", "⛺", "📦", "📅", "📝", "✉️", "📞", "💰", "💊", "🦷", "🏥",
+  "🪣", "🧴", "🫧", "🧤", "🚽", "🚿", "🪥", "🧦", "👕", "🪡", "🍳", "🪵", "🍂", "❄️", "🪜", "📬",
+  "🛋️", "🪑", "🚪", "🪞", "🖼️", "🕯️", "🗄️", "📺", "🖥️", "🔌", "🔋", "🌡️", "🚰", "🪛", "🪚", "🖌️",
 ] as const;
 
 const CHOSEN = new Set<string>(EMOJI_CHOICES);
@@ -37,6 +39,40 @@ const CHOSEN = new Set<string>(EMOJI_CHOICES);
  * a tile rather than a line missing from the shop.
  */
 const GUESSES: [string[], string][] = [
+  [["mailbox", "postkasse", "post office", "posthus", "parcel", "pakkeshop"], "📬"],
+  [["mop", "gulvvask", "vaske gulv", "bucket", "spand"], "🪣"],
+  [["descal", "limescale", "afkalk"], "🫧"],
+  [["glove", "handske"], "🧤"],
+  [["toothbrush", "tandbørste"], "🪥"],
+  [["shower", "bruser", "badeværelse", "bathroom"], "🚿"],
+  [["toilet paper", "toiletpapir", "toiletrulle"], "🧻"],
+  [["toilet", "wc"], "🚽"],
+  [["soap", "sæbe"], "🧼"],
+  [["shampoo", "lotion", "sunscreen", "solcreme"], "🧴"],
+  [["sew", "mending", "lappe", "stoppe sokker"], "🪡"],
+  [["sock", "sokker", "strømper"], "🧦"],
+  [["ironing", "stryg", "clothes", "klæder"], "👕"],
+  [["breakfast", "morgenmad", "frying pan"], "🍳"],
+  [["firewood", "fireplace", "brænde", "pejs"], "🪵"],
+  [["leaves", "raking", "rive blade", "løv"], "🍂"],
+  [["snow", "snerydning", "skovle"], "❄️"],
+  [["gutter", "tagrende", "ladder", "stige"], "🪜"],
+  [["sofa", "couch"], "🛋️"],
+  [["chair", "stol", "spisebord", "dining table"], "🪑"],
+  [["door", "dør"], "🚪"],
+  [["mirror", "spejl"], "🪞"],
+  [["paint", "maling", "malerarbejde", "male væg"], "🖌️"],
+  [["picture", "frame", "billede", "ramme"], "🖼️"],
+  [["candle", "stearin", "fyrfad"], "🕯️"],
+  [["drawer", "skuffe", "cabinet", "wardrobe", "garderobe", "closet", "klædeskab"], "🗄️"],
+  [["television", "fjernsyn", "netflix"], "📺"],
+  [["computer", "laptop", "printer"], "🖥️"],
+  [["socket", "plug", "stikkontakt", "electric", "elektriker"], "🔌"],
+  [["battery", "batteri"], "🔋"],
+  [["heating", "radiator", "thermostat", "termostat", "varme"], "🌡️"],
+  [["plumb", "faucet", "drain", "leak", "vandhane", "afløb", "vvs", "utæt"], "🚰"],
+  [["screw", "skrue", "assemble", "ikea", "montere"], "🪛"],
+  [["carpent", "snedker", "tømrer"], "🪚"],
   [["halloween"], "🎃"],
   [["camping", "telt"], "⛺"],
   [["aquarium", "akvarie"], "🐠"],
@@ -44,7 +80,6 @@ const GUESSES: [string[], string][] = [
   [["gym", "fitness", "workout", "træning", "løbetur"], "🏃"],
   [["toy", "legetøj"], "🧸"],
   [["window", "vindue"], "🪟"],
-  [["toilet"], "🧻"],
   [["smoke alarm", "røgalarm", "brandslukker"], "🧯"],
   [["butcher", "slagter", "kød"], "🥩"],
   [["pizza"], "🍕"],

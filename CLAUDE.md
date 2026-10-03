@@ -59,6 +59,8 @@ that predates the nav, so hide it in the throwaway script (`page.addStyleTag({ c
 "nextjs-portal{display:none!important}" })`) rather than chasing it mid-screenshot.
 In the script a user's homes are `memberships: { create: … }` and the pointer `activeHome:
 { connect: … }`, not `homes`/`activeHomeId`.
+Name the script `.mts` if it uses top-level `await`: `tsx` compiles a `.ts` file as
+CommonJS here and refuses it.
 
 **Restart `npm run dev` after `prisma generate`.** A dev server already running keeps the
 client it loaded, so a column added to the schema reads as `undefined` — a new boolean is
