@@ -10,7 +10,7 @@ import { EMOJI_CHOICES, EMOJI_FIELD } from "@/lib/emoji";
  * an empty value, which stores null, and the tile keeps guessing from the title — so a
  * list renamed from "Groceries" to "Christmas" changes face with it.
  *
- * On a phone the faces are four rows of sixteen scrolled sideways — `EMOJI_CHOICES` is
+ * On a phone the faces are six rows of sixteen scrolled sideways — `EMOJI_CHOICES` is
  * written as those rows, a theme each — so the sheet keeps its fields above the fold.
  * The columns are sized to show seven and a half, and the half is what says there is
  * more. From `sm` up there is room for all of them, eight to a row.

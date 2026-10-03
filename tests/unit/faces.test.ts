@@ -15,6 +15,19 @@ describe("a list's or a task's face", () => {
     expect(guessEmoji("Christmas gifts")).toBe("🎄");
     expect(guessEmoji("Vande blomster")).toBe("🌱");
     expect(guessEmoji("Take out the recycling")).toBe("♻️");
+    expect(guessEmoji("Afkalke elkedel")).toBe("🫧");
+    expect(guessEmoji("Rense afløb")).toBe("🚰");
+    expect(guessEmoji("Samle IKEA reol")).toBe("🪛");
+    expect(guessEmoji("Støvsuge sofaen")).toBe("🛋️");
+    expect(guessEmoji("Rake the leaves in the garden")).toBe("🍂");
+  });
+
+  it("keeps the toilet roll apart from the toilet, and the bed linen off the clothes", () => {
+    expect(guessEmoji("Toiletpapir")).toBe("🧻");
+    expect(guessEmoji("Gøre toilettet rent")).toBe("🚽");
+    expect(guessEmoji("Skifte sengetøj")).toBe("🛏️");
+    // "kalk" alone would be in "kalkun", and "tap" in "tapet": neither is a chore.
+    expect(guessEmoji("Kalkun")).toBeNull();
   });
 
   it("guesses nothing rather than something wrong", () => {
@@ -28,6 +41,8 @@ describe("a list's or a task's face", () => {
     for (const title of [
       "Groceries", "Hardware", "Jul", "Tandlæge", "Støvsug", "Kaffe", "Aftensmad",
       "Halloween", "Camping", "Fodbold", "Pudse vinduer", "Toiletpapir", "Røgalarm", "Lægen", "Pizzaaften",
+      "Moppe", "Skifte pærer i lampen", "Male væggen", "Ny stol", "Hænge billeder op", "Rense tagrender",
+      "Stryge skjorter", "Tænde pejsen", "Snerydning", "Tømme postkassen", "Skifte batterier", "Spejl i gangen",
     ]) {
       expect(EMOJI_CHOICES).toContain(guessEmoji(title));
     }
@@ -35,10 +50,10 @@ describe("a list's or a task's face", () => {
     expect(guessEmoji("Tandlægen")).toBe("🦷");
   });
 
-  it("offers each face once, filling the picker's four rows on a phone and its eight columns wider", () => {
+  it("offers each face once, filling the picker's six rows on a phone and its eight columns wider", () => {
     expect(new Set(EMOJI_CHOICES).size).toBe(EMOJI_CHOICES.length);
-    // `EmojiField` draws sixteen columns on a phone (four rows) and eight from `sm` up.
-    expect(EMOJI_CHOICES.length).toBe(4 * 16);
+    // `EmojiField` draws sixteen columns on a phone (six rows) and eight from `sm` up.
+    expect(EMOJI_CHOICES.length).toBe(6 * 16);
   });
 
   it("prefers the household's own choice, and follows the title when there is none", () => {
