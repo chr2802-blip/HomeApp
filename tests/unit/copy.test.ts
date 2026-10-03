@@ -12,8 +12,8 @@ import { namesInWords, pantryNote } from "@/lib/pantry";
  */
 describe("sayIn", () => {
   it("says a plain phrase in the language asked for", () => {
-    expect(sayIn("EN")(PANTRY.title)).toBe("Pantry");
-    expect(sayIn("DA")(PANTRY.title)).toBe("Spisekammer");
+    expect(sayIn("EN")(PANTRY.title)).toBe("Supplies");
+    expect(sayIn("DA")(PANTRY.title)).toBe("Forråd");
   });
 
   it("fills a phrase's slot", () => {
