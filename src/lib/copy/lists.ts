@@ -118,8 +118,8 @@ export const LISTS = {
     DA: "Opskriften har ingen ingredienser at tilføje endnu.",
   },
   pantryHasAll: {
-    EN: "Nothing to add — the pantry already has all of it.",
-    DA: "Intet at tilføje — spisekammeret har det hele allerede.",
+    EN: "Nothing to add — storage already has all of it.",
+    DA: "Intet at tilføje — lageret har det hele allerede.",
   },
   nothingCookedThisWeek: {
     EN: "Nothing is being cooked this week yet.",

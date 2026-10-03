@@ -52,6 +52,9 @@ has no tables either — `npm run setup` migrates only the test templates, so ru
 migrate deploy` first or the seed fails with "table `public.Home` does not exist". A throwaway `tsx` script run
 with `node --env-file=.env --import tsx` that upserts a home, two members and a handful of
 rows is the quickest way to something worth a screenshot.
+`npm run setup` creates that database but does not migrate it, so run `npx prisma migrate
+deploy` first; and in the script a user's homes are `memberships: { create: … }` and the
+pointer `activeHome: { connect: … }`, not `homes`/`activeHomeId`.
 
 **Restart `npm run dev` after `prisma generate`.** A dev server already running keeps the
 client it loaded, so a column added to the schema reads as `undefined` — a new boolean is
@@ -87,6 +90,9 @@ re-running the whole suite on a guess. **The pre-push hook runs the same full su
 fail the same way**; push with `E2E_WORKERS=3 git push …` there (read by `e2eWorkerCount`
 in `e2e/helpers/servers.ts`) — every suite still runs, with one less worker fighting for
 the CPUs. It took two failed pushes, each on a different `ai-wait.spec.ts` test, to find.
+On 2026-10-01 even 3 and 2 workers each dropped a different test; `E2E_WORKERS=1` passed
+all 297 in about 11 minutes — go straight there if the container is slow, and run the push
+in the background, since it outlasts a single 10-minute tool call.
 
 ## Conventions that are not optional
 
