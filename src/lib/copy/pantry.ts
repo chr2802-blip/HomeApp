@@ -41,7 +41,7 @@ export const PANTRY_CATEGORY_LABELS = {
  * writes back about what it found already in stock.
  */
 export const PANTRY = {
-  title: { EN: "Pantry", DA: "Spisekammer" },
+  title: { EN: "Supplies", DA: "Forråd" },
   description: {
     EN: "The basics you always have in. A recipe added to a shopping list leaves these off — bring anything you have run out of down to zero and it goes back on.",
     DA: "De basisvarer I altid har hjemme. En opskrift lagt på en indkøbsliste springer dem over — sæt det, I er løbet tør for, til nul, og det kommer med igen.",

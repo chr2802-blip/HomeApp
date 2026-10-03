@@ -14,11 +14,17 @@ export const APP = {
   },
   nav: {
     dashboard: { EN: "Home", DA: "Hjem" },
-    lists: { EN: "Lists", DA: "Lister" },
+    food: { EN: "Food", DA: "Mad" },
+    shopping: { EN: "Shopping", DA: "Indkøb" },
     tasks: { EN: "Tasks", DA: "Opgaver" },
-    meals: { EN: "Meals", DA: "Måltider" },
-    recipes: { EN: "Recipes", DA: "Opskrifter" },
     admin: { EN: "Admin", DA: "Admin" },
+  },
+  /** The segments inside a tab — a tab is an area, and these are its pages. */
+  sections: {
+    meals: { EN: "Plan", DA: "Madplan" },
+    recipes: { EN: "Recipes", DA: "Opskrifter" },
+    lists: { EN: "Lists", DA: "Lister" },
+    supplies: { EN: "Supplies", DA: "Forråd" },
   },
   logOut: { EN: "Log out", DA: "Log ud" },
 

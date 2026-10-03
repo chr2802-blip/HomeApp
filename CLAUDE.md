@@ -51,7 +51,12 @@ super admin (from `SUPER_ADMIN_EMAIL`/`SUPER_ADMIN_PASSWORD`). In a fresh contai
 has no tables either — `npm run setup` migrates only the test templates, so run `npx prisma
 migrate deploy` first or the seed fails with "table `public.Home` does not exist". A throwaway `tsx` script run
 with `node --env-file=.env --import tsx` that upserts a home, two members and a handful of
-rows is the quickest way to something worth a screenshot.
+rows is the quickest way to something worth a screenshot. A `List` needs `createdBy` connected
+as well as its home, and `HomeTheme` is `SLATE`, `OCEAN`, `INDIGO`, `VIOLET`, `PLUM`, `SAND`
+— there is no green. **Next's dev overlay ("1 Issue") sits over the tab bar** in every
+phone screenshot: it is a hydration warning between `SnackbarProvider` and `KitchenProvider`
+that predates the nav, so hide it in the throwaway script (`page.addStyleTag({ content:
+"nextjs-portal{display:none!important}" })`) rather than chasing it mid-screenshot.
 
 **Restart `npm run dev` after `prisma generate`.** A dev server already running keeps the
 client it loaded, so a column added to the schema reads as `undefined` — a new boolean is
