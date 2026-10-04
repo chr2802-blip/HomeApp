@@ -39,7 +39,11 @@ Integration and browser tests need the local Postgres: `docker start homehub-pg`
 
 **Stopping a server from the Bash tool: `pkill -f "[n]ext dev"`, never `pkill -f "next dev"`.**
 The pattern appears in the tool's own command line, so the unbracketed form kills the shell
-running it and the command dies with exit 144. The same goes for `pgrep -f` in a wait loop
+running it and the command dies with exit 144. **A production server names itself `next-server`, not `next start`**, so
+neither form finds one an interrupted e2e run left behind — and that orphan keeps its port
+(3100 for worker 0), serving a `.next` that has since been rebuilt: every page is "HomeHub
+could not load" and every test fails at once. `ps -eo pid,etime,args | grep [n]ext-server`
+finds it. The same goes for `pgrep -f` in a wait loop
 (`while pgrep -f dev-setup.mjs`): it matches its own shell and never ends.
 
 **Deleting or renaming a component while `npm run dev` is running** leaves `.next` holding
