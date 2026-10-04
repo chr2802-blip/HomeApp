@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { sectionStep } from "./section-tabs";
 
@@ -28,6 +28,56 @@ function directionOf(from: string, to: string) {
 }
 
 /**
+ * Where each page was scrolled to when it was last left, so going back lands there.
+ *
+ * The browser's back button and a phone's back gesture are a `popstate`; the header's
+ * back arrow is a link up one segment (see `BackButton`), which the router treats as a
+ * new page. Both are "back" to the person pressing them, so both come back to where
+ * they were, and everything else starts at the top.
+ */
+const scrolledTo = new Map<string, number>();
+
+/** The path a `popstate` landed on, until the page change it causes has been drawn. */
+let traversedTo: string | null = null;
+
+if (typeof window !== "undefined") {
+  // Not capturing: a sheet taking its own entry back off swallows that traverse in a
+  // capturing listener (`popOwnEntry` in `modal.tsx`), and it is not a change of page.
+  window.addEventListener("popstate", () => {
+    traversedTo = window.location.pathname;
+  });
+}
+
+/**
+ * Starts a page that was gone to at the top, and one that was gone back to where it was
+ * left.
+ *
+ * The window is what scrolls, and the router's own reset only scrolls a page whose top
+ * is out of view into view, under the sticky header — so a page opened from far down
+ * another was opened part way down itself. A layout effect, so the page is never painted
+ * at the old position first.
+ */
+function useScrollOnArrival(from: string, to: string) {
+  useLayoutEffect(() => {
+    if (from === to) return;
+    const traversed = traversedTo === to;
+    traversedTo = null;
+    // The browser puts a page it traversed to back where it was by itself.
+    if (traversed) return;
+    const back = from.startsWith(`${to}/`);
+    window.scrollTo(0, back ? (scrolledTo.get(to) ?? 0) : 0);
+  }, [from, to]);
+
+  // Kept as the page scrolls rather than read on the way out: by the time the new path
+  // is known, the old page's content has already been swapped for the new one's.
+  useLayoutEffect(() => {
+    const remember = () => scrolledTo.set(to, window.scrollY);
+    window.addEventListener("scroll", remember, { passive: true });
+    return () => window.removeEventListener("scroll", remember);
+  }, [to]);
+}
+
+/**
  * Re-keyed on every route change so the enter animation replays, and told which
  * animation to play by where the reader came from.
  *
@@ -41,6 +91,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
   const [trail, setTrail] = useState({ from: pathname, to: pathname });
 
   if (trail.to !== pathname) setTrail({ from: trail.to, to: pathname });
+  useScrollOnArrival(trail.from, trail.to);
 
   return (
     <div key={pathname} className={directionOf(trail.from, pathname)}>

@@ -1447,6 +1447,12 @@ about which words to throw away.
   switched off under `prefers-reduced-motion` by the one rule at the end of `globals.css`.
   A sideways step between a section's pages (Recipes | Plan, Lists | Supplies) is
   `sectionStep`, and slides in from the side the pill moved to rather than rising.
+- **A page gone to starts at the top; a page gone back to starts where it was left.**
+  `PageTransition` does both itself (`useScrollOnArrival`) rather than trusting the
+  router's reset, which skips any page whose first element is already in view — under
+  the sticky header counts. "Back" is a `popstate` (the browser restores those itself)
+  *or* the header's back arrow, which is a link up one segment and would otherwise land
+  at the top. `e2e/scroll.spec.ts` holds all three.
 - **How the app moves is tokens, at the top of `globals.css`**: four curves
   (`--ease-arrive`, `--ease-leave`, `--ease-sheet`, `--ease-spring`) and a handful of
   `--dur-*`. **Never a `cubic-bezier` or a duration literal in a new rule** — read a token,
