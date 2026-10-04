@@ -37,6 +37,17 @@ export const RECIPES = {
     EN: "Paste the reel's description first.",
     DA: "Indsæt først reelens beskrivelse.",
   },
+  // The paste box under the link field — the route into the reader nothing can refuse.
+  pasteDescriptionInstead: {
+    EN: "Paste the description instead",
+    DA: "Indsæt beskrivelsen i stedet",
+  },
+  descriptionLabel: { EN: "Description", DA: "Beskrivelse" },
+  descriptionHint: {
+    EN: "Copy the text under the video, or the recipe from wherever you can see it, and paste it here.",
+    DA: "Kopiér teksten under videoen, eller opskriften fra der hvor I kan se den, og indsæt den her.",
+  },
+  readDescription: { EN: "Read it", DA: "Læs den" },
 
   /** `src/lib/recipe-import.ts`'s error sentences — what to try next, not just what failed. */
   genericError: {
