@@ -232,7 +232,7 @@ export function PantryRow({
  *
  * An unsorted entry opens with no shelf chosen — "not sorted yet" is where nobody has
  * decided, and a sheet that pre-ticked "Other" would decide it on the household's behalf
- * the moment somebody only meant to change the unit. "No unit" is a choice like any other.
+ * the moment somebody only meant to change the unit. "stk" — a plain count, stored as no unit — is a choice like any other.
  *
  * Takes `language` rather than reaching for the context, like `AmountsField` — see
  * CLAUDE.md on components with no boundary of their own.
@@ -267,7 +267,7 @@ export function PantryEditFields({
         <legend className="mb-2 text-sm font-medium text-slate-700">{say(PANTRY.unitLabel)}</legend>
         <div className="flex flex-wrap gap-2">
           <Chip name="unit" value="" defaultChecked={unit === null}>
-            {say(PANTRY.noUnit)}
+            {say(PANTRY.pieces)}
           </Chip>
           {PANTRY_UNITS.map((value) => (
             <Chip key={value} name="unit" value={value} defaultChecked={unit === value}>

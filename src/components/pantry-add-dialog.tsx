@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { PantryCategory } from "@prisma/client";
+import type { PantryCategory, PantryUnit } from "@prisma/client";
 import { createPantryItem, sortPantry } from "@/app/actions/pantry";
 import { IconButton, Input, Label } from "@/components/ui";
 import { Modal } from "@/components/modal";
@@ -9,11 +9,11 @@ import { DialogForm } from "@/components/form-dialog";
 import { Chip } from "@/components/pantry-row";
 import { showPantryRow } from "@/components/pantry-shelves";
 import { useLanguage } from "@/components/language-provider";
-import { PANTRY_CATEGORIES, pantryKey } from "@/lib/pantry";
+import { PANTRY_CATEGORIES, PANTRY_UNITS, pantryKey } from "@/lib/pantry";
 import { goodsMatching, lookupGood } from "@/lib/pantry-goods";
 import type { FormAction } from "@/lib/action-result";
 import { sayIn } from "@/lib/copy/say";
-import { PANTRY, PANTRY_CATEGORY_LABELS } from "@/lib/copy/pantry";
+import { PANTRY, PANTRY_CATEGORY_LABELS, PANTRY_UNIT_LABELS } from "@/lib/copy/pantry";
 
 /** What the add sheet knows about an entry already kept, to point at it rather than add it twice. */
 export type KeptEntry = { id: string; name: string; key: string };
@@ -28,10 +28,12 @@ const MAX_GOODS = 5;
  * `FormDialog` because this sheet has two things that one does not: its fields read the
  * name as it is typed, and a successful add may have one more thing to send afterwards.
  *
- * **What the sheet asks.** A name, and which shelf — as chips, the way the "Shelf and
- * unit" sheet asks it, starting on "choose for me", which says which shelf that will be
- * where `lookupGood` knows the name. The same lookup `createPantryItem` makes, so the
- * preview and the save cannot disagree.
+ * **What the sheet asks.** A name, how much and in what, and which shelf — as chips, the
+ * way the "Shelf and unit" sheet asks it. The shelf starts on "choose for me", which says
+ * which shelf that will be where `lookupGood` knows the name. The amount starts at one and
+ * the unit on "stk", a plain count — except that a name `lookupGood` knows a unit for
+ * ("ris" is kg) moves the chip there, until somebody picks a unit by hand. The same lookup
+ * `createPantryItem` makes, so the preview and the save cannot disagree.
  *
  * **"You already have that."** As the name is typed, the entries already kept that it
  * could be are offered first, under their own heading. Picking one adds nothing: it closes
@@ -102,6 +104,8 @@ function PantryAddFields({ kept, onShow }: { kept: KeptEntry[]; onShow: (id: str
   const say = sayIn(language);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<PantryCategory | null>(null);
+  // Undefined until a unit is picked by hand: until then the chip follows the name.
+  const [pickedUnit, setPickedUnit] = useState<PantryUnit | null | undefined>(undefined);
   const [highlighted, setHighlighted] = useState(-1);
 
   const needle = query.trim().toLowerCase();
@@ -127,6 +131,7 @@ function PantryAddFields({ kept, onShow }: { kept: KeptEntry[]; onShow: (id: str
   const isOpen = options.length > 0 && !(options.length === 1 && goodMatches[0] === query.trim());
 
   const known = lookupGood(query);
+  const unit = pickedUnit === undefined ? (known?.unit ?? null) : pickedUnit;
 
   function choose(option: Option) {
     setHighlighted(-1);
@@ -226,6 +231,34 @@ function PantryAddFields({ kept, onShow }: { kept: KeptEntry[]; onShow: (id: str
           </div>
         )}
       </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="pantry-quantity">{say(PANTRY.amountLabel)}</Label>
+        {/* Text with a decimal keyboard, like the row's own box: a number box answers ""
+            for "1,5" in a browser whose locale writes a point. */}
+        <Input
+          id="pantry-quantity"
+          name="quantity"
+          inputMode="decimal"
+          defaultValue="1"
+          autoComplete="off"
+          className="w-24"
+        />
+      </div>
+
+      <fieldset>
+        <legend className="mb-2 text-sm font-medium text-slate-700">{say(PANTRY.unitLabel)}</legend>
+        <div className="flex flex-wrap gap-2">
+          <Chip name="unit" value="" checked={unit === null} onChange={() => setPickedUnit(null)}>
+            {say(PANTRY.pieces)}
+          </Chip>
+          {PANTRY_UNITS.map((value) => (
+            <Chip key={value} name="unit" value={value} checked={unit === value} onChange={() => setPickedUnit(value)}>
+              {say(PANTRY_UNIT_LABELS[value])}
+            </Chip>
+          ))}
+        </div>
+      </fieldset>
 
       <fieldset>
         <legend className="mb-2 text-sm font-medium text-slate-700">{say(PANTRY.categoryLabel)}</legend>
