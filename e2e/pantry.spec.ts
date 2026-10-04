@@ -187,7 +187,7 @@ test("a good is filed on its shelf, and its shelf and unit are changed in the sh
   await expect(quantityGroup(page, "Ris").getByTestId("pantry-unit")).toHaveText("kg");
 
   await openMenu(page, { label: "Ris" });
-  await page.getByRole("menuitem", { name: "Shelf, unit and date" }).click();
+  await page.getByRole("menuitem", { name: "Edit" }).click();
   // The chips are what is pressed; the radios under them are visually hidden.
   const sheet = page.getByRole("dialog");
   await sheet.getByText("Freezer", { exact: true }).click();
@@ -213,7 +213,7 @@ test("an entry close to its expiry date warns on its row, until it has run out",
   // Two weeks is the edge of the warning; a year away says nothing.
   const expireIn = async (name: string, days: number) => {
     await openMenu(page, { label: name });
-    await page.getByRole("menuitem", { name: "Shelf, unit and date" }).click();
+    await page.getByRole("menuitem", { name: "Edit" }).click();
     await page.getByLabel("Expiry date (optional)").fill(formatInZone(dueAtDaysFrom(days), "yyyy-MM-dd"));
     await page.getByRole("button", { name: "Save changes" }).click();
     await expect(page.getByRole("dialog")).toBeHidden();
