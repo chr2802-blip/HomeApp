@@ -1,6 +1,9 @@
 import type { Page } from "@playwright/test";
-import { ACCOUNTS, expect, test } from "./helpers/fixtures";
+import { ACCOUNTS, expect, ROUTES_REQUESTS, test } from "./helpers/fixtures";
 import { CATEGORIES, HOME_NAME, prisma } from "./helpers/database";
+
+// Holds requests with `page.route`, which a service worker can route around.
+test.use(ROUTES_REQUESTS);
 
 /*
  * Cooking a recipe, on the phone it is actually cooked on.

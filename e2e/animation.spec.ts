@@ -1,7 +1,10 @@
 import type { Page } from "@playwright/test";
-import { ACCOUNTS, expect, openDialog, test } from "./helpers/fixtures";
+import { ACCOUNTS, expect, openDialog, ROUTES_REQUESTS, test } from "./helpers/fixtures";
 import { CATEGORIES, HOME_NAME, prisma } from "./helpers/database";
 import { formatDayInZone, nextWeekStart, weekStartInZone } from "../src/lib/time";
+
+// Holds requests with `page.route`, which a service worker can route around.
+test.use(ROUTES_REQUESTS);
 
 /*
  * Movement that silently is not movement.

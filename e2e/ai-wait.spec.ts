@@ -1,6 +1,9 @@
-import { ACCOUNTS, expect, test } from "./helpers/fixtures";
+import { ACCOUNTS, expect, ROUTES_REQUESTS, test } from "./helpers/fixtures";
 import { CATEGORIES, HOME_NAME, prisma } from "./helpers/database";
 import type { Page } from "@playwright/test";
+
+// Holds requests with `page.route`, which a service worker can route around.
+test.use(ROUTES_REQUESTS);
 
 /**
  * The AI wait is drawn for a save the AI will actually read, and for nothing else.
