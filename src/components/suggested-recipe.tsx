@@ -6,6 +6,7 @@ import { PhotoThumb } from "@/components/photo";
 import { SubmitButton } from "@/components/submit-button";
 import { sayIn } from "@/lib/copy/say";
 import { DASHBOARD } from "@/lib/copy/dashboard";
+import { LinkCue } from "@/components/link-cue";
 
 /**
  * Tonight's dinner, read from the day's own entry on `/meals` rather than a pick kept
@@ -61,9 +62,10 @@ export function DinnerRow({
       {dinner.recipeId ? (
         <Link
           href={`/recipes/${dinner.recipeId}`}
-          className="pressable -m-1.5 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1.5 active:scale-[0.98] active:bg-slate-50"
+          className="press-card relative -m-1.5 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1.5"
         >
           {face}
+          <LinkCue />
         </Link>
       ) : (
         // Leftovers whose pointer no longer reaches a recipe: still worth saying,

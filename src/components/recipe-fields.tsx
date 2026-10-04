@@ -132,7 +132,7 @@ function CategoryField({
       <p className="text-xs text-slate-500">{say(RECIPES.tickEveryHeading)}</p>
       <div className="flex flex-wrap gap-2 pt-1">
         {categories.map((category) => (
-          <label key={category.id} className="pressable cursor-pointer">
+          <label key={category.id} className="press-button cursor-pointer">
             {/* Off-screen rather than hidden: a hidden input cannot be focused, and the
                 keyboard is the only way some people reach it. The chip beside it shows
                 both the tick and the focus ring. */}
@@ -143,7 +143,7 @@ function CategoryField({
               defaultChecked={selected.includes(category.id)}
               className="peer sr-only"
             />
-            <span className="block rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors duration-150 peer-checked:border-slate-900 peer-checked:bg-slate-900 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-slate-400 peer-focus-visible:ring-offset-2">
+            <span className="block rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors duration-(--dur-quick) peer-checked:border-slate-900 peer-checked:bg-slate-900 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-slate-400 peer-focus-visible:ring-offset-2">
               {category.name}
             </span>
           </label>

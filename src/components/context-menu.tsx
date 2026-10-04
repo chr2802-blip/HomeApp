@@ -13,6 +13,7 @@ import { createPortal } from "react-dom";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
 import { APP } from "@/lib/copy/app";
+import { MENU_EXIT_MS } from "@/lib/motion";
 
 /**
  * The three dots that hold what is done *to* a thing rather than *with* it — editing
@@ -32,7 +33,8 @@ import { APP } from "@/lib/copy/app";
 
 const CloseMenu = createContext<() => void>(() => {});
 
-type Position = { top: number; right: number };
+/** `above` once the panel has been flipped over its trigger, so it grows from there. */
+type Position = { top: number; right: number; above?: boolean };
 
 const GAP = 6;
 const EDGE = 8;
@@ -69,6 +71,12 @@ export function ContextMenu({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  // Still drawn for a moment after closing, so the panel is seen going back into the
+  // dots rather than vanishing. Set during the render that opens it, so the first frame
+  // of the panel is already the first frame of its entrance.
+  const [mounted, setMounted] = useState(false);
+  if (open && !mounted) setMounted(true);
+  const closing = mounted && !open;
   const [position, setPosition] = useState<Position | null>(null);
   const [ready, setReady] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -82,6 +90,12 @@ export function ContextMenu({
   useEffect(() => setReady(true), []);
 
   const close = useCallback(() => setOpen(false), []);
+
+  useEffect(() => {
+    if (!closing) return;
+    const timer = setTimeout(() => setMounted(false), MENU_EXIT_MS);
+    return () => clearTimeout(timer);
+  }, [closing]);
 
   const place = useCallback(() => {
     const trigger = triggerRef.current;
@@ -100,7 +114,7 @@ export function ContextMenu({
 
     const box = triggerRef.current.getBoundingClientRect();
     const top = Math.max(EDGE, box.top - GAP - height);
-    if (top !== position.top) setPosition({ ...position, top });
+    if (top !== position.top) setPosition({ ...position, top, above: true });
   }, [open, position]);
 
   useEffect(() => {
@@ -165,7 +179,7 @@ export function ContextMenu({
         className={
           trigger
             ? className
-            : `pressable shrink-0 rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-900 active:scale-90 ${className}`
+            : `press-icon shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-900 ${className}`
         }
       >
         {trigger ?? (
@@ -177,14 +191,24 @@ export function ContextMenu({
         )}
       </button>
 
-      {open && position && typeof document !== "undefined"
+      {mounted && position && typeof document !== "undefined"
         ? createPortal(
             <div
               ref={panelRef}
               role="menu"
               aria-label={trigger ? label : say(APP.actionsFor, { name: label })}
-              style={{ top: position.top, right: position.right }}
-              className="animate-row-in fixed z-50 min-w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+              // A closing panel is only a picture of one: nothing in it can be pressed
+              // or focused, and the browser tests' "is the menu gone" waits past it.
+              inert={closing}
+              aria-hidden={closing || undefined}
+              style={{
+                top: position.top,
+                right: position.right,
+                transformOrigin: position.above ? "bottom right" : "top right",
+              }}
+              className={`${
+                closing ? "animate-menu-out" : "animate-menu-in"
+              } fixed z-50 min-w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg`}
             >
               <CloseMenu.Provider value={close}>{children}</CloseMenu.Provider>
             </div>,
@@ -227,7 +251,7 @@ export function MenuItem({
         close();
         onSelect();
       }}
-      className={`flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm font-medium transition ${
+      className={`press-card flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm font-medium ${
         tone === "danger"
           ? "text-red-600 hover:bg-red-50"
           : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"

@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 import { Illustration, type ArtKind } from "@/components/illustration";
 
 const base =
-  "pressable inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium active:scale-[0.96] disabled:opacity-50 disabled:active:scale-100";
+  "press-button inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium disabled:opacity-50";
 
 const variants = {
   /* The home's own colour: the button that saves is the one control on every screen,
@@ -88,7 +88,7 @@ export function IconButton({
       type="button"
       aria-label={label}
       title={label}
-      className={`pressable inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full active:scale-[0.92] disabled:opacity-50 disabled:active:scale-100 ${variants[variant]} ${className}`}
+      className={`press-icon inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full disabled:opacity-50 ${variants[variant]} ${className}`}
       {...props}
     />
   );

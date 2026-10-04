@@ -36,7 +36,7 @@ export function AisleMoveButton({
         aria-label={say(LISTS.moveAisle, { name })}
         title={say(LISTS.moveAisle, { name })}
         aria-haspopup="dialog"
-        className="pressable rounded px-2 py-3 text-slate-400 hover:text-slate-700 focus-visible:outline-2"
+        className="press-icon rounded px-2 py-3 text-slate-400 hover:text-slate-700 focus-visible:outline-2"
       >
         {/* Two arrows, up and down: moving the row, not dragging it. */}
         <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -55,7 +55,7 @@ export function AisleMoveButton({
                   setOpen(false);
                   if (aisle !== current) onMove(aisle);
                 }}
-                className={`pressable rounded-full border px-3 py-1.5 text-sm ${
+                className={`press-button rounded-full border px-3 py-1.5 text-sm ${
                   aisle === current
                     ? "border-[var(--accent)] bg-[var(--accent)] text-white"
                     : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"

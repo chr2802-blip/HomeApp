@@ -14,6 +14,7 @@ import { formatInZone, readInZone } from "@/lib/time";
 import { DATE } from "@/lib/copy/dates";
 import { sayIn } from "@/lib/copy/say";
 import { TASKS } from "@/lib/copy/tasks";
+import { LinkCue } from "@/components/link-cue";
 
 /** What a row, the details page and the edit sheet need to know about a task. */
 export type TaskSummary = {
@@ -93,7 +94,7 @@ export function TaskRow({
     <div className="flex items-center gap-1 py-0.5 pr-3 pl-1">
       <Link
         href={`/tasks/${task.id}`}
-        className="pressable flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-slate-50 active:scale-[0.98] active:bg-slate-100"
+        className="press-card relative flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-slate-50"
       >
         {/* Decorative: the task's own name is right beside it. */}
         <span className="relative shrink-0">
@@ -135,6 +136,7 @@ export function TaskRow({
             )}
           </p>
         </div>
+        <LinkCue />
       </Link>
       {trailing}
     </div>

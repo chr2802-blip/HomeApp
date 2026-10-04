@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { usePathname } from "next/navigation";
+import { sectionStep } from "./section-tabs";
 
 /**
  * Which way the page that has just arrived should come in from.
@@ -13,6 +14,10 @@ import { usePathname } from "next/navigation";
  */
 function directionOf(from: string, to: string) {
   if (from === to) return "animate-page-in";
+  // A sideways step between the pages of one section (Recipes | Meals): in from the side
+  // the pill moved towards, rather than rising as a change of tab does.
+  const step = sectionStep(from, to);
+  if (step) return step === 1 ? "animate-page-forward" : "animate-page-back";
   // Going into something the page was already showing: a list's items, a recipe.
   if (to.startsWith(`${from}/`)) return "animate-page-forward";
   // And back out of it again.

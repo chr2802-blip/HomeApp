@@ -73,7 +73,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                   {/* Just the person: the home is named at the other end of the bar. */}
                   <span className="hidden text-slate-500 sm:inline">{user.name}</span>
                   <form action={logout}>
-                    <button className="text-slate-500 transition hover:text-slate-900 active:scale-95">
+                    <button className="press-button rounded-lg text-slate-500 hover:text-slate-900">
                       {say(APP.logOut)}
                     </button>
                   </form>

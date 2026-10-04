@@ -27,6 +27,7 @@ import { DASHBOARD } from "@/lib/copy/dashboard";
 import { APP } from "@/lib/copy/app";
 import { DATE } from "@/lib/copy/dates";
 import { MEALS } from "@/lib/copy/meals";
+import { LinkCue } from "@/components/link-cue";
 
 /**
  * How many lists the dashboard draws before it stops and offers the rest.
@@ -130,12 +131,13 @@ function StatTile({
   warn?: boolean;
 }) {
   return (
-    <Link href={href} className="pressable block rounded-xl active:scale-[0.98]">
+    <Link href={href} className="press-card relative block rounded-2xl">
       <Card padded={false} className="h-full px-3 py-2 transition hover:border-slate-400">
         <p className="text-xl leading-tight font-semibold tabular-nums">{value}</p>
         <p className="truncate text-xs text-slate-700">{label}</p>
         <p className={`truncate text-[11px] ${warn ? "text-red-600" : "text-slate-400"}`}>{detail}</p>
       </Card>
+      <LinkCue />
     </Link>
   );
 }
@@ -381,7 +383,7 @@ export default async function DashboardPage() {
                 <Link
                   key={day}
                   href="/meals"
-                  className="pressable w-[84px] shrink-0 rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-center active:scale-[0.98]"
+                  className="press-card relative w-[84px] shrink-0 rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-center"
                 >
                   <p className="text-[11px] font-semibold text-slate-400 uppercase">
                     {readDayInZone(day, DATE.weekdayShort, user.homeLanguage)}
@@ -391,6 +393,7 @@ export default async function DashboardPage() {
                   >
                     {what}
                   </p>
+                  <LinkCue />
                 </Link>
               );
             })}
@@ -430,7 +433,7 @@ export default async function DashboardPage() {
                 <Link
                   key={list.id}
                   href={`/lists/${list.id}`}
-                  className="pressable block rounded-xl active:scale-[0.98]"
+                  className="press-card relative block rounded-2xl"
                 >
                   <Card
                     padded={false}
@@ -452,6 +455,7 @@ export default async function DashboardPage() {
                         not done. */}
                     {total > 0 && <ProgressBar edge done={total - stillOpen} total={total} />}
                   </Card>
+                  <LinkCue />
                 </Link>
               );
             })}
