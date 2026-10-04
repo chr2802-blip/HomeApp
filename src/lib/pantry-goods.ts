@@ -132,6 +132,18 @@ export const PANTRY_GOODS: PantryGood[] = [
   good("Nappies", "Bleer", "BABY", "PACK", ["Diapers", "Ble"]),
   good("Baby wipes", "Vådservietter", "BABY", "PACK", ["Wipes", "Vådserviet"]),
 
+  // Bathroom.
+  good("Toilet paper", "Toiletpapir", "BATHROOM", "PACK", ["Toiletrulle", "Toilet roll"]),
+  good("Hand soap", "Håndsæbe", "BATHROOM", null, ["Sæbe", "Soap"]),
+  good("Shampoo", "Shampoo", "BATHROOM", null),
+  good("Conditioner", "Balsam", "BATHROOM", null),
+  good("Shower gel", "Brusesæbe", "BATHROOM", null, ["Bodyshampoo", "Body wash"]),
+  good("Toothpaste", "Tandpasta", "BATHROOM", null),
+  good("Toothbrushes", "Tandbørster", "BATHROOM", null, ["Tandbørste", "Toothbrush"]),
+  good("Deodorant", "Deodorant", "BATHROOM", null, ["Deo"]),
+  good("Cotton pads", "Vatrondeller", "BATHROOM", "PACK", ["Vatrondel"]),
+  good("Plasters", "Plastre", "BATHROOM", "PACK", ["Plaster", "Band-aids"]),
+
   // Other.
   good("Onions", "Løg", "OTHER", null, ["Løg", "Onion"]),
   good("Potatoes", "Kartofler", "OTHER", "KG", ["Potato"]),

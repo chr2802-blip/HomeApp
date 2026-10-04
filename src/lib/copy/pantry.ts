@@ -33,6 +33,7 @@ export const PANTRY_CATEGORY_LABELS = {
   FREEZER: { EN: "Freezer", DA: "Fryser" },
   DRINKS: { EN: "Drinks", DA: "Drikkevarer" },
   BABY: { EN: "Baby", DA: "Baby" },
+  BATHROOM: { EN: "Bathroom", DA: "Badeværelse" },
   OTHER: { EN: "Other", DA: "Andet" },
 } as const satisfies Record<PantryCategory, Phrase>;
 
