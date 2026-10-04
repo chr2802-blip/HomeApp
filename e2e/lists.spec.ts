@@ -143,10 +143,27 @@ test("the list says how far along it is, and the bar draws what it says", async 
     .toBe(50);
   expect((await drawn(bar)).colour).not.toBe("rgba(0, 0, 0, 0)");
 
-  // And the card on the lists page says the same about the stored rows.
+  // Coming back to it, the bar fills up from empty to where the list is rather than
+  // arriving there — and it still lands on what it says. The name is asked rather than
+  // a running animation, which may already be over by the time anybody looks.
   await expect.poll(() => prisma().listItem.count({ where: { done: true } })).toBe(1);
+  await page.reload();
+  await expect(bar).toHaveAttribute("data-progress", "50");
+  expect(
+    await bar.evaluate((track) => getComputedStyle(track.firstElementChild!).animationName),
+  ).toBe("progress-fill");
+  await expect
+    .poll(async () => Math.round((await drawn(bar)).ratio * 100))
+    .toBe(50);
+
+  // And the card on the lists page says the same about the stored rows — without
+  // filling in, which only the list's own page does.
   await page.goto("/lists");
-  await expect(page.locator("[data-progress]").first()).toHaveAttribute("data-progress", "50");
+  const card = page.locator("[data-progress]").first();
+  await expect(card).toHaveAttribute("data-progress", "50");
+  expect(
+    await card.evaluate((track) => getComputedStyle(track.firstElementChild!).animationName),
+  ).toBe("none");
 });
 
 test("the last tick clears the list and says so", async ({ page }) => {
