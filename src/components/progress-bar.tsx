@@ -79,7 +79,7 @@ export function ProgressBar({
       } ${className}`}
     >
       <div
-        className={`h-full transition-[width] duration-500 ease-out ${
+        className={`h-full transition-[width] duration-500 ease-(--ease-arrive) ${
           edge ? "" : "rounded-full"
         } ${fillIn ? "animate-progress-fill" : ""}`}
         style={{ width: `${percent}%`, backgroundColor: "var(--accent)" }}

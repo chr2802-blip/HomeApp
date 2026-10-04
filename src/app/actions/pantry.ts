@@ -120,6 +120,13 @@ export async function createPantryItem(
   const known = lookupGood(form.fields.name);
   const chosen = String(formData.get("category") ?? "");
   const category = isPantryCategory(chosen) ? chosen : (known?.category ?? null);
+  // The sheet always sends a unit, "" for stk; a form that does not mention one gets the
+  // list's. A quantity not mentioned is one, as it always was.
+  const rawUnit = formData.get("unit");
+  const sentUnit = String(rawUnit ?? "");
+  const unit = rawUnit === null ? (known?.unit ?? null) : isPantryUnit(sentUnit) ? sentUnit : null;
+  const rawQuantity = formData.get("quantity");
+  const quantity = rawQuantity === null || String(rawQuantity).trim() === "" ? 1 : clampPantryQuantity(rawQuantity);
 
   try {
     // The home is spelled out beside the check that produced it, as createList and
@@ -130,7 +137,8 @@ export async function createPantryItem(
         name: form.fields.name,
         key: form.fields.key,
         category,
-        unit: known?.unit ?? null,
+        unit,
+        quantity,
       },
     });
   } catch (error) {

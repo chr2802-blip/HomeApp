@@ -141,6 +141,43 @@ mounted and being opened. Which one a sheet plays is a media query in `globals.c
 `sm:` classes on the element. `e2e/animation.spec.ts` records what actually ran: a CSS
 animation that quietly does nothing looks exactly like one that works.
 
+## Motion is one vocabulary, and a press is answered on the thing pressed
+
+An audit in 2026-10 found six easing curves, eight durations and six press depths, with
+the size of a control predicting none of them: a dashboard tile went to 98%, a full-width
+button to 95%, a cook-mode tab to 96%. Each choice had been reasonable on its own screen;
+together they made the app feel assembled rather than made. So the values became tokens at
+the top of `globals.css`, read by every rule, and a press became one of three tiers chosen
+by size — the smaller the thing, the further it can go in before it reads as broken rather
+than pressed. The release springs (`--ease-spring`) where it used to ease out in the same
+90ms it went in: a symmetric press reads as a picture being swapped, and a quick tap was
+released before the press had shown at all.
+
+The tiers live in `@layer components`. The old `.pressable` was unlayered, and unlayered
+CSS beats every layer whatever its specificity — so a `transition-colors duration-150`
+written beside it was silently ignored, which is how the section tabs came to carry one
+that did nothing.
+
+**The slowest-feeling thing in the app was not an animation but its absence.** There is no
+`loading.tsx`, so a tap on a list card shrank for a tenth of a second and then nothing
+happened until the server answered — on a phone in a shop, long enough to tap again.
+`LinkCue` rings the card in the home's colour while `useLinkStatus` says the navigation is
+pending, after a 120ms beat so a prefetched page never flashes it. Skeleton pages were
+considered and left: they would replay `PageTransition` on the skeleton and pop the real
+page in under it, and they cost a file per route to say what one component says for all.
+
+The tab rows had the opposite problem: they did answer at once, but `useLinkStatus` is per
+link, so the tab being left had no way to know and stayed lit beside the new one — two lit
+tabs, one of them pulsing, for as long as the server took. `usePendingHref` keeps the press
+for the whole row and drops it when the path moves on, so nothing has to clear it.
+
+**The arriving page starts at half opacity.** From zero, the frame between the old page
+going (instantly — only the arriving page is animated) and the new one appearing was an
+empty screen under the header, and every navigation blinked. The tab switch also lost its
+`scale(0.985)`: text being scaled shimmers on a phone. A real cross-fade of both pages
+wants React's `<ViewTransition>`, which React 19.1 does not ship stably; that is the next
+step when the stack moves.
+
 ## Forms submit through `useFormAction`, not the `action` prop
 
 `src/components/use-form-action.ts`. React 19 clears an uncontrolled form once its action

@@ -46,7 +46,7 @@ export function Collapsible({
       onClick={() => setOpen((shown) => !shown)}
       aria-expanded={open}
       aria-controls={panelId}
-      className={`pressable flex items-center gap-2 text-left ${triggerClassName}`}
+      className={`press-card flex items-center gap-2 text-left ${triggerClassName}`}
     >
       <svg
         viewBox="0 0 20 20"

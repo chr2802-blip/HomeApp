@@ -26,13 +26,13 @@ export function BackButton() {
       href={parentOf(pathname)}
       prefetch
       aria-label="Back"
-      className="pressable -ml-1.5 flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900 active:scale-90 active:bg-slate-200"
+      className="press-icon -ml-1.5 flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900"
     >
       <LinkPending>
         {(pending) => (
           <svg
             viewBox="0 0 24 24"
-            className={`h-5 w-5 transition-transform duration-150 ${
+            className={`h-5 w-5 transition-transform duration-(--dur-quick) ${
               pending ? "-translate-x-0.5 opacity-60" : ""
             }`}
             fill="none"

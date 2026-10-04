@@ -265,7 +265,7 @@ export function CookMode({
             type="button"
             onClick={() => setPicking(true)}
             aria-label={say(RECIPES.cookAnother)}
-            className="pressable shrink-0 rounded-lg p-2 text-slate-400 active:scale-90 hover:bg-slate-200 hover:text-slate-900"
+            className="press-icon shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-900"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
               <path d="M12 5v14M5 12h14" strokeLinecap="round" />
@@ -274,7 +274,7 @@ export function CookMode({
           <Link
             href={recipeHref}
             aria-label={say(APP.close)}
-            className="pressable shrink-0 rounded-lg p-2 text-slate-400 active:scale-90 hover:bg-slate-200 hover:text-slate-900"
+            className="press-icon shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-900"
           >
             <svg
               viewBox="0 0 24 24"
@@ -314,7 +314,7 @@ export function CookMode({
                   <Link
                     href={cookHref(kitchen, cook.recipeId)}
                     replace
-                    className="pressable min-w-0 truncate py-1.5 pl-3 active:scale-[0.96]"
+                    className="press-button min-w-0 truncate py-1.5 pl-3"
                   >
                     {cook.title}
                     {Number.isFinite(soonest) && (
@@ -328,7 +328,7 @@ export function CookMode({
                     type="button"
                     aria-label={say(RECIPES.stopCooking, { title: cook.title })}
                     onClick={() => update((current) => finishCook(current, cook.recipeId))}
-                    className="pressable shrink-0 rounded-full p-1.5 pr-2 text-slate-400 hover:text-slate-900 active:scale-90"
+                    className="press-icon shrink-0 rounded-full p-1.5 pr-2 text-slate-400 hover:text-slate-900"
                   >
                     <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true">
                       <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
@@ -362,7 +362,7 @@ export function CookMode({
             const step = say(RECIPES.stepNumber, { number: timer.step + 1 });
             const mine = timer.recipeId === recipeId;
             const label = mine || !timer.title ? step : say(RECIPES.timerOf, { title: timer.title, step });
-            const className = `pressable max-w-full truncate rounded-full px-3 py-1 text-xs font-medium tabular-nums active:scale-[0.96] ${
+            const className = `press-button max-w-full truncate rounded-full px-3 py-1 text-xs font-medium tabular-nums ${
               finished ? "bg-emerald-600 text-white" : mine ? "accent-tint-bg text-slate-700" : "bg-slate-100 text-slate-700"
             }`;
             const text = (
@@ -582,7 +582,7 @@ function StepPage({
         <button
           type="button"
           onClick={() => onStartTimer(step.minutes as number)}
-          className="pressable accent-tint-ring mt-5 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium active:scale-[0.96]"
+          className="press-button accent-tint-ring mt-5 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium"
         >
           <svg
             viewBox="0 0 24 24"

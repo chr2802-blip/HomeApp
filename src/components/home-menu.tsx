@@ -88,7 +88,7 @@ export function HomeMenu({
         aria-label={say(APP.homeMenu.ariaLabel, { name: label })}
         data-ready={ready ? "true" : undefined}
         onClick={() => setOpen((was) => !was)}
-        className="pressable flex min-w-0 items-center gap-1.5 rounded-lg text-lg font-semibold tracking-tight text-[var(--accent-text)] transition active:scale-95"
+        className="press-button flex min-w-0 items-center gap-1.5 rounded-lg text-lg font-semibold tracking-tight text-[var(--accent-text)]"
       >
         {/* The household's own picture. A home without one simply has no avatar rather
             than a placeholder standing in for it. */}
@@ -96,7 +96,7 @@ export function HomeMenu({
         <span className="font-display truncate">{label}</span>
         <svg
           viewBox="0 0 20 20"
-          className={`h-4 w-4 shrink-0 text-slate-400 transition-[rotate] duration-200 ${
+          className={`h-4 w-4 shrink-0 text-slate-400 transition-[rotate] duration-(--dur-base) ease-(--ease-arrive) ${
             open ? "rotate-180" : "rotate-0"
           }`}
           fill="none"

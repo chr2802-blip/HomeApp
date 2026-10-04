@@ -114,7 +114,7 @@ export function RecipeRating({
             onClick={() => rate(hearts)}
             disabled={pending}
             aria-label={say(RECIPES.rateHearts, { count: hearts })}
-            className="pressable rounded-lg p-1.5 active:scale-90 disabled:opacity-60"
+            className="press-icon rounded-lg p-1.5 disabled:opacity-60"
           >
             <HeartIcon filled={standing.last !== null && hearts <= standing.last} className="h-7 w-7" />
           </button>

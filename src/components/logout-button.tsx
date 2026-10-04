@@ -19,7 +19,7 @@ export function LogoutButton({ label }: { label: string }) {
         await logout();
       }}
     >
-      <button className="text-slate-500 transition hover:text-slate-900 active:scale-95">{label}</button>
+      <button className="press-button rounded-lg text-slate-500 hover:text-slate-900">{label}</button>
     </form>
   );
 }

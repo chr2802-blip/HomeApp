@@ -49,7 +49,7 @@ export function FavoriteButton({
       aria-pressed={starred}
       aria-label={say(LISTS.favourite, { name: title })}
       title={starred ? say(LISTS.removeFromFavourites) : say(LISTS.addToFavourites)}
-      className={`pressable shrink-0 rounded-lg p-2 active:scale-90 ${
+      className={`press-icon shrink-0 rounded-lg p-2 ${
         starred ? "text-amber-500 hover:text-amber-600" : "text-slate-300 hover:text-slate-500"
       } ${className}`}
     >

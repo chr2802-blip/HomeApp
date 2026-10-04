@@ -17,6 +17,7 @@ import { ProgressBar } from "@/components/progress-bar";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
 import { LISTS } from "@/lib/copy/lists";
+import { LinkCue } from "@/components/link-cue";
 
 export type ListSummary = {
   id: string;
@@ -57,7 +58,7 @@ function ListCards({ lists }: { lists: ListSummary[] }) {
           <Link
             href={`/lists/${list.id}`}
             prefetch
-            className="pressable -m-2 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-2 active:scale-[0.98] active:bg-slate-50"
+            className="press-card relative -m-2 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-2"
           >
             {/* Decorative: the title is right beside it, and a screen reader
                 reading the same words twice helps nobody. */}
@@ -75,6 +76,7 @@ function ListCards({ lists }: { lists: ListSummary[] }) {
                 {say(LISTS.openTotal, { open: list.open, total: list.total })}
               </p>
             </div>
+            <LinkCue />
           </Link>
           {/* Both sit to the right of the title, outside the link: a button inside
               a link is neither valid nor pressable without following it. */}

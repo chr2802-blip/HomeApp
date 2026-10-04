@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
  * Production's Postgres is a Supabase project, which serves every table in `public` over
  * its Data API to anybody holding the publishable key — and this app hands that key to
  * every signed-in phone for Realtime. Row-level security, with no policy, is what keeps
- * those tables to Prisma alone (`20261004130000_close_supabase_data_api`).
+ * those tables to Prisma alone (`20261004190000_close_supabase_data_api`).
  *
  * Prisma creates a table with RLS off, so a migration that adds one has to turn it on as
  * well. This is the check that it did: it reads the migrated database rather than a list,

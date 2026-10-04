@@ -214,7 +214,7 @@ export function KitchenTimers() {
           >
             <Link
               href={cookHref(kitchen, timer.recipeId)}
-              className="pressable min-w-0 truncate py-2 pl-3.5 active:scale-[0.96]"
+              className="press-button min-w-0 truncate py-2 pl-3.5"
             >
               {label} · {finished ? say(RECIPES.timerDone) : clockLabel(remaining)}
             </Link>
@@ -222,7 +222,7 @@ export function KitchenTimers() {
               type="button"
               aria-label={say(finished ? RECIPES.dismissTimer : RECIPES.stopTimer, { label })}
               onClick={() => update((current) => stopTimer(current, timer.recipeId, timer.step))}
-              className="pressable shrink-0 rounded-full p-2 pr-2.5 opacity-80 hover:opacity-100 active:scale-90"
+              className="press-icon shrink-0 rounded-full p-2 pr-2.5 opacity-80 hover:opacity-100"
             >
               <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
                 <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />

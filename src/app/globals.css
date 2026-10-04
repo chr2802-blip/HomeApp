@@ -272,28 +272,115 @@ h1,
 }
 
 /*
- * Anything tappable. `touch-action: manipulation` drops the browser's wait-and-see for a
- * double-tap zoom, and the short movement duration means the press reads instantly while
- * colour still eases.
+ * How the app moves, written once. Every animation and transition below reads these
+ * rather than a literal of its own, so two things that arrive together arrive alike —
+ * before these there were six curves and eight durations, and the size of a thing did
+ * not predict how it moved.
  *
- * All four movement properties are named, not just `transform`: Tailwind v4 writes
- * `scale-95` as `scale: 95%` and `translate-y-2` as `translate: 0 0.5rem` — their own
- * properties, which `transition: transform` does not cover. Listing only `transform`
- * leaves every `active:scale-*` in the app snapping instead of easing, which is a
- * transition that silently is not one.
+ *   --ease-arrive  something coming into view: quick away, settling at the end.
+ *   --ease-leave   something going: slow to start, gone at speed. An exit is shorter
+ *                  than its entrance, which is what a dismissal feels like.
+ *   --ease-sheet   a sheet rising: the curve a phone's own sheets use.
+ *   --ease-spring  a release or a celebration: overshoots a little and comes back.
+ *
+ * The fold's curve is its own (`--fold-ease`, below) because it has to be symmetric.
+ * Where a timer in JS waits for one of these, a unit test holds the two together
+ * (`tests/unit/motion.test.ts`, `fold.test.ts`).
  */
-.pressable {
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    transform 90ms ease-out,
-    translate 90ms ease-out,
-    scale 90ms ease-out,
-    rotate 90ms ease-out,
-    background-color 150ms ease-out,
-    border-color 150ms ease-out,
-    color 150ms ease-out,
-    opacity 150ms ease-out;
+:root {
+  --ease-arrive: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-leave: cubic-bezier(0.4, 0, 1, 1);
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --dur-press: 70ms;
+  --dur-release: 260ms;
+  --dur-quick: 150ms;
+  --dur-base: 240ms;
+  --dur-row: 200ms;
+  --dur-sheet-in: 300ms;
+  --dur-sheet-out: 200ms;
+  --dur-menu-in: 160ms;
+  --dur-menu-out: 120ms;
+}
+
+/*
+ * Anything tappable presses in one of three ways, chosen by its size: the smaller the
+ * thing, the further it can go in before it reads as broken rather than pressed.
+ *
+ *   .press-icon    a glyph or a small square button          — to 90%
+ *   .press-button  a button with words, a chip, a tab, a pill — to 96%
+ *   .press-card    a card, a row, a menu entry                — to 98%, on a warm tint
+ *
+ * Going in is quick (`--dur-press`) so the press reads at once; coming back is slower
+ * and springs (`--ease-spring`), which is most of what makes a press feel like a thing
+ * being let go rather than a picture being swapped. `touch-action: manipulation` drops
+ * the browser's wait-and-see for a double-tap zoom.
+ *
+ * In `@layer components`, below the utilities, so a utility on the same element still
+ * wins — the old unlayered `.pressable` silently beat every `transition-*` and
+ * `duration-*` written beside it. Never pair these with `active:scale-*`: the tier is the
+ * press. All four movement properties are named, not just `transform`: Tailwind v4 writes
+ * `scale-*` and `translate-*` as their own properties, which `transition: transform`
+ * does not cover.
+ */
+@layer components {
+  .press-icon,
+  .press-button,
+  .press-card {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      scale var(--dur-release) var(--ease-spring),
+      translate var(--dur-release) var(--ease-spring),
+      rotate var(--dur-release) var(--ease-spring),
+      transform var(--dur-release) var(--ease-spring),
+      background-color var(--dur-quick) ease-out,
+      border-color var(--dur-quick) ease-out,
+      box-shadow var(--dur-quick) ease-out,
+      color var(--dur-quick) ease-out,
+      opacity var(--dur-quick) ease-out;
+  }
+
+  .press-icon:active:not(:disabled, [aria-disabled="true"]),
+  .press-button:active:not(:disabled, [aria-disabled="true"]),
+  .press-card:active:not(:disabled, [aria-disabled="true"]) {
+    transition-duration: var(--dur-press);
+    transition-timing-function: ease-out;
+  }
+
+  .press-icon:active:not(:disabled, [aria-disabled="true"]) {
+    scale: 0.9;
+  }
+
+  .press-button:active:not(:disabled, [aria-disabled="true"]) {
+    scale: 0.96;
+  }
+
+  .press-card:active:not(:disabled, [aria-disabled="true"]) {
+    scale: 0.98;
+    background-color: var(--color-slate-100);
+  }
+}
+
+/*
+ * A link on its way somewhere. `LinkCue` draws this inside a card or row the moment its
+ * navigation starts and takes it away when the page lands, so a tap on a slow connection
+ * is answered on the thing tapped rather than by nothing for half a second. It waits a
+ * beat before showing, because a prefetched page usually lands before the eye would have
+ * seen it, and a ring flashing on every tap is noise.
+ */
+@keyframes link-cue {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-link-cue {
+  animation: link-cue var(--dur-quick) ease-out 120ms both;
 }
 
 /*
@@ -323,10 +410,15 @@ h1,
  * Only the arriving page is animated. The one being left is gone the moment the router
  * swaps it, and holding a copy of it on screen to slide out would mean keeping a whole
  * page rendered for a quarter of a second after it stopped being the page.
+ *
+ * So the arriving page starts at half opacity, not at none: from zero, the frame between
+ * the old page going and the new one appearing is an empty screen under the header, and
+ * every navigation blinked. Nothing scales either — text being scaled shimmers on a
+ * phone, and the tab switch used to.
  */
 @keyframes page-in {
   from {
-    opacity: 0;
+    opacity: 0.5;
     transform: translate3d(0, 8px, 0);
   }
   to {
@@ -337,7 +429,7 @@ h1,
 
 @keyframes page-forward {
   from {
-    opacity: 0;
+    opacity: 0.5;
     transform: translate3d(28px, 0, 0);
   }
   to {
@@ -348,7 +440,7 @@ h1,
 
 @keyframes page-back {
   from {
-    opacity: 0;
+    opacity: 0.5;
     transform: translate3d(-28px, 0, 0);
   }
   to {
@@ -359,12 +451,12 @@ h1,
 
 @keyframes page-switch {
   from {
-    opacity: 0;
-    transform: translate3d(0, 14px, 0) scale(0.985);
+    opacity: 0.5;
+    transform: translate3d(0, 14px, 0);
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -449,9 +541,12 @@ h1,
   animation-fill-mode: both;
 }
 
-.animate-sheet-in,
+.animate-sheet-in {
+  animation-timing-function: var(--ease-sheet);
+}
+
 .animate-sheet-out {
-  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  animation-timing-function: var(--ease-leave);
 }
 
 .animate-backdrop-in,
@@ -461,22 +556,22 @@ h1,
 
 .animate-sheet-in {
   animation-name: sheet-in;
-  animation-duration: 300ms;
+  animation-duration: var(--dur-sheet-in);
 }
 
 .animate-sheet-out {
   animation-name: sheet-out;
-  animation-duration: 200ms;
+  animation-duration: var(--dur-sheet-out);
 }
 
 .animate-backdrop-in {
   animation-name: backdrop-in;
-  animation-duration: 300ms;
+  animation-duration: var(--dur-sheet-in);
 }
 
 .animate-backdrop-out {
   animation-name: backdrop-out;
-  animation-duration: 200ms;
+  animation-duration: var(--dur-sheet-out);
 }
 
 /* From the width at which the sheet stops being the screen and becomes a panel — the
@@ -586,7 +681,7 @@ h1,
 }
 
 .animate-check-pop {
-  animation: check-pop 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: check-pop 380ms var(--ease-spring);
 }
 
 /*
@@ -616,7 +711,7 @@ h1,
 }
 
 .animate-week-done {
-  animation: week-done 900ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: week-done 900ms var(--ease-spring) both;
 }
 
 /*
@@ -645,7 +740,7 @@ h1,
 .animate-season-in {
   display: inline-block;
   transform-origin: 50% 0;
-  animation: season-in 700ms cubic-bezier(0.34, 1.56, 0.64, 1) 300ms both;
+  animation: season-in 700ms var(--ease-spring) 300ms both;
 }
 
 /*
@@ -703,7 +798,7 @@ h1,
 }
 
 .animate-halfway {
-  animation: halfway 340ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: halfway 340ms var(--ease-spring);
 }
 
 /*
@@ -717,7 +812,7 @@ h1,
 }
 
 .animate-progress-fill {
-  animation: progress-fill 600ms cubic-bezier(0.22, 1, 0.36, 1) 120ms backwards;
+  animation: progress-fill 600ms var(--ease-arrive) 120ms backwards;
 }
 
 /*
@@ -747,7 +842,7 @@ h1,
 }
 
 .animate-stamp {
-  animation: stamp 700ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: stamp 700ms var(--ease-arrive) forwards;
 }
 
 /*
@@ -817,39 +912,95 @@ h1,
   animation: pantry-found 1.6s ease-out both;
 }
 
-/* The curve every movement here uses: quick away, settling at the end. */
+/* Everything that arrives arrives on the one curve, in one of two lengths: a page in
+   `--dur-base`, a row or a toast in `--dur-row`. */
 .animate-page-in,
 .animate-page-forward,
 .animate-page-back,
 .animate-page-switch,
-.animate-row-in {
-  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+.animate-row-in,
+.animate-row-out {
+  animation-timing-function: var(--ease-arrive);
   animation-fill-mode: both;
 }
 
 .animate-page-in {
   animation-name: page-in;
-  animation-duration: 220ms;
+  animation-duration: var(--dur-base);
 }
 
 .animate-page-forward {
   animation-name: page-forward;
-  animation-duration: 280ms;
+  animation-duration: var(--dur-base);
 }
 
 .animate-page-back {
   animation-name: page-back;
-  animation-duration: 280ms;
+  animation-duration: var(--dur-base);
 }
 
 .animate-page-switch {
   animation-name: page-switch;
-  animation-duration: 260ms;
+  animation-duration: var(--dur-base);
 }
 
 .animate-row-in {
   animation-name: row-in;
-  animation-duration: 200ms;
+  animation-duration: var(--dur-row);
+}
+
+/* A toast going back where it came from, rather than vanishing mid-sentence. */
+.animate-row-out {
+  animation-name: row-out;
+  animation-duration: var(--dur-row);
+  animation-timing-function: var(--ease-leave);
+}
+
+@keyframes row-out {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+}
+
+/*
+ * The three-dot menu grows out of the button that opened it — from its top right, where
+ * the dots are, or its bottom right when it has flipped above them — and shrinks back
+ * into it. Scale and opacity only: a menu that slid would seem to come from somewhere
+ * else. `MENU_EXIT_MS` in `context-menu.tsx` waits for the exit before unmounting.
+ */
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    scale: 0.92;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes menu-out {
+  from {
+    opacity: 1;
+    scale: 1;
+  }
+  to {
+    opacity: 0;
+    scale: 0.96;
+  }
+}
+
+.animate-menu-in {
+  animation: menu-in var(--dur-menu-in) var(--ease-arrive) both;
+}
+
+.animate-menu-out {
+  animation: menu-out var(--dur-menu-out) var(--ease-leave) both;
 }
 
 /*
@@ -900,7 +1051,7 @@ h1,
 .animate-page-turn-next,
 .animate-page-turn-back {
   animation-duration: 320ms;
-  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-timing-function: var(--ease-arrive);
   animation-fill-mode: both;
   /* The leaf has a back, and it must not show through the sheet behind it. */
   backface-visibility: hidden;

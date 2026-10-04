@@ -80,7 +80,7 @@ export function CookPicker({
                   <button
                     type="button"
                     onClick={() => onPick(choice.id)}
-                    className="pressable w-full py-3 text-left text-base break-words active:scale-[0.99]"
+                    className="press-card w-full py-3 text-left text-base break-words"
                   >
                     {choice.title}
                   </button>

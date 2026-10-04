@@ -127,6 +127,93 @@ test.describe("a page", () => {
     await page.waitForURL(/\/tasks$/);
     await expectArrival(page, "page-switch");
   });
+
+  test("steps sideways between the pages of one section, from the side the pill moved to", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 680 });
+    await page.goto("/recipes");
+    const segments = page.locator("main nav").first();
+
+    await segments.getByRole("link", { name: "Plan" }).click();
+    await page.waitForURL(/\/meals/);
+    await expectArrival(page, "page-forward");
+
+    await segments.getByRole("link", { name: "Recipes" }).click();
+    await page.waitForURL(/\/recipes$/);
+    await expectArrival(page, "page-back");
+  });
+});
+
+/**
+ * Holds every request for a page's server render for a while, so a navigation to it stays
+ * pending long enough to look at what the app draws in the meantime. Prefetches are held
+ * too, which is what keeps the press from being answered out of a prefetched copy.
+ */
+async function holdPage(page: Page, pathname: string) {
+  await page.route(
+    (url) => url.pathname === pathname && url.searchParams.has("_rsc"),
+    async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      await route.continue().catch(() => {});
+    },
+  );
+}
+
+test.describe("a press on its way somewhere", () => {
+  test("lights the one tab pressed, and darkens the one being left", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 680 });
+    await holdPage(page, "/tasks");
+    await page.goto("/dashboard");
+
+    const pill = (name: string) => page.locator(`nav a[aria-label="${name}"] > span`).first();
+    await expect(pill("Home")).toHaveCSS("scale", "1.1");
+
+    await page.locator('nav a[aria-label="Tasks"]').click();
+
+    // Still on the dashboard, and already only Tasks is lit.
+    await expect(pill("Tasks")).toHaveCSS("scale", "1.1");
+    await expect(pill("Home")).toHaveCSS("scale", "1");
+    expect(new URL(page.url()).pathname).toBe("/dashboard");
+    await page.waitForURL(/\/tasks$/);
+  });
+
+  test("rings the card that was pressed until its page lands", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 680 });
+    await holdPage(page, "/tasks");
+    await page.goto("/dashboard");
+
+    const tile = page.locator('main a[href="/tasks"]').first();
+    await tile.click();
+
+    await expect(tile.locator("[data-link-cue]")).toBeVisible();
+    await page.waitForURL(/\/tasks$/);
+    await expect(page.locator("[data-link-cue]")).toHaveCount(0);
+  });
+});
+
+test.describe("the three-dot menu", () => {
+  test("grows out of its button and is seen going back into it", async ({ page }) => {
+    await page.goto("/lists");
+    await openDialog(page, "New list");
+    await page.getByLabel("List name").fill("Weekly shop");
+    await page.getByRole("button", { name: "Create list" }).click();
+    await page.waitForURL(/\/lists\/[a-z0-9]+$/);
+    await page.getByRole("link", { name: "Lists" }).first().click();
+    await page.waitForURL(/\/lists$/);
+
+    const dots = page.getByRole("button", { name: "Actions for Weekly shop" });
+    await expect(dots).toHaveAttribute("data-ready", "true");
+    await forget(page);
+    await dots.click();
+    await expect(page.getByRole("menu")).toBeVisible();
+    await expectPlayed(page, "menu-in");
+
+    await forget(page);
+    await page.keyboard.press("Escape");
+    await expectPlayed(page, "menu-out");
+    await expect(page.locator("[role='menu']")).toHaveCount(0);
+  });
 });
 
 test.describe("swiping between meal-plan days", () => {
@@ -189,12 +276,15 @@ test.describe("what eases rather than snapping", () => {
   });
 
   test("anything tappable eases its own press", async ({ page }) => {
-    await page.goto("/lists");
+    await page.goto("/dashboard");
 
-    // Every `active:scale-*` in the app rides on this one rule.
-    const pressable = page.locator(".pressable").first();
-    const eased = await pressable.evaluate((node) => getComputedStyle(node).transitionProperty);
-    expect(eased).toContain("scale");
+    // Every press in the app is one of the three tiers, and each eases `scale` — the
+    // property its `:active` rule changes.
+    for (const tier of ["press-icon", "press-button", "press-card"]) {
+      const pressable = page.locator(`.${tier}`).first();
+      const eased = await pressable.evaluate((node) => getComputedStyle(node).transitionProperty);
+      expect(eased, tier).toContain("scale");
+    }
   });
 });
 

@@ -15,6 +15,7 @@ import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
 import { formatAverage } from "@/lib/rating";
 import { HeartIcon } from "@/components/recipe-rating";
+import { LinkCue } from "@/components/link-cue";
 
 export type RecipeSummary = {
   id: string;
@@ -261,13 +262,13 @@ export function RecipeDirectory({
                   <Card
                     key={recipe.id}
                     padded={false}
-                    className="animate-row-in relative h-full overflow-hidden transition-colors duration-150 hover:border-slate-400"
+                    className="animate-row-in relative h-full overflow-hidden transition-colors duration-(--dur-quick) hover:border-slate-400"
                     style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
                   >
                     <Link
                       href={`/recipes/${recipe.id}`}
                       prefetch
-                      className="pressable block h-full active:scale-[0.98]"
+                      className="press-card relative block h-full"
                     >
                       {/* Decorative: the recipe's own title is directly below it. */}
                       <PhotoCover photoId={recipe.photoId} alt="" />
@@ -301,6 +302,7 @@ export function RecipeDirectory({
                           </p>
                         )}
                       </div>
+                      <LinkCue />
                     </Link>
                     {/* Over the card rather than in it: the card is one link, and a
                         button inside a link is neither valid nor pressable without
@@ -356,7 +358,7 @@ function FilterChip({
       onClick={onClick}
       aria-pressed={active}
       aria-label={sayIn(language)(RECIPES.filterAriaLabel, { label, count })}
-      className={`pressable shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium active:scale-[0.96] ${
+      className={`press-button shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium ${
         active
           ? "border-slate-900 bg-slate-900 text-white"
           : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"

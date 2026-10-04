@@ -42,7 +42,7 @@ export function ThemeField({
           <label
             key={theme}
             data-theme={theme}
-            className="pressable relative cursor-pointer active:scale-95"
+            className="press-button relative cursor-pointer"
           >
             {/* Invisible but laid over the whole swatch, rather than tucked away in a
                 corner of it: the radio is then the thing being pressed, which is what

@@ -53,7 +53,7 @@ export function SheetButton({
         data-ready={ready ? "true" : undefined}
         disabled={disabled}
         onClick={() => setOpen(true)}
-        className="pressable inline-flex h-9 min-w-9 shrink-0 items-center justify-center gap-1 rounded-full border border-slate-300 bg-white px-2 text-sm font-medium text-slate-700 tabular-nums hover:bg-slate-100 active:scale-[0.92] disabled:opacity-50 disabled:active:scale-100"
+        className="press-icon inline-flex h-9 min-w-9 shrink-0 items-center justify-center gap-1 rounded-full border border-slate-300 bg-white px-2 text-sm font-medium text-slate-700 tabular-nums hover:bg-slate-100 disabled:opacity-50"
       >
         {icon}
         {value !== undefined && value !== null && (

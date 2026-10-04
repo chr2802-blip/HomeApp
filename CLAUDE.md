@@ -59,10 +59,11 @@ that predates the nav, so hide it in the throwaway script (`page.addStyleTag({ c
 "nextjs-portal{display:none!important}" })`) rather than chasing it mid-screenshot.
 In the script a user's homes are `memberships: { create: … }` and the pointer `activeHome:
 { connect: … }`, not `homes`/`activeHomeId`.
-Name the script `.mts` if it uses top-level `await`: `tsx` compiles a `.ts` file as
+Put the script inside the checkout (and delete it after): from the scratchpad it cannot
+resolve `@prisma/client`. Name the script `.mts` if it uses top-level `await`: `tsx` compiles a `.ts` file as
 CommonJS here and refuses it.
 `PantryCategory` is `SPICES`, `OIL_VINEGAR`, `SAUCES`, `BAKING`, `DRY_GOODS`, `TINS_JARS`,
-`FRIDGE`, `FREEZER`, `DRINKS`, `BABY`, `OTHER` — the label "Pasta, rice & grains" is
+`FRIDGE`, `FREEZER`, `DRINKS`, `BABY`, `BATHROOM`, `CLEANING`, `OTHER` — the label "Pasta, rice & grains" is
 `DRY_GOODS`. **To screenshot a picture being chosen**, there is no image file in the repo
 and no PIL in the container: draw one in the page (`canvas.toDataURL("image/jpeg")`) and
 hand its bytes to `setInputFiles({ name, mimeType, buffer })`. A row's three dots are the
@@ -813,7 +814,8 @@ nobody had, about salt.
 **A pantry entry is a name, a quantity, a unit and a shelf**: `quantity`, which is the whole of
 what a cupboard says about how much there is, and `unit` — what it is counted in
 (`PANTRY_UNITS` in `src/lib/pantry.ts`: g, kg, dl, l, and the kitchen's own dåse, pose,
-pakke, glas, bundt) or nothing at all for a plain count. Zero is what a boolean
+pakke, glas, bundt) or nothing at all for a plain count, which is drawn and offered as
+"stk" (`PANTRY.pieces`) — null *is* stk, so no stored entry changed when the word arrived. Zero is what a boolean
 `inStock: false` used to mean and any amount past that is what `true` did — matching
 against the shopping list still asks only the one question it always has, in or out;
 what the quantity is *of* is for the household reading its own cupboard, never for
@@ -905,13 +907,13 @@ itself.
 **The unit and the shelf are in the sheet behind the three dots, not on the row.** Both
 are set once and then left alone, and a control on every row is room taken from the name
 on every row — a unit menu per row is what left long names truncated to a few letters. So
-the row only *reads* its unit beside the number ("2 kg"; nothing for a plain count), and
+the row only *reads* its unit beside the number ("2 kg", "2 stk"), and
 "Edit" in the `ItemMenu` opens one `editPantryItem` sheet of chips for both, with the
 expiry date and the entry's picture under them. **The picture is drawn in that sheet and
 nowhere else** — not on the row, for the same reason the unit menu is not: a thumbnail on
 every row is room taken from the name.
 `PANTRY_UNITS` (g, kg, dl, l, and the kitchen's own dåse, pose, pakke, glas, bundt) are
-offered with "no unit" as its own choice and not a lesser one: a plain count ("3") is as
+offered with "stk" (no unit) as its own choice and not a lesser one: a plain count ("3") is as
 valid an answer as a measured one ("500 g"), the same reason a counted recipe ingredient
 carries no unit either (see `UNIT_WORDS`). **The name leads the row, on the left**, as a
 list item's does — finding rice is the first thing every visit does — then the stepper,
@@ -932,7 +934,7 @@ entry stepped down to zero stops warning under the thumb: an empty packet past i
 is on the shopping list already.
 
 **The page is grouped by shelf.** `PantryCategory` is a fixed set (spices, oil & vinegar,
-sauces, baking, pasta/rice/grains, tins & jars, fridge, freezer, drinks, baby, other), named in
+sauces, baking, pasta/rice/grains, tins & jars, fridge, freezer, drinks, baby, bathroom, cleaning, other), named in
 `PANTRY_CATEGORY_LABELS` and drawn in that order, empty shelves not drawn. **Null is "not
 sorted yet" and is not `OTHER`**: `OTHER` is somebody having decided it goes nowhere in
 particular, null is nobody having decided, and they answer different questions. Unsorted
@@ -967,6 +969,10 @@ already have that" before it adds anything.** `PantryAddDialog` is the `create`
 `FormDialog` because its fields read the name as it is typed and a successful add may
 send `sortPantry` afterwards. The shelf is asked with the same chips as the "Shelf and
 unit" sheet, starting on "choose for me", which names the shelf `lookupGood` would pick.
+**It also asks how much and in what**: the amount starts at 1 and the unit on stk, except
+that a name `lookupGood` knows a unit for moves the chip there until somebody picks one by
+hand. `createPantryItem` stores what the sheet sent; only a form sending no `unit` at all
+falls back to the list's.
 As a name is typed the sheet offers the entries already kept that it could be, under
 their own heading, and then common basics not yet kept, in the household's own language.
 Picking a kept one adds nothing: it closes the sheet and shows the row, washed in
@@ -1407,6 +1413,27 @@ about which words to throw away.
   two sets of classes** — a transition only runs from a state the browser has already painted.
   Which one a sheet plays is a media query in `globals.css`, not `sm:` classes. Everything is
   switched off under `prefers-reduced-motion` by the one rule at the end of `globals.css`.
+  A sideways step between a section's pages (Recipes | Plan, Lists | Supplies) is
+  `sectionStep`, and slides in from the side the pill moved to rather than rising.
+- **How the app moves is tokens, at the top of `globals.css`**: four curves
+  (`--ease-arrive`, `--ease-leave`, `--ease-sheet`, `--ease-spring`) and a handful of
+  `--dur-*`. **Never a `cubic-bezier` or a duration literal in a new rule** — read a token,
+  in a component too (`duration-(--dur-quick)`, `ease-(--ease-arrive)`). The fold keeps its
+  own symmetric curve. A JS timer that waits for an exit cannot read a variable, so it lives
+  in `src/lib/motion.ts` and `tests/unit/motion.test.ts` holds it to its token.
+- **A press is one of three tiers, chosen by size**: `press-icon` (to 90%), `press-button`
+  (96%), `press-card` (98% on a warm tint). In quickly, back on `--ease-spring`. **Never an
+  `active:scale-*` beside one** — the test refuses it. They sit in `@layer components`, so a
+  utility on the same element still wins (the old unlayered `.pressable` beat every
+  `duration-*` written beside it).
+- **A press that navigates is answered before the page lands.** A card or row that is a
+  `<Link>` is `relative` and carries `<LinkCue />` (an accent ring after a 120ms beat). A
+  row of tabs — the bottom nav, the desktop links, the section pill — lights the pressed one
+  through `usePendingHref` and its link's `onNavigate`, so exactly one is lit and it moves on
+  the tap. No `animate-pulse`: nothing in view loops.
+- **Things leave as well as arrive**: the three-dot menu grows out of its dots and shrinks
+  back (`menu-in`/`menu-out`, origin flipped when the panel opens above), a snack slides
+  back under the tab bar. A closing menu is `inert` and `aria-hidden`.
 - **Forms submit through `useFormAction`, not the `action` prop.** React 19 clears an
   uncontrolled form once its action resolves, which on a rejected submission throws away
   everything the person typed. Only a successful add to a list resets.
@@ -1447,6 +1474,9 @@ failing suite must not reach the remote.**
   5s on Vercel's build machine, failing the production build on a test nobody had touched
   (`ai-readers.test.ts`, 2026-09-25). Import at file level, beside the `vi.mock`s — module
   collection is not timed.
+- **A unit test cannot import a `.tsx`**: vitest here has no JSX transform and fails at
+  import analysis. A constant a test needs to hold against something (an exit timer, a
+  tier name) lives in a plain `.ts` module the component imports — `src/lib/motion.ts`.
 - **Never pipe a suite whose exit code is the thing being asked about.** `npm run e2e |
   tail -30` reports `tail`'s status, so a run in which all 249 tests failed came back `0`.
   Redirect to a file and read `$?`, or read `${PIPESTATUS[0]}`.
@@ -1505,7 +1535,7 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
   So `scale-110` changes the `scale` property, and anything easing only `transform` eases
   nothing while looking entirely correct: `transition` and `transition-transform` name all
   four and are safe, but an arbitrary `transition-[…]` list, or a hand-written `transition`
-  in `globals.css` such as `.pressable`, has to name the property that actually changes.
+  in `globals.css` such as the `press-*` tiers, has to name the property that actually changes.
 - **Hydration has no DOM signal.** A widget's markup looks identical before and after
   React attaches listeners. Browser tests of interactive widgets must wait on something
   the widget itself emits — the drag tests wait on dnd-kit's announcements, and a context

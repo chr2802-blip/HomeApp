@@ -135,7 +135,7 @@ export function MealPicker({
                   // looking for what to press.
                   <label
                     key={option.value}
-                    className={`pressable flex w-full cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-left has-focus-visible:ring-2 has-focus-visible:ring-[var(--accent)] ${
+                    className={`press-card flex w-full cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-left has-focus-visible:ring-2 has-focus-visible:ring-[var(--accent)] ${
                       chosen
                         ? "border-[var(--accent-line)] accent-tint-ring"
                         : "border-slate-200 hover:bg-slate-50"

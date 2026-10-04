@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { SNACK_EXIT_MS } from "@/lib/motion";
 
 /**
  * A word about a press that already landed — "Added to Shopping. Salt, Pepper and 5
@@ -18,7 +19,7 @@ import { createPortal } from "react-dom";
 const DURATION_MS = 4000;
 
 type Tone = "default" | "error";
-type Snack = { id: number; message: string; tone: Tone };
+type Snack = { id: number; message: string; tone: Tone; leaving?: boolean };
 
 const Notify = createContext<((message: string, tone?: Tone) => void) | null>(null);
 
@@ -31,8 +32,13 @@ export function SnackbarProvider({ children }: { children: React.ReactNode }) {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     const id = ++nextId.current;
     setSnack({ id, message, tone });
+    // Seen leaving, then gone. A newer snack replaces this one outright — two in a row
+    // are one sentence after another, not one sentence leaving while the next arrives.
     timeoutRef.current = setTimeout(() => {
-      setSnack((current) => (current?.id === id ? null : current));
+      setSnack((current) => (current?.id === id ? { ...current, leaving: true } : current));
+      timeoutRef.current = setTimeout(() => {
+        setSnack((current) => (current?.id === id ? null : current));
+      }, SNACK_EXIT_MS);
     }, DURATION_MS);
   }, []);
 
@@ -56,7 +62,9 @@ export function SnackbarProvider({ children }: { children: React.ReactNode }) {
               {snack && (
                 <div
                   key={snack.id}
-                  className={`animate-row-in pointer-events-auto max-w-sm rounded-xl px-4 py-2.5 text-center text-sm font-medium shadow-lg ${
+                  className={`${
+                    snack.leaving ? "animate-row-out pointer-events-none" : "animate-row-in pointer-events-auto"
+                  } max-w-sm rounded-xl px-4 py-2.5 text-center text-sm font-medium shadow-lg ${
                     snack.tone === "error" ? "bg-red-600 text-white" : "bg-slate-900 text-white"
                   }`}
                 >

@@ -69,7 +69,7 @@ export function PantryQuantityField({
         onClick={step(-1)}
         disabled={quantity <= 0}
         aria-label={say(PANTRY.decreaseQuantity, { name: label })}
-        className="pressable h-9 w-7 rounded-l-lg text-slate-600 hover:bg-slate-100 active:scale-90 disabled:opacity-30 disabled:hover:bg-transparent sm:w-8"
+        className="press-icon h-9 w-7 rounded-l-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent sm:w-8"
       >
         −
       </button>
@@ -93,19 +93,17 @@ export function PantryQuantityField({
         style={{ width: `${Math.max(3, draft.length) + 0.5}ch` }}
         className="border-0 bg-transparent p-0 text-center text-sm tabular-nums outline-none"
       />
-      {/* Read, not pressed: the number's own unit, so "2" says "2 kg". Nothing is drawn
-          for a plain count, which is the commonest entry and needs no word. */}
-      {unit && (
-        <span data-testid="pantry-unit" className="pr-0.5 text-xs text-slate-500">
-          {say(PANTRY_UNIT_LABELS[unit])}
-        </span>
-      )}
+      {/* Read, not pressed: the number's own unit, so "2" says "2 kg" — and a plain
+          count, stored as no unit, says "2 stk". */}
+      <span data-testid="pantry-unit" className="pr-0.5 text-xs text-slate-500">
+        {say(unit ? PANTRY_UNIT_LABELS[unit] : PANTRY.pieces)}
+      </span>
       <button
         type="button"
         onClick={step(1)}
         disabled={quantity >= MAX_PANTRY_QUANTITY}
         aria-label={say(PANTRY.increaseQuantity, { name: label })}
-        className="pressable h-9 w-7 rounded-r-lg text-slate-600 hover:bg-slate-100 active:scale-90 disabled:opacity-30 disabled:hover:bg-transparent sm:w-8"
+        className="press-icon h-9 w-7 rounded-r-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent sm:w-8"
       >
         +
       </button>

@@ -57,7 +57,7 @@ export function AmountPicker({
         onClick={step(-1)}
         disabled={disabled || value <= MIN_AMOUNT}
         aria-label={say(LISTS.decrease, { name: label })}
-        className="pressable h-9 w-6 rounded-l-lg text-slate-600 hover:bg-slate-100 active:scale-90 disabled:opacity-30 disabled:hover:bg-transparent sm:w-8"
+        className="press-icon h-9 w-6 rounded-l-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent sm:w-8"
       >
         −
       </button>
@@ -86,7 +86,7 @@ export function AmountPicker({
         onClick={step(1)}
         disabled={disabled || value >= MAX_AMOUNT}
         aria-label={say(LISTS.increase, { name: label })}
-        className="pressable h-9 w-6 rounded-r-lg text-slate-600 hover:bg-slate-100 active:scale-90 disabled:opacity-30 disabled:hover:bg-transparent sm:w-8"
+        className="press-icon h-9 w-6 rounded-r-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent sm:w-8"
       >
         +
       </button>
