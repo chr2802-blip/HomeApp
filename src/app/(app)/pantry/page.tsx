@@ -77,6 +77,7 @@ export default async function PantryPage() {
           unit: item.unit,
           category: item.category,
           expiresOn: item.expiresOn,
+          photoId: item.photoId,
           // Counted here, on the household's clock, rather than in the row — a row
           // counting on the phone's own clock could disagree with this render at midnight.
           expiresIn: expiryWarning(item.expiresOn, now),

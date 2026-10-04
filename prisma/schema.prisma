@@ -700,9 +700,13 @@ model PantryItem {
   /// The shelf it is filed under. Null is "not sorted yet" — waiting for the household or
   /// `sortPantry` — and is deliberately not `OTHER`, which is somebody having decided.
   category  PantryCategory?
+  /// A picture of it — the jar, the brand worth buying again. Shown only in the sheet
+  /// behind the three dots, never on the row: the row is for finding rice.
+  photoId   String?
   createdAt DateTime        @default(now())
 
-  home Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  home  Home   @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  photo Photo? @relation(fields: [photoId], references: [id], onDelete: SetNull)
 
   // One entry per row of shopping per home, and — being keyed on the home first — the
   // lookup that asks what one household keeps in, so there is no second index for it.
@@ -783,6 +787,7 @@ model Photo {
   lists   List[]
   tasks   Task[]
   recipes Recipe[]
+  pantryItems PantryItem[]
   /**
    * The people using this one as their own picture. A person is not home-scoped and
    * this picture is, so the two disagree: somebody in three homes has their picture

@@ -11,6 +11,7 @@ import {
 import { ItemMenu } from "@/components/item-menu";
 import { Input } from "@/components/ui";
 import { PantryQuantityField } from "@/components/pantry-quantity-field";
+import { PhotoField } from "@/components/photo-field";
 import { tick } from "@/lib/haptics";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
@@ -50,6 +51,7 @@ export function PantryRow({
   category,
   expiresOn,
   expiresIn,
+  photoId,
 }: {
   id: string;
   name: string;
@@ -59,6 +61,8 @@ export function PantryRow({
   expiresOn: string | null;
   /** Days left, where close enough to warn — `expiryWarning`, counted by the page. */
   expiresIn: number | null;
+  /** Drawn only in the sheet behind the three dots, never on the row. */
+  photoId: string | null;
 }) {
   const [stock, setStock] = useOptimistic(quantity);
   /*
@@ -194,14 +198,19 @@ export function PantryRow({
           label={shown}
           editAction={editPantryItem}
           editTitle={say(PANTRY.editTitle)}
-          editLabel={say(PANTRY.editEntry)}
           deleteAction={deletePantryItem}
           deleteTitle={say(PANTRY.removeTitle)}
           deleteMessage={say(PANTRY.removeMessage, { name: shown })}
           deleteConfirmLabel={say(PANTRY.removeConfirm)}
           className="-mr-2 ml-1"
         >
-          <PantryEditFields category={category} unit={unit} expiresOn={expiresOn} language={language} />
+          <PantryEditFields
+            category={category}
+            unit={unit}
+            expiresOn={expiresOn}
+            photoId={photoId}
+            language={language}
+          />
         </ItemMenu>
       </div>
 
@@ -217,8 +226,8 @@ export function PantryRow({
 }
 
 /**
- * The sheet's two questions, as two groups of chips: which shelf, and what it is counted
- * in. Radios rather than two `<select>`s, because both lists are short enough to read
+ * The sheet's questions: which shelf and what it is counted in, as two groups of chips,
+ * then the date it goes off and a picture. Radios rather than two `<select>`s, because both lists are short enough to read
  * whole, and a sheet has the room that a row did not.
  *
  * An unsorted entry opens with no shelf chosen — "not sorted yet" is where nobody has
@@ -232,11 +241,13 @@ export function PantryEditFields({
   category,
   unit,
   expiresOn,
+  photoId,
   language,
 }: {
   category: PantryCategory | null;
   unit: PantryUnit | null;
   expiresOn: string | null;
+  photoId: string | null;
   language: HomeLanguage;
 }) {
   const say = sayIn(language);
@@ -270,6 +281,8 @@ export function PantryEditFields({
         <span className="mb-2 block text-sm font-medium text-slate-700">{say(PANTRY.expiryLabel)}</span>
         <Input type="date" name="expiresOn" defaultValue={expiresOn ?? ""} />
       </label>
+      {/* Here and nowhere else: a picture on every row is room taken from the name. */}
+      <PhotoField defaultPhotoId={photoId} />
     </div>
   );
 }

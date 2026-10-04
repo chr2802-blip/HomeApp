@@ -8,6 +8,7 @@ import { createList, updateList, deleteList } from "@/app/actions/lists";
 import { createRecipe } from "@/app/actions/recipes";
 import { createTask, deleteTask } from "@/app/actions/tasks";
 import { updateHome } from "@/app/actions/admin";
+import { deletePantryItem, editPantryItem } from "@/app/actions/pantry";
 import { pngBytes } from "../helpers/images";
 import {
   createHome,
@@ -426,6 +427,70 @@ describe("replacing and removing", () => {
     await prisma.home.delete({ where: { id: home.id } });
 
     expect(await prisma.photo.count()).toBe(0);
+  });
+});
+
+describe("a pantry entry's picture", () => {
+  const keep = (homeId: string, photoId: string | null = null) =>
+    prisma.pantryItem.create({ data: { homeId, name: "Ris", key: "ris", photoId } });
+
+  it("is put on, replaced and taken off from the edit sheet", async () => {
+    const { home, member } = await createHomeWithMembers();
+    const [first, second] = await Promise.all([
+      createPhoto({ homeId: home.id }),
+      createPhoto({ homeId: home.id }),
+    ]);
+    const item = await keep(home.id);
+    await signIn(member);
+
+    expect(await submit(editPantryItem, { pantryItemId: item.id, photoId: first.id })).toEqual({ ok: true });
+    expect((await prisma.pantryItem.findUniqueOrThrow({ where: { id: item.id } })).photoId).toBe(first.id);
+
+    await submit(editPantryItem, { pantryItemId: item.id, photoId: second.id });
+    expect((await prisma.pantryItem.findUniqueOrThrow({ where: { id: item.id } })).photoId).toBe(second.id);
+    expect(await prisma.photo.findUnique({ where: { id: first.id } })).toBeNull();
+
+    await submit(editPantryItem, { pantryItemId: item.id, photoId: "" });
+    expect((await prisma.pantryItem.findUniqueOrThrow({ where: { id: item.id } })).photoId).toBeNull();
+    expect(await prisma.photo.findUnique({ where: { id: second.id } })).toBeNull();
+  });
+
+  it("is left alone by a save that does not mention it", async () => {
+    const { home, member } = await createHomeWithMembers();
+    const photo = await createPhoto({ homeId: home.id });
+    const item = await keep(home.id, photo.id);
+    await signIn(member);
+
+    await submit(editPantryItem, { pantryItemId: item.id, unit: "KG" });
+    expect((await prisma.pantryItem.findUniqueOrThrow({ where: { id: item.id } })).photoId).toBe(photo.id);
+  });
+
+  it("refuses another home's picture", async () => {
+    const { home, member } = await createHomeWithMembers();
+    const theirs = await createPhoto({ homeId: (await createHome()).id });
+    const item = await keep(home.id);
+    await signIn(member);
+
+    expect(await submit(editPantryItem, { pantryItemId: item.id, photoId: theirs.id })).toMatchObject({ ok: false });
+    expect((await prisma.pantryItem.findUniqueOrThrow({ where: { id: item.id } })).photoId).toBeNull();
+  });
+
+  it("goes with the entry", async () => {
+    const { home, member } = await createHomeWithMembers();
+    const photo = await createPhoto({ homeId: home.id });
+    const item = await keep(home.id, photo.id);
+    await signIn(member);
+
+    await deletePantryItem(formData({ pantryItemId: item.id }));
+    expect(await prisma.photo.findUnique({ where: { id: photo.id } })).toBeNull();
+  });
+
+  it("is not swept up as an upload nobody finished", async () => {
+    const home = await createHome();
+    const photo = await createPhoto({ homeId: home.id, createdAt: hoursAgo(3) });
+    await keep(home.id, photo.id);
+
+    expect(await sweepUnclaimedPhotos(home.id)).toBe(0);
   });
 });
 
