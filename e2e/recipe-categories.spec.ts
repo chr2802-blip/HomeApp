@@ -164,35 +164,50 @@ test.describe("maintaining the categories", () => {
     await page.goto("/settings");
   });
 
-  const categoryRow = (page: Page, name: string) =>
-    page.locator("form").filter({ has: page.getByLabel(`Name of category ${name}`) });
+  /** The list of what has been made, which is what the section is for. */
+  const listed = (page: Page) =>
+    page.getByTestId("recipe-categories").locator("[data-category-row]");
+
+  /** The green "+" in the section's heading, and the sheet behind it. */
+  async function addCategory(page: Page, name: string) {
+    await expect(async () => {
+      await page.getByRole("button", { name: "Add category" }).click();
+      await expect(page.getByRole("dialog")).toBeVisible({ timeout: 1000 });
+    }).toPass({ timeout: 20_000 });
+    const sheet = page.getByRole("dialog");
+    await sheet.getByLabel("Name", { exact: true }).fill(name);
+    await sheet.getByRole("button", { name: "Add", exact: true }).click();
+  }
 
   test("an admin adds a category and it can be chosen on a recipe", async ({ page }) => {
-    await page.getByLabel("New category").fill("Desserts");
-    await page.getByRole("button", { name: "Add category" }).click();
-    await expect(page.getByText("Category added.")).toBeVisible();
+    await addCategory(page, "Desserts");
+    await expect(page.getByRole("dialog")).toBeHidden();
+    await expect(listed(page).filter({ hasText: "Desserts" })).toHaveCount(1);
 
     await page.goto("/recipes/new");
     await expect(page.getByRole("checkbox", { name: "Desserts", exact: true })).toHaveCount(1);
   });
 
   test("a name the home already uses is reported rather than added twice", async ({ page }) => {
-    await page.getByLabel("New category").fill(CATEGORIES[0]);
-    await page.getByRole("button", { name: "Add category" }).click();
+    await addCategory(page, CATEGORIES[0]);
 
     await expect(
-      page.getByText(`There is already a category called “${CATEGORIES[0]}”.`),
+      page.getByRole("dialog").getByText(`There is already a category called “${CATEGORIES[0]}”.`),
     ).toBeVisible();
   });
 
   test("renaming a category renames it everywhere", async ({ page }) => {
     await seedRecipes([{ title: "Sourdough", categories: ["Baking"] }]);
     await page.reload();
+    await expect(listed(page).filter({ hasText: "Baking" })).toContainText("1 recipe");
 
-    const row = categoryRow(page, "Baking");
-    await row.getByLabel("Name of category Baking").fill("Bread");
-    await row.getByRole("button", { name: "Rename" }).click();
-    await expect(page.getByText("Renamed.")).toBeVisible();
+    await openMenu(page, { label: "Baking" });
+    await page.getByRole("menuitem", { name: "Edit" }).click();
+    const sheet = page.getByRole("dialog");
+    await sheet.getByLabel("Name", { exact: true }).fill("Bread");
+    await sheet.getByRole("button", { name: "Save changes" }).click();
+    await expect(sheet).toBeHidden();
+    await expect(listed(page).filter({ hasText: "Bread" })).toHaveCount(1);
 
     await page.goto("/recipes");
     expect(await headings(page)).toEqual(["Bread 1"]);
@@ -200,19 +215,21 @@ test.describe("maintaining the categories", () => {
 
   /*
    * Every recipe must have a category, so one in use cannot be removed without deciding
-   * what happens to what is inside it. The count is shown in the menu's place, which
-   * also answers why it is missing.
+   * what happens to what is inside it. Its menu still edits it, and offers no Delete.
    */
-  test("a category holding recipes offers no menu, an empty one does", async ({ page }) => {
+  test("a category holding recipes cannot be deleted, an empty one can", async ({ page }) => {
     await seedRecipes([{ title: "Sourdough", categories: ["Baking"] }]);
     await page.reload();
 
-    await expect(page.getByRole("button", { name: "Actions for Baking" })).toHaveCount(0);
+    await openMenu(page, { label: "Baking" });
+    await expect(page.getByRole("menuitem", { name: "Edit" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Delete" })).toHaveCount(0);
+    await page.reload();
 
     await openMenu(page, { label: "Weeknight" });
     await clickAndConfirm(page, "Delete");
 
-    await expect(page.getByLabel("Name of category Weeknight")).toHaveCount(0);
-    await expect(page.getByLabel("Name of category Baking")).toHaveCount(1);
+    await expect(listed(page).filter({ hasText: "Weeknight" })).toHaveCount(0);
+    await expect(listed(page).filter({ hasText: "Baking" })).toHaveCount(1);
   });
 });

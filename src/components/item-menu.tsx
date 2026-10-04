@@ -55,8 +55,12 @@ export function ItemMenu({
   deleteTitle?: string;
   deleteLabel?: string;
   deleteConfirmLabel?: string;
-  deleteMessage: string;
-  deleteAction: (formData: FormData) => void | Promise<void>;
+  deleteMessage?: string;
+  /**
+   * Omitted where the record cannot be deleted just now — a recipe category with recipes
+   * in it — so the menu offers nothing it would then refuse.
+   */
+  deleteAction?: (formData: FormData) => void | Promise<void>;
   /**
    * Hidden fields both actions need beyond the id — a member is named by their user and
    * the home they are in, because they may be in several.
@@ -88,9 +92,11 @@ export function ItemMenu({
           </MenuItem>
         )}
         {extraItems}
-        <MenuItem icon="bin" tone="danger" onSelect={() => setConfirming(true)}>
-          {shownDeleteLabel}
-        </MenuItem>
+        {deleteAction && (
+          <MenuItem icon="bin" tone="danger" onSelect={() => setConfirming(true)}>
+            {shownDeleteLabel}
+          </MenuItem>
+        )}
       </ContextMenu>
 
       {editAction && (
@@ -109,17 +115,19 @@ export function ItemMenu({
         </Modal>
       )}
 
-      <ConfirmDialog
-        open={confirming}
-        onClose={() => setConfirming(false)}
-        title={deleteTitle ?? say(APP.areYouSure)}
-        message={deleteMessage}
-        confirmLabel={deleteConfirmLabel ?? say(APP.delete)}
-        action={deleteAction}
-      >
-        <input type="hidden" name={name} value={id} />
-        {extraFields}
-      </ConfirmDialog>
+      {deleteAction && (
+        <ConfirmDialog
+          open={confirming}
+          onClose={() => setConfirming(false)}
+          title={deleteTitle ?? say(APP.areYouSure)}
+          message={deleteMessage ?? ""}
+          confirmLabel={deleteConfirmLabel ?? say(APP.delete)}
+          action={deleteAction}
+        >
+          <input type="hidden" name={name} value={id} />
+          {extraFields}
+        </ConfirmDialog>
+      )}
     </>
   );
 }
