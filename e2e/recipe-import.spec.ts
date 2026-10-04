@@ -169,39 +169,3 @@ test.describe("a recipe link already on the clipboard", () => {
     await expect(page.getByLabel("Recipe link")).toHaveValue("");
   });
 });
-
-/*
- * The paste box is the route into the importer nothing on anybody else's side can refuse
- * — Instagram, Facebook, a page behind a login. It goes to the same reader as a link
- * (answered here by `anthropic-stub.mjs`, which hands back its one recipe), so what is
- * held is the wiring: the box is offered, what is pasted is read, the form opens filled.
- */
-test("a description pasted in by hand opens the create form pre-filled", async ({ page }) => {
-  await openDialog(page, "New recipe");
-  await page.getByRole("button", { name: "Import from a link" }).click();
-  await page.getByRole("button", { name: "Paste the description instead" }).click();
-
-  await page.getByLabel("Description").fill("Pasta night 🍝\n400 g pasta\n500 g chicken\n2 dl cream\nBoil the pasta.");
-  await page.getByRole("button", { name: "Read it" }).click();
-
-  // The stub's English recipe, so the title proves the text went through the reader
-  // rather than being copied into the form.
-  await expect(page.getByLabel("Title")).toHaveValue("Creamy chicken pasta", { timeout: 15_000 });
-});
-
-test("a refused link offers the paste box beneath its error", async ({ page }) => {
-  await openDialog(page, "New recipe");
-  await page.getByRole("button", { name: "Import from a link" }).click();
-  await expect(page.getByLabel("Description")).toHaveCount(0);
-
-  // .invalid never resolves, so this is "could not reach" — worth retrying as typed, and
-  // not yet a reason for the box. Pressing for it by hand still opens it.
-  await page.getByLabel("Recipe link").fill("https://recipes.invalid/sunday-roast");
-  await page.getByRole("button", { name: "Fetch" }).click();
-  await expect(page.getByText("Couldn't reach that page. Check the link and try again.")).toBeVisible({
-    timeout: 15_000,
-  });
-  await expect(page.getByLabel("Description")).toHaveCount(0);
-  await page.getByRole("button", { name: "Paste the description instead" }).click();
-  await expect(page.getByLabel("Description")).toBeVisible();
-});

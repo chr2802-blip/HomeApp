@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Button, Input, Label, Textarea } from "@/components/ui";
-import { importRecipeFromCaption, importRecipeFromUrl } from "@/app/actions/recipe-import";
+import { Button, Input, Label } from "@/components/ui";
+import { importRecipeFromUrl } from "@/app/actions/recipe-import";
 import type { ImportedRecipe } from "@/lib/recipe-import";
 import { useLanguage } from "@/components/language-provider";
 import { AiOverlay } from "@/components/ai-overlay";
@@ -35,12 +35,6 @@ import { RECIPES } from "@/lib/copy/recipes";
  * mistyped address or a page that would not load is worth trying again as typed, so those
  * do not trigger it; this one specifically means pressing Fetch again will do the same
  * thing.
- *
- * **The paste box is the load-bearing half.** Instagram and Facebook refuse a signed-out
- * request often enough that the link cannot be the only way in, so every `notARecipe`
- * failure opens a box for the description itself — and a button under the link field opens
- * it before anything has failed. It goes to the same reader (`importRecipeFromCaption`), and
- * the link, where there is one, comes with it so a reel still becomes the recipe's video.
  */
 export function RecipeImportField({
   onImported,
@@ -52,8 +46,6 @@ export function RecipeImportField({
   autoFetchUrl?: string;
 }) {
   const [url, setUrl] = useState(autoFetchUrl ?? "");
-  const [caption, setCaption] = useState("");
-  const [pasting, setPasting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const language = useLanguage();
@@ -62,9 +54,6 @@ export function RecipeImportField({
   function setFetchError(message: string | null, notARecipe = false) {
     setError(message);
     onNoRecipeFound?.(notARecipe);
-    // Every error that says "paste it below" is a `notARecipe` one, so below is where the
-    // box then is.
-    if (notARecipe) setPasting(true);
   }
 
   function handleFetch(overrideUrl?: string) {
@@ -82,28 +71,6 @@ export function RecipeImportField({
       if (result.ok) {
         onImported(result.recipe);
         setUrl("");
-      } else {
-        setFetchError(result.error, result.notARecipe);
-      }
-    });
-  }
-
-  function handleRead() {
-    if (!caption.trim()) {
-      setFetchError(say(RECIPES.pasteCaptionFirst), true);
-      return;
-    }
-
-    setFetchError(null);
-    startTransition(async () => {
-      const formData = new FormData();
-      formData.set("importCaption", caption);
-      formData.set("importUrl", url.trim());
-      const result = await importRecipeFromCaption(undefined, formData);
-      if (result.ok) {
-        onImported(result.recipe);
-        setUrl("");
-        setCaption("");
       } else {
         setFetchError(result.error, result.notARecipe);
       }
@@ -144,16 +111,6 @@ export function RecipeImportField({
           </Button>
         </div>
         <p className="text-xs text-slate-500">{say(RECIPES.linkHint)}</p>
-        {!pasting && (
-          <button
-            type="button"
-            className="text-sm font-medium text-[var(--accent-text)] underline-offset-2 hover:underline"
-            onClick={() => setPasting(true)}
-            disabled={pending}
-          >
-            {say(RECIPES.pasteDescriptionInstead)}
-          </button>
-        )}
         {/*
           A page fetch plus the AI writing the recipe up runs well past what a button's
           own label reads as "still working", so the wait takes the whole screen — the
@@ -166,23 +123,6 @@ export function RecipeImportField({
           </p>
         )}
       </div>
-
-      {pasting && (
-        <div className="space-y-1">
-          <Label htmlFor="importCaption">{say(RECIPES.descriptionLabel)}</Label>
-          <Textarea
-            id="importCaption"
-            rows={6}
-            value={caption}
-            onChange={(event) => setCaption(event.target.value)}
-            disabled={pending}
-          />
-          <p className="text-xs text-slate-500">{say(RECIPES.descriptionHint)}</p>
-          <Button type="button" variant="secondary" onClick={handleRead} disabled={pending}>
-            {pending ? say(RECIPES.fetching) : say(RECIPES.readDescription)}
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
