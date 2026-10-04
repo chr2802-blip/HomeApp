@@ -28,6 +28,7 @@ import { PANTRY } from "@/lib/copy/pantry";
 import { cookLines, type CookCandidate } from "@/lib/pantry-cook";
 import { stockedKeys } from "@/lib/pantry-stock";
 import { staplesOf } from "@/lib/meal-suggestions";
+import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 
 /**
  * The household's basic goods: adding one, renaming it, saying it has run out, and
@@ -230,14 +231,20 @@ export async function editPantryItem(
   const expiresOn = readExpiryDate(formData.get("expiresOn"));
   if (expiresOn === false) return fail(say(PANTRY.expiryInvalid));
 
+  // Not mentioned is left alone, empty takes it off — `readPhotoChoice`'s two answers.
+  const photo = await readPhotoChoice(formData, user.homeId, user.homeLanguage);
+  if (!photo.ok) return fail(photo.error);
+
   await prisma.pantryItem.update({
     where: { id: item.id },
     data: {
       unit: isPantryUnit(rawUnit) ? rawUnit : null,
       ...(formData.has("expiresOn") ? { expiresOn } : {}),
       ...(isPantryCategory(rawCategory) ? { category: rawCategory } : {}),
+      ...(photo.photoId !== undefined ? { photoId: photo.photoId } : {}),
     },
   });
+  await discardReplaced(user.homeId, item.photoId, photo.photoId);
 
   refreshPantryViews();
   return ok();
@@ -321,6 +328,7 @@ export async function deletePantryItem(formData: FormData) {
   if (!item) return;
 
   await prisma.pantryItem.delete({ where: { id: item.id } });
+  await discardPhoto(item.homeId, item.photoId);
   refreshPantryViews();
 }
 

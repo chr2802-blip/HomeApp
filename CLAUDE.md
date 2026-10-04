@@ -61,6 +61,12 @@ In the script a user's homes are `memberships: { create: … }` and the pointer 
 { connect: … }`, not `homes`/`activeHomeId`.
 Name the script `.mts` if it uses top-level `await`: `tsx` compiles a `.ts` file as
 CommonJS here and refuses it.
+`PantryCategory` is `SPICES`, `OIL_VINEGAR`, `SAUCES`, `BAKING`, `DRY_GOODS`, `TINS_JARS`,
+`FRIDGE`, `FREEZER`, `DRINKS`, `BABY`, `OTHER` — the label "Pasta, rice & grains" is
+`DRY_GOODS`. **To screenshot a picture being chosen**, there is no image file in the repo
+and no PIL in the container: draw one in the page (`canvas.toDataURL("image/jpeg")`) and
+hand its bytes to `setInputFiles({ name, mimeType, buffer })`. A row's three dots are the
+button named "Actions for <name>", clickable once it carries `data-ready`.
 
 **Restart `npm run dev` after `prisma generate`.** A dev server already running keeps the
 client it loaded, so a column added to the schema reads as `undefined` — a new boolean is
@@ -472,7 +478,7 @@ a pattern can hold words a locale alone would not translate (`"d MMM 'at' HH:mm"
 
 ### Pictures are shrunk in the browser, and checked again on arrival
 
-A home, list, task and recipe can each carry one `Photo`, whose bytes live in Postgres.
+A home, list, task, recipe and pantry entry can each carry one `Photo`, whose bytes live in Postgres.
 `src/lib/downscale.ts` runs in the browser: it decodes what was picked, applies the EXIF
 rotation, and redraws it at `MAX_EDGE` and `THUMB_EDGE`, so a phone photo never travels.
 `src/lib/photo-file.ts` then reads the format and dimensions out of the bytes that arrive —
@@ -882,7 +888,10 @@ itself.
 are set once and then left alone, and a control on every row is room taken from the name
 on every row — a unit menu per row is what left long names truncated to a few letters. So
 the row only *reads* its unit beside the number ("2 kg"; nothing for a plain count), and
-"Shelf, unit and date" in the `ItemMenu` opens one `editPantryItem` sheet of chips for both.
+"Edit" in the `ItemMenu` opens one `editPantryItem` sheet of chips for both, with the
+expiry date and the entry's picture under them. **The picture is drawn in that sheet and
+nowhere else** — not on the row, for the same reason the unit menu is not: a thumbnail on
+every row is room taken from the name.
 `PANTRY_UNITS` (g, kg, dl, l, and the kitchen's own dåse, pose, pakke, glas, bundt) are
 offered with "no unit" as its own choice and not a lesser one: a plain count ("3") is as
 valid an answer as a measured one ("500 g"), the same reason a counted recipe ingredient

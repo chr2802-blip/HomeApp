@@ -87,7 +87,7 @@ export async function readPhotoChoice(
 
 /**
  * Removes a picture nothing points at any more — the one that was replaced, or the one
- * belonging to a list or recipe being deleted.
+ * belonging to a list, recipe or pantry entry being deleted.
  *
  * `deleteMany` rather than `delete`, so a picture already gone is not an error: the
  * caller wants it absent, and it is.
@@ -126,6 +126,7 @@ export async function sweepUnclaimedPhotos(homeId: string) {
       lists: { none: {} },
       tasks: { none: {} },
       recipes: { none: {} },
+      pantryItems: { none: {} },
       users: { none: {} },
     },
     select: { id: true },
