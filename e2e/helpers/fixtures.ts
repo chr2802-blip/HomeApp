@@ -58,6 +58,20 @@ export const test = base.extend<Fixtures>({
 });
 
 /**
+ * For a spec that intercepts the page's own requests with `page.route`: `test.use(ROUTES_REQUESTS)`.
+ *
+ * The app registers `public/sw.js` on every page, and a request from a page the worker
+ * controls can go out through the worker instead of the page — where `page.route` never
+ * sees it, and neither does `page.on("request")` or the trace. Whether it does is a race
+ * with the worker claiming the page, so a test holding a save at the network passed
+ * alone and timed out under a loaded run with the save already made (`ai-wait.spec.ts`,
+ * 8 of 270 runs, every one with the worker in control; none without). Playwright's own
+ * answer is to keep the worker out. `tests/unit/e2e-routes.test.ts` refuses a spec that
+ * routes without this.
+ */
+export const ROUTES_REQUESTS = { serviceWorkers: "block" } as const;
+
+/**
  * Logs in the long way, through the form a person would use. Only `auth.spec.ts` wants
  * this — everywhere else the session is the starting position, not the subject.
  */

@@ -24,6 +24,8 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "db:demo": "prisma migrate deploy && node --env-file=.env --import tsx scripts/demo-seed.ts",
+    "screenshot": "node --env-file=.env --import tsx scripts/screenshot.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {
