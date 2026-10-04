@@ -103,6 +103,8 @@ model Home {
   /// Every picture filed under this home, whatever it is attached to.
   photos           Photo[]          @relation("PhotoHome")
   photo            Photo?           @relation("HomePhoto", fields: [photoId], references: [id], onDelete: SetNull)
+
+  @@index([photoId])
 }
 
 /**
@@ -201,6 +203,7 @@ model Invite {
 
   @@index([homeId])
   @@index([email])
+  @@index([createdById])
 }
 
 model List {
@@ -231,6 +234,8 @@ model List {
   favorites ListFavorite[]
 
   @@index([homeId])
+  @@index([createdById])
+  @@index([photoId])
 }
 
 /**
@@ -404,6 +409,9 @@ model Task {
   @@index([nextDueAt])
   // The dashboard and the task list both ask for one home's tasks in due order.
   @@index([homeId, nextDueAt])
+  @@index([createdById])
+  @@index([assigneeId])
+  @@index([photoId])
 }
 
 model Recipe {
@@ -453,6 +461,8 @@ model Recipe {
   ratings    RecipeRating[]
 
   @@index([homeId])
+  @@index([createdById])
+  @@index([photoId])
 }
 
 /**
@@ -711,6 +721,7 @@ model PantryItem {
   // One entry per row of shopping per home, and — being keyed on the home first — the
   // lookup that asks what one household keeps in, so there is no second index for it.
   @@unique([homeId, key])
+  @@index([photoId])
 }
 
 /**
@@ -783,10 +794,10 @@ model Photo {
    * things holding them in one statement, and Postgres checks Restrict the instant the
    * referenced row goes. SetNull has no such ordering to get wrong.
    */
-  homes   Home[]   @relation("HomePhoto")
-  lists   List[]
-  tasks   Task[]
-  recipes Recipe[]
+  homes       Home[]       @relation("HomePhoto")
+  lists       List[]
+  tasks       Task[]
+  recipes     Recipe[]
   pantryItems PantryItem[]
   /**
    * The people using this one as their own picture. A person is not home-scoped and
@@ -796,7 +807,7 @@ model Photo {
    * all the same, or the sweep below would count an avatar as an upload nobody
    * finished and delete it an hour after it was chosen.
    */
-  users   User[]   @relation("UserPhoto")
+  users       User[]       @relation("UserPhoto")
 
   @@index([homeId])
   // The sweep for unreferenced uploads asks for one home's oldest pictures.
