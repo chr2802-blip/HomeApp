@@ -50,22 +50,28 @@ finds it. The same goes for `pgrep -f` in a wait loop
 the old import, and every page answers 500 naming the missing file. Stop the server,
 `rm -rf .next`, start it again.
 
-**A dev database for screenshots has nobody in it**, and `npm run db:seed` makes only a
-super admin (from `SUPER_ADMIN_EMAIL`/`SUPER_ADMIN_PASSWORD`). In a fresh container it
-has no tables either — `npm run setup` migrates only the test templates, so run `npx prisma
-migrate deploy` first or the seed fails with "table `public.Home` does not exist". A throwaway `tsx` script run
-with `node --env-file=.env --import tsx` that upserts a home, two members and a handful of
-rows is the quickest way to something worth a screenshot. A `List`'s name is `title`, and it needs `createdBy` connected
-as well as its home, and `HomeTheme` is `SLATE`, `OCEAN`, `INDIGO`, `VIOLET`, `PLUM`, `SAND`
-— there is no green. **Next's dev overlay ("1 Issue") sits over the tab bar** in every
-phone screenshot: it is a hydration warning between `SnackbarProvider` and `KitchenProvider`
-that predates the nav, so hide it in the throwaway script (`page.addStyleTag({ content:
-"nextjs-portal{display:none!important}" })`) rather than chasing it mid-screenshot.
-In the script a user's homes are `memberships: { create: … }` and the pointer `activeHome:
-{ connect: … }`, not `homes`/`activeHomeId`.
-Put the script inside the checkout (and delete it after): from the scratchpad it cannot
-resolve `@prisma/client`. Name the script `.mts` if it uses top-level `await`: `tsx` compiles a `.ts` file as
-CommonJS here and refuses it.
+**A screenshot is two commands: `npm run db:demo`, then `npm run screenshot -- /path`.**
+`db:demo` (`scripts/demo-seed.ts`) migrates the dev database and makes a household worth
+looking at — `flat` (English, lived in: lists with ticks, a grouped shopping list, tasks
+overdue and due today, a week of dinners, a pantry with run-out, expiring and unsorted
+entries, a streak), `da` (the same in Danish) and `empty` (members and nothing else) — with
+Alex (admin) and Sam (member) in all three, password `demo-password`. It deletes and
+remakes only its own homes and people, and refuses a database not on this machine.
+`screenshot` (`scripts/screenshot.ts`) needs `npm run dev` already running: it signs a
+session with `.env`'s `AUTH_SECRET` (no login form), switches to `--home flat|da|empty`,
+shoots each path at 390×844 into `screenshots/` (git-ignored), and prints the files.
+`--as sam`, `--full`, `--width`/`--height`, `--wait <ms>` and `--slow 0.1` (every animation
+at a tenth of its speed, through CDP) cover the rest; anything it cannot do — a sheet
+opened, a row pressed — is a throwaway that imports `scripts/demo-cast.ts` and copies
+from `screenshot.ts`, put inside the checkout (from the scratchpad it cannot resolve
+`@prisma/client`) and deleted afterwards. A new kind of thing on screen wants a row in
+`demo-seed.ts`, so the next session finds it there.
+It hides Next's dev overlay ("1 Issue"), which otherwise sits over the tab bar in every
+phone shot — a hydration warning between `SnackbarProvider` and `KitchenProvider` that
+predates the nav. Facts a hand-written seed still needs: a `List`'s name is `title`;
+`HomeTheme` is `SLATE`, `OCEAN`, `INDIGO`, `VIOLET`, `PLUM`, `SAND` — there is no green; a
+user's homes are `memberships: { create: … }` and the pointer `activeHome`; a script with
+top-level `await` must be `.mts`, because `tsx` compiles a `.ts` as CommonJS here.
 `PantryCategory` is `SPICES`, `OIL_VINEGAR`, `SAUCES`, `BAKING`, `DRY_GOODS`, `TINS_JARS`,
 `FRIDGE`, `FREEZER`, `DRINKS`, `BABY`, `BATHROOM`, `CLEANING`, `OTHER` — the label "Pasta, rice & grains" is
 `DRY_GOODS`. **To screenshot a picture being chosen**, there is no image file in the repo
@@ -1605,16 +1611,14 @@ look says "not like that".
 - **A dev server started before a `prisma generate` keeps the old client** and answers
   every page with the global error screen ("Unknown field" in its log) once a new column
   is selected. Restart it (`pkill -f "[n]ext dev"`) after any schema change.
-- **The quickest route to a screenshot is `npm run dev` and a throwaway Playwright
-  script** against it (the dev server needs no `next build`, which the e2e server does),
-  logging in through the form the way `logInThroughForm` in `e2e/helpers/fixtures.ts`
-  does. There is no one-command "screenshot this path" helper yet — sessions have
-  copied helpers into a throwaway spec each time; whoever writes one should note it here.
-  The throwaway is not committed.
+- **The route to a screenshot is `npm run dev` (in the background), `npm run db:demo`,
+  then `npm run screenshot -- /path`** — see the Commands section. A Danish shot is
+  `--home da`, an empty state `--home empty`.
 - **An animation is screenshotted slowed down, not raced.** A dev page is still compiling
   for the first few hundred ms, so a 0.6s animation is usually over before the first
-  frame is taken. Open a CDP session, `Animation.enable`, then `Animation.setPlaybackRate`
-  with `0.1` before navigating, and take the frames seconds apart.
+  frame is taken. `npm run screenshot -- /path --slow 0.1 --wait 2000` does it (CDP's
+  `Animation.setPlaybackRate` before navigating); take frames seconds apart, each with its
+  own `--out`, since a second run overwrites the first's file.
 - A change with nothing to see (a migration, a lib function, a test) has nothing to show,
   and this rule does not ask for a screenshot of a terminal.
 
