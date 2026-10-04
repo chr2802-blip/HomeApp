@@ -1,4 +1,4 @@
-# A demo household and a screenshot command
+# A demo household and a screenshot command, and the ai-wait flake
 
 - **Date** — 2026-10-04
 - **Branch** — `ccr-b2daef22-pf2k8p`
@@ -58,3 +58,30 @@ these commands do not cover would still need.
 
 Seen while checking the output: in a Danish home, the dashboard's days-ahead tiles break
 "Kyllingekarry" and "Tomatsuppe" mid-word ("Kyllingekar / ry"). Not fixed here.
+
+## Second half: the `ai-wait.spec.ts` flake
+
+Asked to fix the top item on the list above. Reproduced first: 1 in 36 loaded runs on the
+unchanged spec, timing out on `save.arrived` with the save **already made** (the
+failure screenshot is the saved recipe page). The first guess, a click before hydration
+falling back to a native submit, was wrong: the trace has neither a POST nor a GET with
+the form in its query string. Instrumenting a copy (`page.on("request")`, a log in the
+route handler, `navigator.serviceWorker.controller` at the click) over 270 loaded runs
+gave the answer: all 8 failures had the worker in control and no route call, and none of
+the 141 runs without a controlling worker failed. A request through the worker never
+reaches `page.route`. `test.use({ serviceWorkers: "block" })`, now `ROUTES_REQUESTS` in
+the fixtures, took it to 0 in 270. `cook-mode.spec.ts` and `animation.spec.ts` route too
+and were exposed the same way, so they use it as well, and `tests/unit/e2e-routes.test.ts`
+refuses a routing spec that does not.
+
+**What should have been quicker:** a probe that only *waited for* the worker to take
+control (to force the failure) passed with control on its first run, which read as
+disproving the worker. Control makes the miss possible, not certain, so one run proved
+nothing. Counting outcomes against the controller state over a few hundred runs settled
+it in one go and should have been the first experiment. Two other things cost time: the
+`line` reporter interleaves workers' stdout so it could not be tied to a test (the JSON
+reporter keeps it per result), and a second batch wiped `test-results/`, trace included,
+before it was read. The 2026-09-23 note had already warned about that.
+
+The other failures named in the notes (`dialogs`, a sheet's close animation, `meals`) do
+not route, so they are not this; contention is still the likeliest explanation there.

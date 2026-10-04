@@ -112,7 +112,9 @@ name>"`): it passes in a couple of seconds when it was contention, and that is c
 re-running the whole suite on a guess. **The pre-push hook runs the same full suite, so a push can
 fail the same way**; push with `E2E_WORKERS=3 git push …` there (read by `e2eWorkerCount`
 in `e2e/helpers/servers.ts`) — every suite still runs, with one less worker fighting for
-the CPUs. It took two failed pushes, each on a different `ai-wait.spec.ts` test, to find.
+the CPUs. It took two failed pushes to find. (`ai-wait.spec.ts`, the one named most often, was
+not contention but a service worker race — see `ROUTES_REQUESTS` under *Tests gate
+everything* — and is fixed.)
 On 2026-10-01 even 3 and 2 workers each dropped a different test; `E2E_WORKERS=1` passed
 all 297 in about 11 minutes — go straight there if the container is slow, and run the push
 in the background, since it outlasts a single 10-minute tool call.
@@ -1475,6 +1477,14 @@ failing suite must not reach the remote.**
 - Each browser worker gets its own app server. **Do not put `baseURL` in
   `playwright.config.ts`** — it wins over the per-worker value, and every worker then drives
   the first worker's server while seeding its own database, passing while it does it.
+- **A spec that intercepts requests (`page.route`) starts with `test.use(ROUTES_REQUESTS)`**
+  (`e2e/helpers/fixtures.ts`), which keeps `sw.js` out of its pages. A request from a page
+  the worker controls can go out through the worker, where neither `page.route` nor
+  `page.on("request")` nor the trace sees it — and whether it does is a race with the
+  worker claiming the page, so the spec passes alone and times out under load with the
+  save already made. That was `ai-wait.spec.ts`'s "flake" for two weeks (8 failures in 270
+  loaded runs before, none in 270 after). `tests/unit/e2e-routes.test.ts` refuses a spec
+  that routes without it.
 - **A password is hashed once per password, not once per user**, and `loginAs` puts the
   cookie straight into the browser; `auth.spec.ts` still drives the real form.
 - **A flaky test is worse than no test: fix the race, do not add a timeout.** CI refuses an
