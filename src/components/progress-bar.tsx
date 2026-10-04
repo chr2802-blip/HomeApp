@@ -31,6 +31,7 @@ export function ProgressBar({
   done,
   total,
   edge = false,
+  fillIn = false,
   className = "",
 }: {
   done: number;
@@ -48,6 +49,17 @@ export function ProgressBar({
    * thin to see is not a rule.
    */
   edge?: boolean;
+  /**
+   * Fill from empty up to where the list is when the bar first appears, rather than
+   * arriving already part way along. Only the list's own page asks for it: a screen of
+   * cards each filling at once on every visit is movement nobody needs.
+   *
+   * A keyframe, not the width transition below: a transition runs only from a width the
+   * browser has already painted, and on arrival there is none. The keyframe names only
+   * `from`, so it ends at whatever width the fill is drawn at — including one a tick
+   * changed while it was still filling.
+   */
+  fillIn?: boolean;
   className?: string;
 }) {
   // A list with nothing on it is not 100% done — it is a list with nothing on it, and
@@ -69,7 +81,7 @@ export function ProgressBar({
       <div
         className={`h-full transition-[width] duration-500 ease-out ${
           edge ? "" : "rounded-full"
-        }`}
+        } ${fillIn ? "animate-progress-fill" : ""}`}
         style={{ width: `${percent}%`, backgroundColor: "var(--accent)" }}
       />
     </div>

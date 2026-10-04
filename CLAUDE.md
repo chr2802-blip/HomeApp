@@ -51,7 +51,7 @@ super admin (from `SUPER_ADMIN_EMAIL`/`SUPER_ADMIN_PASSWORD`). In a fresh contai
 has no tables either — `npm run setup` migrates only the test templates, so run `npx prisma
 migrate deploy` first or the seed fails with "table `public.Home` does not exist". A throwaway `tsx` script run
 with `node --env-file=.env --import tsx` that upserts a home, two members and a handful of
-rows is the quickest way to something worth a screenshot. A `List` needs `createdBy` connected
+rows is the quickest way to something worth a screenshot. A `List`'s name is `title`, and it needs `createdBy` connected
 as well as its home, and `HomeTheme` is `SLATE`, `OCEAN`, `INDIGO`, `VIOLET`, `PLUM`, `SAND`
 — there is no green. **Next's dev overlay ("1 Issue") sits over the tab bar** in every
 phone screenshot: it is a hydration warning between `SnackbarProvider` and `KitchenProvider`
@@ -607,7 +607,9 @@ the hearts always inserts, never updates.
   bar is `edge` — flush along the bottom, full width, no radius of its own — so a card
   carrying one is `relative overflow-hidden`.
 - The bar on a list's own page lives **inside `ListItems`**, so the proportion is told by
-  the same state the rows are. Everywhere it appears it is `aria-hidden`, because the same
+  the same state the rows are. **It fills from empty on arrival** (`fillIn`, the
+  `progress-fill` keyframe, `from` only so it ends at the drawn width); the cards and the
+  dashboard do not, because a screen of bars all filling at once on every visit is noise. Everywhere it appears it is `aria-hidden`, because the same
   number is already in words beside it, and `data-progress` carries what it claims.
 - **Clearing the last item is celebrated once**, counted before the change is applied — so a
   list emptied by deleting its rows is **not** celebrated. Crossing halfway swells the bar
@@ -1561,6 +1563,10 @@ look says "not like that".
   does. There is no one-command "screenshot this path" helper yet — sessions have
   copied helpers into a throwaway spec each time; whoever writes one should note it here.
   The throwaway is not committed.
+- **An animation is screenshotted slowed down, not raced.** A dev page is still compiling
+  for the first few hundred ms, so a 0.6s animation is usually over before the first
+  frame is taken. Open a CDP session, `Animation.enable`, then `Animation.setPlaybackRate`
+  with `0.1` before navigating, and take the frames seconds apart.
 - A change with nothing to see (a migration, a lib function, a test) has nothing to show,
   and this rule does not ask for a screenshot of a terminal.
 
