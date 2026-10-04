@@ -404,6 +404,20 @@ the format `renderIngredient` writes — see *Every ingredient line is an amount
 the thing bought* below and [`docs/design/recipes.md`](docs/design/recipes.md). Action mode's breakdown sidesteps it
 by storing positions and never a line of its own.
 
+**Every table is closed to Supabase's Data API, and a new one has to be closed too.**
+Production's Postgres is a Supabase project, which serves `public` to anybody holding the
+publishable key — which `/api/realtime/token` hands to every phone. Row-level security
+with no policy is what keeps the tables Prisma's alone (Prisma connects as their owner, so
+it is unaffected). Prisma creates a table with RLS off, so **a migration that adds a table
+ends with `ALTER TABLE "X" ENABLE ROW LEVEL SECURITY;`** — `tests/integration/rls.test.ts`
+reads the migrated database and names any table without it.
+
+**The lint rule rejecting `prisma.list` in pages reads the home-scoped models from
+`schema.prisma`**, like `homeDb` does. ESLint's flat config does **not** merge a rule's
+options across blocks — a later block setting `no-restricted-syntax` replaces the earlier
+one for every file both match — so any block that sets it spreads `TENANCY` first.
+`tests/unit/lint-rules.test.ts` lints a line as a page and asks for the error.
+
 Permission checks live separately in `src/lib/access.ts`; `homeScoped` in
 `src/lib/scoped.ts` fetches a single record and asserts access. `homeDb` does not replace
 those — it removes the chance to ask the wrong question.
@@ -691,7 +705,9 @@ Two deliberately independent halves: **the page comes back from the service work
   lists are kept; assets are cache-first **except** where the request asked for no cache.
   **It never touches anything but GET.** It is registered from the app layout, on every page.
 - **Logging out takes this browser's copy of the household with it**: the kept pages, the
-  queue, and the household's pictures in the asset cache.
+  queue, and the household's pictures in the asset cache — and its push subscription,
+  which `LogoutButton` removes *before* the session ends, since afterwards nothing can say
+  whose it was.
 
 `e2e/offline-lists.spec.ts` drives a genuinely offline browser, and
 `e2e/logout-forgets.spec.ts` asks what is left in Cache Storage afterwards.
@@ -1259,8 +1275,10 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
 - **A page's own machine-readable `totalTime` beats the reader's.** `PT1H30M` is the site
   stating the answer; a number read out of prose is an inference.
 - **The link is fetched from this app's own server, so it is checked the way that has to be:**
-  `isBlockedHost` before anything is requested, and the response's own `url` again after
-  redirects. Size and time are both bounded. The picture is resolved against the address
+  through `safeFetch` (`src/lib/safe-fetch.ts`), which follows redirects itself and checks
+  every hop — and every address its name resolves to — before requesting it. A URL anybody
+  else chose and the server will request (a push endpoint too) goes through it or
+  `assertPublicUrl`, never a bare `fetch`. Size and time are both bounded. The picture is resolved against the address
   actually landed on, checked the same way, downscaled server-side and stored through
   `storePhoto` — **only once the reading came back good**, and one that cannot be fetched is
   left out quietly.
