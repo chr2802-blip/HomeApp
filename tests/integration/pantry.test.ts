@@ -80,6 +80,20 @@ describe("keeping the pantry", () => {
     });
   });
 
+  it("stores the amount and unit the add sheet sent, stk as no unit", async () => {
+    await submit(createPantryItem, { name: "Ris", quantity: "2,5", unit: "KG" });
+    // "Ris" is kg on the list, but the sheet said stk and the sheet is what was asked.
+    await submit(createPantryItem, { name: "Pasta", quantity: "3", unit: "" });
+    await submit(createPantryItem, { name: "Kiks", quantity: "", unit: "GALLON" });
+
+    const stored = await prisma.pantryItem.findMany({ orderBy: { name: "asc" } });
+    expect(stored.map(({ name, quantity, unit }) => ({ name, quantity, unit }))).toEqual([
+      { name: "Kiks", quantity: 1, unit: null },
+      { name: "Pasta", quantity: 3, unit: null },
+      { name: "Ris", quantity: 2.5, unit: "KG" },
+    ]);
+  });
+
   it("stores the name as written and the key the shopping list will match", async () => {
     await submit(createPantryItem, { name: "  Olivenolie  " });
 

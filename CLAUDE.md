@@ -796,7 +796,8 @@ nobody had, about salt.
 **A pantry entry is a name, a quantity, a unit and a shelf**: `quantity`, which is the whole of
 what a cupboard says about how much there is, and `unit` — what it is counted in
 (`PANTRY_UNITS` in `src/lib/pantry.ts`: g, kg, dl, l, and the kitchen's own dåse, pose,
-pakke, glas, bundt) or nothing at all for a plain count. Zero is what a boolean
+pakke, glas, bundt) or nothing at all for a plain count, which is drawn and offered as
+"stk" (`PANTRY.pieces`) — null *is* stk, so no stored entry changed when the word arrived. Zero is what a boolean
 `inStock: false` used to mean and any amount past that is what `true` did — matching
 against the shopping list still asks only the one question it always has, in or out;
 what the quantity is *of* is for the household reading its own cupboard, never for
@@ -888,13 +889,13 @@ itself.
 **The unit and the shelf are in the sheet behind the three dots, not on the row.** Both
 are set once and then left alone, and a control on every row is room taken from the name
 on every row — a unit menu per row is what left long names truncated to a few letters. So
-the row only *reads* its unit beside the number ("2 kg"; nothing for a plain count), and
+the row only *reads* its unit beside the number ("2 kg", "2 stk"), and
 "Edit" in the `ItemMenu` opens one `editPantryItem` sheet of chips for both, with the
 expiry date and the entry's picture under them. **The picture is drawn in that sheet and
 nowhere else** — not on the row, for the same reason the unit menu is not: a thumbnail on
 every row is room taken from the name.
 `PANTRY_UNITS` (g, kg, dl, l, and the kitchen's own dåse, pose, pakke, glas, bundt) are
-offered with "no unit" as its own choice and not a lesser one: a plain count ("3") is as
+offered with "stk" (no unit) as its own choice and not a lesser one: a plain count ("3") is as
 valid an answer as a measured one ("500 g"), the same reason a counted recipe ingredient
 carries no unit either (see `UNIT_WORDS`). **The name leads the row, on the left**, as a
 list item's does — finding rice is the first thing every visit does — then the stepper,
@@ -950,6 +951,10 @@ already have that" before it adds anything.** `PantryAddDialog` is the `create`
 `FormDialog` because its fields read the name as it is typed and a successful add may
 send `sortPantry` afterwards. The shelf is asked with the same chips as the "Shelf and
 unit" sheet, starting on "choose for me", which names the shelf `lookupGood` would pick.
+**It also asks how much and in what**: the amount starts at 1 and the unit on stk, except
+that a name `lookupGood` knows a unit for moves the chip there until somebody picks one by
+hand. `createPantryItem` stores what the sheet sent; only a form sending no `unit` at all
+falls back to the list's.
 As a name is typed the sheet offers the entries already kept that it could be, under
 their own heading, and then common basics not yet kept, in the household's own language.
 Picking a kept one adds nothing: it closes the sheet and shows the row, washed in
