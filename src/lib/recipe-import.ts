@@ -5,6 +5,7 @@ import { storePhoto } from "./photos";
 import { extractFromHtml, type RawExtract } from "./recipe-extract";
 import { normalizeRecipe } from "./recipe-normalize";
 import { signReading } from "./reading-token";
+import { isBlockedHost, safeFetch } from "./safe-fetch";
 import {
   captionFromHtml,
   captionFromOEmbed,
@@ -23,8 +24,7 @@ import { RECIPES } from "./copy/recipes";
  * **Stage one is extraction and nothing else.** A web page goes to `recipe-extract.ts`,
  * which gathers whatever its markup — or, failing that, its visible text — has to say. A
  * reel goes to `reel-import.ts`, which knows the addresses that will hand over a caption
- * without an account. A caption somebody pasted is already text. All three produce the same
- * `RawExtract` and none of them decides whether what they found is a recipe.
+ * without an account. Both produce the same `RawExtract` and neither of them decides whether what they found is a recipe.
  *
  * **Stage two is `recipe-normalize.ts`**, which is the only thing in this app that reads
  * text as a recipe. There used to be two readers, one per route, and the recipe a cook got
@@ -74,9 +74,9 @@ export type ImportedRecipe = {
 /**
  * `notARecipe` marks a failure where there is nothing more to try with this link as typed —
  * a page that loaded fine and had nothing to cook from, a reel whose description could not
- * be got at, a reader that would not answer. `RecipeImportField` turns exactly that flag
- * into the paste box and a "Start from scratch" button; a mistyped address or a page that
- * would not load is worth retrying as typed and does not get them.
+ * be got at, a reader that would not answer. `NewRecipeDialog` turns exactly that flag
+ * into a "Start from scratch" button; a mistyped address or a page that would not load is
+ * worth retrying as typed and does not get it.
  *
  * It is a flag rather than a matched error string because this module pulls in `sharp` and
  * the module next door pulls in the Anthropic SDK, neither of which may be bundled into the
@@ -93,9 +93,7 @@ const genericError = (language: HomeLanguage) => sayIn(language)(RECIPES.generic
  *
  * Meta refusing a signed-out request says nothing about the post and is the common one; a
  * caption that was read and is not a recipe is usually `og:description`'s truncated copy of
- * one, which pasting the whole thing fixes; and the reader being down is neither — it is
- * this app's own fault and will pass. All three point at the same box, because that box is
- * the one route into the importer that nothing on anybody else's side can block.
+ * one; and the reader being down is neither — it is this app's own fault and will pass.
  */
 const captionUnreachable = (language: HomeLanguage) => sayIn(language)(RECIPES.captionUnreachable);
 const captionNotARecipe = (language: HomeLanguage) => sayIn(language)(RECIPES.captionNotARecipe);
@@ -154,41 +152,9 @@ const CRAWLER_HEADERS = {
 // English site instead, which does not have a Danish recipe pasted from the Danish
 // one. Sending none asks for whatever the address itself already means.
 
-/**
- * Blocks the addresses a browser would never be steered toward by a recipe link: the
- * machine itself, its own network, and the link-local range cloud providers use for
- * instance metadata. This is a household app fetching a page somebody chose to paste,
- * not a browser with its own cross-origin rules, so that check has to be written here
- * instead — a `javascript:` or `file:` link is refused by the protocol check below, and
- * these are refused by address.
- */
-function isBlockedHost(hostname: string): boolean {
-  // IPv6 literals arrive bracketed in a URL's hostname ("[::1]"); the ranges below are
-  // compared against the address itself.
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) return true;
-
-  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
-  if (ipv4) {
-    const [a, b] = ipv4.slice(1).map(Number);
-    if (a === 127 || a === 10 || a === 0) return true;
-    if (a === 169 && b === 254) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    return false;
-  }
-
-  // A URL's hostname never otherwise contains a colon, so this is the one case left:
-  // an IPv6 literal. ::1 (loopback), fe80::/10 (link-local) and fc00::/7 (unique local)
-  // are the ranges with the same reach as the IPv4 ones above. Checked only once it is
-  // known to be an address rather than a name — "fc" and "fd" are also how plenty of
-  // ordinary domains start, and matching those was refusing real sites outright.
-  if (host.includes(":")) {
-    return host === "::1" || host.startsWith("fe80:") || host.startsWith("fc") || host.startsWith("fd");
-  }
-
-  return false;
-}
+// Which addresses are off-limits, and the fetch that checks every hop and every
+// resolved address before asking it, live in `safe-fetch.ts` — the push endpoint a phone
+// registers is a URL somebody else chose too, and is held to the same rules.
 
 /** A link this feature will actually fetch, or null for anything it should refuse. */
 function safeImportUrl(rawUrl: string): URL | null {
@@ -226,8 +192,7 @@ export async function fetchRecipeFromUrl(
 
   let response: Response;
   try {
-    response = await fetch(url, {
-      redirect: "follow",
+    response = await safeFetch(url, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: REQUEST_HEADERS,
     });
@@ -264,15 +229,14 @@ export async function fetchRecipeFromUrl(
  * back something readable wins — they are ordered best-first, and a source that refuses,
  * times out or answers with a login wall is simply the next one's turn. None of them is a
  * supported API, so all of them failing is an ordinary outcome rather than a bug, and the
- * answer to it is the paste box rather than an apology.
+ * answer to it is the plain form rather than an apology.
  *
  * A caption that was read is handed to the reader immediately rather than tried against the
  * next source: once there is text, there is nothing another address could add, and the
  * reader is the one thing entitled to say the text is not a recipe.
  *
  * The link itself becomes the recipe's video, so a reel saved this way still plays on the
- * recipe page even where every one of these sources refused and the cook pasted the caption
- * in by hand.
+ * recipe page.
  */
 async function fetchRecipeFromReel(url: URL, homeId: string, language: HomeLanguage): Promise<ImportOutcome> {
   const sources = captionSources(url.toString());
@@ -287,8 +251,8 @@ async function fetchRecipeFromReel(url: URL, homeId: string, language: HomeLangu
   }
 
   // Running out of sources is the line worth finding in a log: the cook has just been told
-  // to paste the description in by hand, and the `reel_caption_source` lines immediately
-  // above this one say why each address refused.
+  // to fill the form in by hand, and the `reel_caption_source` lines immediately above
+  // this one say why each address refused.
   console.error(
     JSON.stringify({
       level: "error",
@@ -300,50 +264,6 @@ async function fetchRecipeFromReel(url: URL, homeId: string, language: HomeLangu
   );
 
   return { ok: false, error: captionUnreachable(language), notARecipe: true };
-}
-
-/**
- * Reads a recipe out of a description the cook pasted in themselves, which is the one route
- * into this that nothing on anybody else's side can refuse — not Meta, and not an API key
- * that has stopped working.
- *
- * `rawUrl` is whatever was in the link field when they gave up on it — optional, because a
- * description pasted on its own is still a recipe. Where there is one and it is a reel, two
- * things are still worth having from it: the link becomes the recipe's video, and the poster
- * frame is fetched for its picture. That fetch is best-effort and usually the same request
- * that just failed, so it is allowed to fail again quietly — a recipe whose text is all
- * there is never refused for want of decoration.
- */
-export async function importPastedCaption(
-  caption: string,
-  rawUrl: string,
-  homeId: string,
-  language: HomeLanguage,
-): Promise<ImportOutcome> {
-  const text = caption.trim();
-  if (!text) return { ok: false, error: sayIn(language)(RECIPES.pasteCaptionFirst) };
-
-  const url = safeImportUrl(rawUrl);
-  const isReel = url !== null && isReelUrl(url.toString());
-
-  const raw: RawExtract = {
-    kind: "pasted",
-    sourceUrl: url?.toString() ?? null,
-    rawTitle: null,
-    rawContent: text,
-    // The picture is the one thing a pasted description cannot say, so where the link is a
-    // reel it is worth one request for the poster frame.
-    imageUrl: null,
-    timeHintMinutes: null,
-  };
-
-  return finish(raw, homeId, language, {
-    notARecipe: captionNotARecipe(language),
-    videoUrl: isReel ? url.toString() : null,
-    // Started, not awaited: the poster frame is fetched while the reader works, and only
-    // stored once the reading has come back good.
-    picture: isReel ? fetchReelPicture(url) : Promise.resolve(null),
-  });
 }
 
 /**
@@ -364,11 +284,12 @@ async function finish(
   raw: RawExtract,
   homeId: string,
   language: HomeLanguage,
-  options: { notARecipe: string; videoUrl?: string | null; picture?: Promise<Picture | null> },
+  options: { notARecipe: string },
 ): Promise<ImportOutcome> {
-  const picture = options.picture ?? fetchRecipePicture(raw.imageUrl, raw.sourceUrl ?? "");
+  const picture = fetchRecipePicture(raw.imageUrl, raw.sourceUrl ?? "");
   const read = await normalizeRecipe(raw, homeId, language);
-  // No paste box: it goes to this same reader, which would refuse it the same way.
+  // Not `notARecipe`: trying again this month gets the same answer, so there is nothing to
+  // offer beside the sentence.
   if (!read.ok && read.reason === "over-limit") {
     return { ok: false, error: sayIn(language)(RECIPES.aiLimitReached) };
   }
@@ -393,7 +314,7 @@ async function finish(
       note: read.recipe.note,
       reading: signReading(homeId, read.recipe),
       photoId,
-      videoUrl: options.videoUrl ?? (raw.kind === "reel" ? raw.sourceUrl : null),
+      videoUrl: raw.kind === "reel" ? raw.sourceUrl : null,
     },
   };
 }
@@ -427,20 +348,6 @@ function reelExtract(read: ReelCaption, reelUrl: string, fetchedFrom: string): R
     imageUrl,
     timeHintMinutes: null,
   };
-}
-
-/**
- * A reel's poster frame, or null. Only the first source is asked: this runs on the path
- * where the automatic read already failed, and a cook waiting on a form they have
- * already filled in by hand should not wait through the whole chain again for a picture
- * they will be offered the chance to replace anyway.
- */
-async function fetchReelPicture(url: URL): Promise<Picture | null> {
-  const [first] = captionSources(url.toString());
-  if (!first) return null;
-
-  const read = await readCaptionSource(first);
-  return read ? fetchRecipePicture(read.imageUrl, first.url) : null;
 }
 
 /**
@@ -481,8 +388,7 @@ async function readCaptionSource(source: CaptionSource): Promise<ReelCaption | n
 
   let response: Response;
   try {
-    response = await fetch(url, {
-      redirect: "follow",
+    response = await safeFetch(url, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: CRAWLER_HEADERS,
     });
@@ -572,8 +478,7 @@ async function fetchRecipePicture(imageUrl: string | null, pageUrl: string): Pro
 
   let response: Response;
   try {
-    response = await fetch(url, {
-      redirect: "follow",
+    response = await safeFetch(url, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: REQUEST_HEADERS,
     });
@@ -613,7 +518,9 @@ async function storeRecipePicture(homeId: string, picture: Picture | null): Prom
  * ordinarily much larger than that.
  */
 async function downscaleForStorage(bytes: Uint8Array) {
-  const source = sharp(bytes, { failOn: "none" }).rotate();
+  // A 15 MB file can still claim to be 50,000 pixels square; decoding stops at 40 MP
+  // (a phone's largest camera) rather than sharp's default of 268 MP.
+  const source = sharp(bytes, { failOn: "none", limitInputPixels: 40_000_000 }).rotate();
   const [full, thumb] = await Promise.all([
     source
       .clone()

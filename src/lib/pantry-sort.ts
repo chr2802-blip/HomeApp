@@ -37,7 +37,10 @@ import { isPantryCategory, PANTRY_CATEGORIES } from "./pantry";
 const MODEL = "claude-haiku-4-5";
 
 /** Nobody is waiting, so this is about not leaving a request hanging rather than about patience. */
-const SORT_TIMEOUT_MS = 20_000;
+export const SORT_TIMEOUT_MS = 20_000;
+
+/** The SDK retries a timeout once, so a stuck call costs `SORT_TIMEOUT_MS` twice. */
+export const SORT_MAX_RETRIES = 1;
 
 /** A shelf name per good, a few tokens each. */
 const MAX_TOKENS = 2_000;
@@ -138,7 +141,7 @@ export async function sortPantryGoods(names: string[], homeId: string): Promise<
   if (await overMonthlyLimit(homeId)) return { ok: false, reason: "over-limit" };
 
   try {
-    const client = new Anthropic({ maxRetries: 1 });
+    const client = new Anthropic({ maxRetries: SORT_MAX_RETRIES });
     const started = performance.now();
     const response = await client.messages.parse(
       {

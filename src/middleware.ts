@@ -27,6 +27,8 @@ export const config = {
     "/lists/:path*",
     "/tasks/:path*",
     "/meals/:path*",
+    "/pantry/:path*",
+    "/bars/:path*",
     "/recipes/:path*",
     "/admin/:path*",
     "/settings/:path*",

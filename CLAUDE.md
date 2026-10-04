@@ -39,7 +39,11 @@ Integration and browser tests need the local Postgres: `docker start homehub-pg`
 
 **Stopping a server from the Bash tool: `pkill -f "[n]ext dev"`, never `pkill -f "next dev"`.**
 The pattern appears in the tool's own command line, so the unbracketed form kills the shell
-running it and the command dies with exit 144. The same goes for `pgrep -f` in a wait loop
+running it and the command dies with exit 144. **A production server names itself `next-server`, not `next start`**, so
+neither form finds one an interrupted e2e run left behind — and that orphan keeps its port
+(3100 for worker 0), serving a `.next` that has since been rebuilt: every page is "HomeHub
+could not load" and every test fails at once. `ps -eo pid,etime,args | grep [n]ext-server`
+finds it. The same goes for `pgrep -f` in a wait loop
 (`while pgrep -f dev-setup.mjs`): it matches its own shell and never ends.
 
 **Deleting or renaming a component while `npm run dev` is running** leaves `.next` holding
@@ -405,6 +409,20 @@ the format `renderIngredient` writes — see *Every ingredient line is an amount
 the thing bought* below and [`docs/design/recipes.md`](docs/design/recipes.md). Action mode's breakdown sidesteps it
 by storing positions and never a line of its own.
 
+**Every table is closed to Supabase's Data API, and a new one has to be closed too.**
+Production's Postgres is a Supabase project, which serves `public` to anybody holding the
+publishable key — which `/api/realtime/token` hands to every phone. Row-level security
+with no policy is what keeps the tables Prisma's alone (Prisma connects as their owner, so
+it is unaffected). Prisma creates a table with RLS off, so **a migration that adds a table
+ends with `ALTER TABLE "X" ENABLE ROW LEVEL SECURITY;`** — `tests/integration/rls.test.ts`
+reads the migrated database and names any table without it.
+
+**The lint rule rejecting `prisma.list` in pages reads the home-scoped models from
+`schema.prisma`**, like `homeDb` does. ESLint's flat config does **not** merge a rule's
+options across blocks — a later block setting `no-restricted-syntax` replaces the earlier
+one for every file both match — so any block that sets it spreads `TENANCY` first.
+`tests/unit/lint-rules.test.ts` lints a line as a page and asks for the error.
+
 Permission checks live separately in `src/lib/access.ts`; `homeScoped` in
 `src/lib/scoped.ts` fetches a single record and asserts access. `homeDb` does not replace
 those — it removes the chance to ask the wrong question.
@@ -692,7 +710,9 @@ Two deliberately independent halves: **the page comes back from the service work
   lists are kept; assets are cache-first **except** where the request asked for no cache.
   **It never touches anything but GET.** It is registered from the app layout, on every page.
 - **Logging out takes this browser's copy of the household with it**: the kept pages, the
-  queue, and the household's pictures in the asset cache.
+  queue, and the household's pictures in the asset cache — and its push subscription,
+  which `LogoutButton` removes *before* the session ends, since afterwards nothing can say
+  whose it was.
 
 `e2e/offline-lists.spec.ts` drives a genuinely offline browser, and
 `e2e/logout-forgets.spec.ts` asks what is left in Cache Storage afterwards.
@@ -1209,7 +1229,7 @@ where a page publishes neither, takes its visible text with the furniture stripp
 and never markup: `isReelUrl` routes those links there before anything is fetched, and
 `captionSources` is the one opinion about which links those are (`parseSocialEmbed` in
 `embed.ts` knows the same hosts for a different job, building an iframe `src`, and the two
-stay apart). All three routes — page, reel, pasted description — produce one `RawExtract`.
+stay apart). Both routes — page and reel — produce one `RawExtract`.
 
 **Stage two is `recipe-normalize.ts`, and it is the only thing in this app that reads text as
 a recipe.** One model call (`claude-haiku-4-5`, no thinking — chosen for speed in 2026-09,
@@ -1237,7 +1257,7 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
 - **There is no fallback to a second reader.** The heuristics were deleted, not kept as a
   floor: a floor made of the thing that was getting it wrong is the same two answers to one
   question. **No `ANTHROPIC_API_KEY`, or an API that will not answer, is an honest refusal**
-  with the paste box and the plain form beside it — never a quietly worse recipe.
+  with the plain form beside it — never a quietly worse recipe.
 - **`renderIngredient` writes the lines, for the importer and the save alike** — see the
   next section. **A unit is only ever written behind an amount**, and **a component is never
   a heading line of its own**: `writeRecipesToList` walks every line, and "Til dressingen:"
@@ -1265,8 +1285,10 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
 - **A page's own machine-readable `totalTime` beats the reader's.** `PT1H30M` is the site
   stating the answer; a number read out of prose is an inference.
 - **The link is fetched from this app's own server, so it is checked the way that has to be:**
-  `isBlockedHost` before anything is requested, and the response's own `url` again after
-  redirects. Size and time are both bounded. The picture is resolved against the address
+  through `safeFetch` (`src/lib/safe-fetch.ts`), which follows redirects itself and checks
+  every hop — and every address its name resolves to — before requesting it. A URL anybody
+  else chose and the server will request (a push endpoint too) goes through it or
+  `assertPublicUrl`, never a bare `fetch`. Size and time are both bounded. The picture is resolved against the address
   actually landed on, checked the same way, downscaled server-side and stored through
   `storePhoto` — **only once the reading came back good**, and one that cannot be fetched is
   left out quietly.
@@ -1277,8 +1299,7 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
   an import, and `"prepare"` for a save that re-reads the steps or the prepare button — a
   save over it still saves, and clears `cookSteps` as a reader that is down would. Per
   home: `overMonthlyLimit` is asked **inside** both readers rather than at each action, so
-  no way into the model can forget it; past it, an import says so without offering the
-  paste box, which goes to the same reader. `"prepare"` allows 30 a quarter-hour rather
+  no way into the model can forget it; past it, an import says so plainly. `"prepare"` allows 30 a quarter-hour rather
   than the password-guesser's eight (`attemptsAllowed`), because going over it is silent.
 - **A stuck call must fail inside the route's `maxDuration` (60s)**, or the platform cuts
   the request off and the honest refusal never arrives — for a save, an error screen and a
@@ -1294,9 +1315,6 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
   a handful of real recipes against the bullets of `ingredientRules`, and prints a
   scorecard with timings. Run it before and after any change of model, effort or prompt,
   and read the scorecard rather than the tick — a rule failing twice running is a finding.
-- **The paste box is the load-bearing half**, offered on any `notARecipe` failure and from a
-  button under the link field. It goes to the very same reader, and nothing on Meta's side can
-  block it.
 - The browser suite drives the whole import against **`e2e/helpers/anthropic-stub.mjs`**, one
   per worker, pointed at by `ANTHROPIC_BASE_URL`. A test that called the real API would be
   billed, would differ between runs, and would fail whenever somebody else's service did.

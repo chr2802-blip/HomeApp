@@ -111,9 +111,14 @@ export async function addItem(
   amount: number,
   id?: string,
 ): Promise<AddOutcome> {
-  if (id && (await prisma.listItem.findUnique({ where: { id }, select: { id: true } }))) {
+  if (id) {
+    const arrived = await prisma.listItem.findUnique({ where: { id }, select: { listId: true } });
     // The row is already here: this is the second arrival of one send, not a second item.
-    return { ok: true };
+    if (arrived?.listId === listId) return { ok: true };
+    // The id is taken by a row on some other list — not this send arriving twice, and not
+    // something to report as done. A fresh id keeps the item; the browser's copy is then
+    // settled by the text, as a refused op would be.
+    if (arrived) id = undefined;
   }
 
   const existing = await prisma.listItem.findFirst({

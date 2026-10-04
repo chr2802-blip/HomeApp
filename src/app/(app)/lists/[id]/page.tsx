@@ -18,6 +18,13 @@ import { LISTS } from "@/lib/copy/lists";
 import { listVersion } from "@/lib/list-version";
 import { rememberedAisles } from "@/lib/aisle-memory";
 
+/**
+ * A model call runs from this page — sorting what nobody could place
+ * (`sortListAisles`) — and has to fail inside the route rather than be cut off by the
+ * platform. `tests/unit/ai-readers.test.ts` adds the worst case up against this.
+ */
+export const maxDuration = 60;
+
 export default async function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await requireHomeUser();

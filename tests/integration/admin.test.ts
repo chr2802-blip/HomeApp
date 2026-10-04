@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, verifyPassword } from "@/lib/auth";
 import { inviteCodeMatches } from "@/lib/invite-code";
+import { attemptsAllowed } from "@/lib/rate-limit";
 import {
   createHome,
   createInvite,
@@ -630,6 +631,21 @@ describe("updateOwnProfile", () => {
     const after = await prisma.user.findUniqueOrThrow({ where: { id: member.id } });
     // Nothing was written: a wrong password must not also cost them the rename.
     expect(after.name).toBe(member.name);
+    expect(await verifyPassword(TEST_PASSWORD, after.passwordHash)).toBe(true);
+  });
+
+  // The question is the login form's, so it is limited like the login form: a borrowed
+  // cookie is otherwise an unlimited way to guess the password it was borrowed from.
+  it("stops answering guesses at the current password, even the right one, past the allowance", async () => {
+    const { member } = await createHomeWithMembers();
+    await signIn(member);
+    const guess = (currentPassword: string) =>
+      updateOwnProfile(undefined, formData({ name: member.name, password: "a-brand-new-password", currentPassword }));
+
+    for (let i = 0; i < attemptsAllowed("password"); i++) await guess(`wrong-${i}`);
+
+    expect(await guess(TEST_PASSWORD)).toEqual({ ok: false, error: "That is not your current password." });
+    const after = await prisma.user.findUniqueOrThrow({ where: { id: member.id } });
     expect(await verifyPassword(TEST_PASSWORD, after.passwordHash)).toBe(true);
   });
 

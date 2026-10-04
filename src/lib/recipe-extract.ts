@@ -27,13 +27,12 @@ import * as cheerio from "cheerio";
 /**
  * What came off a page or a reel, before anything has been understood about it.
  *
- * One shape for all three routes in — a recipe page, a reel's caption, a caption somebody
- * pasted — because the whole point of the split is that the second stage cannot tell which
+ * One shape for both routes in — a recipe page and a reel's caption — because the whole point of the split is that the second stage cannot tell which
  * it is reading and does not need to.
  */
 export type RawExtract = {
-  kind: "page" | "reel" | "pasted";
-  /** Where it came from, for the model's context. Null for a caption pasted on its own. */
+  kind: "page" | "reel";
+  /** Where it came from, for the model's context. Null where nothing says. */
   sourceUrl: string | null;
   /** Whatever the page called itself — a hint, not a title. */
   rawTitle: string | null;

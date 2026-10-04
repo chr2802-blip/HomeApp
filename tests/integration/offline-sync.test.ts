@@ -228,6 +228,20 @@ describe("a queue of additions", () => {
     expect(await prisma.listItem.count({ where: { listId: list.id } })).toBe(1);
   });
 
+  // The id is the phone's choice, so it can collide with a row elsewhere — a list in
+  // another home included. That is not this addition arriving twice: it was reported as
+  // applied and nothing was added.
+  it("still adds the item when its id is already taken by a row on another list", async () => {
+    const elsewhere = await createList({ homeId: (await createHome()).id, createdById: member.id });
+    await prisma.listItem.create({ data: { id: "taken", listId: elsewhere.id, text: "Theirs", position: 1 } });
+
+    const result = await sent([addOp("Bin bags", "taken")]);
+
+    expect(result.rejected).toEqual([]);
+    expect(await prisma.listItem.findFirst({ where: { listId: list.id, text: "Bin bags" } })).not.toBeNull();
+    expect(await prisma.listItem.findUniqueOrThrow({ where: { id: "taken" } })).toMatchObject({ text: "Theirs" });
+  });
+
   it("brings back a ticked row that already says it, rather than adding a second", async () => {
     await seedItem({ text: "Milk", done: true, amount: 1 });
 

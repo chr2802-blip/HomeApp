@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { MAX_PHOTO_BYTES, MAX_THUMB_BYTES } from "@/lib/photo-file";
 import { storePhoto, sweepUnclaimedPhotos } from "@/lib/photos";
+import { checkRateLimit, recordFailedAttempt } from "@/lib/rate-limit";
 import { PHOTOS } from "@/lib/copy/photos";
 import { sayIn } from "@/lib/copy/say";
 import { DEFAULT_LANGUAGE } from "@/lib/language";
@@ -25,6 +26,11 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   const say = sayIn(user?.homeLanguage ?? DEFAULT_LANGUAGE);
   if (!user?.homeId) return refuse(say(PHOTOS.signInFirst), 401);
+
+  // Every upload counts, kept or not: it is the bytes arriving that are being bounded.
+  const limit = await checkRateLimit("photo", user.id);
+  if (!limit.allowed) return refuse(say(PHOTOS.tooManyUploads, { minutes: limit.retryAfterMinutes }), 429);
+  await recordFailedAttempt("photo", user.id);
 
   let form: FormData;
   try {

@@ -173,7 +173,7 @@ const CASES: Case[] = [
     language: "DA",
     input: {
       via: "import",
-      kind: "pasted",
+      kind: "page",
       text: [
         "Carbonara",
         "400 g spaghetti",

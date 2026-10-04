@@ -18,8 +18,12 @@ const WINDOW_MS = 15 * 60 * 1000;
  * message out of a daily quota the whole installation shares. A dinner with five timed
  * steps, some restarted, is a dozen; going over is silent too — the timer still counts
  * in the page, it just cannot ring with the page closed.
+ *
+ * `photo` counts pictures uploaded. Each is up to a megabyte and a half stored in Postgres,
+ * and the upload is the one write in the app that size; sixty in a quarter of an hour is
+ * a household photographing its whole cupboard, and nothing short of a loop goes past it.
  */
-const MAX_ATTEMPTS: Record<string, number> = { prepare: 30, "cook-timer": 40, "aisle-sort": 40 };
+const MAX_ATTEMPTS: Record<string, number> = { prepare: 30, "cook-timer": 40, "aisle-sort": 40, photo: 60 };
 const DEFAULT_MAX_ATTEMPTS = 8;
 
 export function attemptsAllowed(scope: string): number {
@@ -33,8 +37,12 @@ export function attemptsAllowed(scope: string): number {
  */
 async function attemptKey(scope: string, identifier: string) {
   const headerList = await headers();
-  const forwarded = headerList.get("x-forwarded-for") ?? "";
-  const ip = forwarded.split(",")[0]?.trim() || headerList.get("x-real-ip") || "unknown";
+  // Vercel's own header first: it is set by the platform and cannot be supplied by the
+  // caller. `x-forwarded-for`'s first entry is only as honest as whatever sits in front
+  // of the app, and a key the client can vary is a limit it can step round.
+  const forwarded =
+    headerList.get("x-vercel-forwarded-for") ?? headerList.get("x-real-ip") ?? headerList.get("x-forwarded-for") ?? "";
+  const ip = forwarded.split(",")[0]?.trim() || "unknown";
   return createHash("sha256")
     .update(`${scope}:${ip}:${identifier.trim().toLowerCase()}`)
     .digest("hex");

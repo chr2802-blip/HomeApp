@@ -17,6 +17,14 @@ import { AUTH } from "@/lib/copy/auth";
 
 export type FormState = { error?: string } | undefined;
 
+/**
+ * Compared against when there is no account by that email, so an unknown address costs
+ * the same bcrypt round a wrong password does. Answering at once for a stranger and a
+ * tenth of a second later for a real account told anyone timing the form which emails
+ * have accounts here. A hash of nothing in particular, at the cost `hashPassword` uses.
+ */
+const NO_ACCOUNT_HASH = "$2b$10$I499.yDmS6fVZrn9617PmOlKo6mgT0dPUrwvUSstp./U34JZ2DJh.";
+
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
@@ -39,7 +47,8 @@ export async function login(_prev: FormState, formData: FormData): Promise<FormS
   }
 
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
+  const matches = await verifyPassword(parsed.data.password, user?.passwordHash ?? NO_ACCOUNT_HASH);
+  if (!user || !matches) {
     await recordFailedAttempt("login", email);
     return { error: say(AUTH.wrongEmailOrPassword) };
   }

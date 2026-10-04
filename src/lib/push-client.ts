@@ -1,4 +1,4 @@
-import { saveSubscription } from "@/app/actions/push";
+import { removeSubscription, saveSubscription } from "@/app/actions/push";
 
 /**
  * This browser's side of push notifications: whether it can have them, and turning them
@@ -46,4 +46,23 @@ export async function turnOnPush(): Promise<PushState> {
   };
   await saveSubscription({ endpoint: json.endpoint, keys: json.keys });
   return "on";
+}
+
+/**
+ * Stops this browser hearing about the account that is signing out of it: the server
+ * forgets the endpoint while the session can still say whose it is, and the browser lets
+ * go of the subscription so nothing else can claim it. Never throws and never takes long —
+ * it runs on the way out of a log-out press, and a log-out that hung on a push service
+ * would be worse than one that left a device subscribed.
+ */
+export async function forgetPushHere(): Promise<void> {
+  const forget = async () => {
+    if (!("serviceWorker" in navigator)) return;
+    const registration = await navigator.serviceWorker.getRegistration();
+    const subscription = await registration?.pushManager.getSubscription();
+    if (!subscription) return;
+    await removeSubscription(subscription.endpoint).catch(() => {});
+    await subscription.unsubscribe().catch(() => {});
+  };
+  await Promise.race([forget().catch(() => {}), new Promise((resolve) => setTimeout(resolve, 2000))]);
 }
