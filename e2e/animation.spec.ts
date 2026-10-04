@@ -193,6 +193,26 @@ test.describe("a press on its way somewhere", () => {
     await page.waitForURL(/\/tasks$/);
     await expect(page.locator("[data-link-cue]")).toHaveCount(0);
   });
+
+  test("is forgotten once it has landed, so coming back lights the page shown", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 680 });
+    await page.goto("/lists");
+    const segments = page.locator("main nav").first();
+    const lit = (name: string) => segments.getByRole("link", { name, exact: true });
+
+    await lit("Supplies").click();
+    await page.waitForURL(/\/pantry$/);
+    await page.locator('nav a[aria-label="Home"]').click();
+    await page.waitForURL(/\/dashboard$/);
+    await page.locator('nav a[aria-label="Lists"]').click();
+    await page.waitForURL(/\/lists$/);
+
+    // The press on Supplies was made from /lists; back on /lists it must not count again.
+    await expect(lit("Lists")).toHaveClass(/text-white/);
+    await expect(lit("Supplies")).toHaveClass(/text-slate-500/);
+  });
 });
 
 test.describe("the three-dot menu", () => {
