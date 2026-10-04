@@ -49,7 +49,7 @@ export function PortionsStepper() {
   if (servings === null || portions === null) return null;
 
   const button =
-    "pressable h-9 w-9 rounded-lg text-lg text-slate-600 hover:bg-slate-100 active:scale-90 disabled:opacity-30 disabled:hover:bg-transparent";
+    "press-icon h-9 w-9 rounded-lg text-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent";
 
   return (
     <div className="mb-3">

@@ -25,7 +25,7 @@ export function LanguageField({ defaultLanguage }: { defaultLanguage: HomeLangua
 
       <div className="mt-3 flex flex-wrap gap-2">
         {LANGUAGES.map((language) => (
-          <label key={language} className="pressable relative cursor-pointer active:scale-95">
+          <label key={language} className="press-button relative cursor-pointer">
             <input
               type="radio"
               name={LANGUAGE_FIELD}

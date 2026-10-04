@@ -11,6 +11,7 @@ import { namesInWords, pantryKey } from "@/lib/pantry";
 import { rankByPantry, type CookCandidate } from "@/lib/pantry-cook";
 import { sayIn } from "@/lib/copy/say";
 import { PANTRY_COOK } from "@/lib/copy/pantry";
+import { LinkCue } from "@/components/link-cue";
 
 type Loaded = { candidates: CookCandidate[]; stocked: string[] };
 
@@ -67,7 +68,7 @@ export function PantryCook() {
         aria-haspopup="dialog"
         aria-label={say(PANTRY_COOK.button)}
         title={say(PANTRY_COOK.button)}
-        className="pressable inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 active:scale-[0.92]"
+        className="press-icon inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
       >
         <PotIcon />
       </button>
@@ -93,7 +94,7 @@ export function PantryCook() {
               />
               <button
                 type="submit"
-                className="pressable h-10 shrink-0 rounded-lg bg-[var(--accent)] px-4 text-sm font-medium text-white active:scale-[0.96]"
+                className="press-button h-10 shrink-0 rounded-lg bg-[var(--accent)] px-4 text-sm font-medium text-white"
               >
                 {say(PANTRY_COOK.extraAdd)}
               </button>
@@ -109,7 +110,7 @@ export function PantryCook() {
                     type="button"
                     onClick={() => setExtras((current) => current.filter((other) => other !== extra))}
                     aria-label={say(PANTRY_COOK.removeExtra, { name: extra })}
-                    className="pressable inline-flex items-center gap-1 rounded-full bg-[var(--accent)] py-1 pr-2 pl-3 text-sm text-white"
+                    className="press-button inline-flex items-center gap-1 rounded-full bg-[var(--accent)] py-1 pr-2 pl-3 text-sm text-white"
                   >
                     {extra}
                     <span aria-hidden="true" className="text-base leading-none">
@@ -134,7 +135,7 @@ export function PantryCook() {
                   <li key={match.recipeId}>
                     <Link
                       href={`/recipes/${match.recipeId}`}
-                      className="pressable flex items-center gap-3 px-3 py-3 hover:bg-slate-50"
+                      className="press-card relative flex items-center gap-3 px-3 py-3 hover:bg-slate-50"
                     >
                       <PhotoThumb photoId={match.photoId} alt="" placeholder="recipe" className="h-12 w-12" />
                       <span className="min-w-0 flex-1">
@@ -149,6 +150,7 @@ export function PantryCook() {
                         </span>
                       </span>
                       <MatchRing have={match.have} total={match.total} />
+                      <LinkCue />
                     </Link>
                   </li>
                 ))}

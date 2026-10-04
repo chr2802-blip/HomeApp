@@ -185,7 +185,7 @@ export function PantryShelves({
           type="button"
           aria-pressed={runOutOnly}
           onClick={() => setRunOutOnly((on) => !on)}
-          className={`pressable h-9 shrink-0 rounded-full border px-3 text-sm ${
+          className={`press-button h-9 shrink-0 rounded-full border px-3 text-sm ${
             runOutOnly
               ? "border-[var(--accent)] bg-[var(--accent)] text-white"
               : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
@@ -251,7 +251,7 @@ export function PantryShelves({
                     onClick={() => toggle(shelf)}
                     aria-expanded={open}
                     data-shelf-toggle
-                    className="pressable flex min-w-0 flex-1 items-start gap-2 text-left"
+                    className="press-card flex min-w-0 flex-1 items-start gap-2 text-left"
                   >
                     <svg
                       viewBox="0 0 20 20"

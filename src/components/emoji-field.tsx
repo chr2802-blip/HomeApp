@@ -30,7 +30,7 @@ export function EmojiField({
 }) {
   const say = sayIn(language);
   const chip =
-    "pressable flex h-10 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-xl active:scale-90 has-[:checked]:border-[var(--accent)] has-[:checked]:bg-[color-mix(in_srgb,var(--accent)_14%,white)] has-[:checked]:ring-2 has-[:checked]:ring-[var(--accent)]";
+    "press-icon flex h-10 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-xl has-[:checked]:border-[var(--accent)] has-[:checked]:bg-[color-mix(in_srgb,var(--accent)_14%,white)] has-[:checked]:ring-2 has-[:checked]:ring-[var(--accent)]";
 
   return (
     <fieldset className="min-w-0 space-y-1.5">

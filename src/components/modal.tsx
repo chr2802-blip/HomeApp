@@ -5,17 +5,16 @@ import { createPortal } from "react-dom";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
 import { APP } from "@/lib/copy/app";
+import { SHEET_EXIT_MS } from "@/lib/motion";
 
 /**
  * How long the closing animation runs. The sheet stays mounted for exactly this long
  * after `open` goes false, so it is seen leaving rather than vanishing — and a shorter
- * exit than entrance is what a dismissal feels like on a phone.
- *
- * Must match the duration of `animate-sheet-out` and `animate-backdrop-out` in
- * globals.css: unmounting early cuts the exit short, unmounting late leaves the sheet
- * sitting off screen with the page behind it unusable.
+ * exit than entrance is what a dismissal feels like on a phone. Unmounting early cuts
+ * the exit short, unmounting late leaves the sheet sitting off screen with the page
+ * behind it unusable; `SHEET_EXIT_MS` is held to the stylesheet by a test.
  */
-const EXIT_MS = 200;
+const EXIT_MS = SHEET_EXIT_MS;
 
 /**
  * Takes a closed sheet's history entry back off without the App Router noticing.
@@ -211,7 +210,7 @@ export function Modal({
             type="button"
             onClick={onClose}
             aria-label={say(APP.close)}
-            className="-mr-1 shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-900 active:scale-90"
+            className="press-icon -mr-1 shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-900"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="m6 6 12 12M18 6 6 18" strokeLinecap="round" />

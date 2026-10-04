@@ -40,7 +40,7 @@ export function PantrySortButton({ asksAi }: { asksAi: boolean }) {
         type="submit"
         disabled={pending}
         aria-busy={pending}
-        className="pressable rounded-full border border-[var(--accent)] px-3 py-1 text-xs font-medium text-[var(--accent-text)] hover:bg-slate-50 disabled:opacity-60"
+        className="press-button rounded-full border border-[var(--accent)] px-3 py-1 text-xs font-medium text-[var(--accent-text)] hover:bg-slate-50 disabled:opacity-60"
       >
         {pending ? say(PANTRY.sorting) : say(PANTRY.sort)}
       </button>

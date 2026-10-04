@@ -223,7 +223,7 @@ function Row({
           aria-label={item.done ? say(LISTS.markNotDone) : say(LISTS.markDone)}
           aria-pressed={item.done}
           onClick={() => onPress(!item.done)}
-          className={`pressable flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-[1.5px] text-xs active:scale-90 ${
+          className={`press-icon flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-[1.5px] text-xs ${
             item.done ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-slate-300 bg-white"
           } ${settling ? "animate-check-pop" : ""}`}
         >
@@ -257,7 +257,7 @@ function Row({
               type="button"
               onClick={() => setEditing(true)}
               aria-label={say(LISTS.editItemAria, { name: item.text })}
-              className={`block w-full rounded py-0.5 text-left text-sm transition-colors duration-150 hover:bg-slate-50 ${
+              className={`block w-full rounded py-0.5 text-left text-sm transition-colors duration-(--dur-quick) hover:bg-slate-50 ${
                 item.done ? "text-slate-400 line-through" : ""
               }`}
             >

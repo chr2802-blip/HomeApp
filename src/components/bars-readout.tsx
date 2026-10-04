@@ -106,7 +106,7 @@ export function BarsReadout() {
 
       <button
         type="button"
-        className="pressable w-full rounded-xl bg-[var(--accent)] px-4 py-3 font-medium text-white active:scale-95"
+        className="press-button w-full rounded-xl bg-[var(--accent)] px-4 py-3 font-medium text-white"
         onClick={async () => {
           try {
             await navigator.clipboard.writeText(asText);

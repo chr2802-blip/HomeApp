@@ -69,7 +69,7 @@ export function PantryQuantityField({
         onClick={step(-1)}
         disabled={quantity <= 0}
         aria-label={say(PANTRY.decreaseQuantity, { name: label })}
-        className="pressable h-9 w-7 rounded-l-lg text-slate-600 hover:bg-slate-100 active:scale-90 disabled:opacity-30 disabled:hover:bg-transparent sm:w-8"
+        className="press-icon h-9 w-7 rounded-l-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent sm:w-8"
       >
         −
       </button>
@@ -103,7 +103,7 @@ export function PantryQuantityField({
         onClick={step(1)}
         disabled={quantity >= MAX_PANTRY_QUANTITY}
         aria-label={say(PANTRY.increaseQuantity, { name: label })}
-        className="pressable h-9 w-7 rounded-r-lg text-slate-600 hover:bg-slate-100 active:scale-90 disabled:opacity-30 disabled:hover:bg-transparent sm:w-8"
+        className="press-icon h-9 w-7 rounded-r-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent sm:w-8"
       >
         +
       </button>

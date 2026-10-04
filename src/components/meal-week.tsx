@@ -203,7 +203,7 @@ export function MealWeek({ days, action }: { days: MealDayInfo[]; action: FormAc
                     // can actually open — what a browser test waits on instead of the
                     // markup, which looks identical before React has attached anything.
                     data-ready="true"
-                    className={`pressable flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left ${
+                    className={`press-card flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left ${
                       entry.disabled ? "cursor-not-allowed opacity-50" : "hover:bg-slate-50"
                     }`}
                   >

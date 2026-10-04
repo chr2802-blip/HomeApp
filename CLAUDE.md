@@ -1399,6 +1399,27 @@ about which words to throw away.
   two sets of classes** — a transition only runs from a state the browser has already painted.
   Which one a sheet plays is a media query in `globals.css`, not `sm:` classes. Everything is
   switched off under `prefers-reduced-motion` by the one rule at the end of `globals.css`.
+  A sideways step between a section's pages (Recipes | Plan, Lists | Supplies) is
+  `sectionStep`, and slides in from the side the pill moved to rather than rising.
+- **How the app moves is tokens, at the top of `globals.css`**: four curves
+  (`--ease-arrive`, `--ease-leave`, `--ease-sheet`, `--ease-spring`) and a handful of
+  `--dur-*`. **Never a `cubic-bezier` or a duration literal in a new rule** — read a token,
+  in a component too (`duration-(--dur-quick)`, `ease-(--ease-arrive)`). The fold keeps its
+  own symmetric curve. A JS timer that waits for an exit cannot read a variable, so it lives
+  in `src/lib/motion.ts` and `tests/unit/motion.test.ts` holds it to its token.
+- **A press is one of three tiers, chosen by size**: `press-icon` (to 90%), `press-button`
+  (96%), `press-card` (98% on a warm tint). In quickly, back on `--ease-spring`. **Never an
+  `active:scale-*` beside one** — the test refuses it. They sit in `@layer components`, so a
+  utility on the same element still wins (the old unlayered `.pressable` beat every
+  `duration-*` written beside it).
+- **A press that navigates is answered before the page lands.** A card or row that is a
+  `<Link>` is `relative` and carries `<LinkCue />` (an accent ring after a 120ms beat). A
+  row of tabs — the bottom nav, the desktop links, the section pill — lights the pressed one
+  through `usePendingHref` and its link's `onNavigate`, so exactly one is lit and it moves on
+  the tap. No `animate-pulse`: nothing in view loops.
+- **Things leave as well as arrive**: the three-dot menu grows out of its dots and shrinks
+  back (`menu-in`/`menu-out`, origin flipped when the panel opens above), a snack slides
+  back under the tab bar. A closing menu is `inert` and `aria-hidden`.
 - **Forms submit through `useFormAction`, not the `action` prop.** React 19 clears an
   uncontrolled form once its action resolves, which on a rejected submission throws away
   everything the person typed. Only a successful add to a list resets.
@@ -1439,6 +1460,9 @@ failing suite must not reach the remote.**
   5s on Vercel's build machine, failing the production build on a test nobody had touched
   (`ai-readers.test.ts`, 2026-09-25). Import at file level, beside the `vi.mock`s — module
   collection is not timed.
+- **A unit test cannot import a `.tsx`**: vitest here has no JSX transform and fails at
+  import analysis. A constant a test needs to hold against something (an exit timer, a
+  tier name) lives in a plain `.ts` module the component imports — `src/lib/motion.ts`.
 - **Never pipe a suite whose exit code is the thing being asked about.** `npm run e2e |
   tail -30` reports `tail`'s status, so a run in which all 249 tests failed came back `0`.
   Redirect to a file and read `$?`, or read `${PIPESTATUS[0]}`.
@@ -1497,7 +1521,7 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
   So `scale-110` changes the `scale` property, and anything easing only `transform` eases
   nothing while looking entirely correct: `transition` and `transition-transform` name all
   four and are safe, but an arbitrary `transition-[…]` list, or a hand-written `transition`
-  in `globals.css` such as `.pressable`, has to name the property that actually changes.
+  in `globals.css` such as the `press-*` tiers, has to name the property that actually changes.
 - **Hydration has no DOM signal.** A widget's markup looks identical before and after
   React attaches listeners. Browser tests of interactive widgets must wait on something
   the widget itself emits — the drag tests wait on dnd-kit's announcements, and a context
