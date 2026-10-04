@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { fetchRecipeFromUrl, importPastedCaption } from "@/lib/recipe-import";
+import { fetchRecipeFromUrl } from "@/lib/recipe-import";
 import { pngBytes } from "../helpers/images";
 import { createHome } from "../helpers/factories";
 
@@ -31,6 +31,15 @@ const READ = { ...IMPORTED, reading: undefined, steps: [{ uses: [0], minutes: nu
 const { normalizeRecipe } = vi.hoisted(() => ({ normalizeRecipe: vi.fn() }));
 
 vi.mock("@/lib/recipe-normalize", () => ({ normalizeRecipe }));
+/*
+ * Every address is resolved before it is fetched (`safe-fetch.ts`), and these tests are
+ * about what is done with a page, not about the network: every name resolves to one
+ * public address. Which names are refused for resolving somewhere private is
+ * `tests/unit/safe-fetch.test.ts`'s question.
+ */
+vi.mock("node:dns/promises", () => ({
+  lookup: vi.fn(async () => [{ address: "93.184.216.34", family: 4 }]),
+}));
 
 beforeEach(() => {
   normalizeRecipe.mockReset();
@@ -247,8 +256,10 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
       ),
       "https://example.com/pancakes.png": imageResponse(pngBytes(400, 300), "https://example.com/pancakes.png"),
     });
-    // By the time the reader is asked, the picture's request has already gone out.
+    // While the reader is working, the picture's request goes out — one turn of the event
+    // loop in, since its address is resolved and checked first (`safe-fetch.ts`).
     normalizeRecipe.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
       expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain("https://example.com/pancakes.png");
       return { ok: false, reason: "not-a-recipe" };
     });
@@ -280,10 +291,10 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
   });
 
   /*
-   * Not `notARecipe`: that is what offers the paste box, and the paste box goes to this
-   * same reader, which would turn the pasted text away for the same reason.
+   * Not `notARecipe`: that offers "Start from scratch" as though this link were the
+   * problem, and trying another this month gets the same answer.
    */
-  it("says a home past its month's allowance is, and offers no paste box", async () => {
+  it("says a home past its month's allowance is, and does not blame the link", async () => {
     const home = await createHome();
     normalizeRecipe.mockResolvedValue({ ok: false, reason: "over-limit" });
     stubFetch({
@@ -357,39 +368,5 @@ describe("a reel's poster frame", () => {
     const result = await fetchRecipeFromUrl(REEL, home.id, home.language);
 
     expect(result.ok && result.recipe.photoId).toEqual(expect.any(String));
-  });
-
-  it("is still worth a try for a caption the cook pasted in by hand", async () => {
-    const home = await createHome();
-    stubFetch({
-      [EMBED]: htmlResponse(embedPage, EMBED),
-      [POSTER]: imageResponse(pngBytes(720, 1280), POSTER),
-    });
-
-    const result = await importPastedCaption(
-      "Boller\nIngredienser\n500 g mel\n25 g gær\nFremgangsmåde\nÆlt det sammen.",
-      REEL,
-      home.id,
-      home.language,
-    );
-
-    expect(result.ok).toBe(true);
-    expect(result.ok && result.recipe.photoId).toEqual(expect.any(String));
-    expect(await prisma.photo.count()).toBe(1);
-  });
-
-  it("never refuses a pasted recipe for want of a picture it could not fetch", async () => {
-    const home = await createHome();
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Instagram said no")));
-
-    const result = await importPastedCaption(
-      "Boller\nIngredienser\n500 g mel\n25 g gær\nFremgangsmåde\nÆlt det sammen.",
-      REEL,
-      home.id,
-      home.language,
-    );
-
-    expect(result).toEqual({ ok: true, recipe: { ...IMPORTED, photoId: null, videoUrl: REEL } });
-    expect(await prisma.photo.count()).toBe(0);
   });
 });

@@ -23,8 +23,8 @@ import * as cheerio from "cheerio";
  * Instagram's `/embed/captioned/` is the page its own embed widget loads; TikTok's oEmbed
  * is the one genuinely open endpoint of the three; Meta's actual oEmbed needs an app token
  * this household does not have. So the sources are tried in order and any of them may
- * simply refuse — which is why a failure here is never a dead end but an offer to paste the
- * caption in by hand, the one route nothing can block.
+ * simply refuse — which is why a failure here is never a dead end: the cook is offered the
+ * plain form, and the link still becomes the recipe's video.
  *
  * **And each address is read three ways, because a page's markup is the part that moves.**
  * The `.Caption` element, then `og:description`, then the post as JSON inlined in the page

@@ -102,6 +102,7 @@ export function TaskRow({
             photoId={task.photoId}
             alt=""
             className="h-10 w-10"
+            // eslint-disable-next-line no-restricted-syntax -- `placeholder` picks a PhotoKind glyph, not copy.
             placeholder="task"
             emoji={faceOf(task)}
           />

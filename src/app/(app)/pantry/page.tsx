@@ -11,6 +11,13 @@ import { PANTRY } from "@/lib/copy/pantry";
 import { expiryWarning } from "@/lib/pantry";
 
 /**
+ * A model call runs from this page — sorting what nobody could place (`sortPantry`)
+ * — and has to fail inside the route rather than be cut off by the
+ * platform. `tests/unit/ai-readers.test.ts` adds the worst case up against this.
+ */
+export const maxDuration = 60;
+
+/**
  * What the household keeps in, so that adding a recipe to a shopping list stops asking
  * it to buy salt.
  *

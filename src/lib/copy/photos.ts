@@ -19,6 +19,10 @@ export const PHOTOS = {
   uploading: { EN: "Shrinking and uploading…", DA: "Gør det mindre og sender det…" },
   couldNotSave: { EN: "That picture could not be saved.", DA: "Billedet kunne ikke gemmes." },
   couldNotUpload: { EN: "That picture could not be uploaded.", DA: "Billedet kunne ikke sendes." },
+  tooManyUploads: {
+    EN: "That's a lot of pictures at once. Try again in {minutes} min.",
+    DA: "Det er mange billeder på én gang. Prøv igen om {minutes} min.",
+  },
 
   // In the browser, while the picture is decoded and redrawn (`lib/downscale.ts`).
   notAnImage: { EN: "That file is not an image.", DA: "Den fil er ikke et billede." },

@@ -239,6 +239,11 @@ test.describe("swiping between meal-plan days", () => {
     // end of a frame, which can land after a plain `forget` here — and then it is the
     // swipe's own animation that gets lost in the noise of the one still arriving.
     await expectPlayed(page, "sheet-in");
+    // And waited out, before it is measured: `sheet-in` being recorded means it started,
+    // and a box read mid-slide puts the drag where the sheet was rather than where it
+    // lands. On a busy machine — the pre-push run, straight after the integration suite —
+    // the drag then missed the body and no swipe was ever read.
+    await dialog.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
     await forget(page);
 
     const box = (await dialog.boundingBox())!;

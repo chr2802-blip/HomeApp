@@ -15,6 +15,7 @@ import {
 } from "@/lib/auth";
 import { assertHomeAdmin, canAccessHome, canAdministerHome } from "@/lib/access";
 import { generateInviteCode, hashInviteCode } from "@/lib/invite-code";
+import { checkRateLimit, clearAttempts, recordFailedAttempt } from "@/lib/rate-limit";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { optionalText, readForm, requiredText } from "@/lib/form";
 import { discardReplaced, readPhotoChoice } from "@/lib/photos";
@@ -318,13 +319,20 @@ export async function updateOwnProfile(
    * the name or the picture they changed in the same submission.
    */
   if (password) {
+    // Limited like the login form: the question asked here is the login form's own, and a
+    // borrowed cookie is exactly what would ask it over and over.
+    const limit = await checkRateLimit("password", user.id);
+    if (!limit.allowed) return fail(say(SETTINGS.notYourPassword));
+
     const stored = await prisma.user.findUnique({
       where: { id: user.id },
       select: { passwordHash: true },
     });
     if (!stored || !currentPassword || !(await verifyPassword(currentPassword, stored.passwordHash))) {
+      await recordFailedAttempt("password", user.id);
       return fail(say(SETTINGS.notYourPassword));
     }
+    await clearAttempts("password", user.id);
   }
 
   const updated = await prisma.user.update({

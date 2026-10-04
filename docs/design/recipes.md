@@ -120,7 +120,7 @@ as a floor for when the key is missing or the API is down. A floor made of the t
 getting it wrong is two answers to the same question, which is the failure mode most of the
 conventions in `CLAUDE.md` exist to prevent — and it is worse here than usual, because the
 worse answer would arrive silently and look exactly like the better one. No key is a refusal,
-with the paste box and the plain create form beside it, and the failure is written to the log
+with the plain create form beside it, and the failure is written to the log
 as one JSON line: a household quietly unable to import anything for a week because a key
 expired looks, from the outside, exactly like a household that stopped importing.
 
@@ -251,8 +251,7 @@ actually has on a Tuesday.
 every failure where trying the same link again will do the same thing — a shop page, a reel
 whose description could not be got at, a reader that would not answer — as distinct from a
 mistyped address or a page that would not load, which are worth retrying as typed.
-`NewRecipeDialog` turns that flag into a "Start from scratch" button and the paste box beside
-the error, which matters most when a clipboard link sent the dialog straight to the **url**
+`NewRecipeDialog` turns that flag into a "Start from scratch" button beside the error, which matters most when a clipboard link sent the dialog straight to the **url**
 step with no **choose** screen behind it. The flag, not the error string, is what the client
 checks: `recipe-import.ts` pulls in `sharp` and `recipe-normalize.ts` pulls in the Anthropic
 SDK, neither of which may be bundled into a client component. Only types cross.
@@ -376,18 +375,9 @@ find a caption that was not sent. That is the difference between "a shape we hav
 learned yet", which is an afternoon, and "there is nothing there", which is not a parsing
 problem at all.
 
-**Which is why the paste box is the load-bearing half.** `importPastedCaption` takes a
-description the cook pasted themselves straight to stage two — no fetch, no markup, nothing
-anyone else can refuse. It is offered on any `notARecipe` failure *and* from a button under
-the link field, so a cook who already knows how this reel ends does not sit through two
-eight-second timeouts to be handed a box they were always going to use. It has quietly
-become the answer to a second kind of failure as well: with the reader being the only reader,
-a key that has stopped working leaves the box as the only way in, and it still is one.
-
 **A reel fills the video link, which an ordinary recipe page does not.** There the pasted
 link *is* the video, so `ImportedRecipe.videoUrl` carries it and the recipe page offers a
-"Go to link" button beside "Start cooking" to reach it — including on the paste route,
-where it is the one thing the pasted text cannot say. An iframe embedding it on the page
+"Go to link" button beside "Start cooking" to reach it. An iframe embedding it on the page
 was tried first and taken back out: it cost more of the screen than a recipe read on a
 phone can spare, for a video a cook is going to leave to look at the ingredients anyway.
 The poster frame is the nearest thing a reel has to a photograph of the finished dish and
