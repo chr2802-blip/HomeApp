@@ -701,9 +701,15 @@ export function ListItems({
           </span>
         </div>
         {/* `animationend` bubbles, so the wrapper is what clears the flag — the bar
-            itself is drawn by a server component and has nothing to hang a handler on. */}
-        <div onAnimationEnd={() => setHalfway(false)}>
-          <ProgressBar done={ticked} total={total} className={halfway ? "animate-halfway" : ""} />
+            itself is drawn by a server component and has nothing to hang a handler on.
+            The fill's own arrival bubbles here too, and is not the swell ending. */}
+        <div onAnimationEnd={(event) => event.animationName === "halfway" && setHalfway(false)}>
+          <ProgressBar
+            done={ticked}
+            total={total}
+            fillIn
+            className={halfway ? "animate-halfway" : ""}
+          />
         </div>
       </div>
 
