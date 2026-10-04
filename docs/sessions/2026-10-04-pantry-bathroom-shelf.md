@@ -1,4 +1,4 @@
-# A Bathroom shelf in the pantry
+# Bathroom and Cleaning shelves, stk, and amount and unit when adding
 
 - **Date** — 2026-10-04
 - **Branch** — `ccr-5bccd17d-cijh6b`
@@ -16,6 +16,10 @@ Found the Baby shelf (#156) as the exact precedent and repeated it: enum value b
 `OTHER` plus a migration, a label in both languages, a description for the sorting model,
 known goods in `pantry-goods.ts`, and the shelf's shop aisle in `AISLE_OF_SHELF`
 (`HOUSEHOLD`, where the shop list already files toiletries). One unit test, one screenshot.
+
+Later in the same session: "stk" as the word for a plain count (null unit, so nothing
+migrated) and amount + unit in the add sheet; then a Cleaning (Rengøring) shelf, the
+Bathroom shelf's change again, file for file.
 
 ## Where the time went
 
@@ -42,5 +46,9 @@ written into the screenshot paragraph of CLAUDE.md in this commit.
 
 - The name: "Bathroom" / "Badeværelse", placed after Baby and before Other.
 - Its shop aisle is `HOUSEHOLD` ("Household & toiletries").
+- "stk" is the null unit rather than a new enum value; the add sheet's unit follows a
+  known good's (ris → kg) until one is picked by hand.
+- Cleaning: "Cleaning" / "Rengøring", after Bathroom, household aisle; paper towels filed
+  under cleaning rather than bathroom.
 - The ten known goods and their units (toilet paper and plasters by the pack, the rest a
   plain count).

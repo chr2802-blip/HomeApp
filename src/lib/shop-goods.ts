@@ -37,6 +37,7 @@ const AISLE_OF_SHELF: Record<PantryCategory, ShopAisle> = {
   DRINKS: "DRINKS",
   BABY: "BABY",
   BATHROOM: "HOUSEHOLD",
+  CLEANING: "HOUSEHOLD",
   OTHER: "OTHER",
 };
 

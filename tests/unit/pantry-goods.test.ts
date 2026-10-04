@@ -44,6 +44,13 @@ describe("the common basics", () => {
     expect(lookupAisle("Tandpasta")).toBe("HOUSEHOLD");
   });
 
+  it("files what the home is cleaned with on the cleaning shelf, and buys it in the household aisle", () => {
+    expect(lookupGood("Opvaskemiddel")?.category).toBe("CLEANING");
+    expect(lookupGood("dishwasher tablets")?.name.DA).toBe("Opvasketabs");
+    expect(lookupGood("Karklude")?.category).toBe("CLEANING");
+    expect(lookupAisle("Opvasketabs")).toBe("HOUSEHOLD");
+  });
+
   it("does not know what it has never heard of", () => {
     expect(lookupGood("Gochujang")).toBeNull();
     expect(lookupGood("")).toBeNull();

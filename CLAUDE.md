@@ -63,7 +63,7 @@ Put the script inside the checkout (and delete it after): from the scratchpad it
 resolve `@prisma/client`. Name the script `.mts` if it uses top-level `await`: `tsx` compiles a `.ts` file as
 CommonJS here and refuses it.
 `PantryCategory` is `SPICES`, `OIL_VINEGAR`, `SAUCES`, `BAKING`, `DRY_GOODS`, `TINS_JARS`,
-`FRIDGE`, `FREEZER`, `DRINKS`, `BABY`, `BATHROOM`, `OTHER` — the label "Pasta, rice & grains" is
+`FRIDGE`, `FREEZER`, `DRINKS`, `BABY`, `BATHROOM`, `CLEANING`, `OTHER` — the label "Pasta, rice & grains" is
 `DRY_GOODS`. **To screenshot a picture being chosen**, there is no image file in the repo
 and no PIL in the container: draw one in the page (`canvas.toDataURL("image/jpeg")`) and
 hand its bytes to `setInputFiles({ name, mimeType, buffer })`. A row's three dots are the
@@ -918,7 +918,7 @@ entry stepped down to zero stops warning under the thumb: an empty packet past i
 is on the shopping list already.
 
 **The page is grouped by shelf.** `PantryCategory` is a fixed set (spices, oil & vinegar,
-sauces, baking, pasta/rice/grains, tins & jars, fridge, freezer, drinks, baby, bathroom, other), named in
+sauces, baking, pasta/rice/grains, tins & jars, fridge, freezer, drinks, baby, bathroom, cleaning, other), named in
 `PANTRY_CATEGORY_LABELS` and drawn in that order, empty shelves not drawn. **Null is "not
 sorted yet" and is not `OTHER`**: `OTHER` is somebody having decided it goes nowhere in
 particular, null is nobody having decided, and they answer different questions. Unsorted

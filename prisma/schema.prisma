@@ -656,6 +656,7 @@ enum PantryCategory {
   DRINKS
   BABY
   BATHROOM
+  CLEANING
   OTHER
 }
 
