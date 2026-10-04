@@ -177,3 +177,48 @@ export const PANTRY_COOK = {
     DA: "Kunne ikke kigge opskrifterne igennem. Prøv igen.",
   },
 } as const;
+
+/** The household's own shelves, on /settings — src/components/pantry-shelves-admin.tsx and
+ *  src/app/actions/pantry-shelves.ts. */
+export const PANTRY_SHELVES = {
+  heading: { EN: "Supply shelves", DA: "Hylder i forrådet" },
+  intro: {
+    EN: "Your own shelves sit beside the built-in ones on the Supplies page. Things are put on them by hand, from the three dots.",
+    DA: "Jeres egne hylder står ved siden af de faste på siden Forråd. Ting lægges på dem i hånden, under de tre prikker.",
+  },
+  add: { EN: "Add shelf", DA: "Tilføj hylde" },
+  newTitle: { EN: "New shelf", DA: "Ny hylde" },
+  editTitle: { EN: "Edit shelf", DA: "Rediger hylde" },
+  name: { EN: "Name", DA: "Navn" },
+  namePlaceholder: { EN: "Snacks", DA: "Snacks" },
+  create: { EN: "Add", DA: "Tilføj" },
+  nameRequired: { EN: "Give the shelf a name.", DA: "Giv hylden et navn." },
+  alreadyExists: {
+    EN: "There is already a shelf called “{name}”.",
+    DA: "Der findes allerede en hylde, der hedder “{name}”.",
+  },
+  noLongerExists: { EN: "That shelf no longer exists.", DA: "Den hylde findes ikke længere." },
+  ownHeading: { EN: "Your own", DA: "Jeres egne" },
+  noneYet: {
+    EN: "No shelves of your own yet — add one for whatever the built-in ones do not cover: snacks, the cat, the garage.",
+    DA: "Ingen egne hylder endnu — tilføj en til det, de faste ikke dækker: snacks, katten, garagen.",
+  },
+  builtIn: { EN: "Built-in shelves", DA: "Faste hylder" },
+  count: {
+    EN: { one: "{count} thing", other: "{count} things" },
+    DA: { one: "{count} vare", other: "{count} varer" },
+  },
+  empty: { EN: "Empty", DA: "Tom" },
+  deleteTitle: { EN: "Delete shelf", DA: "Slet hylde" },
+  deleteMessage: { EN: "Delete the shelf “{name}”?", DA: "Slet hylden “{name}”?" },
+  deleteMessageInUse: {
+    EN: {
+      one: "Delete the shelf “{name}”? The {count} thing on it goes back to Not sorted yet.",
+      other: "Delete the shelf “{name}”? The {count} things on it go back to Not sorted yet.",
+    },
+    DA: {
+      one: "Slet hylden “{name}”? Den {count} vare på den kommer tilbage under Ikke sorteret endnu.",
+      other: "Slet hylden “{name}”? De {count} varer på den kommer tilbage under Ikke sorteret endnu.",
+    },
+  },
+} as const satisfies Record<string, Phrase | Plural>;

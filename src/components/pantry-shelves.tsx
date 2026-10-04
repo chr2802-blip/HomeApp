@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { PantryCategory, PantryUnit } from "@prisma/client";
+import type { PantryUnit } from "@prisma/client";
 import { Card } from "@/components/ui";
 import { PantryRow } from "@/components/pantry-row";
 import { PantrySortButton } from "@/components/pantry-sort-button";
 import { useLanguage } from "@/components/language-provider";
 import { useFold } from "@/components/use-fold";
-import { PANTRY_CATEGORIES, pantryKey } from "@/lib/pantry";
+import { pantryKey } from "@/lib/pantry";
+import type { Shelf, ShelfId } from "@/lib/pantry-shelves";
 import { lookupGood } from "@/lib/pantry-goods";
 import { sayIn } from "@/lib/copy/say";
-import { PANTRY, PANTRY_CATEGORY_LABELS } from "@/lib/copy/pantry";
+import { PANTRY } from "@/lib/copy/pantry";
 
 export type ShelfEntry = {
   id: string;
@@ -18,7 +19,8 @@ export type ShelfEntry = {
   key: string;
   quantity: number;
   unit: PantryUnit | null;
-  category: PantryCategory | null;
+  /** The one shelf it is on (`shelfOf`), or null for "not sorted yet". */
+  shelf: ShelfId | null;
   expiresOn: string | null;
   photoId: string | null;
   /** Days left where the row should warn (`expiryWarning`), else null. */
@@ -63,11 +65,14 @@ export function showPantryRow(id: string) {
  * looked half empty.
  */
 export function PantryShelves({
+  shelves,
   items,
   addToList,
   cook,
   children,
 }: {
+  /** Every shelf this home has, named and in order (`shelvesOf`). */
+  shelves: Shelf[];
   items: ShelfEntry[];
   /**
    * "Add to list" for what has run out — the same cart icon the recipe's ingredients
@@ -93,13 +98,13 @@ export function PantryShelves({
   // Adjusted during render rather than in an effect, the same trick as the stepper's.
   const [seen, setSeen] = useState(items);
   if (seen !== items) {
-    const was = new Map(seen.map((item) => [item.id, item.category]));
-    const landed = items.filter((item) => was.get(item.id) !== item.category);
+    const was = new Map(seen.map((item) => [item.id, item.shelf]));
+    const landed = items.filter((item) => was.get(item.id) !== item.shelf);
     setSeen(items);
     if (landed.length > 0) {
       setOpened((current) => {
         const next = new Set(current);
-        for (const item of landed) next.add(item.category ?? "UNSORTED");
+        for (const item of landed) next.add(item.shelf ?? "UNSORTED");
         return next;
       });
     }
@@ -119,7 +124,7 @@ export function PantryShelves({
       const id = (event as CustomEvent<string>).detail;
       setQuery("");
       setRunOutOnly(false);
-      const shelf = items.find((item) => item.id === id)?.category ?? "UNSORTED";
+      const shelf = items.find((item) => item.id === id)?.shelf ?? "UNSORTED";
       setOpened((current) => new Set(current).add(shelf));
       requestAnimationFrame(() => {
         const row = document.getElementById(`pantry-${id}`);
@@ -138,22 +143,23 @@ export function PantryShelves({
 
   const needle = query.trim().toLowerCase();
   const needleKey = pantryKey(query);
-  const shelfName = (category: PantryCategory | null) =>
-    category ? say(PANTRY_CATEGORY_LABELS[category]) : say(PANTRY.unsorted);
+  const names = new Map(shelves.map((shelf) => [shelf.id, shelf.name]));
+  const shelfName = (shelf: ShelfId | null) =>
+    (shelf && names.get(shelf)) || say(PANTRY.unsorted);
 
   const shows = (item: ShelfEntry) =>
     (!runOutOnly || item.quantity === 0) &&
     (!needle ||
       item.name.toLowerCase().includes(needle) ||
       (needleKey !== "" && item.key.includes(needleKey)) ||
-      shelfName(item.category).toLowerCase().includes(needle));
+      shelfName(item.shelf).toLowerCase().includes(needle));
 
-  // Unsorted first, then every shelf in its fixed order; the query's own name order is
-  // kept inside each.
-  const shelves: (PantryCategory | null)[] = [null, ...PANTRY_CATEGORIES];
-  const groups = shelves
+  // Unsorted first, then every shelf in its order; the query's own name order is kept
+  // inside each.
+  const order: (ShelfId | null)[] = [null, ...shelves.map((shelf) => shelf.id)];
+  const groups = order
     .map((category) => {
-      const entries = items.filter((item) => item.category === category);
+      const entries = items.filter((item) => item.shelf === category);
       return {
         category,
         entries,
@@ -293,7 +299,8 @@ export function PantryShelves({
                           name={item.name}
                           quantity={item.quantity}
                           unit={item.unit}
-                          category={item.category}
+                          shelf={item.shelf}
+                          shelves={shelves}
                           expiresOn={item.expiresOn}
                           photoId={item.photoId}
                           expiresIn={item.expiresIn}

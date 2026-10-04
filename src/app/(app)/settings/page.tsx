@@ -21,6 +21,7 @@ import { ReminderStatus } from "@/components/reminder-status";
 import { StorageUsage } from "@/components/storage-usage";
 import { AiSpendUsage } from "@/components/ai-spend";
 import { RecipeCategoriesAdmin } from "@/components/recipe-categories-admin";
+import { PantryShelvesAdmin } from "@/components/pantry-shelves-admin";
 import { readInZone } from "@/lib/time";
 import { DATE } from "@/lib/copy/dates";
 import { ItemMenu } from "@/components/item-menu";
@@ -31,11 +32,10 @@ import { LanguageField } from "@/components/language-field";
 import { SeasonalField } from "@/components/seasonal-field";
 import { sayIn } from "@/lib/copy/say";
 import { SETTINGS } from "@/lib/copy/settings";
-import { RECIPES } from "@/lib/copy/recipes";
 
 /**
  * Running one household: its name and picture, who is in it, who is invited, what its
- * recipes are filed under, and whether its reminders are arriving.
+ * recipes and supplies are filed under, and whether its reminders are arriving.
  *
  * All of it is about this home rather than about the installation, which is why it is
  * reached from the home's own name in the header rather than from a tab. What is about
@@ -241,12 +241,10 @@ export default async function SettingsPage() {
         )}
       </section>
 
-      <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
-          {say(RECIPES.recipeCategoriesHeading)}
-        </h2>
-        <RecipeCategoriesAdmin homeId={home.id} language={user.homeLanguage} />
-      </section>
+      {/* The two sets of headings the household files things under, kept the same way:
+          a list of what has been made, a "+" to make another, three dots on each. */}
+      <RecipeCategoriesAdmin homeId={home.id} language={user.homeLanguage} />
+      <PantryShelvesAdmin homeId={home.id} language={user.homeLanguage} />
     </>
   );
 }

@@ -270,18 +270,27 @@ export const RECIPES = {
   recipeCategoriesHeading: { EN: "Recipe categories", DA: "Opskriftskategorier" },
   skipForSuggestions: { EN: "Skip for dinner suggestions", DA: "Spring over ved middagsforslag" },
   addCategory: { EN: "Add category", DA: "Tilføj kategori" },
-  categoryAdded: { EN: "Category added.", DA: "Kategori tilføjet." },
   newCategory: { EN: "New category", DA: "Ny kategori" },
   categoryNamePlaceholder: { EN: "Weeknight dinners", DA: "Hverdagsmiddage" },
-  rename: { EN: "Rename", DA: "Omdøb" },
-  renamed: { EN: "Renamed.", DA: "Omdøbt." },
-  nameOfCategory: { EN: "Name of category {name}", DA: "Navn på kategorien {name}" },
   categoryCount: {
     EN: { one: "{count} recipe", other: "{count} recipes" },
     DA: { one: "{count} opskrift", other: "{count} opskrifter" },
   },
   deleteCategory: { EN: "Delete category", DA: "Slet kategori" },
   deleteCategoryMessage: { EN: 'Delete the category "{name}"?', DA: 'Slet kategorien "{name}"?' },
+  editCategory: { EN: "Edit category", DA: "Rediger kategori" },
+  categoryName: { EN: "Name", DA: "Navn" },
+  categoryCreate: { EN: "Add", DA: "Tilføj" },
+  categoriesIntro: {
+    EN: "Every recipe is filed under at least one. A category with recipes in it cannot be deleted.",
+    DA: "Hver opskrift ligger under mindst én. En kategori med opskrifter i kan ikke slettes.",
+  },
+  noCategoriesAdmin: {
+    EN: "No categories yet. Add the first, and recipes can be saved.",
+    DA: "Ingen kategorier endnu. Tilføj den første, så kan opskrifter gemmes.",
+  },
+  categoryEmpty: { EN: "No recipes", DA: "Ingen opskrifter" },
+  notSuggested: { EN: "Not suggested for dinner", DA: "Foreslås ikke til middag" },
 
   // src/app/actions/recipes.ts
   titleRequired: { EN: "Give the recipe a title.", DA: "Giv opskriften en titel." },

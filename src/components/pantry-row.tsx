@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import type { HomeLanguage, PantryCategory, PantryUnit } from "@prisma/client";
+import type { HomeLanguage, PantryUnit } from "@prisma/client";
 import {
   deletePantryItem,
   editPantryItem,
@@ -15,8 +15,9 @@ import { PhotoField } from "@/components/photo-field";
 import { tick } from "@/lib/haptics";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
-import { PANTRY, PANTRY_CATEGORY_LABELS, PANTRY_UNIT_LABELS } from "@/lib/copy/pantry";
-import { PANTRY_CATEGORIES, PANTRY_UNITS, expiryText, warnsOfExpiry } from "@/lib/pantry";
+import { PANTRY, PANTRY_UNIT_LABELS } from "@/lib/copy/pantry";
+import { PANTRY_UNITS, expiryText, warnsOfExpiry } from "@/lib/pantry";
+import type { Shelf, ShelfId } from "@/lib/pantry-shelves";
 
 /**
  * One basic good: how much the household has of it, what it is counted in, what it is
@@ -48,7 +49,8 @@ export function PantryRow({
   name,
   quantity,
   unit,
-  category,
+  shelf,
+  shelves,
   expiresOn,
   expiresIn,
   photoId,
@@ -57,7 +59,9 @@ export function PantryRow({
   name: string;
   quantity: number;
   unit: PantryUnit | null;
-  category: PantryCategory | null;
+  shelf: ShelfId | null;
+  /** Every shelf the edit sheet offers, named and in order (`shelvesOf`). */
+  shelves: Shelf[];
   expiresOn: string | null;
   /** Days left, where close enough to warn — `expiryWarning`, counted by the page. */
   expiresIn: number | null;
@@ -205,7 +209,8 @@ export function PantryRow({
           className="-mr-2 ml-1"
         >
           <PantryEditFields
-            category={category}
+            shelf={shelf}
+            shelves={shelves}
             unit={unit}
             expiresOn={expiresOn}
             photoId={photoId}
@@ -238,13 +243,15 @@ export function PantryRow({
  * CLAUDE.md on components with no boundary of their own.
  */
 export function PantryEditFields({
-  category,
+  shelf,
+  shelves,
   unit,
   expiresOn,
   photoId,
   language,
 }: {
-  category: PantryCategory | null;
+  shelf: ShelfId | null;
+  shelves: Shelf[];
   unit: PantryUnit | null;
   expiresOn: string | null;
   photoId: string | null;
@@ -256,9 +263,9 @@ export function PantryEditFields({
       <fieldset>
         <legend className="mb-2 text-sm font-medium text-slate-700">{say(PANTRY.categoryLabel)}</legend>
         <div className="flex flex-wrap gap-2">
-          {PANTRY_CATEGORIES.map((value) => (
-            <Chip key={value} name="category" value={value} defaultChecked={category === value}>
-              {say(PANTRY_CATEGORY_LABELS[value])}
+          {shelves.map((choice) => (
+            <Chip key={choice.id} name="category" value={choice.id} defaultChecked={shelf === choice.id}>
+              {choice.name}
             </Chip>
           ))}
         </div>

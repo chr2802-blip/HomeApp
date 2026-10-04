@@ -97,6 +97,7 @@ model Home {
   mealPlans        MealPlan[]
   /// The basic goods this household keeps in — see PantryItem.
   pantry           PantryItem[]
+  pantryShelves    PantryShelf[]
   /// What this home's AI calls have cost — see AiUsage.
   aiUsage          AiUsage[]
   aisleChoices     AisleChoice[]
@@ -647,8 +648,8 @@ enum PantryUnit {
 
 /**
  * Which shelf a basic good sits on, so the pantry page reads as a cupboard rather than one
- * long alphabet. A fixed set rather than headings each household keeps: every kitchen has
- * the same shelves, a fixed set can be named in both languages once
+ * long alphabet. The built-in, fixed set — a household adds its own beside these as
+ * `PantryShelf` — because every kitchen has the same shelves, a fixed set can be named in both languages once
  * (`PANTRY_CATEGORY_LABELS`), and it is the only kind of answer a model can be held to
  * when it files an entry (`src/lib/pantry-sort.ts`).
  * `OTHER` is a decision — "it goes nowhere in particular" — and is therefore not the same
@@ -709,21 +710,52 @@ model PantryItem {
   /// `MealPlan.date`, never an instant. Optional: most of a cupboard keeps. The row warns
   /// from `EXPIRY_WARNING_DAYS` before it while there is any left (`expiryWarning`).
   expiresOn String?
-  /// The shelf it is filed under. Null is "not sorted yet" — waiting for the household or
-  /// `sortPantry` — and is deliberately not `OTHER`, which is somebody having decided.
+  /// The built-in shelf it is filed under. Null with `shelfId` also null is "not sorted
+  /// yet" — waiting for the household or `sortPantry` — and is deliberately not `OTHER`,
+  /// which is somebody having decided. Never set beside `shelfId`: see `readShelfChoice`.
   category  PantryCategory?
+  /// One of the household's own shelves instead (`PantryShelf`). Never set beside
+  /// `category` — the two are one answer to "which shelf", written together on every
+  /// save, the way `MealPlan.recipeId` and `leftoverOf` are.
+  shelfId   String?
   /// A picture of it — the jar, the brand worth buying again. Shown only in the sheet
   /// behind the three dots, never on the row: the row is for finding rice.
   photoId   String?
   createdAt DateTime        @default(now())
 
-  home  Home   @relation(fields: [homeId], references: [id], onDelete: Cascade)
-  photo Photo? @relation(fields: [photoId], references: [id], onDelete: SetNull)
+  home  Home         @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  photo Photo?       @relation(fields: [photoId], references: [id], onDelete: SetNull)
+  /// A shelf the household deletes sends what was on it back to "not sorted yet".
+  shelf PantryShelf? @relation(fields: [shelfId], references: [id], onDelete: SetNull)
 
   // One entry per row of shopping per home, and — being keyed on the home first — the
   // lookup that asks what one household keeps in, so there is no second index for it.
   @@unique([homeId, key])
   @@index([photoId])
+  @@index([shelfId])
+}
+
+/**
+ * A shelf a household made for itself, beside the built-in ones (`PantryCategory`):
+ * "Snacks", "The garage", "Cat". Made, renamed and deleted by the home's admins in
+ * Settings, the same place its recipe categories are.
+ * The built-ins stay a fixed set because they are what the list of common goods
+ * (`lookupGood`), the model (`sortPantryGoods`) and the shop's aisles read; a shelf of the
+ * household's own is filed onto only by hand. Deleting one sends its entries back to
+ * "not sorted yet" (`SetNull`) rather than refusing, unlike a recipe category: an
+ * unsorted entry is a state the pantry already has, an uncategorised recipe is not.
+ */
+model PantryShelf {
+  id        String   @id @default(cuid())
+  homeId    String
+  name      String
+  createdAt DateTime @default(now())
+
+  home  Home         @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  items PantryItem[]
+
+  // Two shelves with one name in one home would be indistinguishable in the chips.
+  @@unique([homeId, name])
 }
 
 /**

@@ -54,6 +54,19 @@ async function itemInScope(id: string) {
   return homeDb(user.homeId).pantryItem.findUnique({ where: { id } });
 }
 
+/**
+ * Which shelf a submitted chip means, as the two columns that hold it — a built-in
+ * shelf's name or one of this home's own shelves' ids, never both (see `shelfOf`).
+ * Another home's id, or anything else, is not a shelf: null, and the caller decides
+ * what "not chosen" means for it.
+ */
+async function readShelfChoice(raw: string, homeId: string) {
+  if (!raw) return null;
+  if (isPantryCategory(raw)) return { category: raw, shelfId: null };
+  const own = await homeDb(homeId).pantryShelf.findUnique({ where: { id: raw }, select: { id: true } });
+  return own ? { category: null, shelfId: own.id } : null;
+}
+
 /** The list a restock run writes to, checked the same way every other action checks one. */
 const listInScope = homeScoped("List", (id) => prisma.list.findUnique({ where: { id } }));
 
@@ -118,8 +131,10 @@ export async function createPantryItem(
   if (!form.ok) return fail(form.error);
 
   const known = lookupGood(form.fields.name);
-  const chosen = String(formData.get("category") ?? "");
-  const category = isPantryCategory(chosen) ? chosen : (known?.category ?? null);
+  const shelf = (await readShelfChoice(String(formData.get("category") ?? ""), user.homeId)) ?? {
+    category: known?.category ?? null,
+    shelfId: null,
+  };
   // The sheet always sends a unit, "" for stk; a form that does not mention one gets the
   // list's. A quantity not mentioned is one, as it always was.
   const rawUnit = formData.get("unit");
@@ -136,7 +151,7 @@ export async function createPantryItem(
         homeId: user.homeId,
         name: form.fields.name,
         key: form.fields.key,
-        category,
+        ...shelf,
         unit,
         quantity,
       },
@@ -234,7 +249,7 @@ export async function editPantryItem(
   if (!item) return fail(say(PANTRY.noItemAnyMore));
 
   const rawUnit = String(formData.get("unit") ?? "");
-  const rawCategory = String(formData.get("category") ?? "");
+  const shelf = await readShelfChoice(String(formData.get("category") ?? ""), user.homeId);
   // Blank is "no date", which is how one is taken off again.
   const expiresOn = readExpiryDate(formData.get("expiresOn"));
   if (expiresOn === false) return fail(say(PANTRY.expiryInvalid));
@@ -248,7 +263,9 @@ export async function editPantryItem(
     data: {
       unit: isPantryUnit(rawUnit) ? rawUnit : null,
       ...(formData.has("expiresOn") ? { expiresOn } : {}),
-      ...(isPantryCategory(rawCategory) ? { category: rawCategory } : {}),
+      // Both columns together, so moving to a shelf of the household's own clears the
+      // built-in one and back: an entry is on one shelf.
+      ...(shelf ?? {}),
       ...(photo.photoId !== undefined ? { photoId: photo.photoId } : {}),
     },
   });
@@ -267,9 +284,10 @@ export async function editPantryItem(
  * sent by the add box, without waiting, straight after it adds a name the list did not
  * know; nothing is watching it either way, so it answers in words only for the button.
  *
- * The write only ever fills a shelf that is still empty (`category: null` in the
- * `where`), so somebody filing an entry by hand while the model was thinking is not
- * overruled by it.
+ * The write only ever fills a shelf that is still empty (`category` and `shelfId` both
+ * null in the `where`), so somebody filing an entry by hand while the model was thinking
+ * is not overruled by it. It files onto the built-in shelves only: a shelf the household
+ * made is theirs to fill, and the model has no way of knowing what "The garage" holds.
  *
  * A paid call, so it is counted per person on top of the home's monthly limit — as
  * `"prepare"` is for the recipe save — and the count is spent only where there was
@@ -281,7 +299,7 @@ export async function sortPantry(): Promise<ActionResult> {
   const db = homeDb(user.homeId);
 
   const unsorted = await db.pantryItem.findMany({
-    where: { category: null },
+    where: { category: null, shelfId: null },
     orderBy: { createdAt: "asc" },
     select: { id: true, name: true },
   });
@@ -319,7 +337,10 @@ export async function sortPantry(): Promise<ActionResult> {
   }
 
   for (const [category, ids] of byShelf) {
-    await db.pantryItem.updateMany({ where: { id: { in: ids }, category: null }, data: { category } });
+    await db.pantryItem.updateMany({
+      where: { id: { in: ids }, category: null, shelfId: null },
+      data: { category },
+    });
   }
 
   if (byShelf.size > 0) refreshPantryViews();

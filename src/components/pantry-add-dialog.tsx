@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { PantryCategory, PantryUnit } from "@prisma/client";
+import type { PantryUnit } from "@prisma/client";
 import { createPantryItem, sortPantry } from "@/app/actions/pantry";
 import { IconButton, Input, Label } from "@/components/ui";
 import { Modal } from "@/components/modal";
@@ -9,11 +9,12 @@ import { DialogForm } from "@/components/form-dialog";
 import { Chip } from "@/components/pantry-row";
 import { showPantryRow } from "@/components/pantry-shelves";
 import { useLanguage } from "@/components/language-provider";
-import { PANTRY_CATEGORIES, PANTRY_UNITS, pantryKey } from "@/lib/pantry";
+import { PANTRY_UNITS, pantryKey } from "@/lib/pantry";
+import type { Shelf, ShelfId } from "@/lib/pantry-shelves";
 import { goodsMatching, lookupGood } from "@/lib/pantry-goods";
 import type { FormAction } from "@/lib/action-result";
 import { sayIn } from "@/lib/copy/say";
-import { PANTRY, PANTRY_CATEGORY_LABELS, PANTRY_UNIT_LABELS } from "@/lib/copy/pantry";
+import { PANTRY, PANTRY_UNIT_LABELS } from "@/lib/copy/pantry";
 
 /** What the add sheet knows about an entry already kept, to point at it rather than add it twice. */
 export type KeptEntry = { id: string; name: string; key: string };
@@ -48,7 +49,7 @@ const MAX_GOODS = 5;
  * add has answered, `sortPantry` is sent without waiting: the row appears under "Not sorted
  * yet" and moves onto its shelf when the model has answered. So there is no `AiOverlay`.
  */
-export function PantryAddDialog({ kept }: { kept: KeptEntry[] }) {
+export function PantryAddDialog({ kept, shelves }: { kept: KeptEntry[]; shelves: Shelf[] }) {
   const say = sayIn(useLanguage());
   const [open, setOpen] = useState(false);
   const [, startSorting] = useTransition();
@@ -87,6 +88,7 @@ export function PantryAddDialog({ kept }: { kept: KeptEntry[] }) {
         >
           <PantryAddFields
             kept={kept}
+            shelves={shelves}
             onShow={(id) => {
               setOpen(false);
               showPantryRow(id);
@@ -99,11 +101,19 @@ export function PantryAddDialog({ kept }: { kept: KeptEntry[] }) {
 }
 
 /** The sheet's fields. Mounted only while it is open, so every opening starts blank. */
-function PantryAddFields({ kept, onShow }: { kept: KeptEntry[]; onShow: (id: string) => void }) {
+function PantryAddFields({
+  kept,
+  shelves,
+  onShow,
+}: {
+  kept: KeptEntry[];
+  shelves: Shelf[];
+  onShow: (id: string) => void;
+}) {
   const language = useLanguage();
   const say = sayIn(language);
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<PantryCategory | null>(null);
+  const [category, setCategory] = useState<ShelfId | null>(null);
   // Undefined until a unit is picked by hand: until then the chip follows the name.
   const [pickedUnit, setPickedUnit] = useState<PantryUnit | null | undefined>(undefined);
   const [highlighted, setHighlighted] = useState(-1);
@@ -266,18 +276,18 @@ function PantryAddFields({ kept, onShow }: { kept: KeptEntry[]; onShow: (id: str
           <Chip name="category" value="" checked={category === null} onChange={() => setCategory(null)}>
             {say(PANTRY.categoryAuto)}
             {known && (
-              <span className="opacity-75"> · {say(PANTRY_CATEGORY_LABELS[known.category])}</span>
+              <span className="opacity-75"> · {shelves.find((shelf) => shelf.id === known.category)?.name}</span>
             )}
           </Chip>
-          {PANTRY_CATEGORIES.map((value) => (
+          {shelves.map((shelf) => (
             <Chip
-              key={value}
+              key={shelf.id}
               name="category"
-              value={value}
-              checked={category === value}
-              onChange={() => setCategory(value)}
+              value={shelf.id}
+              checked={category === shelf.id}
+              onChange={() => setCategory(shelf.id)}
             >
-              {say(PANTRY_CATEGORY_LABELS[value])}
+              {shelf.name}
             </Chip>
           ))}
         </div>

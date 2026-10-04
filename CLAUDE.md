@@ -942,9 +942,29 @@ sauces, baking, pasta/rice/grains, tins & jars, fridge, freezer, drinks, baby, b
 `PANTRY_CATEGORY_LABELS` and drawn in that order, empty shelves not drawn. **Null is "not
 sorted yet" and is not `OTHER`**: `OTHER` is somebody having decided it goes nowhere in
 particular, null is nobody having decided, and they answer different questions. Unsorted
-entries come first, under a heading carrying the button that sorts them. A fixed set
-rather than headings each household keeps, because every kitchen has the same shelves and
-a fixed set is the only kind of answer a model can be held to.
+entries come first, under a heading carrying the button that sorts them. The built-ins
+stay a fixed set, because every kitchen has them and a fixed set is the only kind of
+answer a model, `lookupGood` and the shop's aisles can be held to.
+
+**A household can add shelves of its own beside them** (`PantryShelf` — "Snacks", "The
+garage"), kept by its admins on `/settings` next to the recipe categories
+(`src/app/actions/pantry-shelves.ts`, gated like those). **An entry is on one shelf, held
+in one of two columns** — `category` for a built-in, `shelfId` for an own one, never both,
+the way `MealPlan.recipeId`/`leftoverOf` are — so `readShelfChoice` writes both on every
+save, and everything past the database reads them as one `ShelfId` through `shelfOf`
+(a built-in's name or the own shelf's cuid; they cannot collide). The page and the sheets
+are handed the named, ordered list from `shelvesOf` (built-ins, own by name, then
+Other). **Only a person files onto an own shelf**: `sortPantry` asks only about entries
+with both columns null, and files onto built-ins. A name a built-in already has, in
+either language, is refused. **Deleting one unsorts what was on it** (`SetNull`) rather
+than refusing like a recipe category — "not sorted yet" is a state the pantry already
+has; the confirmation says how many are moving.
+
+**Recipe categories and own shelves are kept with one frame** (`CategorySection` and
+`CategoryRow`, `src/components/category-admin.tsx`): the list of what exists with what is
+in each, a green "+" in the heading and a sheet to add, the three dots to edit or delete.
+`ItemMenu`'s `deleteAction` is optional for exactly this — a category holding recipes
+offers Edit and no Delete.
 
 **Where a new entry goes is answered by a list first and a model second, and nothing
 waits on the model.** `src/lib/pantry-goods.ts` is a list of common basics — each its two
@@ -1497,6 +1517,11 @@ database.
 Production: **https://home-app-three-virid.vercel.app**. Other Vercel addresses for this
 project are frozen snapshots of one build and will show stale commits forever. The
 deployed commit is shown on **Admin → System**.
+
+**A migration's folder name is its order, and the newest ones here are dated ahead of the
+clock** (`20261004200000_…` was already there at 17:00 on 2026-10-04), so `prisma migrate
+dev --create-only` can name a new one so it sorts *before* migrations already applied.
+Rename the folder so it sorts last before applying it.
 
 Migrations run inside the production build (`prisma migrate deploy`). A bad migration
 therefore presents as a failed build, on a commit already on `main`, and there is no
