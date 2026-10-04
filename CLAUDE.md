@@ -1548,6 +1548,14 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
   naming a model sitting right there in `schema.prisma`, which reads like a bad test
   rather than a stale client. It is also why the failure cannot happen locally: a
   checkout that has run `npm ci` has generated from the schema in front of it.
+- **Android draws the installed app's icon in a circle**, and an icon marked only `any`
+  is shrunk onto a white disc — a white ring round it on the home screen. The manifest's
+  `maskable` PNGs (`public/icon-maskable-*.png`, full-bleed, mark inside the middle 80%)
+  are rendered from `public/icon-maskable.svg`; there is no PIL or ImageMagick in the
+  container, so re-render them with a throwaway Playwright script (`page.setContent` the
+  SVG at the size, `page.screenshot`). `tests/unit/app-icon.test.ts` holds the manifest
+  to it. An already-installed app keeps its old icon until it is reinstalled or Chrome
+  refreshes the WebAPK, which can take days.
 - **`vercel.json` is schema-validated.** An unknown key can fail the deploy; keep
   explanations in the README.
 - **On Windows, `npx.cmd` cannot be spawned without a shell.** Invoke a CLI's entry point
