@@ -31,9 +31,7 @@ Links from any other host are shown as a plain "open in new tab" link rather tha
 and then read into a recipe by Claude, which deduplicates the lines, separates each amount
 from its unit and its ingredient, and throws away the hashtags and the "follow for more".
 The result opens in the ordinary create form to check over before saving. This needs
-`ANTHROPIC_API_KEY`; without it the importer says so and offers the form instead. A reel
-whose description Instagram will not hand over can be pasted in by hand, and is read the
-same way.
+`ANTHROPIC_API_KEY`; without it the importer says so and offers the form instead.
 **Add to list** puts every ingredient onto whichever of the home's lists you pick: anything
 already on it is wanted one more time rather than written twice, anything ticked off comes
 back, and each line then says which recipe asked for it — two recipes wanting onions name

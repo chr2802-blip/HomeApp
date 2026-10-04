@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchRecipeFromUrl, importPastedCaption } from "@/lib/recipe-import";
+import { fetchRecipeFromUrl } from "@/lib/recipe-import";
 import type { RawExtract } from "@/lib/recipe-extract";
 
 /**
@@ -310,10 +310,10 @@ describe("fetchRecipeFromUrl", () => {
   /*
    * The reader being down is this app's own fault and says nothing about the link, so it
    * gets its own wording — but it still sets `notARecipe`, because the thing it puts in
-   * front of the cook is the same: the paste box, and a way to the plain form. There is no
+   * front of the cook is the same: a way to the plain form. There is no
    * falling back to a second, worse reader; that was the arrangement this replaced.
    */
-  it("says so plainly when the reader cannot be reached, and still offers the paste box", async () => {
+  it("says so plainly when the reader cannot be reached, and still offers the plain form", async () => {
     normalizeRecipe.mockResolvedValue({ ok: false, reason: "unavailable" });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(htmlResponse(goodHtml)));
 
@@ -458,7 +458,7 @@ describe("fetchRecipeFromUrl — a reel", () => {
   /*
    * The failure that sent this back for a second look: both addresses answered 200 with
    * six hundred kilobytes of application shell — no login wall, no `.Caption`, no
-   * `og:description` — and the cook got the paste box. The shell still carries the post
+   * `og:description` — and the cook got sent to the plain form. The shell still carries the post
    * as the JSON its own client would have read, so the caption is in the page after all.
    */
   it("reads the caption out of the page's own JSON where the markup has gone", async () => {
@@ -567,14 +567,14 @@ describe("fetchRecipeFromUrl — a reel", () => {
     });
   });
 
-  it("offers the paste box when every source refuses, and says why", async () => {
+  it("offers the plain form when every source refuses, and says why", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("refused")));
 
     const result = await fetchRecipeFromUrl(REEL, HOME_ID, "EN");
 
     expect(result).toEqual({
       ok: false,
-      error: expect.stringContaining("Paste it in below"),
+      error: expect.stringContaining("Fill the form in by hand instead"),
       notARecipe: true,
     });
     expect(normalizeRecipe).not.toHaveBeenCalled();
@@ -689,62 +689,6 @@ describe("fetchRecipeFromUrl — a reel", () => {
       expect(lines).toContainEqual(
         expect.objectContaining({ event: "reel_caption_unreachable", url: REEL, sourcesTried: 3 }),
       );
-    });
-  });
-});
-
-describe("importPastedCaption", () => {
-  const CAPTION = "Boller\nIngredienser\n500 g mel\n25 g gær\nFremgangsmåde\nÆlt det sammen.";
-
-  it("hands the reader exactly what was pasted, and keeps the reel beside it as the video", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("still refused")));
-    reads({ title: "Boller", ingredients: "500 g mel\n25 g gær", instructions: "Ælt det sammen." });
-
-    const result = await importPastedCaption(CAPTION, "https://www.instagram.com/reel/ABC123/", HOME_ID, "EN");
-
-    expect(wasRead()).toMatchObject({ kind: "pasted", rawContent: CAPTION });
-    expect(result).toEqual({
-      ok: true,
-      recipe: {
-        title: "Boller",
-        ingredients: "500 g mel\n25 g gær",
-        instructions: "Ælt det sammen.",
-        photoId: null,
-        totalTimeMinutes: null,
-        note: null,
-        // Signed by the importer, so a save that leaves the text alone need not read it again.
-        reading: expect.any(String),
-        videoUrl: "https://www.instagram.com/reel/ABC123/",
-      },
-    });
-  });
-
-  it("reads a caption pasted with no link at all", async () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
-
-    const result = await importPastedCaption(CAPTION, "", HOME_ID, "EN");
-
-    expect(result.ok).toBe(true);
-    expect(result.ok && result.recipe.videoUrl).toBeNull();
-    // Nothing to fetch a poster frame from, so nothing is fetched.
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("refuses an empty paste without troubling the reader", async () => {
-    expect((await importPastedCaption("   ", "", HOME_ID, "EN")).ok).toBe(false);
-    expect(normalizeRecipe).not.toHaveBeenCalled();
-  });
-
-  it("passes the reader's refusal on, with the wording that points at the box", async () => {
-    normalizeRecipe.mockResolvedValue({ ok: false, reason: "not-a-recipe" });
-
-    const result = await importPastedCaption("Sikke en dejlig aften i haven", "", HOME_ID, "EN");
-
-    expect(result).toEqual({
-      ok: false,
-      error: expect.stringContaining("Couldn't find a recipe in that description"),
-      notARecipe: true,
     });
   });
 });

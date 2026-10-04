@@ -16,10 +16,8 @@ time. The report is [`docs/audit-2026-10-04.md`](../audit-2026-10-04.md).
 
 `npm run setup` (cold container, ~2 min) → baseline green (lint, types, `db:check`, 4,246
 tests) in the background while reading the security surface: auth, every action, every
-route, the importer → findings → fixes, one at a time, each with a test → the paste box
-screenshotted in both languages → the 10 affected browser specs (one of my own new tests
-failed on a wrong expectation — the stub answers in the household's language) → report,
-CLAUDE.md, this note.
+route, the importer → findings → fixes, one at a time, each with a test → the 10 affected
+browser specs → report, CLAUDE.md, this note.
 
 ## Where the time went
 

@@ -1219,7 +1219,7 @@ where a page publishes neither, takes its visible text with the furniture stripp
 and never markup: `isReelUrl` routes those links there before anything is fetched, and
 `captionSources` is the one opinion about which links those are (`parseSocialEmbed` in
 `embed.ts` knows the same hosts for a different job, building an iframe `src`, and the two
-stay apart). All three routes — page, reel, pasted description — produce one `RawExtract`.
+stay apart). Both routes — page and reel — produce one `RawExtract`.
 
 **Stage two is `recipe-normalize.ts`, and it is the only thing in this app that reads text as
 a recipe.** One model call (`claude-haiku-4-5`, no thinking — chosen for speed in 2026-09,
@@ -1247,7 +1247,7 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
 - **There is no fallback to a second reader.** The heuristics were deleted, not kept as a
   floor: a floor made of the thing that was getting it wrong is the same two answers to one
   question. **No `ANTHROPIC_API_KEY`, or an API that will not answer, is an honest refusal**
-  with the paste box and the plain form beside it — never a quietly worse recipe.
+  with the plain form beside it — never a quietly worse recipe.
 - **`renderIngredient` writes the lines, for the importer and the save alike** — see the
   next section. **A unit is only ever written behind an amount**, and **a component is never
   a heading line of its own**: `writeRecipesToList` walks every line, and "Til dressingen:"
@@ -1289,8 +1289,7 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
   an import, and `"prepare"` for a save that re-reads the steps or the prepare button — a
   save over it still saves, and clears `cookSteps` as a reader that is down would. Per
   home: `overMonthlyLimit` is asked **inside** both readers rather than at each action, so
-  no way into the model can forget it; past it, an import says so without offering the
-  paste box, which goes to the same reader. `"prepare"` allows 30 a quarter-hour rather
+  no way into the model can forget it; past it, an import says so plainly. `"prepare"` allows 30 a quarter-hour rather
   than the password-guesser's eight (`attemptsAllowed`), because going over it is silent.
 - **A stuck call must fail inside the route's `maxDuration` (60s)**, or the platform cuts
   the request off and the honest refusal never arrives — for a save, an error screen and a
@@ -1306,9 +1305,6 @@ in by. Both were pattern-matchers being asked a question patterns cannot answer.
   a handful of real recipes against the bullets of `ingredientRules`, and prints a
   scorecard with timings. Run it before and after any change of model, effort or prompt,
   and read the scorecard rather than the tick — a rule failing twice running is a finding.
-- **The paste box is the load-bearing half**, offered on any `notARecipe` failure and from a
-  button under the link field. It goes to the very same reader, and nothing on Meta's side can
-  block it.
 - The browser suite drives the whole import against **`e2e/helpers/anthropic-stub.mjs`**, one
   per worker, pointed at by `ANTHROPIC_BASE_URL`. A test that called the real API would be
   billed, would differ between runs, and would fail whenever somebody else's service did.

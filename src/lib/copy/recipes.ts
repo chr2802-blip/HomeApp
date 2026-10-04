@@ -33,10 +33,6 @@ export const RECIPES = {
   readingStage3: { EN: "Sorting out the ingredients…", DA: "Sorterer ingredienserne…" },
   readingStage4: { EN: "Writing up the steps…", DA: "Skriver trinene ind…" },
   pasteLinkFirst: { EN: "Paste a link to a recipe first.", DA: "Indsæt først et link til en opskrift." },
-  pasteCaptionFirst: {
-    EN: "Paste the reel's description first.",
-    DA: "Indsæt først reelens beskrivelse.",
-  },
 
   /** `src/lib/recipe-import.ts`'s error sentences — what to try next, not just what failed. */
   genericError: {
@@ -49,16 +45,16 @@ export const RECIPES = {
     DA: "Kunne ikke nå den side. Tjek linket og prøv igen.",
   },
   captionUnreachable: {
-    EN: "Couldn't read that reel's description — Instagram and Facebook often refuse. Paste it in below instead.",
-    DA: "Kunne ikke læse reelens beskrivelse — Instagram og Facebook nægter ofte. Indsæt den nedenfor i stedet.",
+    EN: "Couldn't read that reel's description — Instagram and Facebook often refuse. Fill the form in by hand instead.",
+    DA: "Kunne ikke læse reelens beskrivelse — Instagram og Facebook nægter ofte. Udfyld formularen selv i stedet.",
   },
   captionNotARecipe: {
-    EN: "Couldn't find a recipe in that description. Paste the whole thing in below, or fill the form in by hand.",
-    DA: "Kunne ikke finde en opskrift i den beskrivelse. Indsæt det hele nedenfor, eller udfyld formularen selv.",
+    EN: "Couldn't find a recipe in that description. Fill the form in by hand instead.",
+    DA: "Kunne ikke finde en opskrift i den beskrivelse. Udfyld formularen selv i stedet.",
   },
   readerUnavailable: {
-    EN: "Couldn't read that recipe just now. Try again in a moment, paste the description below, or fill the form in by hand.",
-    DA: "Kunne ikke læse den opskrift lige nu. Prøv igen om lidt, indsæt beskrivelsen nedenfor, eller udfyld formularen selv.",
+    EN: "Couldn't read that recipe just now. Try again in a moment, or fill the form in by hand.",
+    DA: "Kunne ikke læse den opskrift lige nu. Prøv igen om lidt, eller udfyld formularen selv.",
   },
   aiLimitReached: {
     EN: "This home has used this month's allowance for reading recipes. Fill the form in by hand, or try again next month.",

@@ -163,7 +163,7 @@ describe("the ingredient rules", () => {
     await prepareCookSteps(recipe("Ælt."), "home", "DA");
     parse.mockResolvedValue({ ...answer("end_turn"), parsed_output: null });
     await normalizeRecipe(
-      { kind: "pasted", sourceUrl: null, rawTitle: null, rawContent: "Mel", imageUrl: null, timeHintMinutes: null },
+      { kind: "page", sourceUrl: null, rawTitle: null, rawContent: "Mel", imageUrl: null, timeHintMinutes: null },
       "home",
       "DA",
     );
@@ -198,7 +198,7 @@ describe("a home past its month's allowance", () => {
   });
 
   it("gets no importing either", async () => {
-    const raw = { kind: "pasted" as const, sourceUrl: null, rawTitle: null, rawContent: "Mel og vand", imageUrl: null, timeHintMinutes: null };
+    const raw = { kind: "page" as const, sourceUrl: null, rawTitle: null, rawContent: "Mel og vand", imageUrl: null, timeHintMinutes: null };
 
     expect(await normalizeRecipe(raw, "home", "DA")).toEqual({ ok: false, reason: "over-limit" });
     expect(parse).not.toHaveBeenCalled();
@@ -303,7 +303,7 @@ describe("the request every reader sends", () => {
     await prepareCookSteps(recipe("Ælt."), "home", "DA");
     parse.mockResolvedValue({ ...answer("end_turn"), parsed_output: null });
     await normalizeRecipe(
-      { kind: "pasted", sourceUrl: null, rawTitle: null, rawContent: "Mel", imageUrl: null, timeHintMinutes: null },
+      { kind: "page", sourceUrl: null, rawTitle: null, rawContent: "Mel", imageUrl: null, timeHintMinutes: null },
       "home",
       "DA",
     );
@@ -321,8 +321,8 @@ describe("the request every reader sends", () => {
   });
 });
 
-const pasted = (rawContent: string) => ({
-  kind: "pasted" as const,
+const page = (rawContent: string) => ({
+  kind: "page" as const,
   sourceUrl: null,
   rawTitle: null,
   rawContent,
@@ -346,13 +346,13 @@ describe("the importer's own answer", () => {
       usage: { input_tokens: 100, output_tokens: 8000 },
     });
 
-    expect(await normalizeRecipe(pasted("Mel. Bland."), "home", "DA")).toEqual({ ok: false, reason: "unavailable" });
+    expect(await normalizeRecipe(page("Mel. Bland."), "home", "DA")).toEqual({ ok: false, reason: "unavailable" });
   });
 });
 
 /**
  * A reader that is not answering is meant to degrade — the save stores the recipe as
- * written, the import offers the paste box. That only happens if the request is still
+ * written, the import offers the plain form. That only happens if the request is still
  * alive to say so: past the route's `maxDuration` the platform cuts it off, and a
  * hand-typed recipe is lost to an error screen. The client retries a timeout, so a stuck
  * call costs its timeout once per attempt, and an import has already spent its page

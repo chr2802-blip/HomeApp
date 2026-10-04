@@ -24,8 +24,7 @@ import { RECIPES } from "./copy/recipes";
  * **Stage one is extraction and nothing else.** A web page goes to `recipe-extract.ts`,
  * which gathers whatever its markup — or, failing that, its visible text — has to say. A
  * reel goes to `reel-import.ts`, which knows the addresses that will hand over a caption
- * without an account. A caption somebody pasted is already text. All three produce the same
- * `RawExtract` and none of them decides whether what they found is a recipe.
+ * without an account. Both produce the same `RawExtract` and neither of them decides whether what they found is a recipe.
  *
  * **Stage two is `recipe-normalize.ts`**, which is the only thing in this app that reads
  * text as a recipe. There used to be two readers, one per route, and the recipe a cook got
@@ -75,9 +74,9 @@ export type ImportedRecipe = {
 /**
  * `notARecipe` marks a failure where there is nothing more to try with this link as typed —
  * a page that loaded fine and had nothing to cook from, a reel whose description could not
- * be got at, a reader that would not answer. `RecipeImportField` turns exactly that flag
- * into the paste box and a "Start from scratch" button; a mistyped address or a page that
- * would not load is worth retrying as typed and does not get them.
+ * be got at, a reader that would not answer. `NewRecipeDialog` turns exactly that flag
+ * into a "Start from scratch" button; a mistyped address or a page that would not load is
+ * worth retrying as typed and does not get it.
  *
  * It is a flag rather than a matched error string because this module pulls in `sharp` and
  * the module next door pulls in the Anthropic SDK, neither of which may be bundled into the
@@ -94,9 +93,7 @@ const genericError = (language: HomeLanguage) => sayIn(language)(RECIPES.generic
  *
  * Meta refusing a signed-out request says nothing about the post and is the common one; a
  * caption that was read and is not a recipe is usually `og:description`'s truncated copy of
- * one, which pasting the whole thing fixes; and the reader being down is neither — it is
- * this app's own fault and will pass. All three point at the same box, because that box is
- * the one route into the importer that nothing on anybody else's side can block.
+ * one; and the reader being down is neither — it is this app's own fault and will pass.
  */
 const captionUnreachable = (language: HomeLanguage) => sayIn(language)(RECIPES.captionUnreachable);
 const captionNotARecipe = (language: HomeLanguage) => sayIn(language)(RECIPES.captionNotARecipe);
@@ -232,15 +229,14 @@ export async function fetchRecipeFromUrl(
  * back something readable wins — they are ordered best-first, and a source that refuses,
  * times out or answers with a login wall is simply the next one's turn. None of them is a
  * supported API, so all of them failing is an ordinary outcome rather than a bug, and the
- * answer to it is the paste box rather than an apology.
+ * answer to it is the plain form rather than an apology.
  *
  * A caption that was read is handed to the reader immediately rather than tried against the
  * next source: once there is text, there is nothing another address could add, and the
  * reader is the one thing entitled to say the text is not a recipe.
  *
  * The link itself becomes the recipe's video, so a reel saved this way still plays on the
- * recipe page even where every one of these sources refused and the cook pasted the caption
- * in by hand.
+ * recipe page.
  */
 async function fetchRecipeFromReel(url: URL, homeId: string, language: HomeLanguage): Promise<ImportOutcome> {
   const sources = captionSources(url.toString());
@@ -255,8 +251,8 @@ async function fetchRecipeFromReel(url: URL, homeId: string, language: HomeLangu
   }
 
   // Running out of sources is the line worth finding in a log: the cook has just been told
-  // to paste the description in by hand, and the `reel_caption_source` lines immediately
-  // above this one say why each address refused.
+  // to fill the form in by hand, and the `reel_caption_source` lines immediately above
+  // this one say why each address refused.
   console.error(
     JSON.stringify({
       level: "error",
@@ -268,50 +264,6 @@ async function fetchRecipeFromReel(url: URL, homeId: string, language: HomeLangu
   );
 
   return { ok: false, error: captionUnreachable(language), notARecipe: true };
-}
-
-/**
- * Reads a recipe out of a description the cook pasted in themselves, which is the one route
- * into this that nothing on anybody else's side can refuse — not Meta, and not an API key
- * that has stopped working.
- *
- * `rawUrl` is whatever was in the link field when they gave up on it — optional, because a
- * description pasted on its own is still a recipe. Where there is one and it is a reel, two
- * things are still worth having from it: the link becomes the recipe's video, and the poster
- * frame is fetched for its picture. That fetch is best-effort and usually the same request
- * that just failed, so it is allowed to fail again quietly — a recipe whose text is all
- * there is never refused for want of decoration.
- */
-export async function importPastedCaption(
-  caption: string,
-  rawUrl: string,
-  homeId: string,
-  language: HomeLanguage,
-): Promise<ImportOutcome> {
-  const text = caption.trim();
-  if (!text) return { ok: false, error: sayIn(language)(RECIPES.pasteCaptionFirst) };
-
-  const url = safeImportUrl(rawUrl);
-  const isReel = url !== null && isReelUrl(url.toString());
-
-  const raw: RawExtract = {
-    kind: "pasted",
-    sourceUrl: url?.toString() ?? null,
-    rawTitle: null,
-    rawContent: text,
-    // The picture is the one thing a pasted description cannot say, so where the link is a
-    // reel it is worth one request for the poster frame.
-    imageUrl: null,
-    timeHintMinutes: null,
-  };
-
-  return finish(raw, homeId, language, {
-    notARecipe: captionNotARecipe(language),
-    videoUrl: isReel ? url.toString() : null,
-    // Started, not awaited: the poster frame is fetched while the reader works, and only
-    // stored once the reading has come back good.
-    picture: isReel ? fetchReelPicture(url) : Promise.resolve(null),
-  });
 }
 
 /**
@@ -332,11 +284,12 @@ async function finish(
   raw: RawExtract,
   homeId: string,
   language: HomeLanguage,
-  options: { notARecipe: string; videoUrl?: string | null; picture?: Promise<Picture | null> },
+  options: { notARecipe: string },
 ): Promise<ImportOutcome> {
-  const picture = options.picture ?? fetchRecipePicture(raw.imageUrl, raw.sourceUrl ?? "");
+  const picture = fetchRecipePicture(raw.imageUrl, raw.sourceUrl ?? "");
   const read = await normalizeRecipe(raw, homeId, language);
-  // No paste box: it goes to this same reader, which would refuse it the same way.
+  // Not `notARecipe`: trying again this month gets the same answer, so there is nothing to
+  // offer beside the sentence.
   if (!read.ok && read.reason === "over-limit") {
     return { ok: false, error: sayIn(language)(RECIPES.aiLimitReached) };
   }
@@ -361,7 +314,7 @@ async function finish(
       note: read.recipe.note,
       reading: signReading(homeId, read.recipe),
       photoId,
-      videoUrl: options.videoUrl ?? (raw.kind === "reel" ? raw.sourceUrl : null),
+      videoUrl: raw.kind === "reel" ? raw.sourceUrl : null,
     },
   };
 }
@@ -395,20 +348,6 @@ function reelExtract(read: ReelCaption, reelUrl: string, fetchedFrom: string): R
     imageUrl,
     timeHintMinutes: null,
   };
-}
-
-/**
- * A reel's poster frame, or null. Only the first source is asked: this runs on the path
- * where the automatic read already failed, and a cook waiting on a form they have
- * already filled in by hand should not wait through the whole chain again for a picture
- * they will be offered the chance to replace anyway.
- */
-async function fetchReelPicture(url: URL): Promise<Picture | null> {
-  const [first] = captionSources(url.toString());
-  if (!first) return null;
-
-  const read = await readCaptionSource(first);
-  return read ? fetchRecipePicture(read.imageUrl, first.url) : null;
 }
 
 /**
