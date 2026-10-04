@@ -3,6 +3,14 @@ import { prisma } from "./prisma";
 
 let configured = false;
 
+/**
+ * How long one push service may take to accept a message. web-push sets no limit of its
+ * own, so a push service that stopped answering held the reminder job — which sends to
+ * every due task's household in one run — until the platform killed it, and the rows
+ * saying who had been told were never written.
+ */
+export const PUSH_TIMEOUT_MS = 10_000;
+
 function configure() {
   if (configured) return true;
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -39,6 +47,7 @@ export async function sendPushToUsers(
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
           JSON.stringify(payload),
+          { timeout: PUSH_TIMEOUT_MS },
         );
         delivered++;
       } catch (error) {

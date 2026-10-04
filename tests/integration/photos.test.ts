@@ -9,6 +9,7 @@ import { createRecipe } from "@/app/actions/recipes";
 import { createTask, deleteTask } from "@/app/actions/tasks";
 import { updateHome } from "@/app/actions/admin";
 import { deletePantryItem, editPantryItem } from "@/app/actions/pantry";
+import { attemptsAllowed, recordFailedAttempt } from "@/lib/rate-limit";
 import { pngBytes } from "../helpers/images";
 import {
   createHome,
@@ -121,6 +122,21 @@ describe("uploading", () => {
     expect(await prisma.photo.findUniqueOrThrow({ where: { id } })).toMatchObject({
       homeId: home.id,
     });
+  });
+
+  // The one write in the app that takes a megabyte a call. A household photographing its
+  // cupboard stays well inside the allowance; a loop does not.
+  it("turns uploads past the quarter-hour's allowance away, and stores nothing", async () => {
+    const { member } = await createHomeWithMembers();
+    await signIn(member);
+    for (let i = 0; i < attemptsAllowed("photo"); i++) await recordFailedAttempt("photo", member.id);
+    const { full, thumb } = upload();
+
+    const response = await uploadPhoto(uploadRequest(full, thumb));
+
+    expect(response.status).toBe(429);
+    expect((await response.json()).error).toMatch(/^That's a lot of pictures at once\. Try again in \d+ min\.$/);
+    expect(await prisma.photo.count()).toBe(0);
   });
 
   it("reports why a bad file was refused", async () => {

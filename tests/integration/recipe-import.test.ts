@@ -31,6 +31,15 @@ const READ = { ...IMPORTED, reading: undefined, steps: [{ uses: [0], minutes: nu
 const { normalizeRecipe } = vi.hoisted(() => ({ normalizeRecipe: vi.fn() }));
 
 vi.mock("@/lib/recipe-normalize", () => ({ normalizeRecipe }));
+/*
+ * Every address is resolved before it is fetched (`safe-fetch.ts`), and these tests are
+ * about what is done with a page, not about the network: every name resolves to one
+ * public address. Which names are refused for resolving somewhere private is
+ * `tests/unit/safe-fetch.test.ts`'s question.
+ */
+vi.mock("node:dns/promises", () => ({
+  lookup: vi.fn(async () => [{ address: "93.184.216.34", family: 4 }]),
+}));
 
 beforeEach(() => {
   normalizeRecipe.mockReset();
@@ -247,8 +256,10 @@ describe("fetchRecipeFromUrl — the recipe's own picture", () => {
       ),
       "https://example.com/pancakes.png": imageResponse(pngBytes(400, 300), "https://example.com/pancakes.png"),
     });
-    // By the time the reader is asked, the picture's request has already gone out.
+    // While the reader is working, the picture's request goes out — one turn of the event
+    // loop in, since its address is resolved and checked first (`safe-fetch.ts`).
     normalizeRecipe.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
       expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain("https://example.com/pancakes.png");
       return { ok: false, reason: "not-a-recipe" };
     });

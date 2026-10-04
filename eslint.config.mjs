@@ -1,3 +1,4 @@
+import { readFileSync } from "fs";
 import { dirname } from "path";
 import { fileURLToPath } from "url";
 import { FlatCompat } from "@eslint/eslintrc";
@@ -9,6 +10,77 @@ const compat = new FlatCompat({
   baseDirectory: __dirname,
 });
 
+/**
+ * The models that carry a home, read from the schema the way `src/lib/home-db.ts` reads
+ * them from Prisma — a model has a `homeId` column or it does not. The list this replaced
+ * was typed by hand and stopped at the seven models that existed when it was written, so
+ * `prisma.pantryItem` or `prisma.mealPlan` in a page passed lint.
+ */
+const HOME_SCOPED_MODELS = [
+  ...readFileSync(new URL("./prisma/schema.prisma", import.meta.url), "utf8").matchAll(
+    /^model (\w+) \{([^}]*)\}/gm,
+  ),
+]
+  .filter(([, , body]) => /^\s+homeId\s/m.test(body))
+  .map(([, name]) => name[0].toLowerCase() + name.slice(1));
+
+/** Pages and components read home-scoped models through `homeDb` — see the block below. */
+const TENANCY = [
+    {
+      selector:
+        `MemberExpression[object.name='prisma'][property.name=/^(${HOME_SCOPED_MODELS.join("|")})$/]`,
+      message:
+        "Read home-scoped models through homeDb(homeId) so the home cannot be left out. Use prisma directly only where crossing homes is the point.",
+    },
+    {
+      /*
+       * User is not home-scoped: somebody belongs to several homes, so there is no
+       * homeId on the row for homeDb to carry. A page that asks prisma.user for a
+       * home's people is asking for every account on the installation.
+       */
+      selector: "MemberExpression[object.name='prisma'][property.name='user']",
+      message:
+        "A user belongs to several homes, so there is no such thing as this home's users. Read the roster as homeDb(homeId).homeMember and the person as an include on it.",
+    },
+    {
+      /*
+       * ListItem and ListFavorite carry no homeId, so homeDb would pass a query
+       * straight through unscoped — the opposite of the rule above. Both are
+       * reached through their list: include them on a list query already made
+       * through homeDb. `homeDb` refuses them outright for the same reason, so
+       * the advice above would not even have worked.
+       */
+      selector:
+        "MemberExpression[object.name='prisma'][property.name=/^(listItem|listItemSource|listFavorite)$/]",
+      message:
+        "Read a list's items, the recipes that put them there and its favourites as an include on a homeDb list query. Reaching them directly here would not be scoped to a home at all.",
+    },
+    {
+      /*
+       * RecipeCategoryLink and RecipeRating carry no homeId either, for the same
+       * reason and with the same consequence: both are reached through their recipe.
+       */
+      selector: "MemberExpression[object.name='prisma'][property.name=/^(recipeCategoryLink|recipeRating)$/]",
+      message:
+        "Read a recipe's categories and ratings as an include on a homeDb recipe query. prisma.recipeCategoryLink or prisma.recipeRating here would not be scoped to a home at all.",
+    },
+];
+
+/** Copy written into a screen rather than through `src/lib/copy/` — see the block below. */
+const COPY = [
+    {
+      // Three letters rather than one, so `&nbsp;`, `·`, `%` and an emoji pass.
+      selector: "JSXText[value=/[A-Za-z]{3}/]",
+      message:
+        "Say this through a phrase in src/lib/copy/ — a line written here is English for every household, including the Danish ones.",
+    },
+    {
+      selector:
+        "JSXAttribute[name.name=/^(title|label|description|placeholder|message|summaryLabel|submitLabel|pendingLabel|successLabel|hint|aria-label)$/] > Literal[value=/[A-Za-z]{3}/]",
+      message:
+        "Say this through a phrase in src/lib/copy/. A label passed as a literal is copy wherever it is going.",
+    },
+];
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
@@ -39,47 +111,7 @@ const eslintConfig = [
      */
     files: ["src/app/**/page.tsx", "src/app/**/layout.tsx", "src/components/**/*.tsx"],
     rules: {
-      "no-restricted-syntax": [
-        "error",
-        {
-          selector:
-            "MemberExpression[object.name='prisma'][property.name=/^(list|recipe|recipeCategory|task|invite|homeMember|photo)$/]",
-          message:
-            "Read home-scoped models through homeDb(homeId) so the home cannot be left out. Use prisma directly only where crossing homes is the point.",
-        },
-        {
-          /*
-           * User is not home-scoped: somebody belongs to several homes, so there is no
-           * homeId on the row for homeDb to carry. A page that asks prisma.user for a
-           * home's people is asking for every account on the installation.
-           */
-          selector: "MemberExpression[object.name='prisma'][property.name='user']",
-          message:
-            "A user belongs to several homes, so there is no such thing as this home's users. Read the roster as homeDb(homeId).homeMember and the person as an include on it.",
-        },
-        {
-          /*
-           * ListItem and ListFavorite carry no homeId, so homeDb would pass a query
-           * straight through unscoped — the opposite of the rule above. Both are
-           * reached through their list: include them on a list query already made
-           * through homeDb. `homeDb` refuses them outright for the same reason, so
-           * the advice above would not even have worked.
-           */
-          selector:
-            "MemberExpression[object.name='prisma'][property.name=/^(listItem|listItemSource|listFavorite)$/]",
-          message:
-            "Read a list's items, the recipes that put them there and its favourites as an include on a homeDb list query. Reaching them directly here would not be scoped to a home at all.",
-        },
-        {
-          /*
-           * RecipeCategoryLink and RecipeRating carry no homeId either, for the same
-           * reason and with the same consequence: both are reached through their recipe.
-           */
-          selector: "MemberExpression[object.name='prisma'][property.name=/^(recipeCategoryLink|recipeRating)$/]",
-          message:
-            "Read a recipe's categories and ratings as an include on a homeDb recipe query. prisma.recipeCategoryLink or prisma.recipeRating here would not be scoped to a home at all.",
-        },
-      ],
+      "no-restricted-syntax": ["error", ...TENANCY],
     },
   },
   {
@@ -124,7 +156,8 @@ const eslintConfig = [
       "src/components/amount-picker.tsx",
       "src/components/queue-status.tsx",
       "src/app/(app)/tasks/page.tsx",
-      "src/components/task-card.tsx",
+      "src/components/task-row.tsx",
+      "src/components/logout-button.tsx",
       "src/components/task-done-button.tsx",
       "src/components/task-snooze.tsx",
       "src/components/repeat-field.tsx",
@@ -163,21 +196,11 @@ const eslintConfig = [
       "src/app/(app)/profile/page.tsx",
     ],
     rules: {
-      "no-restricted-syntax": [
-        "error",
-        {
-          // Three letters rather than one, so `&nbsp;`, `·`, `%` and an emoji pass.
-          selector: "JSXText[value=/[A-Za-z]{3}/]",
-          message:
-            "Say this through a phrase in src/lib/copy/ — a line written here is English for every household, including the Danish ones.",
-        },
-        {
-          selector:
-            "JSXAttribute[name.name=/^(title|label|description|placeholder|message|summaryLabel|submitLabel|pendingLabel|successLabel|hint|aria-label)$/] > Literal[value=/[A-Za-z]{3}/]",
-          message:
-            "Say this through a phrase in src/lib/copy/. A label passed as a literal is copy wherever it is going.",
-        },
-      ],
+      // TENANCY again, because flat config does not merge a rule's options across blocks:
+      // a later block that sets `no-restricted-syntax` replaces the earlier one for every
+      // file both match. Listing only COPY here switched the tenancy rule off on every
+      // converted screen — which by 2026-10 was nearly all of them — without a word.
+      "no-restricted-syntax": ["error", ...TENANCY, ...COPY],
     },
   },
 ];

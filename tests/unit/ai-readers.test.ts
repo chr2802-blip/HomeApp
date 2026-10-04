@@ -33,8 +33,24 @@ const { MAX_INPUT_CHARS, PREPARE_MAX_RETRIES, PREPARE_TIMEOUT_MS, prepareCookSte
 );
 const { NORMALIZE_MAX_RETRIES, NORMALIZE_TIMEOUT_MS, normalizeRecipe } = await import("@/lib/recipe-normalize");
 const { ingredientRules, languageRules } = await import("@/lib/ingredient-line");
-const { sortPantryGoods, MAX_GOODS_PER_SORT } = await import("@/lib/pantry-sort");
-const { sortShopAisles, MAX_ITEMS_PER_AISLE_SORT, readAisles } = await import("@/lib/aisle-sort");
+const {
+  sortPantryGoods,
+  MAX_GOODS_PER_SORT,
+  SORT_TIMEOUT_MS: PANTRY_SORT_TIMEOUT_MS,
+  SORT_MAX_RETRIES: PANTRY_SORT_MAX_RETRIES,
+} = await import("@/lib/pantry-sort");
+const {
+  sortShopAisles,
+  MAX_ITEMS_PER_AISLE_SORT,
+  readAisles,
+  SORT_TIMEOUT_MS: AISLE_SORT_TIMEOUT_MS,
+  SORT_MAX_RETRIES: AISLE_SORT_MAX_RETRIES,
+} = await import("@/lib/aisle-sort");
+// Read at file level, beside the rest: a cold import inside a test body counts against
+// its 5s, and `recipe-import` reaches the generated Prisma client.
+const { readFile } = await import("node:fs/promises");
+const { FETCH_TIMEOUT_MS } = await import("@/lib/recipe-import");
+const { captionSources } = await import("@/lib/reel-import");
 // The real price table, beside the mock above. Loaded here rather than inside the test that
 // uses it: it drags in the generated Prisma client, and a cold import of that inside a test
 // body counts against the test's own 5s — which a busy Vercel build machine ran past.
@@ -353,10 +369,9 @@ describe("the worst case fits inside the route", () => {
   /** What is left for the database, the picture's store and the answer's way home. */
   const HEADROOM_MS = 5_000;
 
-  async function shortestBudgetMs() {
-    const { readFile } = await import("node:fs/promises");
+  async function shortestBudgetMs(files: string[] = routes) {
     const seconds = await Promise.all(
-      routes.map(async (file) => {
+      files.map(async (file) => {
         const match = /export const maxDuration = (\d+);/.exec(await readFile(file, "utf8"));
         expect(match, `${file} sets no maxDuration`).not.toBeNull();
         return Number(match![1]);
@@ -371,13 +386,21 @@ describe("the worst case fits inside the route", () => {
   });
 
   it("for an import from a reel, which asks every caption source first", async () => {
-    const { FETCH_TIMEOUT_MS } = await import("@/lib/recipe-import");
-    const { captionSources } = await import("@/lib/reel-import");
     const sources = Math.max(
       captionSources("https://www.instagram.com/reel/ABC123/").length,
       captionSources("https://www.tiktok.com/@cook/video/123").length,
     );
     const worst = sources * FETCH_TIMEOUT_MS + NORMALIZE_TIMEOUT_MS * (NORMALIZE_MAX_RETRIES + 1);
     expect(worst + HEADROOM_MS).toBeLessThanOrEqual(await shortestBudgetMs());
+  });
+
+  it("for sorting the pantry, from the pantry page", async () => {
+    const worst = PANTRY_SORT_TIMEOUT_MS * (PANTRY_SORT_MAX_RETRIES + 1);
+    expect(worst + HEADROOM_MS).toBeLessThanOrEqual(await shortestBudgetMs(["src/app/(app)/pantry/page.tsx"]));
+  });
+
+  it("for sorting a list into aisles, from the list's own page", async () => {
+    const worst = AISLE_SORT_TIMEOUT_MS * (AISLE_SORT_MAX_RETRIES + 1);
+    expect(worst + HEADROOM_MS).toBeLessThanOrEqual(await shortestBudgetMs(["src/app/(app)/lists/[id]/page.tsx"]));
   });
 });

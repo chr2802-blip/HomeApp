@@ -5,6 +5,7 @@ import { storePhoto } from "./photos";
 import { extractFromHtml, type RawExtract } from "./recipe-extract";
 import { normalizeRecipe } from "./recipe-normalize";
 import { signReading } from "./reading-token";
+import { isBlockedHost, safeFetch } from "./safe-fetch";
 import {
   captionFromHtml,
   captionFromOEmbed,
@@ -154,41 +155,9 @@ const CRAWLER_HEADERS = {
 // English site instead, which does not have a Danish recipe pasted from the Danish
 // one. Sending none asks for whatever the address itself already means.
 
-/**
- * Blocks the addresses a browser would never be steered toward by a recipe link: the
- * machine itself, its own network, and the link-local range cloud providers use for
- * instance metadata. This is a household app fetching a page somebody chose to paste,
- * not a browser with its own cross-origin rules, so that check has to be written here
- * instead — a `javascript:` or `file:` link is refused by the protocol check below, and
- * these are refused by address.
- */
-function isBlockedHost(hostname: string): boolean {
-  // IPv6 literals arrive bracketed in a URL's hostname ("[::1]"); the ranges below are
-  // compared against the address itself.
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) return true;
-
-  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
-  if (ipv4) {
-    const [a, b] = ipv4.slice(1).map(Number);
-    if (a === 127 || a === 10 || a === 0) return true;
-    if (a === 169 && b === 254) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    return false;
-  }
-
-  // A URL's hostname never otherwise contains a colon, so this is the one case left:
-  // an IPv6 literal. ::1 (loopback), fe80::/10 (link-local) and fc00::/7 (unique local)
-  // are the ranges with the same reach as the IPv4 ones above. Checked only once it is
-  // known to be an address rather than a name — "fc" and "fd" are also how plenty of
-  // ordinary domains start, and matching those was refusing real sites outright.
-  if (host.includes(":")) {
-    return host === "::1" || host.startsWith("fe80:") || host.startsWith("fc") || host.startsWith("fd");
-  }
-
-  return false;
-}
+// Which addresses are off-limits, and the fetch that checks every hop and every
+// resolved address before asking it, live in `safe-fetch.ts` — the push endpoint a phone
+// registers is a URL somebody else chose too, and is held to the same rules.
 
 /** A link this feature will actually fetch, or null for anything it should refuse. */
 function safeImportUrl(rawUrl: string): URL | null {
@@ -226,8 +195,7 @@ export async function fetchRecipeFromUrl(
 
   let response: Response;
   try {
-    response = await fetch(url, {
-      redirect: "follow",
+    response = await safeFetch(url, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: REQUEST_HEADERS,
     });
@@ -481,8 +449,7 @@ async function readCaptionSource(source: CaptionSource): Promise<ReelCaption | n
 
   let response: Response;
   try {
-    response = await fetch(url, {
-      redirect: "follow",
+    response = await safeFetch(url, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: CRAWLER_HEADERS,
     });
@@ -572,8 +539,7 @@ async function fetchRecipePicture(imageUrl: string | null, pageUrl: string): Pro
 
   let response: Response;
   try {
-    response = await fetch(url, {
-      redirect: "follow",
+    response = await safeFetch(url, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: REQUEST_HEADERS,
     });
@@ -613,7 +579,9 @@ async function storeRecipePicture(homeId: string, picture: Picture | null): Prom
  * ordinarily much larger than that.
  */
 async function downscaleForStorage(bytes: Uint8Array) {
-  const source = sharp(bytes, { failOn: "none" }).rotate();
+  // A 15 MB file can still claim to be 50,000 pixels square; decoding stops at 40 MP
+  // (a phone's largest camera) rather than sharp's default of 268 MP.
+  const source = sharp(bytes, { failOn: "none", limitInputPixels: 40_000_000 }).rotate();
   const [full, thumb] = await Promise.all([
     source
       .clone()

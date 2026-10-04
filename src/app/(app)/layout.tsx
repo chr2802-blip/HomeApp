@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { canAdministerCurrentHome } from "@/lib/access";
-import { logout } from "@/app/actions/auth";
+import { LogoutButton } from "@/components/logout-button";
 import { NavLinks } from "@/components/nav-links";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionTabs } from "@/components/section-tabs";
@@ -72,11 +72,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 <div className="ml-auto flex items-center gap-3 text-sm">
                   {/* Just the person: the home is named at the other end of the bar. */}
                   <span className="hidden text-slate-500 sm:inline">{user.name}</span>
-                  <form action={logout}>
-                    <button className="text-slate-500 transition hover:text-slate-900 active:scale-95">
-                      {say(APP.logOut)}
-                    </button>
-                  </form>
+                  <LogoutButton label={say(APP.logOut)} />
                 </div>
               </div>
             </header>

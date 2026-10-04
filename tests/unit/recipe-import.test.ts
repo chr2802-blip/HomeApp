@@ -20,6 +20,15 @@ const HOME_ID = "home-1";
 const { normalizeRecipe } = vi.hoisted(() => ({ normalizeRecipe: vi.fn() }));
 
 vi.mock("@/lib/recipe-normalize", () => ({ normalizeRecipe }));
+/*
+ * Every address is resolved before it is fetched (`safe-fetch.ts`), and these tests are
+ * about what is done with a page, not about the network: every name resolves to one
+ * public address. Which names are refused for resolving somewhere private is
+ * `tests/unit/safe-fetch.test.ts`'s question.
+ */
+vi.mock("node:dns/promises", () => ({
+  lookup: vi.fn(async () => [{ address: "93.184.216.34", family: 4 }]),
+}));
 
 /** What the reader saw — the thing most of these tests are actually asserting about. */
 function wasRead(): RawExtract {
