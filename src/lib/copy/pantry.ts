@@ -33,6 +33,8 @@ export const PANTRY_CATEGORY_LABELS = {
   FREEZER: { EN: "Freezer", DA: "Fryser" },
   DRINKS: { EN: "Drinks", DA: "Drikkevarer" },
   BABY: { EN: "Baby", DA: "Baby" },
+  BATHROOM: { EN: "Bathroom", DA: "Badeværelse" },
+  CLEANING: { EN: "Cleaning", DA: "Rengøring" },
   OTHER: { EN: "Other", DA: "Andet" },
 } as const satisfies Record<PantryCategory, Phrase>;
 
@@ -64,7 +66,9 @@ export const PANTRY = {
   quantityAria: { EN: "Quantity of {name}", DA: "Mængde af {name}" },
   decreaseQuantity: { EN: "Decrease {name}", DA: "Formindsk {name}" },
   increaseQuantity: { EN: "Increase {name}", DA: "Forøg {name}" },
-  noUnit: { EN: "No unit", DA: "Ingen enhed" },
+  /** A plain count — the unit a stored null is read as, and the add sheet's default. */
+  pieces: { EN: "pcs", DA: "stk" },
+  amountLabel: { EN: "How much", DA: "Mængde" },
   editAria: { EN: "Edit {name}", DA: "Rediger {name}" },
   removeTitle: { EN: "Remove from supplies", DA: "Fjern fra forrådet" },
   removeMessage: {

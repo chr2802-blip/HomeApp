@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { goodsMatching, lookupGood, PANTRY_GOODS } from "@/lib/pantry-goods";
+import { lookupAisle } from "@/lib/shop-goods";
 import { isPantryCategory, isPantryUnit, pantryKey } from "@/lib/pantry";
 import { readSorted } from "@/lib/pantry-sort";
 
@@ -34,6 +35,20 @@ describe("the common basics", () => {
   it("never reaches inside a word — garlic is not an onion", () => {
     expect(lookupGood("Hvidløg")?.name.EN).toBe("Garlic");
     expect(lookupGood("Rødløg")).toBeNull();
+  });
+
+  it("files what the bathroom runs on on the bathroom shelf, and buys it in the household aisle", () => {
+    expect(lookupGood("Toiletpapir")?.category).toBe("BATHROOM");
+    expect(lookupGood("toothpaste")?.name.DA).toBe("Tandpasta");
+    expect(lookupGood("Balsam")?.category).toBe("BATHROOM");
+    expect(lookupAisle("Tandpasta")).toBe("HOUSEHOLD");
+  });
+
+  it("files what the home is cleaned with on the cleaning shelf, and buys it in the household aisle", () => {
+    expect(lookupGood("Opvaskemiddel")?.category).toBe("CLEANING");
+    expect(lookupGood("dishwasher tablets")?.name.DA).toBe("Opvasketabs");
+    expect(lookupGood("Karklude")?.category).toBe("CLEANING");
+    expect(lookupAisle("Opvasketabs")).toBe("HOUSEHOLD");
   });
 
   it("does not know what it has never heard of", () => {

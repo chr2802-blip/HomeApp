@@ -176,6 +176,23 @@ test("the pantry is reached from the home's own name, and kept there", async ({ 
   await expect(quantityGroup(page, "Havsalt")).toHaveCount(0);
 });
 
+test("the add sheet asks how much and in what, starting on one plain count", async ({ page }) => {
+  await page.goto("/pantry");
+  await openAdd(page);
+  const sheet = page.getByRole("dialog");
+  await expect(sheet.getByLabel("How much")).toHaveValue("1");
+  await expect(sheet.getByRole("radio", { name: "pcs", exact: true })).toBeChecked();
+
+  await sheet.getByLabel("Something you keep in").fill("Æbler");
+  await sheet.getByLabel("How much").fill("3");
+  await sheet.getByText("bag", { exact: true }).click();
+  await sheet.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(sheet).toBeHidden();
+
+  await expect(quantityBox(page, "Æbler")).toHaveValue("3");
+  await expect(quantityGroup(page, "Æbler").getByTestId("pantry-unit")).toHaveText("bag");
+});
+
 test("a good is filed on its shelf, and its shelf and unit are changed in the sheet", async ({
   page,
 }) => {

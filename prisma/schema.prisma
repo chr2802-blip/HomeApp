@@ -655,6 +655,8 @@ enum PantryCategory {
   FREEZER
   DRINKS
   BABY
+  BATHROOM
+  CLEANING
   OTHER
 }
 
