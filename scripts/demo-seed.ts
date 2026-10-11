@@ -23,6 +23,7 @@ import { PrismaClient, type HomeLanguage, type PantryCategory, type PantryUnit, 
 import bcrypt from "bcryptjs";
 import { pantryKey } from "../src/lib/pantry";
 import { dueAtDaysFrom, todayInZone, weekStartInZone } from "../src/lib/time";
+import { canSealSecrets, sealSecret } from "../src/lib/secret-box";
 import { DEMO_HOMES, DEMO_PASSWORD, DEMO_PEOPLE, type DemoHomeKey } from "./demo-cast";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -333,6 +334,20 @@ async function furnish(
         skipDuplicates: true,
       });
     }
+  }
+
+  // "Send to Nemlig" is drawn only for a home with a login, and a login is kept only
+  // where it can be sealed. The password is the stub's (e2e/helpers/nemlig-stub.mjs),
+  // which accepts anything but "wrong-password" — run it and set NEMLIG_BASE_URL to
+  // screenshot the review. Danish has "your usual" milk already chosen, so the review
+  // shows a remembered product beside the guessed ones.
+  if (canSealSecrets() && content.lists.length > 0) {
+    await prisma.nemligAccount.create({
+      data: { homeId, username: "alex@example.com", password: sealSecret("demo-password") },
+    });
+    await prisma.nemligChoice.create({
+      data: { homeId, key: pantryKey("Letmælk"), productId: "5002", name: "Økologisk sødmælk", imageUrl: null },
+    });
   }
 
   for (const task of content.tasks) {

@@ -22,6 +22,7 @@ import { StorageUsage } from "@/components/storage-usage";
 import { AiSpendUsage } from "@/components/ai-spend";
 import { RecipeCategoriesAdmin } from "@/components/recipe-categories-admin";
 import { PantryShelvesAdmin } from "@/components/pantry-shelves-admin";
+import { NemligSettings } from "@/components/nemlig-settings";
 import { readInZone } from "@/lib/time";
 import { DATE } from "@/lib/copy/dates";
 import { ItemMenu } from "@/components/item-menu";
@@ -32,6 +33,13 @@ import { LanguageField } from "@/components/language-field";
 import { SeasonalField } from "@/components/seasonal-field";
 import { sayIn } from "@/lib/copy/say";
 import { SETTINGS } from "@/lib/copy/settings";
+
+/**
+ * Connecting Nemlig tries the login against nemlig.com before keeping it, which is
+ * several requests to somebody else's server — `NEMLIG_CALL_TIMEOUT_MS` each — and has
+ * to fail inside the route rather than be cut off by the platform.
+ */
+export const maxDuration = 60;
 
 /**
  * Running one household: its name and picture, who is in it, who is invited, what its
@@ -125,6 +133,10 @@ export default async function SettingsPage() {
           </ActionForm>
         </Card>
       </section>
+
+      {/* Beside the home itself rather than down among the readings: which shop the
+          household fills a basket at is part of setting the household up. */}
+      <NemligSettings homeId={home.id} language={user.homeLanguage} />
 
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">

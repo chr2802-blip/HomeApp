@@ -17,6 +17,8 @@ import { sayIn } from "@/lib/copy/say";
 import { LISTS } from "@/lib/copy/lists";
 import { listVersion } from "@/lib/list-version";
 import { rememberedAisles } from "@/lib/aisle-memory";
+import { NemligSend } from "@/components/nemlig-send";
+import { canSealSecrets } from "@/lib/secret-box";
 
 /**
  * A model call runs from this page — sorting what nobody could place
@@ -34,7 +36,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   // indistinguishable from a record that never existed, which is the point. Asked
   // together rather than one after the other: how many people are in this home decides
   // only whether a ticked row says who got it, and the page waits for both either way.
-  const [list, members] = await Promise.all([
+  const [list, members, nemlig] = await Promise.all([
     homeDb(user.homeId).list.findUnique({
       where: { id },
       include: {
@@ -57,6 +59,11 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
       },
     }),
     homeDb(user.homeId).homeMember.count(),
+    // Whether this household has a Nemlig login to fill a basket with. Only that it
+    // exists: the login itself never comes near a page.
+    canSealSecrets()
+      ? homeDb(user.homeId).nemligAccount.count()
+      : 0,
   ]);
   if (!list) notFound();
 
@@ -105,6 +112,10 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
             favorite={list.favorites.length > 0}
           />
         </div>
+        {/* Only in a home with a Nemlig login. Every list, not only those tracking
+            amounts — that is off by default, and plenty of shopping lists never turned
+            it on; an item without an amount goes in the basket once. */}
+        {nemlig > 0 && <NemligSend listId={list.id} />}
         <ItemMenu
           name="listId"
           id={list.id}
