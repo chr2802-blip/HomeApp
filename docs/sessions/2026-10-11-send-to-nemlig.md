@@ -47,6 +47,12 @@ compound now outranks one starting it.
   search and a fetch both failed, and it is taken from the package, which links to it four
   times.
 
+- An integration test compared rows ordered by the database (`orderBy: { key: "asc" }`)
+  with the same keys sorted in JavaScript. With Danish keys the two disagree whenever the
+  database's collation is locale-aware: "æg" sorts as "aeg" there, but after "mælk" by
+  bytes. It passed here and failed on the next machine. Compare as a map, or sort in JS on
+  both sides.
+
 ## What CLAUDE.md did not say
 
 How to work on a feature whose third party is unreachable from the container. The answer

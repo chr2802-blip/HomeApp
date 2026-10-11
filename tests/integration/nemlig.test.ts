@@ -157,11 +157,10 @@ describe("reviewing and sending a list", () => {
     // The login it used is the one that was connected, opened from its seal.
     expect(nemlig.logins.at(-1)).toEqual({ username: "alex@example.com", password: "right-password" });
 
-    const kept = await prisma.nemligChoice.findMany({ where: { homeId: home.id }, orderBy: { key: "asc" } });
-    expect(kept.map((c) => [c.key, c.productId])).toEqual([
-      ["mælk", "2"],
-      ["æg", "3"],
-    ].sort());
+    // Compared as a map, not in database order: where "æg" sorts against "mælk" is the
+    // database's collation's opinion (bytes put æ after m, a locale reads it as "ae").
+    const kept = await prisma.nemligChoice.findMany({ where: { homeId: home.id } });
+    expect(Object.fromEntries(kept.map((c) => [c.key, c.productId]))).toEqual({ mælk: "2", æg: "3" });
 
     // Next time, "mælk" starts on what was chosen rather than the best guess.
     nemlig.catalogue["mælk"] = [{ id: "1", name: "Mælk" }, { id: "2", name: "Letmælk" }];
