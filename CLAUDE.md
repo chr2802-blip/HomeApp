@@ -1065,6 +1065,46 @@ worth reading — but a home that keeps one anyway has said something better tha
 inference from its recipes, and an ingredient nobody is buying either way cannot be what
 two dinners have in common. `weekSuggestions` on `/meals` unions the two.
 
+### A list can fill the household's Nemlig basket, after the household has checked it
+
+"Send to Nemlig" on a list searches nemlig.com for every open line, proposes a product for
+each, lets the household swap or skip, and only then puts what was confirmed in the
+basket. **It never checks out, pays or books a slot** — the client in `src/lib/nemlig.ts`
+has no code for any of those, so nothing built on it can do one by mistake.
+
+- **The client is a port, not a dependency.** It follows nemlig-shopper's `api.py`
+  (Python, MIT) endpoint for endpoint against Nemlig's own unpublished web API. Python
+  could not run here, and that package answers an outage and "no such product" with the
+  same empty list. **Every failure is a `NemligError` with a `kind`** (`login`, `timeout`,
+  `unavailable`, `changed`, `refused`), and an empty search means only "found nothing".
+  An answer in a shape the client does not know is `changed`, never an empty list.
+- **One login per home**, on `/settings`, kept by its admins (`canAdministerCurrentHome`).
+  Sending is everybody's. **The password is sealed** (`sealSecret`, AES-256-GCM under
+  `NEMLIG_SECRET_KEY`, `src/lib/secret-box.ts`), tried against Nemlig before it is kept,
+  and never sent back to a browser. Without the key the card and the button are not drawn.
+- **What is decided lives in `src/lib/nemlig-basket.ts`, apart from what is asked**, so
+  the matching and the basket loop are tested with Nemlig played by a function.
+  `pickBestMatch` proposes only what can be delivered, and reads a Danish compound by its
+  *last* part: "mælk" is letmælk before mælkechokolade.
+- **The search term is `shoppingText`, the memory key `pantryKey`**: "2 dl mælk" searches
+  "Mælk" and shares a remembered product with "Mælk". `NemligChoice` (one row per home
+  per key, like `AisleChoice`) is written **only for a product that went in**, and a
+  remembered product is proposed even when today's search did not bring it back.
+- **One line failing never stops the rest.** A refused login does stop the press, because
+  every line after it would fail the same way. Both loops stop starting requests at
+  `NEMLIG_BUDGET_MS` (40s) and report the rest as timed out, so a long list answers
+  inside the route's 60s rather than being cut off.
+- **The lines are read back from the list**, never believed from the browser: the
+  browser says only which product and how many. A line from another list or home is
+  simply not found.
+- Nemlig cannot be reached from a dev container. **`NEMLIG_BASE_URL` points the client
+  at `e2e/helpers/nemlig-stub.mjs`**, which the browser suite starts per worker and
+  `db:demo` assumes for its connected homes. So **no suite talks to real Nemlig**, and a
+  change to a request's shape is confirmed only against a real account. **To screenshot
+  it**: put `NEMLIG_SECRET_KEY` (any 32+ characters) and `NEMLIG_BASE_URL=http://127.0.0.1:3999`
+  in `.env`, run `node e2e/helpers/nemlig-stub.mjs 3999` in the background, then
+  `npm run db:demo`. The stub's catalogue is Danish, so `--home da` is the useful one.
+
 ### The week's meals are a row per day, and the row is the decision
 
 - `MealPlan` is one row per home per day. `recipeId` is what is being cooked, `leftoverOf`

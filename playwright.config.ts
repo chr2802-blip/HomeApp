@@ -6,6 +6,8 @@ import {
   anthropicStubPort,
   anthropicStubUrl,
   e2eWorkerCount,
+  nemligStubPort,
+  nemligStubUrl,
   serverDatabaseUrl,
   serverPort,
   serverUrl,
@@ -40,6 +42,11 @@ const serverEnv = (worker: number) => ({
   // would be a suite that never opened the form it is supposed to be testing.
   ANTHROPIC_API_KEY: "e2e-stub-key",
   ANTHROPIC_BASE_URL: anthropicStubUrl(worker),
+  // "Send to Nemlig" talks to this worker's stand-in for nemlig.com, never the real one:
+  // no account to fill, no basket to leave things in. The key only has to be long enough
+  // to seal the stub's password with.
+  NEMLIG_BASE_URL: nemligStubUrl(worker),
+  NEMLIG_SECRET_KEY: "e2e-nemlig-secret-key-long-enough-to-seal-with",
 });
 
 export default defineConfig({
@@ -89,6 +96,15 @@ export default defineConfig({
     ...Array.from({ length: workers }, (_, worker) => ({
       command: `node e2e/helpers/anthropic-stub.mjs ${anthropicStubPort(worker)}`,
       port: anthropicStubPort(worker),
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+      stdout: "pipe" as const,
+      stderr: "pipe" as const,
+    })),
+    // The stand-in for nemlig.com. Waited on by port, like the stub above.
+    ...Array.from({ length: workers }, (_, worker) => ({
+      command: `node e2e/helpers/nemlig-stub.mjs ${nemligStubPort(worker)}`,
+      port: nemligStubPort(worker),
       reuseExistingServer: !process.env.CI,
       timeout: 30_000,
       stdout: "pipe" as const,

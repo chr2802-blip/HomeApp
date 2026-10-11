@@ -22,8 +22,21 @@ const WINDOW_MS = 15 * 60 * 1000;
  * `photo` counts pictures uploaded. Each is up to a megabyte and a half stored in Postgres,
  * and the upload is the one write in the app that size; sixty in a quarter of an hour is
  * a household photographing its whole cupboard, and nothing short of a loop goes past it.
+ *
+ * `nemlig-search` counts presses that search Nemlig — a list opened for review, and each
+ * "search again" on one row of it, which a fussy shop does a dozen times. `nemlig-send`
+ * counts baskets filled. Both guard somebody else's service rather than a secret, so
+ * going over says so and costs nothing but a wait. The Nemlig *login* on `/settings` is
+ * guarding a password, and keeps the default eight (`nemlig-login`).
  */
-const MAX_ATTEMPTS: Record<string, number> = { prepare: 30, "cook-timer": 40, "aisle-sort": 40, photo: 60 };
+const MAX_ATTEMPTS: Record<string, number> = {
+  prepare: 30,
+  "cook-timer": 40,
+  "aisle-sort": 40,
+  photo: 60,
+  "nemlig-search": 80,
+  "nemlig-send": 20,
+};
 const DEFAULT_MAX_ATTEMPTS = 8;
 
 export function attemptsAllowed(scope: string): number {

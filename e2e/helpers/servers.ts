@@ -56,3 +56,16 @@ export function anthropicStubPort(worker: number) {
 export function anthropicStubUrl(worker: number) {
   return `http://127.0.0.1:${anthropicStubPort(worker)}`;
 }
+
+/**
+ * The port that worker's stand-in for nemlig.com listens on (`nemlig-stub.mjs`) — two
+ * hundred clear of the app servers, for the same reasons the Messages API's is a hundred.
+ */
+export function nemligStubPort(worker: number) {
+  return BASE_PORT + 200 + worker;
+}
+
+/** Where that worker's app server is told Nemlig is (`NEMLIG_BASE_URL`). */
+export function nemligStubUrl(worker: number) {
+  return `http://127.0.0.1:${nemligStubPort(worker)}`;
+}

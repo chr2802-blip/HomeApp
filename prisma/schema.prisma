@@ -101,6 +101,9 @@ model Home {
   /// What this home's AI calls have cost — see AiUsage.
   aiUsage          AiUsage[]
   aisleChoices     AisleChoice[]
+  /// The household's nemlig.com login, where one is connected — see NemligAccount.
+  nemligAccount    NemligAccount?
+  nemligChoices    NemligChoice[]
   /// Every picture filed under this home, whatever it is attached to.
   photos           Photo[]          @relation("PhotoHome")
   photo            Photo?           @relation("HomePhoto", fields: [photoId], references: [id], onDelete: SetNull)
@@ -285,6 +288,46 @@ model AisleChoice {
   key       String
   aisle     ShopAisle
   createdAt DateTime  @default(now())
+
+  home Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
+
+  @@id([homeId, key])
+}
+
+/**
+ * The household's login at nemlig.com, which "Send to Nemlig" fills a basket in.
+ * One per home, set by its admins on /settings. Nemlig has no OAuth and its tokens
+ * expire, so the password itself has to be kept: it is sealed with AES-256-GCM under
+ * `NEMLIG_SECRET_KEY` (`src/lib/secret-box.ts`), which lives only in the deployment's
+ * environment, so a copy of the database alone reads as noise. It is never sent back to
+ * a browser, masked or otherwise.
+ */
+model NemligAccount {
+  homeId    String   @id
+  username  String
+  /// `sealSecret`'s output — never the password as typed.
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  home Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
+}
+
+/**
+ * Which Nemlig product this household bought for a line of shopping, remembered.
+ * Keyed by `pantryKey` of the item's text, like `AisleChoice`, so "2 mælk" and "Mælk"
+ * are one answer. Written only when an add to the basket succeeded, so a product that
+ * was refused is not offered again as though it worked. The name and picture are what
+ * the review step draws when this product is not among the search's answers; the price
+ * is never kept, because it changes and a stale one would be a wrong one.
+ */
+model NemligChoice {
+  homeId    String
+  key       String
+  productId String
+  name      String
+  imageUrl  String?
+  updatedAt DateTime @updatedAt
 
   home Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
 

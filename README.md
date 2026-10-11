@@ -32,6 +32,8 @@ and then read into a recipe by Claude, which deduplicates the lines, separates e
 from its unit and its ingredient, and throws away the hashtags and the "follow for more".
 The result opens in the ordinary create form to check over before saving. This needs
 `ANTHROPIC_API_KEY`; without it the importer says so and offers the form instead.
+**Send to Nemlig** fills the household's basket at nemlig.com from a list, after showing
+which product it would pick for each line — see *Deploying* below for switching it on.
 **Add to list** puts every ingredient onto whichever of the home's lists you pick: anything
 already on it is wanted one more time rather than written twice, anything ticked off comes
 back, and each line then says which recipe asked for it — two recipes wanting onions name
@@ -452,6 +454,31 @@ To check it works, open the same list on two phones and tick something on one: t
 should move within a second. In the browser's network tab, `/api/realtime/token` should
 answer `"enabled": true` and a websocket to `<ref>.supabase.co/realtime/v1` should stay
 open.
+
+### 3c. Send to Nemlig (optional)
+
+A list can be sent to the household's basket at nemlig.com: every open line is searched,
+a product is proposed for each (the one chosen last time, where there was one), the
+household checks and swaps them, and only then is the basket filled. It never checks out
+or pays — that is still done on nemlig.com.
+
+Each home connects its own Nemlig login, on **Settings → Nemlig** (admins only). Nemlig has
+no OAuth, so the password itself is kept, encrypted with AES-256-GCM under one key that
+lives only in Vercel:
+
+```bash
+node -e "console.log('NEMLIG_SECRET_KEY=' + require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Add it to Vercel and redeploy; the Nemlig card appears in Settings. Without the key the
+feature is not offered at all. **Changing the key makes every stored login unreadable** —
+each home then has to connect again.
+
+It uses Nemlig's own, unpublished web API (worked out by
+[nemlig-shopper](https://github.com/mhattingpete/nemlig-shopper)), so it can break when
+Nemlig changes its site. The review says so plainly ("Nemlig answered in a way this app
+does not understand"), and the runtime logs carry `nemlig_*` lines with the detail. The
+client is `src/lib/nemlig.ts`.
 
 ### 4. Create the first super admin
 
