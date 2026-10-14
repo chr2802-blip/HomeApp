@@ -777,9 +777,11 @@ HTTP request, and a phone that hears it asks the same question the poll always a
 
 ### A shopping list can be drawn in the order the shop is walked
 
-`List.groupByAisle` is a setting per list (`AisleField`, beside `AmountsField` in the
-create and edit sheets), because a shopping list is taken round a shop and a packing list
-is not. On, the open items are drawn under `ShopAisle` headings in one fixed order,
+`List.grouping` is a setting per list (`GroupingField`, beside `AmountsField` in the
+create and edit sheets): `NONE` (dragged by hand), `AISLE` or `OWN` (next section). **One
+enum, never a flag per way** — it was `groupByAisle`, and a second boolean beside it would
+have been two answers to "how is this list drawn". `AISLE` is for a shopping list, taken
+round a shop: the open items are drawn under `ShopAisle` headings in one fixed order,
 produce first and the freezer late; ticked items fold into "Completed" as ever.
 
 - **Where an item goes is answered three ways, in this order:** what the household said
@@ -800,6 +802,33 @@ produce first and the freezer late; ticked items fold into "Completed" as ever.
 - **The remembered aisles are hashed into `listVersion`**, and asked for by the page and
   the version route through the one function (`rememberedAisles`), so a move on one phone
   moves the row on the other.
+
+### A list can keep categories of its own
+
+`grouping: "OWN"` draws the open items under `ListCategory` headings that **one list keeps
+for itself and no other** — the cabin's "Hardware store" is not the party's. Kept in the
+sheet behind the round button beside the list's title (`ListCategoriesButton`,
+`src/components/list-categories.tsx`): add, rename, ↑/↓ for the walk order, delete.
+
+- **Which heading an item is under is `ListItem.categoryId`, on the row** — not remembered
+  per key like an aisle, because the headings are the list's own; a ticked row brought
+  back keeps its heading, which is all the remembering one list needs. Null is "No
+  category", drawn first.
+- **Deleting a heading leaves its items on the list, unsorted** (`SetNull`), and the
+  in-sheet confirmation says how many. Deleting the list takes its headings (`Cascade`).
+- `ListCategory` carries no `homeId`: `homeDb` refuses it, the lint rule rejects
+  `prisma.listCategory` in pages, and every action reaches it through its list's home.
+  A heading id from another list is simply not found — the row is filed under none.
+- **The add box offers the headings as chips** and keeps the chosen one for the next item.
+  A queued add carries `categoryId` (optional in `opsSchema`, so an older queue still
+  parses). Adding a ticked line under a chosen heading moves it there; adding it under
+  none keeps the heading it had.
+- **The sheet lives once, beside the title.** The list's own "Set up categories" offer
+  (while it has none) opens it by an event (`SetUpCategoriesButton`) rather than drawing a
+  second sheet: that offer unmounts the moment the first heading exists, and took its
+  sheet with it under the thumb that added the heading.
+- The headings and each row's `categoryId` are hashed into `listVersion`, so a rename or a
+  move on one phone redraws the other.
 
 ### An item can say which recipe put it there
 

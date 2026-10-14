@@ -8,6 +8,7 @@ const item = (overrides: Partial<VersionedList["items"][number]> = {}) => ({
   done: false,
   position: 1,
   completedById: null,
+  categoryId: null,
   sourceIds: [],
   ...overrides,
 });
@@ -15,9 +16,10 @@ const item = (overrides: Partial<VersionedList["items"][number]> = {}) => ({
 const list = (items: VersionedList["items"], overrides: Partial<VersionedList> = {}) => ({
   title: "Shopping",
   trackAmounts: true,
-  groupByAisle: false,
+  grouping: "NONE",
   photoId: null,
   aisles: {},
+  categories: [],
   items,
   ...overrides,
 });
@@ -42,6 +44,7 @@ describe("listVersion", () => {
     ["an amount", { amount: 3 }],
     ["a move", { position: 5 }],
     ["a recipe note", { sourceIds: ["r1"] }],
+    ["a move to another category", { categoryId: "c1" }],
   ])("changes with %s", (_label, change) => {
     expect(listVersion(list([item(change), item({ id: "b", text: "Bread", position: 2 })]))).not.toBe(
       base,
@@ -62,7 +65,13 @@ describe("listVersion", () => {
     expect(listVersion(list(items, { title: "Weekend" }))).not.toBe(base);
     expect(listVersion(list(items, { trackAmounts: false }))).not.toBe(base);
     expect(listVersion(list(items, { photoId: "p1" }))).not.toBe(base);
-    expect(listVersion(list(items, { groupByAisle: true }))).not.toBe(base);
+    expect(listVersion(list(items, { grouping: "AISLE" }))).not.toBe(base);
+    expect(listVersion(list(items, { grouping: "OWN" }))).not.toBe(base);
+    const cabin = { id: "c1", name: "Hardware", position: 1 };
+    const withCategory = listVersion(list(items, { categories: [cabin] }));
+    expect(withCategory).not.toBe(base);
+    expect(listVersion(list(items, { categories: [{ ...cabin, name: "Chemist" }] }))).not.toBe(withCategory);
+    expect(listVersion(list(items, { categories: [{ ...cabin, position: 2 }] }))).not.toBe(withCategory);
     expect(listVersion(list(items, { aisles: { milk: "DAIRY" } }))).not.toBe(base);
   });
 });

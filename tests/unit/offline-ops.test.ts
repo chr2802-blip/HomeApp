@@ -20,6 +20,7 @@ function row(overrides: Partial<ListRow> & { id: string }): ListRow {
     position: 1,
     sources: [],
     completedBy: null,
+    categoryId: null,
     ...overrides,
   };
 }
@@ -88,7 +89,28 @@ describe("applyPending", () => {
       position: 5,
       sources: [],
       completedBy: null,
+      categoryId: null,
     });
+  });
+
+  it("adds a row under the heading it was added under, on a list with its own", () => {
+    const add: OfflineOp = {
+      id: "op1",
+      kind: "add",
+      listId: "l1",
+      itemId: "new",
+      text: "Screws",
+      amount: 1,
+      categoryId: "hardware",
+    };
+
+    expect(applyPending([], [add], me)[0]!.categoryId).toBe("hardware");
+  });
+
+  it("reads an add with a heading, and one written before headings existed", () => {
+    const add = { id: "op1", kind: "add", listId: "l1", itemId: "i1", text: "Screws", amount: 1 };
+    expect(readOps({ ops: [add] })).toHaveLength(1);
+    expect(readOps({ ops: [{ ...add, categoryId: "c1" }] })![0]).toMatchObject({ categoryId: "c1" });
   });
 
   it("does not add a row the server has already sent back", () => {

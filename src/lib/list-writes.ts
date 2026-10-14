@@ -110,7 +110,14 @@ export async function addItem(
   text: string,
   amount: number,
   id?: string,
+  categoryId?: string | null,
 ): Promise<AddOutcome> {
+  // Only one of this list's own headings: another list's is simply not found, and the
+  // row is added unsorted rather than refused.
+  const category = categoryId
+    ? await prisma.listCategory.findFirst({ where: { id: categoryId, listId }, select: { id: true } })
+    : null;
+
   if (id) {
     const arrived = await prisma.listItem.findUnique({ where: { id }, select: { listId: true } });
     // The row is already here: this is the second arrival of one send, not a second item.
@@ -128,12 +135,24 @@ export async function addItem(
 
   if (existing?.done) {
     await restoreItem(existing.id, listId, amount);
+    // Brought back under the heading it was asked for, where one was. Asked for nothing
+    // in particular, it keeps the one it had — which is the list remembering.
+    if (category) {
+      await prisma.listItem.update({ where: { id: existing.id }, data: { categoryId: category.id } });
+    }
     return { ok: true };
   }
   if (existing) return { ok: false, clash: existing.text };
 
   await prisma.listItem.create({
-    data: { ...(id ? { id } : {}), listId, text, amount, position: await nextPosition(listId) },
+    data: {
+      ...(id ? { id } : {}),
+      listId,
+      text,
+      amount,
+      position: await nextPosition(listId),
+      categoryId: category?.id ?? null,
+    },
   });
   return { ok: true };
 }

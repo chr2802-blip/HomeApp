@@ -22,13 +22,15 @@
 export type VersionedList = {
   title: string;
   trackAmounts: boolean;
-  groupByAisle: boolean;
+  grouping: string;
   photoId: string | null;
   /**
    * Where this household said the items are bought (`rememberedAisles`), on a list grouped
    * by aisle — an item moved on one phone moves on the other. Empty on any other list.
    */
   aisles: Record<string, string>;
+  /** The list's own headings, on any list — renaming one is a change the page draws. */
+  categories: { id: string; name: string; position: number }[];
   items: {
     id: string;
     text: string;
@@ -36,6 +38,8 @@ export type VersionedList = {
     done: boolean;
     position: number;
     completedById: string | null;
+    /** Which of the list's own headings it is under, if any. */
+    categoryId: string | null;
     /** The recipes that put the item there, in the order the page lists them. */
     sourceIds: string[];
   }[];
@@ -48,9 +52,12 @@ export function listVersion(list: VersionedList): string {
   const text = JSON.stringify([
     list.title,
     list.trackAmounts,
-    list.groupByAisle,
+    list.grouping,
     list.photoId,
     Object.entries(list.aisles).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+    [...list.categories]
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+      .map((category) => [category.id, category.name, category.position]),
     items.map((item) => [
       item.id,
       item.text,
@@ -58,6 +65,7 @@ export function listVersion(list: VersionedList): string {
       item.done,
       item.position,
       item.completedById,
+      item.categoryId,
       item.sourceIds,
     ]),
   ]);

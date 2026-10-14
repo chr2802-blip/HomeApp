@@ -19,7 +19,7 @@
  * Alex (an admin everywhere) and Sam (a member) are in all three; both log in with
  * `DEMO_PASSWORD`. Refuses any database that is not on this machine.
  */
-import { PrismaClient, type HomeLanguage, type PantryCategory, type PantryUnit, type ShopAisle } from "@prisma/client";
+import { PrismaClient, type HomeLanguage, type PantryCategory, type ListGrouping, type PantryUnit, type ShopAisle } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { pantryKey } from "../src/lib/pantry";
 import { dueAtDaysFrom, todayInZone, weekStartInZone } from "../src/lib/time";
@@ -42,9 +42,11 @@ type Content = {
   lists: {
     title: string;
     emoji?: string;
-    groupByAisle?: boolean;
+    grouping?: ListGrouping;
+    /** The list's own headings, for `grouping: "OWN"`, in the order it is walked. */
+    categories?: string[];
     trackAmounts?: boolean;
-    items: { text: string; amount?: number; done?: boolean; aisle?: ShopAisle }[];
+    items: { text: string; amount?: number; done?: boolean; aisle?: ShopAisle; category?: string }[];
   }[];
   tasks: { title: string; days: number; interval: number | null; who: "alex" | "sam" | null; done?: boolean }[];
   pantry: { name: string; quantity: number; unit?: PantryUnit; shelf: PantryCategory | null; expiresInDays?: number }[];
@@ -86,7 +88,7 @@ const CONTENT: Record<HomeLanguage, Content> = {
     lists: [
       {
         title: "Groceries",
-        groupByAisle: true,
+        grouping: "AISLE",
         trackAmounts: true,
         items: [
           { text: "Bananas", amount: 6, aisle: "PRODUCE" },
@@ -98,6 +100,22 @@ const CONTENT: Record<HomeLanguage, Content> = {
           { text: "Coffee beans", done: true },
           { text: "Eggs", amount: 12, done: true },
           { text: "Butter", done: true },
+        ],
+      },
+      {
+        title: "Weekend at the cabin",
+        emoji: "⛺",
+        grouping: "OWN",
+        categories: ["Hardware store", "Pharmacy", "Pack"],
+        items: [
+          { text: "Wood screws 4x40", category: "Hardware store" },
+          { text: "Paint roller", category: "Hardware store" },
+          { text: "Plasters", category: "Pharmacy" },
+          { text: "Sun cream", category: "Pharmacy" },
+          { text: "Sleeping bags", category: "Pack" },
+          { text: "Board games", category: "Pack" },
+          { text: "Firewood" },
+          { text: "Torch", category: "Pack", done: true },
         ],
       },
       { title: "Hardware store", emoji: "🔧", items: [{ text: "Light bulbs E27" }, { text: "Wood glue" }] },
@@ -169,7 +187,7 @@ const CONTENT: Record<HomeLanguage, Content> = {
     lists: [
       {
         title: "Indkøb",
-        groupByAisle: true,
+        grouping: "AISLE",
         trackAmounts: true,
         items: [
           { text: "Bananer", amount: 6, aisle: "PRODUCE" },
@@ -181,6 +199,22 @@ const CONTENT: Record<HomeLanguage, Content> = {
           { text: "Kaffebønner", done: true },
           { text: "Æg", amount: 12, done: true },
           { text: "Smør", done: true },
+        ],
+      },
+      {
+        title: "Weekend i sommerhuset",
+        emoji: "⛺",
+        grouping: "OWN",
+        categories: ["Byggemarked", "Apotek", "Pakkes"],
+        items: [
+          { text: "Træskruer 4x40", category: "Byggemarked" },
+          { text: "Malerrulle", category: "Byggemarked" },
+          { text: "Plaster", category: "Apotek" },
+          { text: "Solcreme", category: "Apotek" },
+          { text: "Soveposer", category: "Pakkes" },
+          { text: "Brætspil", category: "Pakkes" },
+          { text: "Brænde" },
+          { text: "Lommelygte", category: "Pakkes", done: true },
         ],
       },
       { title: "Byggemarked", emoji: "🔧", items: [{ text: "Pærer E27" }, { text: "Trælim" }] },
@@ -308,12 +342,15 @@ async function furnish(
   });
 
   for (const list of content.lists) {
-    await prisma.list.create({
+    const made = await prisma.list.create({
       data: {
         homeId,
         title: list.title,
         emoji: list.emoji ?? null,
-        groupByAisle: list.groupByAisle ?? false,
+        grouping: list.grouping ?? "NONE",
+        categories: {
+          create: (list.categories ?? []).map((name, position) => ({ name, position: position + 1 })),
+        },
         trackAmounts: list.trackAmounts ?? false,
         createdById: people.alex.id,
         items: {
@@ -327,6 +364,15 @@ async function furnish(
         },
       },
     });
+    // Each item under the heading it names, on a list kept in its own categories.
+    const headings = await prisma.listCategory.findMany({ where: { listId: made.id } });
+    for (const item of await prisma.listItem.findMany({ where: { listId: made.id } })) {
+      const name = list.items.find((wanted) => wanted.text === item.text)?.category;
+      const heading = headings.find((candidate) => candidate.name === name);
+      if (heading) {
+        await prisma.listItem.update({ where: { id: item.id }, data: { categoryId: heading.id } });
+      }
+    }
     const placed = list.items.filter((item) => item.aisle);
     if (placed.length > 0) {
       await prisma.aisleChoice.createMany({

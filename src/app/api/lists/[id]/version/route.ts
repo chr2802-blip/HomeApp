@@ -29,8 +29,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     select: {
       title: true,
       trackAmounts: true,
-      groupByAisle: true,
+      grouping: true,
       photoId: true,
+      categories: { select: { id: true, name: true, position: true } },
       items: {
         select: {
           id: true,
@@ -39,6 +40,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
           done: true,
           position: true,
           completedById: true,
+          categoryId: true,
           // The page's own order, so the two hash the recipes the same way round.
           sources: { orderBy: { createdAt: "asc" }, select: { recipeId: true } },
         },
@@ -48,7 +50,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!list) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Asked exactly as the page asks it, so the two hash the same answer.
-  const aisles = list.groupByAisle
+  const aisles = list.grouping === "AISLE"
     ? await rememberedAisles(user.homeId, list.items.map((item) => item.text))
     : {};
 

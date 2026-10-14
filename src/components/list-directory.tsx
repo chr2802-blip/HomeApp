@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import type { ListGrouping } from "@prisma/client";
 import { deleteList, updateList } from "@/app/actions/lists";
 import { Card, EmptyState, Input, Label } from "@/components/ui";
 import { AmountsField } from "@/components/amounts-field";
-import { AisleField } from "@/components/aisle-field";
+import { GroupingField } from "@/components/grouping-field";
 import { Collapsible } from "@/components/collapsible";
 import { FavoriteButton } from "@/components/favorite-button";
 import { ItemMenu } from "@/components/item-menu";
@@ -31,8 +32,8 @@ export type ListSummary = {
   favorite: boolean;
   /** Whether items carry a quantity — the edit sheet opens on the list's own setting. */
   trackAmounts: boolean;
-  /** Whether open items are drawn under the shop's aisles — likewise. */
-  groupByAisle: boolean;
+  /** How open items are drawn — likewise. */
+  grouping: ListGrouping;
 };
 
 /** A list with every item ticked off is done — unless it is a favourite, kept in view. */
@@ -96,7 +97,7 @@ function ListCards({ lists }: { lists: ListSummary[] }) {
               <Input id={`title-${list.id}`} name="title" defaultValue={list.title} required autoFocus />
             </div>
             <AmountsField defaultChecked={list.trackAmounts} language={language} />
-            <AisleField defaultChecked={list.groupByAisle} language={language} />
+            <GroupingField defaultValue={list.grouping} language={language} />
             <EmojiField selected={list.emoji} idPrefix={`emoji-${list.id}`} language={language} />
             <PhotoField defaultPhotoId={list.photoId} />
           </ItemMenu>

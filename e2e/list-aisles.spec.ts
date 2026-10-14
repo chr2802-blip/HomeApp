@@ -23,7 +23,7 @@ test("a list grouped by aisle draws its items under the shop's aisles, and one c
 }) => {
   const { db, home, owner } = await seed();
   const list = await db.list.create({
-    data: { homeId: home.id, createdById: owner.id, title: "Groceries", groupByAisle: true },
+    data: { homeId: home.id, createdById: owner.id, title: "Groceries", grouping: "AISLE" },
   });
   let position = 1;
   for (const text of ["Milk", "Bananas", "Frozen peas", "Rye bread"]) {

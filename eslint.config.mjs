@@ -51,9 +51,9 @@ const TENANCY = [
        * the advice above would not even have worked.
        */
       selector:
-        "MemberExpression[object.name='prisma'][property.name=/^(listItem|listItemSource|listFavorite)$/]",
+        "MemberExpression[object.name='prisma'][property.name=/^(listItem|listItemSource|listFavorite|listCategory)$/]",
       message:
-        "Read a list's items, the recipes that put them there and its favourites as an include on a homeDb list query. Reaching them directly here would not be scoped to a home at all.",
+        "Read a list's items, the recipes that put them there, its favourites and its own categories as an include on a homeDb list query. Reaching them directly here would not be scoped to a home at all.",
     },
     {
       /*

@@ -32,25 +32,29 @@ beforeEach(async () => {
 
 const groupedList = async () => {
   const list = await seedList({ homeId: home.id, createdById: member.id });
-  return prisma.list.update({ where: { id: list.id }, data: { groupByAisle: true } });
+  return prisma.list.update({ where: { id: list.id }, data: { grouping: "AISLE" } });
 };
 
 const item = (listId: string, text: string, done = false) =>
   prisma.listItem.create({ data: { listId, text, done, position: 1 } });
 
 describe("the list's setting", () => {
-  it("is off unless asked for, and is kept by create and edit alike", async () => {
+  it("is the list's own order unless asked for, and is kept by create and edit alike", async () => {
     await captureRedirect(() => createList(undefined, formData({ title: "Packing" })));
-    await captureRedirect(() => createList(undefined, formData({ title: "Shop", groupByAisle: "on" })));
+    await captureRedirect(() => createList(undefined, formData({ title: "Shop", grouping: "AISLE" })));
+    await captureRedirect(() => createList(undefined, formData({ title: "Cabin", grouping: "OWN" })));
+    await captureRedirect(() => createList(undefined, formData({ title: "Odd", grouping: "SIDEWAYS" })));
     const lists = await prisma.list.findMany({ where: { homeId: home.id }, orderBy: { title: "asc" } });
-    expect(lists.map((list) => [list.title, list.groupByAisle])).toEqual([
-      ["Packing", false],
-      ["Shop", true],
+    expect(lists.map((list) => [list.title, list.grouping])).toEqual([
+      ["Cabin", "OWN"],
+      ["Odd", "NONE"],
+      ["Packing", "NONE"],
+      ["Shop", "AISLE"],
     ]);
 
-    const shop = lists[1]!;
+    const shop = lists[3]!;
     expect((await submit(updateList, { listId: shop.id, title: "Shop" }))?.ok).toBe(true);
-    expect((await prisma.list.findUniqueOrThrow({ where: { id: shop.id } })).groupByAisle).toBe(false);
+    expect((await prisma.list.findUniqueOrThrow({ where: { id: shop.id } })).grouping).toBe("NONE");
   });
 });
 
