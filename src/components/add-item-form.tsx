@@ -31,13 +31,28 @@ export function AddItemForm({
   listId,
   suggestions,
   trackAmounts,
+  categories = null,
 }: {
   action: FormAction;
   listId: string;
   suggestions: Suggestion[];
   trackAmounts: boolean;
+  /**
+   * On a list grouped by its own headings, those headings — offered as chips under the
+   * box, so a new item lands where it belongs instead of under "No category" to be moved
+   * afterwards. Null on any other list.
+   */
+  categories?: { id: string; name: string }[] | null;
 }) {
   const [query, setQuery] = useState("");
+  /*
+   * The heading new items go under. Kept after an add rather than reset like the amount:
+   * things are usually added a heading at a time — the hardware store's three, then the
+   * chemist's two — so the next item most likely belongs where the last one went. A
+   * heading deleted meanwhile is dropped back to none.
+   */
+  const [chosen, setChosen] = useState<string | null>(null);
+  const categoryId = chosen && categories?.some((category) => category.id === chosen) ? chosen : null;
   const [amount, setAmount] = useState(MIN_AMOUNT);
   const [highlighted, setHighlighted] = useState(-1);
   const [restoring, startRestore] = useTransition();
@@ -64,7 +79,7 @@ export function AddItemForm({
     if (!text) return action(previous, data);
 
     const outcome = await record(
-      [{ id: newId(), kind: "add", listId, itemId: newId(), text, amount: wanted }],
+      [{ id: newId(), kind: "add", listId, itemId: newId(), text, amount: wanted, categoryId }],
       () => action(previous, data),
     );
     return outcome.sent ? outcome.result : ok();
@@ -92,6 +107,7 @@ export function AddItemForm({
     const data = new FormData();
     data.set("itemId", item.id);
     data.set("amount", String(wanted));
+    if (categoryId) data.set("categoryId", categoryId);
 
     setQuery("");
     setAmount(MIN_AMOUNT);
@@ -142,6 +158,7 @@ export function AddItemForm({
       <form onSubmit={handleSubmit} className="space-y-2">
         <div className="flex flex-wrap gap-2">
           <input type="hidden" name="listId" value={listId} />
+          {categoryId && <input type="hidden" name="categoryId" value={categoryId} />}
           {trackAmounts && (
             <>
               <input type="hidden" name="amount" value={amount} />
@@ -170,6 +187,30 @@ export function AddItemForm({
             {pending ? say(LISTS.adding) : say(LISTS.add)}
           </Button>
         </div>
+        {categories && categories.length > 0 && (
+          <div
+            role="radiogroup"
+            aria-label={say(LISTS.addUnder)}
+            className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5"
+          >
+            {[{ id: null, name: say(LISTS.uncategorized) }, ...categories].map((category) => (
+              <button
+                key={category.id ?? "none"}
+                type="button"
+                role="radio"
+                aria-checked={category.id === categoryId}
+                onClick={() => setChosen(category.id)}
+                className={`press-button shrink-0 rounded-full border px-3 py-1 text-xs whitespace-nowrap ${
+                  category.id === categoryId
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                    : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {category.name}
+              </button>
+            ))}
+          </div>
+        )}
         {state?.ok === false && (
           <p role="alert" className="text-sm text-red-600">
             {state.error}

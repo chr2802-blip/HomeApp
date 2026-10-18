@@ -6,7 +6,8 @@ import { Card, Input, Label } from "@/components/ui";
 import { ListItems } from "@/components/list-items";
 import { ItemMenu } from "@/components/item-menu";
 import { AmountsField } from "@/components/amounts-field";
-import { AisleField } from "@/components/aisle-field";
+import { GroupingField } from "@/components/grouping-field";
+import { ListCategoriesButton } from "@/components/list-categories";
 import { FavoriteButton } from "@/components/favorite-button";
 import { AddItemForm } from "@/components/add-item-form";
 import { PhotoField } from "@/components/photo-field";
@@ -54,6 +55,12 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
             completedBy: { select: { id: true, name: true, photoId: true } },
           },
         },
+        // The list's own headings, in the order it is walked. Drawn only on a list grouped
+        // by them, but asked of every list: the version hashes them either way.
+        categories: {
+          orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+          select: { id: true, name: true, position: true },
+        },
         // Only the caller's own star — favourites are personal.
         favorites: { where: { userId: user.id }, select: { userId: true } },
       },
@@ -69,9 +76,15 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
 
   // Where this household said its things are bought, for a list drawn by aisle — asked
   // exactly as the version route asks it (`rememberedAisles`).
-  const aisles = list.groupByAisle
+  const aisles = list.grouping === "AISLE"
     ? await rememberedAisles(user.homeId, list.items.map((item) => item.text))
     : {};
+
+  // How many open items each heading holds, so deleting one can say what it moves.
+  const categoryCounts = list.categories.map((category) => ({
+    ...category,
+    count: list.items.filter((item) => !item.done && item.categoryId === category.id).length,
+  }));
 
   const ticked = list.items.filter((item) => item.done);
   const items = list.items.map((item) => ({
@@ -116,6 +129,12 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
             amounts — that is off by default, and plenty of shopping lists never turned
             it on; an item without an amount goes in the basket once. */}
         {nemlig > 0 && <NemligSend listId={list.id} />}
+        {/* The list's own headings, kept beside its title rather than in the edit sheet:
+            they are changed while the list is in use, and a sheet of fields inside a
+            sheet of fields is two back presses away from the list. */}
+        {list.grouping === "OWN" && (
+          <ListCategoriesButton listId={list.id} categories={categoryCounts} />
+        )}
         <ItemMenu
           name="listId"
           id={list.id}
@@ -131,7 +150,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
             <Input id="title" name="title" defaultValue={list.title} required autoFocus />
           </div>
           <AmountsField defaultChecked={list.trackAmounts} language={user.homeLanguage} />
-          <AisleField defaultChecked={list.groupByAisle} language={user.homeLanguage} />
+          <GroupingField defaultValue={list.grouping} language={user.homeLanguage} />
           <EmojiField selected={list.emoji} language={user.homeLanguage} />
           <PhotoField defaultPhotoId={list.photoId} />
         </ItemMenu>
@@ -143,6 +162,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
           listId={list.id}
           trackAmounts={list.trackAmounts}
           suggestions={ticked.map((item) => ({ id: item.id, text: item.text }))}
+          categories={list.grouping === "OWN" ? list.categories : null}
         />
       </Card>
 
@@ -154,7 +174,8 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
           me={{ id: user.id, name: user.name, photoId: user.photoId }}
           shared={members > 1}
           version={version}
-          aisles={list.groupByAisle ? aisles : null}
+          aisles={list.grouping === "AISLE" ? aisles : null}
+          categories={list.grouping === "OWN" ? categoryCounts : null}
         />
       </Card>
     </>

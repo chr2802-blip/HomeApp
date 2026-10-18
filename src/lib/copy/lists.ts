@@ -23,11 +23,68 @@ export const LISTS = {
     DA: "Hver ting får en mængde, startende ved 1 — til en indkøbsliste snarere end en liste over opgaver.",
   },
 
-  groupByAisle: { EN: "Group by aisle", DA: "Sortér efter afdeling" },
+  grouping: { EN: "Sorting", DA: "Sortering" },
+  groupingNone: { EN: "Your own order", DA: "Jeres egen rækkefølge" },
+  groupingNoneHint: {
+    EN: "Items stay where you drag them.",
+    DA: "Tingene bliver, hvor I trækker dem hen.",
+  },
+  groupByAisle: { EN: "By aisle", DA: "Efter afdeling" },
   groupByAisleHint: {
     EN: "Items are sorted into the shop's aisles, fruit and vegetables first — for a list you take round a shop.",
     DA: "Varerne sorteres efter butikkens afdelinger, frugt og grønt først — til en liste I tager med rundt i butikken.",
   },
+  groupByOwn: { EN: "Own categories", DA: "Egne kategorier" },
+  groupByOwnHint: {
+    EN: "Items are sorted under headings you make for this list. They belong to this list only.",
+    DA: "Tingene sorteres under overskrifter, I selv laver til denne liste. De gælder kun her.",
+  },
+
+  // A list's own categories
+  categories: { EN: "Categories", DA: "Kategorier" },
+  categoriesHint: {
+    EN: "The headings this list is sorted under, in the order you walk them. Other lists keep their own.",
+    DA: "De overskrifter, listen sorteres under, i den rækkefølge I går dem igennem. Andre lister har deres egne.",
+  },
+  noCategories: {
+    EN: "No categories yet. Add the first one below.",
+    DA: "Ingen kategorier endnu. Tilføj den første herunder.",
+  },
+  noCategoriesOnList: {
+    EN: "This list has no categories yet.",
+    DA: "Listen har ingen kategorier endnu.",
+  },
+  setUpCategories: { EN: "Set up categories", DA: "Opret kategorier" },
+  newCategory: { EN: "New category", DA: "Ny kategori" },
+  newCategoryPlaceholder: { EN: "Hardware store", DA: "Byggemarked" },
+  addCategory: { EN: "Add", DA: "Tilføj" },
+  categoryRequired: { EN: "Give the category a name.", DA: "Giv kategorien et navn." },
+  categoryExists: {
+    EN: "This list already has a category called “{name}”.",
+    DA: "Listen har allerede en kategori, der hedder “{name}”.",
+  },
+  categoryNameFor: { EN: "Name of {name}", DA: "Navn på {name}" },
+  categoryUp: { EN: "Move {name} up", DA: "Flyt {name} op" },
+  categoryDown: { EN: "Move {name} down", DA: "Flyt {name} ned" },
+  deleteCategory: { EN: "Delete {name}", DA: "Slet {name}" },
+  deleteCategoryMessage: {
+    EN: {
+      one: "Delete “{name}”? The {count} item under it stays on the list, unsorted.",
+      other: "Delete “{name}”? The {count} items under it stay on the list, unsorted.",
+    },
+    DA: {
+      one: "Slet “{name}”? Den {count} ting under den bliver på listen uden kategori.",
+      other: "Slet “{name}”? Alle {count} ting under den bliver på listen uden kategori.",
+    },
+  },
+  deleteEmptyCategoryMessage: {
+    EN: "Delete “{name}”? Nothing is under it.",
+    DA: "Slet “{name}”? Der er intet under den.",
+  },
+  uncategorized: { EN: "No category", DA: "Uden kategori" },
+  addUnder: { EN: "Add under", DA: "Tilføj under" },
+  moveCategory: { EN: "Move {name} to another category", DA: "Flyt {name} til en anden kategori" },
+  whichCategory: { EN: "Which category is {name} under?", DA: "Hvilken kategori hører {name} under?" },
   unsortedAisle: { EN: "Not sorted yet", DA: "Ikke sorteret endnu" },
   moveAisle: { EN: "Move {name} to another aisle", DA: "Flyt {name} til en anden afdeling" },
   whichAisle: { EN: "Which aisle is {name} in?", DA: "Hvor i butikken ligger {name}?" },

@@ -217,9 +217,13 @@ model List {
   /// Whether items on this list carry a quantity. Chosen when the list is made: a
   /// shopping list wants "2 milk", a to-do list does not.
   trackAmounts Boolean  @default(false)
-  /// Whether the open items are drawn under the shop's aisles (`ShopAisle`). Chosen per
-  /// list, because a shopping list is walked through a shop and a packing list is not.
-  groupByAisle Boolean  @default(false)
+  /**
+   * How the open items are drawn: in the household's own order (`NONE`), under the shop's
+   * aisles (`AISLE`, `ShopAisle`), or under headings this list keeps for itself (`OWN`,
+   * `ListCategory`). One column rather than a flag per way, because a list is drawn one
+   * way at a time — two flags both on would be a question nothing could answer.
+   */
+  grouping     ListGrouping @default(NONE)
   /**
    * The face the household gave it — one emoji from `EMOJI_CHOICES` in
    * `src/lib/emoji.ts`, drawn on its tile where there is no picture. Null is "nobody
@@ -234,8 +238,9 @@ model List {
   home      Home           @relation(fields: [homeId], references: [id], onDelete: Cascade)
   createdBy User           @relation(fields: [createdById], references: [id], onDelete: Cascade)
   photo     Photo?         @relation(fields: [photoId], references: [id], onDelete: SetNull)
-  items     ListItem[]
-  favorites ListFavorite[]
+  items      ListItem[]
+  favorites  ListFavorite[]
+  categories ListCategory[]
 
   @@index([homeId])
   @@index([createdById])
@@ -249,6 +254,36 @@ model List {
  * its list, which is what carries the home. Pages read it as an include on a list query
  * they already made through homeDb; a lint rule stops them reaching it directly.
  */
+/** How a list's open items are drawn — see `List.grouping`. */
+enum ListGrouping {
+  NONE
+  AISLE
+  OWN
+}
+
+/**
+ * A heading one list keeps for itself, on a list whose `grouping` is `OWN` — "Byggemarked",
+ * "Apoteket", "Til hytten". Per list and never shared between them: the headings a packing
+ * list wants are not the ones the DIY list does, and a household that wanted the same
+ * ones everywhere has the shop's aisles for that.
+ * Ordered by `position`, which is the order the list is walked in. Deleting one leaves its
+ * items on the list, unsorted (`SetNull` on `ListItem.categoryId`) — "not sorted yet" is a
+ * state the list already has.
+ * Like ListItem it carries no homeId: it is reached through its list.
+ */
+model ListCategory {
+  id        String   @id @default(cuid())
+  listId    String
+  name      String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  list  List       @relation(fields: [listId], references: [id], onDelete: Cascade)
+  items ListItem[]
+
+  @@index([listId])
+}
+
 /**
  * Where in a shop something is bought, for a list grouped by aisle. A fixed set in a
  * fixed order — the order a typical supermarket is walked in, produce first and the
@@ -363,14 +398,23 @@ model ListItem {
    * household's shopping with them.
    */
   completedById String?
+  /**
+   * Which of its list's own headings it is under, on a list grouped by its own categories.
+   * Null is "not sorted yet". Written on the item rather than remembered by its key the way
+   * an aisle is, because a list's headings are its own: a ticked row coming back keeps its
+   * heading, which is all the remembering one list needs.
+   */
+  categoryId    String?
 
   list        List             @relation(fields: [listId], references: [id], onDelete: Cascade)
   completedBy User?            @relation(fields: [completedById], references: [id], onDelete: SetNull)
+  category    ListCategory?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   /// The recipes that put this item on the list, if any did.
   sources     ListItemSource[]
 
   @@index([listId])
   @@index([completedById])
+  @@index([categoryId])
 }
 
 /**

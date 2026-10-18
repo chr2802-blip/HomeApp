@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import type { ListGrouping } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireHomeUser } from "@/lib/auth";
 import { assertHomeAccess } from "@/lib/access";
@@ -81,6 +82,15 @@ const amount = z
   .optional()
   .transform((value) => clampAmount(value ?? 1));
 
+/**
+ * How a list is drawn. A form that does not say, or says something that is not one of
+ * the three, draws the list in its own order — the way every list was drawn first.
+ */
+const grouping = z
+  .string()
+  .optional()
+  .transform((value): ListGrouping => (value === "AISLE" || value === "OWN" ? value : "NONE"));
+
 /** An unticked checkbox is absent from the form rather than present and false. */
 const checkbox = z
   .string()
@@ -91,7 +101,7 @@ const listSchema = (say: Say) =>
   z.object({
     title: requiredText(say(LISTS.nameRequired)),
     trackAmounts: checkbox,
-    groupByAisle: checkbox,
+    grouping,
   });
 /*
  * The same ceiling `opsSchema` puts on a queued add (`lib/offline-ops.ts`). The two have
@@ -117,7 +127,7 @@ export async function createList(_prev: ActionResult, formData: FormData): Promi
     data: {
       title: form.fields.title,
       trackAmounts: form.fields.trackAmounts,
-      groupByAisle: form.fields.groupByAisle,
+      grouping: form.fields.grouping,
       emoji: readEmojiChoice(formData) ?? null,
       photoId: photo.photoId ?? null,
       homeId: user.homeId,
@@ -153,7 +163,7 @@ export async function updateList(_prev: ActionResult, formData: FormData): Promi
     data: {
       title: form.fields.title,
       trackAmounts: form.fields.trackAmounts,
-      groupByAisle: form.fields.groupByAisle,
+      grouping: form.fields.grouping,
       emoji: readEmojiChoice(formData),
       photoId: photo.photoId,
     },
@@ -210,7 +220,8 @@ export async function addListItem(_prev: ActionResult, formData: FormData): Prom
   // The same write the offline queue's endpoint makes, including what it means to add
   // something already on the list — see `addItem`. An id is passed only where one was
   // chosen before the row existed, which is the queue's case and not this one.
-  const outcome = await addItem(list.id, form.fields.text, form.fields.amount);
+  const categoryId = String(formData.get("categoryId") ?? "") || null;
+  const outcome = await addItem(list.id, form.fields.text, form.fields.amount, undefined, categoryId);
   if (!outcome.ok) return fail(say(LISTS.alreadyOnListNamed, { name: outcome.clash }));
 
   listChanged(list);
@@ -226,6 +237,17 @@ export async function restoreListItem(formData: FormData) {
   if (!item) return;
 
   await restoreItem(item.id, item.listId, clampAmount(formData.get("amount") ?? 1));
+  // Under the heading the add box stood on, where it stood on one of this list's own.
+  const categoryId = String(formData.get("categoryId") ?? "");
+  if (categoryId) {
+    const category = await prisma.listCategory.findFirst({
+      where: { id: categoryId, listId: item.listId },
+      select: { id: true },
+    });
+    if (category) {
+      await prisma.listItem.update({ where: { id: item.id }, data: { categoryId: category.id } });
+    }
+  }
   listChanged(item.list);
 }
 
@@ -639,7 +661,7 @@ export async function moveListItemAisle(formData: FormData) {
 export async function sortListAisles(formData: FormData) {
   const user = await requireHomeUser();
   const list = await listInScope(String(formData.get("listId")));
-  if (!list.groupByAisle) return;
+  if (list.grouping !== "AISLE") return;
   const db = homeDb(list.homeId);
 
   const items = await db.list.findUnique({
@@ -678,4 +700,145 @@ export async function sortListAisles(formData: FormData) {
     skipDuplicates: true,
   });
   listChanged(list);
+}
+
+/** A list's own heading, checked the way its list is: through the list's home. */
+async function categoryInScope(categoryId: string) {
+  const user = await requireHomeUser();
+  const category = await prisma.listCategory.findUnique({
+    where: { id: categoryId },
+    include: { list: true },
+  });
+  if (!category) return null;
+  assertHomeAccess(user, category.list.homeId);
+  return category;
+}
+
+/** At most one heading of a name on a list, whatever its capitals. */
+async function categoryNamed(listId: string, name: string, except?: string) {
+  return prisma.listCategory.findFirst({
+    where: {
+      listId,
+      name: { equals: name, mode: "insensitive" },
+      ...(except ? { id: { not: except } } : {}),
+    },
+    select: { id: true },
+  });
+}
+
+const MAX_CATEGORY_NAME = 60;
+
+const categorySchema = (say: Say) =>
+  z.object({ name: requiredText(say(LISTS.categoryRequired), MAX_CATEGORY_NAME) });
+
+/**
+ * Adds a heading to one list, last in its order. The headings are the list's own and
+ * nobody else's — see `ListCategory` — so this is everybody's to do, like adding an item.
+ */
+export async function createListCategory(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
+  const list = await listInScope(String(formData.get("listId")));
+  const form = readForm(categorySchema(say), formData, user.homeLanguage);
+  if (!form.ok) return fail(form.error);
+
+  const { name } = form.fields;
+  if (await categoryNamed(list.id, name)) return fail(say(LISTS.categoryExists, { name }));
+
+  const last = await prisma.listCategory.aggregate({
+    where: { listId: list.id },
+    _max: { position: true },
+  });
+  await prisma.listCategory.create({
+    data: { listId: list.id, name, position: (last._max.position ?? 0) + 1 },
+  });
+  listChanged(list);
+  return ok();
+}
+
+export async function renameListCategory(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
+  const category = await categoryInScope(String(formData.get("categoryId")));
+  if (!category) return fail(say(LISTS.categoryRequired));
+  const form = readForm(categorySchema(say), formData, user.homeLanguage);
+  if (!form.ok) return fail(form.error);
+
+  const { name } = form.fields;
+  if (await categoryNamed(category.listId, name, category.id)) {
+    return fail(say(LISTS.categoryExists, { name }));
+  }
+  await prisma.listCategory.update({ where: { id: category.id }, data: { name } });
+  listChanged(category.list);
+  return ok();
+}
+
+/**
+ * Deletes a heading. What was under it stays on the list, unsorted — the foreign key's
+ * `SetNull` does that — rather than the delete being refused: "not sorted yet" is a state
+ * the list already has, and the confirmation says how many are moving.
+ */
+export async function deleteListCategory(formData: FormData) {
+  const category = await categoryInScope(String(formData.get("categoryId")));
+  if (!category) return;
+  await prisma.listCategory.delete({ where: { id: category.id } });
+  listChanged(category.list);
+}
+
+/**
+ * Moves a heading one step up or down the list's order, by swapping it with its
+ * neighbour. Both positions are rewritten together, and renumbered from one first, so two
+ * headings that ever came to share a position are pulled apart by the next move.
+ */
+export async function moveListCategory(formData: FormData) {
+  const category = await categoryInScope(String(formData.get("categoryId")));
+  if (!category) return;
+  const step = formData.get("direction") === "up" ? -1 : 1;
+
+  const ids = (
+    await prisma.listCategory.findMany({
+      where: { listId: category.listId },
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+      select: { id: true },
+    })
+  ).map((row) => row.id);
+  const from = ids.indexOf(category.id);
+  const to = from + step;
+  if (to < 0 || to >= ids.length) return;
+  [ids[from], ids[to]] = [ids[to]!, ids[from]!];
+
+  await prisma.$transaction(
+    ids.map((id, index) => prisma.listCategory.update({ where: { id }, data: { position: index + 1 } })),
+  );
+  listChanged(category.list);
+}
+
+/**
+ * Files an item under one of its own list's headings, or under none (an empty
+ * `categoryId`). A heading from another list is simply not found, so a request naming one
+ * moves nothing.
+ */
+export async function moveListItemCategory(formData: FormData) {
+  const item = await itemInScope(String(formData.get("itemId")));
+  if (!item) return;
+  const wanted = String(formData.get("categoryId") ?? "");
+
+  let categoryId: string | null = null;
+  if (wanted) {
+    const category = await prisma.listCategory.findFirst({
+      where: { id: wanted, listId: item.listId },
+      select: { id: true },
+    });
+    if (!category) return;
+    categoryId = category.id;
+  }
+
+  await prisma.listItem.update({ where: { id: item.id }, data: { categoryId } });
+  listChanged(item.list);
 }

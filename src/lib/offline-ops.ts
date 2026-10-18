@@ -27,7 +27,15 @@ import { LISTS } from "@/lib/copy/lists";
  */
 export type OfflineOp =
   | { id: string; kind: "tick"; listId: string; itemId: string; done: boolean }
-  | { id: string; kind: "add"; listId: string; itemId: string; text: string; amount: number }
+  | {
+      id: string;
+      kind: "add";
+      listId: string;
+      itemId: string;
+      text: string;
+      amount: number;
+      categoryId?: string | null;
+    }
   | { id: string; kind: "amount"; listId: string; itemId: string; amount: number };
 
 export type OpKind = OfflineOp["kind"];
@@ -54,6 +62,12 @@ const opSchema = z.discriminatedUnion("kind", [
     itemId: id,
     text: z.string().min(1).max(MAX_ITEM_TEXT),
     amount,
+    /**
+     * The list's own heading it was added under, if any. Optional, because a queue
+     * written before headings existed carries none — and because a heading somebody
+     * deleted meanwhile is simply not found, leaving the row unsorted.
+     */
+    categoryId: id.nullish(),
   }),
   z.object({ id, kind: z.literal("amount"), listId: id, itemId: id, amount }),
 ]);
@@ -96,6 +110,11 @@ export type ListRow = {
   sources: Source[];
   /** Who ticked it off, on a ticked row; nobody on one still open. */
   completedBy: Person | null;
+  /**
+   * Which of the list's own headings it is under, on a list grouped by them. A row added
+   * offline has none yet: where it goes is a kitchen-table decision, made once it lands.
+   */
+  categoryId: string | null;
 };
 
 /**
@@ -132,6 +151,7 @@ export function applyPending(items: ListRow[], ops: OfflineOp[], by: Person): Li
           position: last + 1,
           sources: [],
           completedBy: null,
+          categoryId: op.categoryId ?? null,
         },
       ];
       continue;

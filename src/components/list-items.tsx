@@ -30,6 +30,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   deleteListItem,
   moveListItemAisle,
+  moveListItemCategory,
   renameListItem,
   reorderListItems,
   setListItemAmount,
@@ -37,7 +38,8 @@ import {
   toggleListItem,
 } from "@/app/actions/lists";
 import type { ShopAisle } from "@prisma/client";
-import { AisleMoveButton } from "@/components/aisle-move-button";
+import { GroupMoveButton } from "@/components/group-move-button";
+import { SetUpCategoriesButton, type ListCategorySummary } from "@/components/list-categories";
 import { aisleOf, SHOP_AISLES } from "@/lib/shop-goods";
 import { pantryKey } from "@/lib/pantry";
 import { ConfirmButton } from "@/components/confirm-button";
@@ -68,6 +70,7 @@ type Change =
   | { type: "remove"; id: string }
   | { type: "amount"; id: string; amount: number }
   | { type: "rename"; id: string; text: string }
+  | { type: "category"; id: string; categoryId: string | null }
   | { type: "reorder"; ids: string[] };
 
 function applyTo(items: Item[], change: Change): Item[] {
@@ -97,6 +100,11 @@ function applyTo(items: Item[], change: Change): Item[] {
   }
   if (change.type === "rename") {
     return items.map((item) => (item.id === change.id ? { ...item, text: change.text } : item));
+  }
+  if (change.type === "category") {
+    return items.map((item) =>
+      item.id === change.id ? { ...item, categoryId: change.categoryId } : item,
+    );
   }
 
   // Re-number to the dragged order so the row stays where it was dropped while the
@@ -137,7 +145,7 @@ function Row({
 }: {
   item: Item;
   draggable: boolean;
-  /** On a list grouped by aisle, what stands where the drag handle would. */
+  /** On a grouped list, what stands where the drag handle would. */
   aisleSlot?: React.ReactNode;
   showAmount: boolean;
   /** Whether to say who ticked it — see `ListItems`. */
@@ -348,6 +356,7 @@ export function ListItems({
   shared,
   version,
   aisles,
+  categories,
 }: {
   listId: string;
   items: Item[];
@@ -376,6 +385,12 @@ export function ListItems({
    * a moment ago lands in its aisle without waiting for the server.
    */
   aisles: Record<string, ShopAisle> | null;
+  /**
+   * On a list grouped by its own categories, those categories in the order the list is
+   * walked; null on any other list. Which one a row is under is the row's own
+   * `categoryId`, so a heading another phone deleted simply leaves its rows unsorted.
+   */
+  categories: ListCategorySummary[] | null;
 }) {
   const { pending, record, onlyOnline, reconcile, online, sending } = useOfflineList(listId);
   useListFollow(listId, version);
@@ -593,6 +608,13 @@ export function ListItems({
     });
   }
 
+  /** The heading a row is drawn under: its own, unless that heading has gone. */
+  function categoryOf(item: Item): string | null {
+    return item.categoryId && categories?.some((category) => category.id === item.categoryId)
+      ? item.categoryId
+      : null;
+  }
+
   function rowFor(item: Item, draggable: boolean) {
     const payload = new FormData();
     payload.set("itemId", item.id);
@@ -603,9 +625,34 @@ export function ListItems({
         item={item}
         draggable={draggable}
         aisleSlot={
-          remembered && !item.done ? (
-            <AisleMoveButton
-              name={item.text}
+          categories && !item.done ? (
+            categories.length > 0 && (
+              <GroupMoveButton
+                label={say(LISTS.moveCategory, { name: item.text })}
+                title={say(LISTS.whichCategory, { name: item.text })}
+                options={[
+                  ...categories.map((category) => ({ value: category.id, label: category.name })),
+                  { value: "", label: say(LISTS.uncategorized) },
+                ]}
+                current={categoryOf(item) ?? ""}
+                onMove={(categoryId) => {
+                  const data = new FormData();
+                  data.set("itemId", item.id);
+                  data.set("categoryId", categoryId);
+                  // Online-only, like moving an aisle: the row moves back if the move
+                  // did not reach the server.
+                  startTransition(async () => {
+                    applyChange({ type: "category", id: item.id, categoryId: categoryId || null });
+                    await onlyOnline(() => moveListItemCategory(data));
+                  });
+                }}
+              />
+            )
+          ) : remembered && !item.done ? (
+            <GroupMoveButton
+              label={say(LISTS.moveAisle, { name: item.text })}
+              title={say(LISTS.whichAisle, { name: item.text })}
+              options={SHOP_AISLES.map((aisle) => ({ value: aisle, label: say(SHOP_AISLE_LABELS[aisle]) }))}
               current={aisleOf(item.text, remembered)}
               onMove={(aisle) => {
                 const data = new FormData();
@@ -713,7 +760,36 @@ export function ListItems({
         </div>
       </div>
 
-      {remembered ? (
+      {categories ? (
+        /* Grouped by the list's own headings, in the order the list keeps them. As with
+           the aisles, nothing is dragged and the unsorted rows come first, because they
+           are the ones asking for something. A list with no heading yet says so, and
+           offers to make some, rather than drawing everything under "No category". */
+        <div>
+          {categories.length === 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-4 py-3">
+              <span className="text-sm text-slate-500">{say(LISTS.noCategoriesOnList)}</span>
+              <SetUpCategoriesButton />
+            </div>
+          )}
+          {[null, ...categories].map((category) => {
+            const rows = open.filter((item) => categoryOf(item) === (category?.id ?? null));
+            if (rows.length === 0) return null;
+            return (
+              <section key={category?.id ?? "UNSORTED"} data-category={category?.name ?? "UNSORTED"}>
+                {categories.length > 0 && (
+                  <h3 className="border-t border-slate-100 bg-slate-50 px-4 py-1.5 text-xs font-semibold text-slate-500">
+                    {category ? category.name : say(LISTS.uncategorized)}
+                  </h3>
+                )}
+                <div className="divide-y divide-slate-100 border-t border-slate-100">
+                  {rows.map((item) => rowFor(item, false))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      ) : remembered ? (
         /* Grouped by aisle: the shop decides the order, so nothing here is dragged. The
            rows nobody has placed come first, under a heading of their own, because they
            are the ones asking for something. */

@@ -75,7 +75,7 @@ async function applyOne(
     // queue cannot be used to ask which ids exist.
     if (!list || !canAccessHome(user, list.homeId)) return { ok: false, reason: "no such list" };
 
-    const outcome = await addItem(op.listId, op.text, op.amount, op.itemId);
+    const outcome = await addItem(op.listId, op.text, op.amount, op.itemId, op.categoryId);
     // Already on the list and not ticked off. Nothing is going to change that later, so
     // the op is finished with rather than kept: the list already says what it was for.
     return outcome.ok ? { ok: true, homeId: list.homeId } : { ok: false, reason: `"${outcome.clash}" is already on the list` };
