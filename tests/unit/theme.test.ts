@@ -131,11 +131,11 @@ describe("home themes", () => {
 
     expect(read("src/app/layout.tsx")).toMatch(/viewportFit:\s*"cover"/);
 
-    // The tab bar leaves the gesture bar its room, and its background — the band —
-    // is what fills it.
+    // The tab bar leaves the gesture bar its room, and its background — pure white, not
+    // the band and not a card's cream — is what fills it.
     const nav = read("src/components/bottom-nav.tsx");
     expect(nav).toContain("pb-[env(safe-area-inset-bottom)]");
-    expect(nav).toContain("bg-[var(--band)]");
+    expect(nav).toContain("bg-[#ffffff]");
 
     // And the frame around the page accounts for both ends.
     const app = read("src/app/(app)/layout.tsx");
