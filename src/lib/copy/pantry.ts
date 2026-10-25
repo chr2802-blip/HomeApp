@@ -1,22 +1,13 @@
-import type { PantryCategory, PantryUnit } from "@prisma/client";
+import type { PantryCategory, PantryMeasure } from "@prisma/client";
 import type { Phrase, Plural } from "./say";
 
-/** What each unit a pantry quantity can be counted in is called —
- *  `Record<PantryUnit, Phrase>`, so a unit added to the schema without a label here
- *  fails to compile. Kept to the app's other common units: `CAN`/`BAG` are the same
- *  `dåse`/`pose` `SAME_MEASURE` in `src/lib/ingredient-line.ts` writes for a recipe's
- *  own units. */
-export const PANTRY_UNIT_LABELS = {
-  G: { EN: "g", DA: "g" },
-  KG: { EN: "kg", DA: "kg" },
-  DL: { EN: "dl", DA: "dl" },
-  L: { EN: "l", DA: "l" },
-  CAN: { EN: "can", DA: "dåse" },
-  BAG: { EN: "bag", DA: "pose" },
-  PACK: { EN: "pack", DA: "pakke" },
-  JAR: { EN: "jar", DA: "glas" },
-  BUNCH: { EN: "bunch", DA: "bundt" },
-} as const satisfies Record<PantryUnit, Phrase>;
+/** What each way of keeping an entry is called — `Record<PantryMeasure, Phrase>`, so a
+ *  way added to the schema without a name here fails to compile. "Uendelig" is the
+ *  household's own word for something that is had or not and never counted. */
+export const PANTRY_MEASURE_LABELS = {
+  PIECES: { EN: "pcs", DA: "stk" },
+  ENDLESS: { EN: "Endless", DA: "Uendelig" },
+} as const satisfies Record<PantryMeasure, Phrase>;
 
 /** What each shelf is called, in the order the pantry page draws them —
  *  `Record<PantryCategory, Phrase>`, so a shelf added to the schema without a name here
@@ -66,9 +57,10 @@ export const PANTRY = {
   quantityAria: { EN: "Quantity of {name}", DA: "Mængde af {name}" },
   decreaseQuantity: { EN: "Decrease {name}", DA: "Formindsk {name}" },
   increaseQuantity: { EN: "Increase {name}", DA: "Forøg {name}" },
-  /** A plain count — the unit a stored null is read as, and the add sheet's default. */
-  pieces: { EN: "pcs", DA: "stk" },
-  amountLabel: { EN: "How much", DA: "Mængde" },
+  /** An endless entry's switch, while it is in. Out is `runOut`. */
+  haveIt: { EN: "In", DA: "Har" },
+  haveAria: { EN: "{name} in stock", DA: "{name} på lager" },
+  amountLabel: { EN: "How many uses", DA: "Antal stk" },
   editAria: { EN: "Edit {name}", DA: "Rediger {name}" },
   removeTitle: { EN: "Remove from supplies", DA: "Fjern fra forrådet" },
   removeMessage: {
@@ -112,7 +104,11 @@ export const PANTRY = {
   },
   categoryLabel: { EN: "Shelf", DA: "Hylde" },
   categoryAuto: { EN: "Choose for me", DA: "Vælg for mig" },
-  unitLabel: { EN: "Counted in", DA: "Tælles i" },
+  measureLabel: { EN: "Kept as", DA: "Holdes som" },
+  measureHint: {
+    EN: "Pieces go down by one every time a recipe using it is put on a list. Endless is either in or out, and only you change it.",
+    DA: "Stk tælles én ned, hver gang en opskrift der bruger det sættes på en liste. Uendelig har I enten eller ej, og kun I ændrer det.",
+  },
   editTitle: { EN: "Edit entry", DA: "Rediger vare" },
   expiryLabel: { EN: "Expiry date (optional)", DA: "Udløbsdato (valgfri)" },
   expiryInvalid: { EN: "That is not a date.", DA: "Det er ikke en dato." },

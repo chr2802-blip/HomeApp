@@ -10,9 +10,8 @@ import { AddToMealPlanMenuItem } from "@/components/add-to-meal-plan-menu-item";
 import { recipeSaveOverlay, RecipeFields } from "@/components/recipe-fields";
 import { PhotoBanner } from "@/components/photo";
 import { safeExternalHref } from "@/lib/embed";
-import { AddToListMenu } from "@/components/add-to-list-menu";
-import { ingredientLines, instructionLines, PORTIONS_PARAM, portionsShown, timeLabel } from "@/lib/recipes";
-import { CookLink, PortionsButton, PortionsProvider, ScaledIngredients } from "@/components/recipe-portions";
+import { ingredientLines, instructionLines, readTimes, TIMES_PARAM, timeLabel } from "@/lib/recipes";
+import { CookLink, RecipeAddToList, ScaledIngredients, TimesButton, TimesProvider } from "@/components/recipe-times";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
 import { isInFormat } from "@/lib/cook";
@@ -34,7 +33,7 @@ export default async function RecipePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
-  const asked = (await searchParams)[PORTIONS_PARAM];
+  const asked = (await searchParams)[TIMES_PARAM];
   const user = await requireHomeUser();
   const say = sayIn(user.homeLanguage);
 
@@ -81,8 +80,8 @@ export default async function RecipePage({
   const lastHearts = recipe.ratings.find((given) => given.userId === user.id)?.hearts ?? null;
 
   return (
-    // Leaving action mode comes back here with the portions it was cooking in the address.
-    <PortionsProvider servings={recipe.servings} initial={portionsShown(recipe.servings, asked)}>
+    // Leaving action mode comes back here with the multiplier it was cooking in the address.
+    <TimesProvider servings={recipe.servings} initial={readTimes(asked)}>
       <div className="mb-6 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex flex-wrap gap-1.5">
@@ -162,7 +161,7 @@ export default async function RecipePage({
 
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <Card>
-          {/* The portions and "Add to list" are each an icon here, opening a sheet: both
+          {/* The multiplier and "Add to list" are each an icon here, opening a sheet: both
               are done now and then, and as a stepper and a labelled button they crowded
               out the ingredients they belong to. */}
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -171,14 +170,13 @@ export default async function RecipePage({
             </h2>
             <div className="flex shrink-0 items-center gap-1.5">
               {/* Only where there are amounts to scale. */}
-              {ingredients.length > 0 && <PortionsButton />}
+              {ingredients.length > 0 && <TimesButton />}
               {/* Only where there is something to add. A recipe still being written would
                   otherwise offer to put nothing on a list. */}
               {ingredients.length > 0 && (
-                <AddToListMenu
-                  sheet
+                <RecipeAddToList
                   action={addRecipeIngredients}
-                  extraData={{ recipeId: recipe.id }}
+                  recipeId={recipe.id}
                   lists={lists.map((list) => ({
                     id: list.id,
                     title: list.title,
@@ -215,6 +213,6 @@ export default async function RecipePage({
           )}
         </Card>
       </div>
-    </PortionsProvider>
+    </TimesProvider>
   );
 }

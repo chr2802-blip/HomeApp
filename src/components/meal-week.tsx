@@ -6,6 +6,8 @@ import { Modal, ModalBody, ModalFooter } from "@/components/modal";
 import { DialogSubmitButton } from "@/components/form-dialog";
 import { MealPicker, type PlanGroup } from "@/components/meal-picker";
 import { PLAN_FIELD, PLAN_NOTHING, PLAN_OUT, leftoversDay } from "@/lib/meals";
+import { TIMES_CHOICES, TIMES_FIELD, stepTimes, timesLabel } from "@/lib/recipes";
+import { RECIPES } from "@/lib/copy/recipes";
 import type { ActionResult, FormAction } from "@/lib/action-result";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
@@ -17,6 +19,8 @@ export type MealDayInfo = {
   date: string;
   title: string;
   selected: string;
+  /** How many times over the day's recipe is made — 1 for anything else. */
+  times: number;
   groups: PlanGroup[];
   highlighted: boolean;
   /** A day already lived through: its row does not open, and a swipe cannot land on it. */
@@ -73,6 +77,7 @@ export function MealWeek({ days, action }: { days: MealDayInfo[]; action: FormAc
   }, [day]);
 
   const [choice, setChoice] = useState("");
+  const [times, setTimes] = useState(1);
   const [state, setState] = useState<ActionResult>(undefined);
   const [pending, startTransition] = useTransition();
 
@@ -90,6 +95,7 @@ export function MealWeek({ days, action }: { days: MealDayInfo[]; action: FormAc
   useEffect(() => {
     if (shown) {
       setChoice(shown.selected);
+      setTimes(shown.times);
       setState(undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -110,6 +116,7 @@ export function MealWeek({ days, action }: { days: MealDayInfo[]; action: FormAc
     const data = new FormData();
     data.set("date", date);
     data.set(PLAN_FIELD, value);
+    data.set(TIMES_FIELD, String(times));
     return action(undefined, data);
   }
 
@@ -211,6 +218,11 @@ export function MealWeek({ days, action }: { days: MealDayInfo[]; action: FormAc
                   </button>
                   {/* Beside the row's own button rather than inside it: a button cannot
                       hold a link, and going to the recipe must not also open the sheet. */}
+                  {recipeId && entry.times !== 1 && (
+                    <span data-testid="meal-times" className="mr-2 shrink-0 text-sm font-semibold text-slate-600 tabular-nums">
+                      {timesLabel(entry.times)}
+                    </span>
+                  )}
                   {recipeId && (
                     <ButtonLink
                       href={`/recipes/${recipeId}`}
@@ -259,6 +271,38 @@ export function MealWeek({ days, action }: { days: MealDayInfo[]; action: FormAc
               />
             </ModalBody>
             <ModalFooter>
+              {/* Only where the day is a recipe: leftovers and a night out are made zero
+                  times. In the footer, beside Save, because the picker above it scrolls
+                  and this is the last thing decided before saving. */}
+              {recipeIdOf(choice) && (
+                <div
+                  role="group"
+                  aria-label={say(RECIPES.timesField)}
+                  className="mb-3 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-1"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setTimes(stepTimes(times, -1))}
+                    disabled={times <= TIMES_CHOICES[0]}
+                    aria-label={say(RECIPES.fewerTimes)}
+                    className="press-icon h-9 w-9 rounded-lg text-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30"
+                  >
+                    −
+                  </button>
+                  <span data-testid="meal-times-field" className="text-sm font-semibold tabular-nums">
+                    {timesLabel(times)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setTimes(stepTimes(times, 1))}
+                    disabled={times >= TIMES_CHOICES[TIMES_CHOICES.length - 1]}
+                    aria-label={say(RECIPES.moreTimes)}
+                    className="press-icon h-9 w-9 rounded-lg text-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30"
+                  >
+                    +
+                  </button>
+                </div>
+              )}
               {state?.ok === false && (
                 <p role="alert" className="mb-3 text-sm text-red-600">
                   {state.error}

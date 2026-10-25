@@ -20,7 +20,7 @@ import {
 import { cancelTimerPushes, requestTimerPush } from "@/lib/cook-timer-client";
 import { cheer } from "@/lib/haptics";
 import { readPushState, turnOnPush, type PushState } from "@/lib/push-client";
-import { PORTIONS_PARAM } from "@/lib/recipes";
+import { TIMES_PARAM } from "@/lib/recipes";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
 import { useLanguage } from "@/components/language-provider";
@@ -109,12 +109,12 @@ export function KitchenProvider({ children }: { children: React.ReactNode }) {
    * timer needs a push at all).
    */
   const askForPush = useCallback(async (timer: CookTimer) => {
-    const portions = findCook(latest.current, timer.recipeId)?.portions ?? null;
+    const times = findCook(latest.current, timer.recipeId)?.times ?? 1;
     const { id, available } = await requestTimerPush({
       recipeId: timer.recipeId,
       step: timer.step,
       endsAt: timer.endsAt,
-      portions,
+      times,
     });
     if (id) {
       // Stopped or restarted while the question was out: the push is for a timer that no
@@ -175,8 +175,8 @@ export function KitchenProvider({ children }: { children: React.ReactNode }) {
 
 /** The cooking view's own address, carrying the amounts that recipe was being cooked for. */
 export function cookHref(kitchen: Kitchen, recipeId: string): string {
-  const portions = findCook(kitchen, recipeId)?.portions ?? null;
-  return `/recipes/${recipeId}/cook${portions !== null ? `?${PORTIONS_PARAM}=${portions}` : ""}`;
+  const times = findCook(kitchen, recipeId)?.times ?? 1;
+  return `/recipes/${recipeId}/cook${times !== 1 ? `?${TIMES_PARAM}=${times}` : ""}`;
 }
 
 const COOK_PATH = /^\/recipes\/[^/]+\/cook$/;

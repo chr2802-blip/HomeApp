@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { addRecipeToNextOpenDay, planMeal, resetMealWeek } from "@/app/actions/meals";
 import { PLAN_FIELD, PLAN_OUT, leftoversChoice } from "@/lib/meals";
+import { TIMES_FIELD } from "@/lib/recipes";
 import { dueAtDaysFrom, todayInZone, weekDays } from "@/lib/time";
 import {
   createHome,
@@ -35,6 +36,20 @@ describe("planMeal", () => {
       date: "2026-06-04",
       recipeId: recipe.id,
     });
+  });
+
+  it("keeps how many times over a recipe is made, and 1 for anything else", async () => {
+    const recipe = await createRecipe({ homeId: home.id, createdById: member.id });
+
+    await planMeal(undefined, formData({ date: "2026-06-04", [PLAN_FIELD]: recipe.id, [TIMES_FIELD]: "2" }));
+    expect((await only()).times).toBe(2);
+
+    // A multiplier the stepper does not offer is the recipe as written.
+    await planMeal(undefined, formData({ date: "2026-06-04", [PLAN_FIELD]: recipe.id, [TIMES_FIELD]: "7" }));
+    expect((await only()).times).toBe(1);
+
+    await planMeal(undefined, formData({ date: "2026-06-04", [PLAN_FIELD]: PLAN_OUT, [TIMES_FIELD]: "3" }));
+    expect((await only()).times).toBe(1);
   });
 
   it("stores a night out as a row with no recipe", async () => {

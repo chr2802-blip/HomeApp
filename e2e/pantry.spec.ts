@@ -62,13 +62,22 @@ async function openAdd(page: Page) {
   });
 }
 
-/** Adds through the sheet, which closes on success. */
-async function keepIn(page: Page, name: string) {
+/** An endless entry's switch, which is where its name is read from instead. */
+const haveSwitch = (page: Page, name: string) => page.getByRole("switch", { name: `${name} in stock`, exact: true });
+
+/**
+ * Adds through the sheet, which closes on success. Counted in stk unless asked otherwise,
+ * whatever the list of common goods would have chosen, so every entry here has the
+ * stepper the tests read it by.
+ */
+async function keepIn(page: Page, name: string, { endless = false } = {}) {
   await openAdd(page);
-  await page.getByLabel("Something you keep in").fill(name);
-  await page.getByRole("dialog").getByRole("button", { name: "Add", exact: true }).click();
-  await expect(page.getByRole("dialog")).toBeHidden();
-  await expect(quantityGroup(page, name)).toBeVisible();
+  const sheet = page.getByRole("dialog");
+  await sheet.getByLabel("Something you keep in").fill(name);
+  await sheet.getByText(endless ? "Endless" : "pcs", { exact: true }).click();
+  await sheet.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(sheet).toBeHidden();
+  await expect(endless ? haveSwitch(page, name) : quantityGroup(page, name)).toBeVisible();
 }
 
 /**
@@ -176,47 +185,71 @@ test("the pantry is reached from the home's own name, and kept there", async ({ 
   await expect(quantityGroup(page, "Havsalt")).toHaveCount(0);
 });
 
-test("the add sheet asks how much and in what, starting on one plain count", async ({ page }) => {
+test("the add sheet asks whether it is counted, starting on the list's own answer", async ({ page }) => {
   await page.goto("/pantry");
   await openAdd(page);
   const sheet = page.getByRole("dialog");
-  await expect(sheet.getByLabel("How much")).toHaveValue("1");
   await expect(sheet.getByRole("radio", { name: "pcs", exact: true })).toBeChecked();
+  await expect(sheet.getByLabel("How many uses")).toHaveValue("1");
+
+  // The list of common goods knows salt is endless, and an endless entry has no number.
+  await sheet.getByLabel("Something you keep in").fill("Salt");
+  await expect(sheet.getByRole("radio", { name: "Endless", exact: true })).toBeChecked();
+  await expect(sheet.getByLabel("How many uses")).toHaveCount(0);
 
   await sheet.getByLabel("Something you keep in").fill("Æbler");
-  await sheet.getByLabel("How much").fill("3");
-  await sheet.getByText("bag", { exact: true }).click();
+  await sheet.getByText("pcs", { exact: true }).click();
+  await sheet.getByLabel("How many uses").fill("3");
   await sheet.getByRole("button", { name: "Add", exact: true }).click();
   await expect(sheet).toBeHidden();
 
   await expect(quantityBox(page, "Æbler")).toHaveValue("3");
-  await expect(quantityGroup(page, "Æbler").getByTestId("pantry-unit")).toHaveText("bag");
+  await expect(quantityGroup(page, "Æbler").getByTestId("pantry-unit")).toHaveText("pcs");
 });
 
-test("a good is filed on its shelf, and its shelf and unit are changed in the sheet", async ({
-  page,
-}) => {
+test("an endless entry is had or run out, one press each way, and can be turned into stk", async ({ page }) => {
+  await page.goto("/pantry");
+  await keepIn(page, "Salt", { endless: true });
+  await expect(haveSwitch(page, "Salt")).toHaveAttribute("aria-checked", "true");
+
+  await retry(async () => {
+    const written = page.waitForResponse(
+      (response) => response.request().method() === "POST" && response.url().includes("/pantry"),
+      { timeout: 5_000 },
+    );
+    await haveSwitch(page, "Salt").click();
+    await expect(haveSwitch(page, "Salt")).toHaveAttribute("aria-checked", "false", { timeout: 1000 });
+    await written;
+  });
+  await page.reload();
+  await openShelf(page, "SPICES");
+  await expect(haveSwitch(page, "Salt")).toHaveAttribute("aria-checked", "false");
+
+  await openMenu(page, { label: "Salt" });
+  await page.getByRole("menuitem", { name: "Edit" }).click();
+  await page.getByRole("dialog").getByText("pcs", { exact: true }).click();
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(quantityBox(page, "Salt")).toHaveValue("0");
+});
+
+test("a good is filed on its shelf, and its shelf is changed in the sheet", async ({ page }) => {
   await page.goto("/pantry");
   await keepIn(page, "Ris");
 
-  // The free list knows rice: on its shelf at once, counted in kilos.
+  // The free list knows rice: on its shelf at once.
   await expect(shelf(page, "DRY_GOODS").getByRole("group", { name: "Quantity of Ris" })).toBeVisible();
-  await expect(quantityGroup(page, "Ris").getByTestId("pantry-unit")).toHaveText("kg");
 
   await openMenu(page, { label: "Ris" });
   await page.getByRole("menuitem", { name: "Edit" }).click();
   // The chips are what is pressed; the radios under them are visually hidden.
   const sheet = page.getByRole("dialog");
   await sheet.getByText("Freezer", { exact: true }).click();
-  await sheet.getByText("g", { exact: true }).click();
-  await expect(sheet.getByRole("radio", { name: "g", exact: true })).toBeChecked();
   await page.getByRole("button", { name: "Save changes" }).click();
 
   await expect(shelf(page, "FREEZER").getByRole("group", { name: "Quantity of Ris" })).toBeVisible();
   await page.reload();
   await openShelf(page, "FREEZER");
   await expect(shelf(page, "FREEZER").getByRole("group", { name: "Quantity of Ris" })).toBeVisible();
-  await expect(quantityGroup(page, "Ris").getByTestId("pantry-unit")).toHaveText("g");
   await expect(shelf(page, "DRY_GOODS")).toHaveCount(0);
 });
 
@@ -371,6 +404,40 @@ test("a recipe leaves the pantry's own lines off the shopping list", async ({ pa
   await expect(page.getByText("Kylling", { exact: true })).toBeVisible();
   await expect(page.getByText("Ris", { exact: true })).toBeVisible();
   await expect(page.getByText("Salt", { exact: true })).toHaveCount(0);
+});
+
+test("a recipe made twice takes two stk from the cupboard", async ({ page }) => {
+  await newList(page, "Groceries");
+
+  await page.goto("/pantry");
+  await keepIn(page, "Ris");
+  await retry(async () => {
+    const written = page.waitForResponse(
+      (response) => response.request().method() === "POST" && response.url().includes("/pantry"),
+      { timeout: 5_000 },
+    );
+    await quantityBox(page, "Ris").fill("5");
+    await quantityBox(page, "Ris").press("Enter");
+    await written;
+  });
+
+  await newRecipe(page, "Karry", "2 dl ris\n500 g kylling");
+  const times = page.getByRole("button", { name: "Times over" });
+  await expect(times).toHaveAttribute("data-ready", "true");
+  await times.click();
+  const sheet = page.getByRole("dialog", { name: "Times over" });
+  await sheet.getByRole("button", { name: "Make more" }).click();
+  await expect(sheet.getByTestId("times")).toHaveText("2×");
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+  await expect(times).toHaveText("2×");
+
+  await addToList(page, "Groceries");
+  await expect(page.getByText("Ris already in your supplies.")).toBeVisible();
+
+  await page.goto("/pantry");
+  await openShelf(page, "DRY_GOODS");
+  await expect(quantityBox(page, "Ris")).toHaveValue("3");
 });
 
 test("everything that has run out goes onto a list in one press", async ({ page }) => {

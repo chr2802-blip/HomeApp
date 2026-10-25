@@ -22,7 +22,12 @@ async function keepIn(page: Page, name: string) {
   await page.getByLabel("Noget I altid har hjemme").fill(name);
   await page.getByRole("dialog").getByRole("button", { name: "Tilføj", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
-  await expect(page.getByRole("group", { name: `Mængde af ${name}`, exact: true })).toBeVisible();
+  // Salt and pepper are endless on the list of common goods: a switch, not a stepper.
+  await expect(
+    page
+      .getByRole("group", { name: `Mængde af ${name}`, exact: true })
+      .or(page.getByRole("switch", { name: `${name} på lager`, exact: true })),
+  ).toBeVisible();
 }
 
 test("picks the language the whole household is then spoken to in", async ({ page, loginAs }) => {

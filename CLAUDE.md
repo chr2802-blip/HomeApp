@@ -618,7 +618,7 @@ the hearts always inserts, never updates.
   `popstate`, so one back press closes both.
 - **On the recipe page the hearts are in a sheet**, behind a heart icon by the title
   (`SheetButton`, `src/components/sheet-button.tsx`) — it is about
-  the whole recipe, not the ingredients. The portions and "Add to list" are the same kind
+  the whole recipe, not the ingredients. The multiplier and "Add to list" are the same kind
   of icon in the ingredients' heading. As a card, a stepper and a labelled button the
   three crowded out the recipe.
 
@@ -852,19 +852,32 @@ lines on the shop every time and the three that mattered were somewhere in among
 so the note under each item saying which recipe asked for it was answering a question
 nobody had, about salt.
 
-**A pantry entry is a name, a quantity, a unit and a shelf**: `quantity`, which is the whole of
-what a cupboard says about how much there is, and `unit` — what it is counted in
-(`PANTRY_UNITS` in `src/lib/pantry.ts`: g, kg, dl, l, and the kitchen's own dåse, pose,
-pakke, glas, bundt) or nothing at all for a plain count, which is drawn and offered as
-"stk" (`PANTRY.pieces`) — null *is* stk, so no stored entry changed when the word arrived. Zero is what a boolean
-`inStock: false` used to mean and any amount past that is what `true` did — matching
-against the shopping list still asks only the one question it always has, in or out;
-what the quantity is *of* is for the household reading its own cupboard, never for
-`stripStocked` or `matchedStockedKey`. Running out is therefore **bringing the quantity
-down to zero** rather than deleting the entry, and the next recipe that wants rice puts
-rice back on the list — which is the second half of what the feature is for. Deleting is
-the different sentence: this household has stopped treating it as something it always
-has in.
+**A pantry entry is a name, a quantity, a way of keeping it and a shelf.** `measure`
+(`PantryMeasure`) is `PIECES` or `ENDLESS`, and there are no units. **A stk is one use** —
+enough for cooking something once, however the household divides a packet (a kilo of rice
+used 200 g at a time is 5 stk) — and **endless is had or not** (salt, oil, the spice rack),
+held to 1 or 0 by `heldAs` and drawn as a switch ("Har"/"Løbet tør") rather than a
+stepper. Grams, kilos and tins were tried first and dropped: keeping weights current was
+more work than any household did, which is the whole reason for this shape. Zero is "run
+out" for both, so matching against the shopping list still asks only the one question it
+always has, in or out — `measure` is never read by `stripStocked` or `matchedStockedKey`.
+Running out is therefore **bringing the quantity down to zero** rather than deleting the
+entry, and the next recipe that wants rice puts rice back on the list — which is the second
+half of what the feature is for. Deleting is the different sentence: this household has
+stopped treating it as something it always has in.
+
+**A recipe put on a list uses what the cupboard answered for** — `planPantry` in
+`src/lib/pantry.ts`, called by `writeRecipesToList` and written in the same transaction as
+the list. Every line the pantry covered takes one stk of each counted entry that covered it,
+per time the recipe is being made (`pantryUses(times)`, so ½× is still one); an endless
+entry is never counted down, and only a person marks it run out. **A line bought rather than
+taken takes nothing** — bought and used leaves the cupboard where it was — so ticking a list
+item never touches the pantry, and neither does "still add it" in the ambiguous-line dialog.
+**Short is shopping**: a counted entry with fewer stk left than a line uses gives up what it
+has and the line goes on the list after all; stock is spent recipe by recipe, so the second
+of two recipes wanting the last stk is the one that shops. A press the pantry answered in
+full still counts down, even though it adds nothing. The count happens at the press, not at
+the cooking: a dinner dropped afterwards is put back by hand.
 
 **What matches is `key`, not `name`.** `pantryKey` in `src/lib/pantry.ts` is
 `shoppingText` again, lower-cased — the same normalisation that decides two recipes'
@@ -945,34 +958,26 @@ household already keeps something under that name) needs no undoing: the optimis
 falls back to the stored one when the transition ends, and the row says why underneath
 itself.
 
-**The unit and the shelf are in the sheet behind the three dots, not on the row.** Both
-are set once and then left alone, and a control on every row is room taken from the name
-on every row — a unit menu per row is what left long names truncated to a few letters. So
-the row only *reads* its unit beside the number ("2 kg", "2 stk"), and
-"Edit" in the `ItemMenu` opens one `editPantryItem` sheet of chips for both, with the
-expiry date and the entry's picture under them. **The picture is drawn in that sheet and
-nowhere else** — not on the row, for the same reason the unit menu is not: a thumbnail on
-every row is room taken from the name.
-`PANTRY_UNITS` (g, kg, dl, l, and the kitchen's own dåse, pose, pakke, glas, bundt) are
-offered with "stk" (no unit) as its own choice and not a lesser one: a plain count ("3") is as
-valid an answer as a measured one ("500 g"), the same reason a counted recipe ingredient
-carries no unit either (see `UNIT_WORDS`). **The name leads the row, on the left**, as a
-list item's does — finding rice is the first thing every visit does — then the stepper,
+**How it is kept and the shelf are in the sheet behind the three dots, not on the row.**
+Both are set once and then left alone, and a control on every row is room taken from the
+name on every row. "Edit" in the `ItemMenu` opens one `editPantryItem` sheet of chips for
+both, with the expiry date and the entry's picture under them; turning a counted entry
+endless keeps "have it" if it had any. **The picture is drawn in that sheet and nowhere
+else** — a thumbnail on every row is room taken from the name. **The name leads the row,
+on the left**, as a list item's does — finding rice is the first thing every visit does —
+then the stepper (reading "3 stk") or the switch, the same width so the column lines up,
 then the three dots at the far end. Delete stays last in that menu, a gap away from the
 stepper so a thumb aiming at "we're out of rice" does not land on it.
 
-**A quantity carries one decimal, and an entry may carry an expiry date.** `quantity` is a
-double held to one decimal and at most `MAX_PANTRY_QUANTITY` (9999, because grams) by
-`clampPantryQuantity`, which reads a Danish comma as the point; the row's box is a text
-input with a decimal keyboard, written by `formatPantryQuantity` in the home's own decimal
-mark — a `type="number"` box answers "" for "1,5" in a browser whose locale writes a
-point. `expiresOn` is optional, a day as `"yyyy-MM-dd"` like `MealPlan.date`, set in the
-same sheet and cleared by emptying it. The row draws an amber warning icon (the app's
-"overdue", never the home's colour and never red) from `EXPIRY_WARNING_DAYS` (14) before
-it — **the days are counted by the page on the household's clock (`expiryWarning`), and
-whether any is left by the row from its optimistic quantity (`warnsOfExpiry`)**, so an
-entry stepped down to zero stops warning under the thumb: an empty packet past its date
-is on the shopping list already.
+**A quantity is whole uses, and an entry may carry an expiry date.** `quantity` is an
+integer up to `MAX_PANTRY_QUANTITY` (999), read by `clampPantryQuantity`, which rounds a
+part-use up (half a packet left is still a dinner's worth to plan around). `expiresOn` is
+optional, a day as `"yyyy-MM-dd"` like `MealPlan.date`, set in the same sheet and cleared
+by emptying it. The row draws an amber warning icon (the app's "overdue", never the home's
+colour and never red) from `EXPIRY_WARNING_DAYS` (14) before it — **the days are counted by
+the page on the household's clock (`expiryWarning`), and whether any is left by the row from
+its optimistic quantity (`warnsOfExpiry`)**, so an entry stepped down to zero stops warning
+under the thumb: an empty packet past its date is on the shopping list already.
 
 **The page is grouped by shelf.** `PantryCategory` is a fixed set (spices, oil & vinegar,
 sauces, baking, pasta/rice/grains, tins & jars, fridge, freezer, drinks, baby, bathroom, cleaning, other), named in
@@ -1006,13 +1011,11 @@ offers Edit and no Delete.
 **Where a new entry goes is answered by a list first and a model second, and nothing
 waits on the model.** `src/lib/pantry-goods.ts` is a list of common basics — each its two
 languages on one line, plus the spellings a household types — with the shelf and usual
-unit of each. `lookupGood` (exact key, then the longest run of whole words, like
+way of keeping each (rice, tins and onions counted; spices, oils and the fridge endless). `lookupGood` (exact key, then the longest run of whole words, like
 `matchedStockedKey`, so "røget paprika" is paprika and "rødløg" is never "løg") is the one
 answer: the add sheet previews the shelf with it and `createPantryItem` saves with it, so
-the two cannot disagree. A known good starts on its shelf with its unit; the unit is
-**only ever** the list's, never the model's, because a stored null unit may be a plain
-count somebody chose, and "3" quietly becoming "3 kg" would change what the cupboard
-says. A name the list does not know is stored at once, unsorted, and the add sheet sends
+the two cannot disagree. A known good starts on its shelf, kept its usual way; that way
+is **only ever** the list's or the person's, never the model's. A name the list does not know is stored at once, unsorted, and the add sheet sends
 `sortPantry` afterwards without waiting — so the row appears under "Not sorted yet" and
 moves onto its shelf when the answer lands, and there is no `AiOverlay` for an add because
 nobody is waiting. `sortPantry` runs the list over every unsorted entry first (free), asks
@@ -1028,11 +1031,11 @@ model will be asked (something unsorted that `lookupGood` does not know).
 already have that" before it adds anything.** `PantryAddDialog` is the `create`
 `IconButton` beside the page's title and a `DialogForm` — written out rather than through
 `FormDialog` because its fields read the name as it is typed and a successful add may
-send `sortPantry` afterwards. The shelf is asked with the same chips as the "Shelf and
-unit" sheet, starting on "choose for me", which names the shelf `lookupGood` would pick.
-**It also asks how much and in what**: the amount starts at 1 and the unit on stk, except
-that a name `lookupGood` knows a unit for moves the chip there until somebody picks one by
-hand. `createPantryItem` stores what the sheet sent; only a form sending no `unit` at all
+send `sortPantry` afterwards. The shelf is asked with the same chips as the edit sheet,
+starting on "choose for me", which names the shelf `lookupGood` would pick. **It also asks
+stk or endless**, starting on stk except where `lookupGood` knows better ("salt" moves the
+chip to endless until somebody picks by hand), and how many uses only for stk.
+`createPantryItem` stores what the sheet sent; only a form sending no `measure` at all
 falls back to the list's.
 As a name is typed the sheet offers the entries already kept that it could be, under
 their own heading, and then common basics not yet kept, in the household's own language.
@@ -1268,23 +1271,29 @@ forward**, as lifting a right-hand page over does.
 - The page turn is `page-turn-next` / `page-turn-back` in `globals.css` — keyframes, and
   no `translate-*`/`rotate-*`/`scale-*` utility on the element playing one.
 
-### A recipe says how many it is for, and is scaled on screen, never in storage
+### A recipe is made ½×, 1×, 2×…, scaled on screen, never in storage
 
-`Recipe.servings` is how many people the stored amounts feed. The form asks it on every
-save (`required` on the input) while the action accepts a blank, so a recipe stored before
-anybody was asked still saves and is simply shown unscaled — the dozens of tests and seeds
-that create recipes without it keep meaning what they meant. An import fills it where the
-source said (`recipeYield`, handed to the reader as a `SERVINGS` block; the reader answers
-`servings`, coerced like `totalTimeMinutes`).
+The recipe page's stepper is a **multiplier** (`TIMES_CHOICES` in `src/lib/recipes.ts`:
+½, 1, 2, 3, 4, 5, 6, 8, 10), not a number of people, because it is also what the pantry is
+asked for — a recipe made twice takes two stk (`pantryUses`). `Recipe.servings` is still
+how many people the stored amounts feed, and the sheet says the people a multiplier makes
+(`portionsFor`) where the recipe knows; a recipe with no servings still scales. The form asks
+servings on every save (`required` on the input) while the action accepts a blank. An import
+fills it where the source said (`recipeYield`, handed to the reader as a `SERVINGS` block;
+the reader answers `servings`, coerced like `totalTimeMinutes`).
 
 - **Scaling is display only.** `scaleIngredient` in `src/lib/ingredient-line.ts` multiplies
-  a stored line's leading amount and writes it back through `formatAmount`, so a scaled
-  line is still one `shoppingText` can take apart. The stored lines are never rewritten —
-  4 → 3 → 4 has to land where it started — and a line with no amount ("Salt") is left alone.
-- **The portions travel in the address** (`PORTIONS_PARAM`, read by `portionsShown`):
-  "Start cooking" carries them into action mode, closing it carries them back, and the cook
-  session keeps them so a resumed cook comes back to the same amounts. Action mode scales
-  line by line, so a scaled block keeps every position the stored breakdown's `uses` point at.
+  a stored line's leading amount by the multiplier and writes it back through
+  `formatAmount`, so a scaled line is still one `shoppingText` can take apart. The stored
+  lines are never rewritten, and a line with no amount ("Salt") is left alone.
+- **The multiplier travels in the address** (`TIMES_PARAM`, read by `readTimes`, which
+  answers 1 for anything off the list): "Start cooking" carries it into action mode,
+  closing it carries it back, the cook session and a timer's push keep it, and "Add to
+  list" sends it (`RecipeAddToList`, `TIMES_FIELD`). Action mode scales line by line, so a
+  scaled block keeps every position the stored breakdown's `uses` point at.
+- **A day on the meal plan carries one too** (`MealPlan.times`, the stepper in the day's
+  sheet beside Save, only for a recipe), and "add the week to a list" counts the pantry
+  down by it. `planMeal` writes it on every save, 1 for leftovers and a night out.
 - The steps' own text is not scaled ("Tilsæt 50 g af smørret") — nothing parses a step.
 
 ### A new recipe starts by asking how, not with a field buried in the form

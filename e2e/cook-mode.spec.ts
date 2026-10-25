@@ -120,46 +120,45 @@ test("opens on the ingredients and turns a page at a time, with what each step n
   await expect(surface.getByText("Skær kartoflerne i både.")).toBeVisible();
 });
 
-test("cooks the portions the recipe page was showing, and goes back to them", async ({ page }) => {
+test("cooks the multiplier the recipe page was showing, and goes back to it", async ({ page }) => {
   const recipe = await seedPrepared({ servings: 4 });
   await page.goto(`/recipes/${recipe.id}`);
 
   await expect(page.getByText("500 g kartofler")).toBeVisible();
 
-  // The portions are an icon beside the ingredients, and the stepper is in its sheet.
-  const portionsButton = page.getByRole("button", { name: "Portions" });
-  await expect(portionsButton).toHaveAttribute("data-ready", "true");
-  await expect(portionsButton).toHaveText("4");
-  await portionsButton.click();
-  const sheet = page.getByRole("dialog", { name: "Portions" });
+  // The multiplier is an icon beside the ingredients, and the stepper is in its sheet.
+  const timesButton = page.getByRole("button", { name: "Times over" });
+  await expect(timesButton).toHaveAttribute("data-ready", "true");
+  await expect(timesButton).toHaveText("1×");
+  await timesButton.click();
+  const sheet = page.getByRole("dialog", { name: "Times over" });
   await expect(sheet.getByTestId("portions")).toHaveText("4 portions");
-  await sheet.getByRole("button", { name: "More portions" }).click();
-  await sheet.getByRole("button", { name: "More portions" }).click();
-  await expect(sheet.getByTestId("portions")).toHaveText("6 portions");
-  await expect(sheet.getByText("The recipe is written for 4")).toBeVisible();
+  await sheet.getByRole("button", { name: "Make more" }).click();
+  await expect(sheet.getByTestId("times")).toHaveText("2×");
+  await expect(sheet.getByTestId("portions")).toHaveText("8 portions");
   await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toHaveCount(0);
 
-  await expect(portionsButton).toHaveText("6");
-  await expect(page.getByText("750 g kartofler")).toBeVisible();
-  await expect(page.getByText("3 spsk olie")).toBeVisible();
-  // Unmeasured stays unmeasured, however many it is for.
+  await expect(timesButton).toHaveText("2×");
+  await expect(page.getByText("1000 g kartofler")).toBeVisible();
+  await expect(page.getByText("4 spsk olie")).toBeVisible();
+  // Unmeasured stays unmeasured, however many times over.
   await expect(page.getByRole("listitem").filter({ hasText: /^·\s*Salt$/ })).toBeVisible();
 
   await page.getByRole("link", { name: "Start cooking" }).click();
-  await expect(page).toHaveURL(`/recipes/${recipe.id}/cook?portions=6`);
+  await expect(page).toHaveURL(`/recipes/${recipe.id}/cook?times=2`);
   const surface = page.getByRole("dialog", { name: /Cooking/ });
   await expect(surface).toHaveAttribute("data-ready", "true");
-  await expect(surface.getByTestId("cook-portions")).toHaveText(/6 portions/);
-  await expect(surface.getByText("750 g kartofler")).toBeVisible();
+  await expect(surface.getByTestId("cook-portions")).toHaveText(/2× · 8 portions/);
+  await expect(surface.getByText("1000 g kartofler")).toBeVisible();
 
   // A step's own ingredients are scaled the same way.
   await surface.getByRole("button", { name: "Start" }).click();
-  await expect(surface.getByText("750 g kartofler")).toBeVisible();
+  await expect(surface.getByText("1000 g kartofler")).toBeVisible();
 
   await surface.getByRole("link", { name: "Close" }).click();
-  await expect(page).toHaveURL(`/recipes/${recipe.id}?portions=6`);
-  await expect(page.getByRole("button", { name: "Portions" })).toHaveText("6");
+  await expect(page).toHaveURL(`/recipes/${recipe.id}?times=2`);
+  await expect(page.getByRole("button", { name: "Times over" })).toHaveText("2×");
 
   // Nothing was written back: the recipe is still the recipe as written.
   expect((await prisma().recipe.findUniqueOrThrow({ where: { id: recipe.id } })).ingredients).toBe(

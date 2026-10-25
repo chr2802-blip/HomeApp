@@ -16,7 +16,8 @@ import {
   clampPantryQuantity,
   readExpiryDate,
   isPantryCategory,
-  isPantryUnit,
+  isPantryMeasure,
+  heldAs,
   pantryKey,
 } from "@/lib/pantry";
 import { lookupGood } from "@/lib/pantry-goods";
@@ -117,9 +118,8 @@ function readPantryName(formData: FormData, language: HomeLanguage) {
  * yet", and the add box asks `sortPantry` for it afterwards: the add itself never waits on
  * a model.
  *
- * The unit is only ever the known good's usual one, never a guess: a new entry starts at
- * one, and "1 glas" of spidskommen is what a household would have written. Anything else
- * starts as a plain count and is changed from the three dots.
+ * How it is kept is what the sheet sent, and a form that does not say is the known
+ * good's usual way (salt is endless, rice is counted) or counted for anything else.
  */
 export async function createPantryItem(
   _prev: ActionResult,
@@ -135,13 +135,15 @@ export async function createPantryItem(
     category: known?.category ?? null,
     shelfId: null,
   };
-  // The sheet always sends a unit, "" for stk; a form that does not mention one gets the
-  // list's. A quantity not mentioned is one, as it always was.
-  const rawUnit = formData.get("unit");
-  const sentUnit = String(rawUnit ?? "");
-  const unit = rawUnit === null ? (known?.unit ?? null) : isPantryUnit(sentUnit) ? sentUnit : null;
+  // The sheet always sends a way of keeping it; a form that does not mention one gets
+  // the list's. A quantity not mentioned is one, as it always was.
+  const sentMeasure = String(formData.get("measure") ?? "");
+  const measure = isPantryMeasure(sentMeasure) ? sentMeasure : (known?.measure ?? "PIECES");
   const rawQuantity = formData.get("quantity");
-  const quantity = rawQuantity === null || String(rawQuantity).trim() === "" ? 1 : clampPantryQuantity(rawQuantity);
+  const quantity = heldAs(
+    measure,
+    rawQuantity === null || String(rawQuantity).trim() === "" ? 1 : clampPantryQuantity(rawQuantity),
+  );
 
   try {
     // The home is spelled out beside the check that produced it, as createList and
@@ -152,7 +154,7 @@ export async function createPantryItem(
         name: form.fields.name,
         key: form.fields.key,
         ...shelf,
-        unit,
+        measure,
         quantity,
       },
     });
@@ -212,8 +214,9 @@ export async function renamePantryItem(formData: FormData): Promise<ActionResult
  * thumb meant, not applied again on top of itself. Acts on one id and reports nothing;
  * there is nothing to refuse.
  *
- * It writes the quantity and nothing else. The unit lives in the sheet behind the three
- * dots now (`editPantryItem`), and a stepper that also sent the unit it was drawn with
+ * It writes the quantity and nothing else — held to the entry's own way of keeping it,
+ * so an endless entry is only ever 1 or 0. How it is kept lives in the sheet behind the
+ * three dots (`editPantryItem`), and a control that also sent the way it was drawn with
  * would put back whatever that sheet had just changed.
  */
 export async function setPantryQuantity(formData: FormData) {
@@ -222,19 +225,19 @@ export async function setPantryQuantity(formData: FormData) {
 
   await prisma.pantryItem.update({
     where: { id: item.id },
-    data: { quantity: clampPantryQuantity(formData.get("quantity")) },
+    data: { quantity: heldAs(item.measure, clampPantryQuantity(formData.get("quantity"))) },
   });
 
   refreshPantryViews();
 }
 
 /**
- * The sheet behind the three dots: which shelf an entry sits on and what it is counted
- * in — the two things about an entry that are set once and then left alone, which is why
+ * The sheet behind the three dots: which shelf an entry sits on and whether it is counted
+ * or endless — the two things about an entry that are set once and then left alone, which is why
  * they left the row and gave its name the room.
  *
- * Both are held to what this app offers. An empty unit is "no unit", a plain count, and is
- * a real answer. A shelf is always sent by the sheet (it opens on the current one, or on
+ * Both are held to what this app offers; a way of keeping it that does not arrive leaves it
+ * as it was. Turning a counted entry endless keeps "have it" if it had any. A shelf is always sent by the sheet (it opens on the current one, or on
  * nothing for an unsorted entry); one that does not arrive leaves the entry where it was,
  * since "not sorted yet" is not something a person chooses.
  */
@@ -248,7 +251,8 @@ export async function editPantryItem(
   const item = await itemInScope(String(formData.get("pantryItemId")));
   if (!item) return fail(say(PANTRY.noItemAnyMore));
 
-  const rawUnit = String(formData.get("unit") ?? "");
+  const sentMeasure = String(formData.get("measure") ?? "");
+  const measure = isPantryMeasure(sentMeasure) ? sentMeasure : item.measure;
   const shelf = await readShelfChoice(String(formData.get("category") ?? ""), user.homeId);
   // Blank is "no date", which is how one is taken off again.
   const expiresOn = readExpiryDate(formData.get("expiresOn"));
@@ -261,7 +265,8 @@ export async function editPantryItem(
   await prisma.pantryItem.update({
     where: { id: item.id },
     data: {
-      unit: isPantryUnit(rawUnit) ? rawUnit : null,
+      measure,
+      quantity: heldAs(measure, item.quantity),
       ...(formData.has("expiresOn") ? { expiresOn } : {}),
       // Both columns together, so moving to a shelf of the household's own clears the
       // built-in one and back: an entry is on one shelf.

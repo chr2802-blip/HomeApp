@@ -671,6 +671,11 @@ model MealPlan {
    * still says "Leftovers", which is the true half of what it knew.
    */
   leftoverOf String?
+  /// How many times over the recipe is being made that day — 0.5, 1, 2, 3… — read by
+  /// "add the week to a list" to take that many stk from the pantry (`pantryDraws`).
+  /// Ignored for leftovers and a night out. Its range is `planMeal`'s to keep
+  /// (`readTimes`), like the other two columns.
+  times      Float    @default(1)
   updatedAt  DateTime @default(now()) @updatedAt
 
   home   Home    @relation(fields: [homeId], references: [id], onDelete: Cascade)
@@ -715,22 +720,19 @@ model RecipeCategoryLink {
 }
 
 /**
- * The unit a pantry quantity is counted in, or none at all for a plain count — the
- * same reason a counted recipe ingredient carries no unit either (see `UNIT_WORDS`).
- * What each one is called is `PANTRY_UNIT_LABELS` in `src/lib/copy/pantry.ts`, and kept
- * to the app's other common units: `CAN`/`BAG` are the same `dåse`/`pose` a Danish
- * kitchen already writes on a recipe's own ingredient lines.
+ * How a pantry entry is kept — the one question a household answers per entry, set in
+ * the sheet behind its three dots.
+ *
+ * `PIECES` is counted in uses: "1 stk" is enough for cooking something once, however the
+ * household divides a packet up (a kilo of rice used 200 g at a time is 5 stk). Adding a
+ * recipe to a list takes one stk per time it is made (`pantryDraws`). `ENDLESS` is had or
+ * not had — salt, oil, the spice rack — and nothing ever counts it down; the household
+ * marks it run out by hand. Both keep `quantity`, so matching against a shopping list
+ * asks the one question it always has: above zero or not.
  */
-enum PantryUnit {
-  G
-  KG
-  DL
-  L
-  CAN
-  BAG
-  PACK
-  JAR
-  BUNCH
+enum PantryMeasure {
+  PIECES
+  ENDLESS
 }
 
 /**
@@ -788,11 +790,11 @@ model PantryItem {
   name      String
   /// The same thing as the shopping list would write it: `pantryKey(name)`.
   key       String
-  /// How much the household has of it. Zero is what `inStock: false` used to mean;
-  /// anything more is what `true` did. One decimal at most, held by `clampPantryQuantity`.
-  quantity  Float           @default(1)
-  /// What the quantity is counted in, or null for a plain count with no unit.
-  unit      PantryUnit?
+  /// How much the household has of it: uses left for `PIECES`, and 1 or 0 — have it or
+  /// not — for `ENDLESS`. Zero is "run out" either way. Held by `clampPantryQuantity`.
+  quantity  Int             @default(1)
+  /// Counted in uses, or simply had or not: see `PantryMeasure`.
+  measure   PantryMeasure   @default(PIECES)
   /// The day it goes off, in the home's own zone as "yyyy-MM-dd" — a day, like
   /// `MealPlan.date`, never an instant. Optional: most of a cupboard keeps. The row warns
   /// from `EXPIRY_WARNING_DAYS` before it while there is any left (`expiryWarning`).

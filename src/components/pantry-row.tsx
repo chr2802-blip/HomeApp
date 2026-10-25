@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import type { HomeLanguage, PantryUnit } from "@prisma/client";
+import type { HomeLanguage, PantryMeasure } from "@prisma/client";
 import {
   deletePantryItem,
   editPantryItem,
@@ -15,17 +15,18 @@ import { PhotoField } from "@/components/photo-field";
 import { tick } from "@/lib/haptics";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
-import { PANTRY, PANTRY_UNIT_LABELS } from "@/lib/copy/pantry";
-import { PANTRY_UNITS, expiryText, warnsOfExpiry } from "@/lib/pantry";
+import { PANTRY, PANTRY_MEASURE_LABELS } from "@/lib/copy/pantry";
+import { PANTRY_MEASURES, expiryText, warnsOfExpiry } from "@/lib/pantry";
 import type { Shelf, ShelfId } from "@/lib/pantry-shelves";
 
 /**
- * One basic good: how much the household has of it, what it is counted in, what it is
- * called, and the way to drop it.
+ * One basic good: how much the household has of it, what it is called, and the way to
+ * drop it.
  *
- * **The state is a quantity, not a tick.** Zero is "we've run out" and anything past
- * that is "we have it" — the same bit a switch used to carry, now a number a household
- * can actually read off the shelf: "500 g", "2 dåser".
+ * **A counted entry is a number of uses; an endless one is a switch.** "3 stk" of rice
+ * is three dinners' worth, and goes down by itself as recipes are put on a list. Salt is
+ * had or not, and only a person ever changes that — so it gets "Har"/"Løbet tør" rather
+ * than a stepper whose number would mean nothing.
  *
  * It moves the moment it is pressed rather than when the server answers, for the reason
  * the star on a list does: this is a passing thought on the way somewhere else, and a
@@ -48,7 +49,7 @@ export function PantryRow({
   id,
   name,
   quantity,
-  unit,
+  measure,
   shelf,
   shelves,
   expiresOn,
@@ -58,7 +59,7 @@ export function PantryRow({
   id: string;
   name: string;
   quantity: number;
-  unit: PantryUnit | null;
+  measure: PantryMeasure;
   shelf: ShelfId | null;
   /** Every shelf the edit sheet offers, named and in order (`shelvesOf`). */
   shelves: Shelf[];
@@ -182,19 +183,31 @@ export function PantryRow({
           </span>
         )}
 
-        {stock === 0 && (
-          <span className="shrink-0 text-xs text-slate-500">{say(PANTRY.runOut)}</span>
-        )}
-
         {/* The name leads the row, the way a list item's does — it is what the eye
             scans the shelf for — and the number sits beside the three dots, read second. */}
-        <PantryQuantityField
-          quantity={stock}
-          unit={unit}
-          onChange={changeStock}
-          label={shown}
-          language={language}
-        />
+        {measure === "ENDLESS" ? (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={stock > 0}
+            aria-label={say(PANTRY.haveAria, { name: shown })}
+            onClick={() => changeStock(stock > 0 ? 0 : 1)}
+            className={`press-button h-9 w-[6.25rem] shrink-0 rounded-lg border px-3 text-sm ${
+              stock > 0
+                ? "border-transparent accent-tint-bg text-[var(--accent-text)]"
+                : "border-slate-300 bg-white text-slate-500"
+            }`}
+          >
+            {say(stock > 0 ? PANTRY.haveIt : PANTRY.runOut)}
+          </button>
+        ) : (
+          <>
+            {stock === 0 && (
+              <span className="shrink-0 text-xs text-slate-500">{say(PANTRY.runOut)}</span>
+            )}
+            <PantryQuantityField quantity={stock} onChange={changeStock} label={shown} language={language} />
+          </>
+        )}
 
         <ItemMenu
           name="pantryItemId"
@@ -211,7 +224,7 @@ export function PantryRow({
           <PantryEditFields
             shelf={shelf}
             shelves={shelves}
-            unit={unit}
+            measure={measure}
             expiresOn={expiresOn}
             photoId={photoId}
             language={language}
@@ -231,13 +244,13 @@ export function PantryRow({
 }
 
 /**
- * The sheet's questions: which shelf and what it is counted in, as two groups of chips,
+ * The sheet's questions: which shelf and whether it is counted or endless, as two groups of chips,
  * then the date it goes off and a picture. Radios rather than two `<select>`s, because both lists are short enough to read
  * whole, and a sheet has the room that a row did not.
  *
  * An unsorted entry opens with no shelf chosen — "not sorted yet" is where nobody has
  * decided, and a sheet that pre-ticked "Other" would decide it on the household's behalf
- * the moment somebody only meant to change the unit. "stk" — a plain count, stored as no unit — is a choice like any other.
+ * the moment somebody only meant to change how it is kept.
  *
  * Takes `language` rather than reaching for the context, like `AmountsField` — see
  * CLAUDE.md on components with no boundary of their own.
@@ -245,14 +258,14 @@ export function PantryRow({
 export function PantryEditFields({
   shelf,
   shelves,
-  unit,
+  measure,
   expiresOn,
   photoId,
   language,
 }: {
   shelf: ShelfId | null;
   shelves: Shelf[];
-  unit: PantryUnit | null;
+  measure: PantryMeasure;
   expiresOn: string | null;
   photoId: string | null;
   language: HomeLanguage;
@@ -271,17 +284,15 @@ export function PantryEditFields({
         </div>
       </fieldset>
       <fieldset>
-        <legend className="mb-2 text-sm font-medium text-slate-700">{say(PANTRY.unitLabel)}</legend>
+        <legend className="mb-2 text-sm font-medium text-slate-700">{say(PANTRY.measureLabel)}</legend>
         <div className="flex flex-wrap gap-2">
-          <Chip name="unit" value="" defaultChecked={unit === null}>
-            {say(PANTRY.pieces)}
-          </Chip>
-          {PANTRY_UNITS.map((value) => (
-            <Chip key={value} name="unit" value={value} defaultChecked={unit === value}>
-              {say(PANTRY_UNIT_LABELS[value])}
+          {PANTRY_MEASURES.map((value) => (
+            <Chip key={value} name="measure" value={value} defaultChecked={measure === value}>
+              {say(PANTRY_MEASURE_LABELS[value])}
             </Chip>
           ))}
         </div>
+        <p className="mt-2 text-xs text-slate-500">{say(PANTRY.measureHint)}</p>
       </fieldset>
       {/* Optional, and cleared by emptying it: most of a cupboard keeps. */}
       <label className="block">

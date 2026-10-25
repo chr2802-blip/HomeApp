@@ -14,16 +14,16 @@ import { readForm, requiredText } from "@/lib/form";
 import { readEmojiChoice } from "@/lib/emoji";
 import { MAX_ITEM_TEXT } from "@/lib/offline-ops";
 import { clampAmount, MIN_AMOUNT } from "@/lib/amount";
-import { ingredientLines, shoppingText } from "@/lib/recipes";
+import { ingredientLines, pantryUses, readTimes, shoppingText, TIMES_FIELD } from "@/lib/recipes";
 import {
   ambiguousLines,
   pantryKey,
   pantryNote,
   readPantryKeep,
-  stripStocked,
+  planPantry,
   type PantryDecision,
 } from "@/lib/pantry";
-import { stockedKeys } from "@/lib/pantry-stock";
+import { pantryStock } from "@/lib/pantry-stock";
 import { isShopAisle, lookupAisle } from "@/lib/shop-goods";
 import { MAX_ITEMS_PER_AISLE_SORT, sortShopAisles } from "@/lib/aisle-sort";
 import { checkRateLimit, recordFailedAttempt } from "@/lib/rate-limit";
@@ -411,6 +411,11 @@ function dedupedIngredients(ingredients: string): Map<string, string> {
  * the shop. What was left out comes back with the count, because a line that quietly
  * never arrives reads as one the app forgot.
  *
+ * And what the cupboard answered for is used: each recipe takes one stk of every counted
+ * entry it was answered by, per time it is being made (`times`, ½× counting as one), in
+ * the same transaction as the list — see `planPantry`, which also decides that a counted
+ * entry with too little left goes on the list after all.
+ *
  * A line naming more than one thing where the pantry has some but not all of it is
  * neither — see `ambiguousLines`. `keepAmbiguous` undefined means nobody has been asked
  * yet: found one, and this returns before anything is read or written beyond the
@@ -419,7 +424,7 @@ function dedupedIngredients(ingredients: string): Map<string, string> {
  */
 async function writeRecipesToList(
   list: { id: string; homeId: string },
-  recipes: { id: string; ingredients: string }[],
+  recipes: { id: string; ingredients: string; times: number }[],
   keepAmbiguous?: Set<string>,
 ): Promise<PantryDecision | { covered: string[]; added: number }> {
   // What the household already has in never reaches the list. Read here rather than in
@@ -427,7 +432,8 @@ async function writeRecipesToList(
   // from the meal plan cannot come to disagree about what the cupboard says — and read
   // now rather than when the page was drawn, because the pantry is a thing somebody may
   // have just corrected on the way to the shop.
-  const stocked = await stockedKeys(list.homeId);
+  const { stock, ids } = await pantryStock(list.homeId);
+  const stocked = new Set([...stock].filter(([, entry]) => entry.quantity > 0).map(([key]) => key));
   const wantedByRecipe = recipes.map((recipe) => ({
     recipe,
     wanted: dedupedIngredients(recipe.ingredients),
@@ -447,17 +453,36 @@ async function writeRecipesToList(
    * things the caller has to say are both decided in one place: what is being added, and
    * what it left out.
    */
-  const covered: string[] = [];
-  const shopping = wantedByRecipe.map(({ recipe, wanted }) => {
-    const { keep, covered: inCupboard } = stripStocked(wanted, stocked, keepAmbiguous);
-    // One mention each across the whole run: two of the week's recipes both asking for
-    // salt is still the one line of shopping nobody has to buy.
-    for (const text of inCupboard) if (!covered.includes(text)) covered.push(text);
-    return { recipe, keep };
-  });
+  // `covered` names each line once across the whole run: two of the week's recipes both
+  // asking for salt is still the one line of shopping nobody has to buy.
+  const { keeps, covered, draws } = planPantry(
+    wantedByRecipe.map(({ recipe, wanted }) => ({ wanted, uses: pantryUses(recipe.times) })),
+    stock,
+    keepAmbiguous,
+  );
+  const shopping = wantedByRecipe.map(({ recipe }, index) => ({ recipe, keep: keeps[index] }));
 
   const added = new Set(shopping.flatMap(({ keep }) => [...keep.keys()])).size;
-  if (added === 0) return { covered, added };
+  // The cupboard counted down to what it now holds — written beside the list so the two
+  // land together. Set rather than decremented: `stock` is what the plan was made from.
+  const usedUp = [...draws].map(([key, taken]) => ({
+    id: ids.get(key)!,
+    quantity: Math.max(0, stock.get(key)!.quantity - taken),
+  }));
+  // Revalidation lands when the action answers, after whichever write below is made.
+  if (usedUp.length > 0) {
+    revalidatePath("/pantry");
+    revalidatePath("/meals");
+  }
+
+  if (added === 0) {
+    if (usedUp.length > 0) {
+      await prisma.$transaction(
+        usedUp.map(({ id, quantity }) => prisma.pantryItem.update({ where: { id }, data: { quantity } })),
+      );
+    }
+    return { covered, added };
+  }
 
   const onList = await prisma.listItem.findMany({
     where: { listId: list.id },
@@ -493,6 +518,10 @@ async function writeRecipesToList(
       // the number of round trips inside the transaction to write rows that carry
       // nothing but two ids.
       const pairs: { itemId: string; recipeId: string }[] = [];
+
+      for (const { id, quantity } of usedUp) {
+        await tx.pantryItem.update({ where: { id }, data: { quantity } });
+      }
 
       // `shopping` rather than the recipes themselves: what the household already keeps
       // in was taken out above, so the cupboard is never walked here.
@@ -563,7 +592,8 @@ export async function addRecipeIngredients(
     return fail(say(LISTS.recipeHasNoIngredients));
   }
 
-  const result = await writeRecipesToList(list, [recipe], readPantryKeep(formData));
+  const times = readTimes(formData.get(TIMES_FIELD));
+  const result = await writeRecipesToList(list, [{ ...recipe, times }], readPantryKeep(formData));
   if ("needsDecision" in result) return result;
   const { covered, added } = result;
 
@@ -597,7 +627,7 @@ export async function addMealPlanIngredients(
   const db = homeDb(user.homeId);
   const plans = await db.mealPlan.findMany({
     where: { date: { in: weekDays(week) }, recipeId: { not: null } },
-    select: { recipeId: true },
+    select: { recipeId: true, times: true },
   });
   if (plans.length === 0) return fail(say(LISTS.nothingCookedThisWeek));
 
@@ -611,9 +641,12 @@ export async function addMealPlanIngredients(
   // this week needs its ingredients twice, the same as adding it from its own page
   // twice over — `writeRecipesToList` already merges repeats the same way either gives
   // it one, and still names the recipe once underneath the item.
-  const cooking = plans
-    .map((plan) => byId.get(plan.recipeId!))
-    .filter((recipe) => recipe !== undefined);
+  // Each day carries how many times over it is being made, which is what the pantry is
+  // counted down by.
+  const cooking = plans.flatMap((plan) => {
+    const recipe = byId.get(plan.recipeId!);
+    return recipe ? [{ ...recipe, times: readTimes(plan.times) }] : [];
+  });
 
   const withIngredients = cooking.filter((recipe) => dedupedIngredients(recipe.ingredients).size > 0);
   if (withIngredients.length === 0) {

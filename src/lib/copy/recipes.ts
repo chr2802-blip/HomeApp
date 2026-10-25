@@ -223,9 +223,10 @@ export const RECIPES = {
     EN: { one: "{count} portion", other: "{count} portions" },
     DA: { one: "{count} portion", other: "{count} portioner" },
   },
-  fewerPortions: { EN: "Fewer portions", DA: "Færre portioner" },
-  morePortions: { EN: "More portions", DA: "Flere portioner" },
-  scaledFrom: { EN: "The recipe is written for {count}", DA: "Opskriften er skrevet til {count}" },
+  /** The ½×/1×/2× stepper — how many times over the recipe is made. */
+  timesField: { EN: "Times over", DA: "Antal gange" },
+  fewerTimes: { EN: "Make less", DA: "Lav mindre" },
+  moreTimes: { EN: "Make more", DA: "Lav mere" },
   noneWrittenFollowVideo: { EN: "None written — follow the video.", DA: "Ingen skrevet — følg videoen." },
 
   // Action mode — src/components/cook-mode.tsx

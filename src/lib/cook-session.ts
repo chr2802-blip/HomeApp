@@ -1,3 +1,5 @@
+import { readTimes } from "./recipes";
+
 /**
  * What is on the stove, kept in this browser so neither a phone throwing the page away
  * nor a cook walking across to a second recipe loses it.
@@ -43,10 +45,9 @@ export type CookTimer = {
 export type Cook = {
   recipeId: string;
   title: string;
-  /** How many it was being cooked for, where that was not what the recipe is written for
-   *  — so a cook coming back comes back to the same amounts. Null for the recipe as
-   *  written. */
-  portions: number | null;
+  /** How many times over it was being made — so a cook coming back comes back to the
+   *  same amounts. 1 for the recipe as written. */
+  times: number;
   page: number;
   savedAt: number;
 };
@@ -66,21 +67,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-function readPortions(value: unknown): number | null {
-  // Nonsense is the recipe as written rather than a reason to throw the cook away.
-  return Number.isInteger(value) && (value as number) >= 1 ? (value as number) : null;
-}
-
 function readCook(value: unknown): Cook | null {
   if (!isRecord(value)) return null;
-  const { recipeId, title, portions, page, savedAt } = value;
+  const { recipeId, title, times, page, savedAt } = value;
   if (typeof recipeId !== "string" || !recipeId) return null;
   if (!Number.isInteger(page) || (page as number) < 0) return null;
   if (typeof savedAt !== "number" || !Number.isFinite(savedAt)) return null;
   return {
     recipeId,
     title: typeof title === "string" ? title : "",
-    portions: readPortions(portions),
+    // Nonsense is the recipe as written rather than a reason to throw the cook away.
+    times: readTimes(times),
     page: page as number,
     savedAt,
   };

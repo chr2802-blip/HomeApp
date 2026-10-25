@@ -1,8 +1,8 @@
-import type { HomeLanguage, PantryCategory, PantryUnit } from "@prisma/client";
+import type { HomeLanguage, PantryCategory, PantryMeasure } from "@prisma/client";
 import { shoppingText } from "./recipes";
 import { calendarDaysBetween, dueAtOn } from "./time";
 import { sayIn } from "./copy/say";
-import { PANTRY, PANTRY_CATEGORY_LABELS, PANTRY_UNIT_LABELS } from "./copy/pantry";
+import { PANTRY, PANTRY_CATEGORY_LABELS, PANTRY_MEASURE_LABELS } from "./copy/pantry";
 
 /**
  * What a household keeps in, and what that means for a shopping list.
@@ -14,9 +14,9 @@ import { PANTRY, PANTRY_CATEGORY_LABELS, PANTRY_UNIT_LABELS } from "./copy/pantr
  * kept by hand because nothing else can know it: a cupboard is not something a recipe
  * collection can be asked about.
  *
- * It is deliberately one bit per entry — see PantryItem in the schema. Running out is
- * unticking rice, not deleting it, and the next recipe that wants rice puts rice on the
- * list again.
+ * An entry is counted in uses or simply had — see `PantryMeasure` in the schema. Running
+ * out is bringing rice to zero, not deleting it, and the next recipe that wants rice puts
+ * rice on the list again.
  */
 
 /**
@@ -37,15 +37,21 @@ export function pantryKey(name: string): string {
 }
 
 /**
- * Every unit a pantry quantity may be counted in, in the order `PANTRY_UNIT_LABELS`
- * lists them — derived rather than written out again, the same reason `THEMES` is in
+ * Both ways of keeping an entry, in the order `PANTRY_MEASURE_LABELS` lists them —
+ * derived rather than written out again, the same reason `THEMES` is in
  * `src/lib/theme.ts`.
  */
-export const PANTRY_UNITS = Object.keys(PANTRY_UNIT_LABELS) as [PantryUnit, ...PantryUnit[]];
+export const PANTRY_MEASURES = Object.keys(PANTRY_MEASURE_LABELS) as [PantryMeasure, ...PantryMeasure[]];
+
+/** A way of keeping this app actually has, or not — what every write holds a submitted
+ *  one to, the same way a submitted theme is held to `THEMES`. */
+export function isPantryMeasure(value: string): value is PantryMeasure {
+  return (PANTRY_MEASURES as readonly string[]).includes(value);
+}
 
 /**
  * Every shelf, in the order the pantry page draws them — derived from
- * `PANTRY_CATEGORY_LABELS` for the same reason `PANTRY_UNITS` is.
+ * `PANTRY_CATEGORY_LABELS` for the same reason `PANTRY_MEASURES` is.
  */
 export const PANTRY_CATEGORIES = Object.keys(PANTRY_CATEGORY_LABELS) as [
   PantryCategory,
@@ -57,9 +63,8 @@ export function isPantryCategory(value: string): value is PantryCategory {
   return (PANTRY_CATEGORIES as readonly string[]).includes(value);
 }
 
-/** Four digits, because a cupboard counted in grams holds more than 999 of them (2 kg of
- *  flour is 2000 g); five would only ever be a typo. */
-export const MAX_PANTRY_QUANTITY = 9999;
+/** Uses of one thing past this are a typo, not a cupboard. */
+export const MAX_PANTRY_QUANTITY = 999;
 
 /**
  * Brings any value into range, the same way `clampAmount` does for a list item's
@@ -67,12 +72,18 @@ export const MAX_PANTRY_QUANTITY = 9999;
  * quantity's own meaning ("run out"), not out-of-range input to be corrected away from.
  */
 export function clampPantryQuantity(value: unknown): number {
-  // One decimal and no more: "1,5 kg" is a cupboard, "1,537 kg" is a scale. A comma is
-  // read as the point, because that is how a Danish household types one.
+  // Whole uses only: half a use is a use. A comma is read as the point, because that is
+  // how a Danish household types one, and then rounded up.
   const number = Number(typeof value === "string" ? value.trim().replace(",", ".") : value);
-  const rounded = Math.round(number * 10) / 10;
+  const rounded = Math.ceil(number);
   if (!Number.isFinite(rounded)) return 0;
   return Math.min(MAX_PANTRY_QUANTITY, Math.max(0, rounded));
+}
+
+/** A quantity as the way an entry is kept allows it: an endless entry is had (1) or not
+ *  (0), however much was sent — it is never counted, so it has no number past one. */
+export function heldAs(measure: PantryMeasure, quantity: number): number {
+  return measure === "ENDLESS" ? Math.min(1, quantity) : quantity;
 }
 
 /** How close to its expiry date an entry has to be before its row warns. */
@@ -117,19 +128,6 @@ export function expiryText(days: number, language: HomeLanguage): string {
   if (days < 0) return say(PANTRY.expired);
   if (days === 0) return say(PANTRY.expiresToday);
   return say(PANTRY.expiresIn, { count: days });
-}
-
-/** A quantity as the household writes it: a comma in Danish, a point in English, and no
- *  decimal at all for a whole number. Read back through `clampPantryQuantity`. */
-export function formatPantryQuantity(quantity: number, language: HomeLanguage): string {
-  const written = String(Math.round(quantity * 10) / 10);
-  return language === "DA" ? written.replace(".", ",") : written;
-}
-
-/** A unit this app actually offers, or nothing — what `setPantryQuantity` holds a
- *  submitted unit to, the same way a submitted theme is held to `THEMES`. */
-export function isPantryUnit(value: string): value is PantryUnit {
-  return (PANTRY_UNITS as readonly string[]).includes(value);
 }
 
 /**
@@ -291,6 +289,73 @@ export function stripStocked(
   }
 
   return { keep, covered };
+}
+
+/** What a home keeps, by key: enough to say whether an entry is in, and to count a
+ *  counted one down. `pantryStock` in `src/lib/pantry-stock.ts` reads it. */
+export type PantryStock = Map<string, { quantity: number; measure: PantryMeasure }>;
+
+/**
+ * What a run of recipes put on a list takes out of the cupboard, and what that leaves
+ * to buy — the pantry's half of `writeRecipesToList`, kept pure so
+ * `tests/unit/pantry.test.ts` can hold it without a database.
+ *
+ * `stripStocked` decides what the cupboard answers for, exactly as it always has. Every
+ * line it answered for then **uses** what answered it: one stk of each counted entry per
+ * time the recipe is made (`uses`, which is `pantryUses(times)` — a recipe made twice
+ * takes two). An endless entry is never counted down. A line bought instead of taken
+ * from the cupboard takes nothing: bought and used is the cupboard back where it was.
+ *
+ * **Short is shopping.** Where a counted entry has fewer stk left than a line uses, it
+ * gives up what it has — it is going to be used up — and the line goes on the list after
+ * all, so the rest is bought. Stock is spent recipe by recipe in the order given, so the
+ * second of two recipes wanting the last stk of rice is the one that puts rice on the
+ * list.
+ *
+ * `covered` is what the cupboard answered for in full, named for `pantryNote`. `draws` is
+ * stk to take, by key, and holds only counted entries.
+ */
+export function planPantry(
+  runs: { wanted: Map<string, string>; uses: number }[],
+  stock: PantryStock,
+  resolvedKeep?: Set<string>,
+): { keeps: Map<string, string>[]; covered: string[]; draws: Map<string, number> } {
+  const stocked = new Set([...stock].filter(([, entry]) => entry.quantity > 0).map(([key]) => key));
+  const left = new Map([...stock].map(([key, entry]) => [key, entry.quantity]));
+  const draws = new Map<string, number>();
+  const covered: string[] = [];
+
+  const keeps = runs.map(({ wanted, uses }) => {
+    const { keep, covered: inCupboard } = stripStocked(wanted, stocked, resolvedKeep);
+    const answered = new Set(inCupboard);
+    // Back into the recipe's own order, with the keys `keep` is written under.
+    const all = new Map<string, string>();
+    for (const [key, text] of wanted) {
+      if (keep.has(key)) {
+        all.set(key, text);
+        continue;
+      }
+      if (!answered.has(text)) continue;
+
+      let short = false;
+      for (const found of matchLine(text, stocked).matchedKeys) {
+        if (stock.get(found)?.measure !== "PIECES") continue;
+        const have = left.get(found) ?? 0;
+        const take = Math.min(have, uses);
+        if (take < uses) short = true;
+        if (take > 0) {
+          left.set(found, have - take);
+          draws.set(found, (draws.get(found) ?? 0) + take);
+        }
+      }
+
+      if (short) all.set(key, text);
+      else if (!covered.includes(text)) covered.push(text);
+    }
+    return all;
+  });
+
+  return { keeps, covered, draws };
 }
 
 /** How many things are named before the rest become a number. */
