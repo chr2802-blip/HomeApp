@@ -37,5 +37,11 @@ That the tab bar was the band was written down; now the exception is too (theme 
 
 ## Decided rather than known
 
-"White" was read as the app's `white` (`#fffdf9`, a card's cream) rather than pure `#fff`,
-so the bar matches the cards beside it.
+First read as the app's `white` (`#fffdf9`, a card's cream); the user then asked for pure
+`#ffffff`, to match the white strip Android paints under an installed app. `bg-white` is
+cream here, so the class is the literal `bg-[#ffffff]`.
+
+## What should have been quicker (2)
+
+The pre-push browser suite caught `e2e/theme.spec.ts` holding the tab bar to the band;
+the unit test was found by grep but the e2e one was not. Grep `e2e/` too for a colour.

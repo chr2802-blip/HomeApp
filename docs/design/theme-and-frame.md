@@ -38,9 +38,10 @@ another route.
 
 **Each painter reaches a different edge.** The app is laid out under the phone's own
 bars — `viewportFit: "cover"` — so the gesture bar at the bottom is inside the viewport
-and the tab bar's background simply reaches it. That one is white (the card's cream,
-`bg-white`), not the band: the household asked for a white tab bar in 2026-10, so the
-bottom of the frame is the one edge that does not wear the linen. On iOS the strip at the top comes from the
+and the tab bar's background simply reaches it. That one is pure white (`bg-[#ffffff]`),
+not the band and not a card's cream: in 2026-10 the household asked for it to match the
+white strip an installed app on Android paints under it, so the bottom of the frame is
+the one edge that does not wear the linen. On iOS the strip at the top comes from the
 document's background, which is why `html` carries the band, and its glyphs stay the
 phone's own dark ones through `appleWebApp.statusBarStyle: "default"`. On Android that
 strip is tinted from the meta tag at launch. The manifest's `theme_color` reads once when
