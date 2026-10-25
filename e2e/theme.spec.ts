@@ -53,6 +53,9 @@ function asHex(colour: string) {
  * tint their chrome with. Any of the four could go its own way, and on a phone that
  * shows up as a seam a millimetre above the header or below the tabs.
  */
+/** The tab bar is pure white — not the band, and not a card's cream. */
+const TAB_BAR = "#ffffff";
+
 async function expectOneBand(page: Page, hex: string) {
   await expect(barOf(page)).toHaveAttribute("content", hex);
 
@@ -63,21 +66,25 @@ async function expectOneBand(page: Page, hex: string) {
 
   // Every frame that paints anything at all, which is the header and the tab bar — the
   // desktop nav inside the header paints nothing and is left out by the filter rather
-  // than by a selector that would have to know which nav is which.
+  // than by a selector that would have to know which nav is which. The header wears the
+  // band; the tab bar is the one exception, pure white, by the household's choice.
   const { framed, painted } = await page.evaluate(() => ({
     framed: document.querySelector("header") !== null,
     painted: [...document.querySelectorAll("header, nav")]
-      .map((node) => getComputedStyle(node).backgroundColor)
-      .filter((colour) => colour !== "rgba(0, 0, 0, 0)" && colour !== "transparent"),
+      .map((node) => ({
+        tabBar: node.tagName === "NAV" && node.closest("header") === null,
+        colour: getComputedStyle(node).backgroundColor,
+      }))
+      .filter(({ colour }) => colour !== "rgba(0, 0, 0, 0)" && colour !== "transparent"),
   }));
 
   // The header and the tab bar, on any page inside the app.
   if (framed) expect(painted.length).toBeGreaterThanOrEqual(2);
-  for (const colour of painted) {
-    // Flat, not frosted: an `rgba(…, 0.85)` here is a band that changes colour as the
+  for (const { tabBar, colour } of painted) {
+    // Flat, not frosted: an `rgba(…, 0.85)` here is a frame that changes colour as the
     // page scrolls under it, which no system bar can follow.
     expect(colour).not.toMatch(/rgba/);
-    expect(asHex(colour)).toBe(hex);
+    expect(asHex(colour)).toBe(tabBar ? TAB_BAR : hex);
   }
 }
 

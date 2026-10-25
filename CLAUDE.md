@@ -203,7 +203,9 @@ Home card on `/settings`, and named in the header so nobody adds milk to the wro
   wrapper inside the app: sheets and the three-dot panel are portalled into `<body>`.
 - **`--band` is one literal (`#f3ebdf`, a warm linen), declared identically in every theme
   block, and opaque.** It does not follow the household. No theme block may bring back an
-  `--accent-soft` of its own — that would be a second colour for the same strip.
+  `--accent-soft` of its own — that would be a second colour for the same strip. **The tab
+  bar is the exception: it is pure white (`bg-[#ffffff]`)**, by the household's choice, to match Android's own
+  white gesture bar beneath it.
 - **The colour dresses the controls and the household's own progress, never the meanings
   inside them.** Green is "added", red "about to be deleted", amber "overdue", in every
   home, and none of the themes is any of the three.
