@@ -25,8 +25,12 @@ covers the switch.
 The pre-push hook's full browser suite failed twice on tests this change does not touch.
 `list-aisles.spec.ts` reloaded while the aisle sheet was still taking its history entry back
 off (`ERR_ABORTED`), the race CLAUDE.md describes for `goto`; it now waits for the sheet to be
-gone. `scroll.spec.ts` drops a test now and then on `/lists` ("Element is not attached to the
-DOM") — reproduced on `main` too (2 of 12 runs), so left alone here and named in the PR.
+gone. `scroll.spec.ts` dropped a test now and then on `/lists` ("Element is not attached to the
+DOM") — reproduced on `main` too (2 of 12 runs). Left alone at first, it then failed the PR's
+CI outright, so it was fixed after all: the page can be redrawn as it hydrates, and the spec
+took a card before then. It now waits for the card's three dots to carry `data-ready`
+(40 of 40 at four workers). Lesson: a flake proven on `main` is still this PR's to fix once
+it is the thing standing between the PR and green.
 
 ## Where the time went
 
