@@ -22,6 +22,12 @@ tests → e2e. The e2e pantry spec assumed every entry has a stepper; since salt
 endless on the list of goods, the spec's `keepIn` picks stk explicitly and one new test
 covers the switch.
 
+The pre-push hook's full browser suite failed twice on tests this change does not touch.
+`list-aisles.spec.ts` reloaded while the aisle sheet was still taking its history entry back
+off (`ERR_ABORTED`), the race CLAUDE.md describes for `goto`; it now waits for the sheet to be
+gone. `scroll.spec.ts` drops a test now and then on `/lists` ("Element is not attached to the
+DOM") — reproduced on `main` too (2 of 12 runs), so left alone here and named in the PR.
+
 ## Where the time went
 
 | Stage | Roughly | Notes |
@@ -30,7 +36,7 @@ covers the switch.
 | Reading the codebase | 15% | Pantry, list writes, the portions plumbing through cook mode, kitchen and push. |
 | Building | 35% | "Portions" ran through eight files (cook mode, kitchen, cook session, timer push, resume). |
 | Tests | 25% | Unit, integration and five e2e specs. |
-| Review, CI, deploy | 5% | |
+| Review, CI, deploy | 15% | Three pre-push runs of ~12 min each; one real race fixed, one flake proven on `main`. |
 
 ## What should have been quicker
 

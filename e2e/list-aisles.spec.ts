@@ -52,6 +52,9 @@ test("a list grouped by aisle draws its items under the shop's aisles, and one c
   await expect
     .poll(() => db.aisleChoice.findFirst({ where: { homeId: home.id, key: "milk" } }).then((row) => row?.aisle))
     .toBe("BAKERY");
+  // The sheet takes its history entry back off as it closes, and a reload during that
+  // traverse is aborted (net::ERR_ABORTED) — so it waits for the sheet to be gone.
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.reload();
   await expect(aisle("BAKERY").getByText("Milk")).toBeVisible();
 });
