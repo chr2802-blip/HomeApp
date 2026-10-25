@@ -38,7 +38,9 @@ another route.
 
 **Each painter reaches a different edge.** The app is laid out under the phone's own
 bars — `viewportFit: "cover"` — so the gesture bar at the bottom is inside the viewport
-and the tab bar's band simply reaches it. On iOS the strip at the top comes from the
+and the tab bar's background simply reaches it. That one is white (the card's cream,
+`bg-white`), not the band: the household asked for a white tab bar in 2026-10, so the
+bottom of the frame is the one edge that does not wear the linen. On iOS the strip at the top comes from the
 document's background, which is why `html` carries the band, and its glyphs stay the
 phone's own dark ones through `appleWebApp.statusBarStyle: "default"`. On Android that
 strip is tinted from the meta tag at launch. The manifest's `theme_color` reads once when
@@ -48,7 +50,7 @@ everywhere else, so it is no longer the odd one out.
 Laying out under the bars is a debt the layout pays back in three places, and
 `tests/unit/theme.test.ts` holds all three together: the header pads past
 `env(safe-area-inset-top)` so its row clears the clock, the tab bar pads past
-`env(safe-area-inset-bottom)` so the tabs clear the gesture bar while the band behind
+`env(safe-area-inset-bottom)` so the tabs clear the gesture bar while the white behind
 them fills it, and `main` clears both. Every inset is zero on a desktop, so getting one
 wrong is invisible in a browser and obvious on a phone.
 
