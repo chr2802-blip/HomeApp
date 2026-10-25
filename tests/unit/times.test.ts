@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderIngredient, scaleIngredient } from "@/lib/ingredient-line";
-import { MAX_SERVINGS, portionsShown } from "@/lib/recipes";
+import { pantryUses, portionsFor, readTimes, stepTimes, timesLabel } from "@/lib/recipes";
 
 /**
  * Cooking a recipe for more or fewer people than it was written for.
@@ -53,17 +53,32 @@ describe("scaleIngredient", () => {
   });
 });
 
-describe("portionsShown", () => {
-  it("is the recipe's own servings unless the address asks for something sensible", () => {
-    expect(portionsShown(4, undefined)).toBe(4);
-    expect(portionsShown(4, "6")).toBe(6);
-    expect(portionsShown(4, ["2", "8"])).toBe(2);
-    for (const nonsense of ["0", "-2", "2.5", "abc", "", String(MAX_SERVINGS + 1)]) {
-      expect(portionsShown(4, nonsense)).toBe(4);
-    }
+describe("the multiplier", () => {
+  it("is what the address asks where that is a choice offered, and the recipe as written otherwise", () => {
+    expect(readTimes(undefined)).toBe(1);
+    expect(readTimes("2")).toBe(2);
+    expect(readTimes("0.5")).toBe(0.5);
+    expect(readTimes(["3", "8"])).toBe(3);
+    for (const nonsense of ["0", "-2", "2.5", "7", "abc", "", "99"]) expect(readTimes(nonsense)).toBe(1);
   });
 
-  it("is nothing for a recipe nobody has said the servings of", () => {
-    expect(portionsShown(null, "6")).toBeNull();
+  it("steps through the choices and stops at either end", () => {
+    expect(stepTimes(1, -1)).toBe(0.5);
+    expect(stepTimes(0.5, -1)).toBe(0.5);
+    expect(stepTimes(1, 1)).toBe(2);
+    expect(stepTimes(10, 1)).toBe(10);
+  });
+
+  it("is written ½× and 2×, and half a time is still a use of the pantry", () => {
+    expect(timesLabel(0.5)).toBe("½×");
+    expect(timesLabel(2)).toBe("2×");
+    expect(pantryUses(0.5)).toBe(1);
+    expect(pantryUses(3)).toBe(3);
+  });
+
+  it("says the people it feeds only where the recipe knows", () => {
+    expect(portionsFor(4, 2)).toBe(8);
+    expect(portionsFor(3, 0.5)).toBe(2);
+    expect(portionsFor(null, 2)).toBeNull();
   });
 });

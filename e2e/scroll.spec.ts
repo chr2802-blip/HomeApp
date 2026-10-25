@@ -31,6 +31,10 @@ test.describe("scroll position between pages", () => {
 
   async function openFromFarDown(page: Page) {
     await page.goto("/lists");
+    // Hydration leaves no mark of its own, and the page can be redrawn as it hydrates —
+    // a card taken before then is "not attached to the DOM" by the time it is scrolled
+    // to. Its three dots say when React has it.
+    await expect(page.getByRole("button", { name: "Actions for List 40" })).toHaveAttribute("data-ready", "true");
     const card = page.getByRole("link", { name: /List 40/ });
     await card.scrollIntoViewIfNeeded();
     const before = await scrollY(page);
@@ -63,6 +67,7 @@ test.describe("scroll position between pages", () => {
 
   test("a tab opened from far down a page starts at the top", async ({ page }) => {
     await page.goto("/lists");
+    await expect(page.getByRole("button", { name: "Actions for List 40" })).toHaveAttribute("data-ready", "true");
     await page.getByRole("link", { name: /List 40/ }).scrollIntoViewIfNeeded();
     await page.getByRole("navigation").getByRole("link", { name: "Tasks" }).last().click();
     await page.waitForURL(/\/tasks$/);

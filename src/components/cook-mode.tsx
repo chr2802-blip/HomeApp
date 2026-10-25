@@ -9,7 +9,7 @@ import { createPortal } from "react-dom";
 import { clockLabel, type CookStep } from "@/lib/cook";
 import { finishCook, findCook, leaveCook, showCook, startTimer, stopTimer, turnCook } from "@/lib/cook-session";
 import { cheer, tick } from "@/lib/haptics";
-import { PORTIONS_PARAM, timeLabel } from "@/lib/recipes";
+import { portionsFor, TIMES_PARAM, timeLabel, timesLabel } from "@/lib/recipes";
 import type { FormAction } from "@/lib/action-result";
 import { Button } from "@/components/ui";
 import { useFormAction } from "@/components/use-form-action";
@@ -68,7 +68,7 @@ export function CookMode({
   ingredients,
   prepared,
   prepareAction,
-  portions,
+  times,
   servings,
   recipes,
   tonightId,
@@ -79,10 +79,9 @@ export function CookMode({
   ingredients: string[];
   prepared: boolean;
   prepareAction: FormAction;
-  /** How many this is being cooked for, where that is not what the recipe is written
-   *  for — the amounts arrive already scaled; this is only for saying so, and for taking
-   *  the same number back to the recipe page. */
-  portions: number | null;
+  /** How many times over this is being made — the amounts arrive already scaled; this is
+   *  only for saying so, and for taking the same number back to the recipe page. */
+  times: number;
   /** How many the recipe is written for, or null where nobody has said. */
   servings: number | null;
   /** Every recipe in the home, for putting another on the stove. */
@@ -91,7 +90,7 @@ export function CookMode({
   tonightId: string | null;
 }) {
   const router = useRouter();
-  const recipeHref = `/recipes/${recipeId}${portions !== null ? `?${PORTIONS_PARAM}=${portions}` : ""}`;
+  const recipeHref = `/recipes/${recipeId}${times !== 1 ? `?${TIMES_PARAM}=${times}` : ""}`;
   const [mounted, setMounted] = useState(false);
   const language = useLanguage();
   const say = sayIn(language);
@@ -127,8 +126,8 @@ export function CookMode({
   // On the stove, open, and on this page — said on every turn, so coming back finds it.
   useEffect(() => {
     if (!mounted) return;
-    update((current, at) => showCook(current, { recipeId, title, portions, page }, at));
-  }, [mounted, update, recipeId, title, portions, page]);
+    update((current, at) => showCook(current, { recipeId, title, times, page }, at));
+  }, [mounted, update, recipeId, title, times, page]);
 
   // Leaving — Close, the back gesture, the other recipe — unmounts this and says the
   // screen is no longer open, and nothing else: the recipe stays on the stove and its
@@ -421,7 +420,8 @@ export function CookMode({
           <MiseEnPlace
             title={title}
             ingredients={ingredients}
-            portions={portions ?? servings}
+            times={times}
+            servings={servings}
             prepared={prepared}
             recipeId={recipeId}
             prepareAction={prepareAction}
@@ -477,11 +477,13 @@ function MiseEnPlace({
   prepareAction,
   hasSteps,
   language,
-  portions,
+  times,
+  servings,
 }: {
   title: string;
   ingredients: string[];
-  portions: number | null;
+  times: number;
+  servings: number | null;
   prepared: boolean;
   recipeId: string;
   prepareAction: FormAction;
@@ -495,10 +497,11 @@ function MiseEnPlace({
       <h1 className="text-2xl font-semibold tracking-tight break-words">{title}</h1>
       <h2 className="mt-6 mb-3 text-sm font-semibold text-slate-500 uppercase">
         {say(RECIPES.ingredientsHeading)}
-        {portions !== null && (
+        {(times !== 1 || servings !== null) && (
           <span data-testid="cook-portions" className="font-normal normal-case">
             {" · "}
-            {say(RECIPES.portions, { count: portions })}
+            {timesLabel(times)}
+            {servings !== null && ` · ${say(RECIPES.portions, { count: portionsFor(servings, times)! })}`}
           </span>
         )}
       </h2>

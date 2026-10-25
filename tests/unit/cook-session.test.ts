@@ -31,8 +31,8 @@ import {
 const NOW = Date.UTC(2026, 8, 25, 17, 0);
 const MINUTE = 60_000;
 
-const lasagne = { recipeId: "lasagne", title: "Lasagne", portions: null, page: 2 };
-const rice = { recipeId: "rice", title: "Rice", portions: 6, page: 1 };
+const lasagne = { recipeId: "lasagne", title: "Lasagne", times: 1, page: 2 };
+const rice = { recipeId: "rice", title: "Rice", times: 2, page: 1 };
 
 describe("parseKitchen", () => {
   it("reads back what was written", () => {
@@ -47,15 +47,15 @@ describe("parseKitchen", () => {
   it("reads the single cook an older build kept as that cook, still open, timers and all", () => {
     const raw = JSON.stringify({ recipeId: "r1", page: 3, timers: [{ step: 2, endsAt: NOW }], savedAt: NOW });
     expect(parseKitchen(raw)).toEqual({
-      cooks: [{ recipeId: "r1", title: "", portions: null, page: 3, savedAt: NOW }],
+      cooks: [{ recipeId: "r1", title: "", times: 1, page: 3, savedAt: NOW }],
       timers: [{ recipeId: "r1", title: "", step: 2, endsAt: NOW }],
       open: "r1",
     });
   });
 
-  it("reads nonsense portions as the recipe as written", () => {
-    const raw = JSON.stringify({ cooks: [{ ...lasagne, portions: "six", savedAt: NOW }], timers: [], open: null });
-    expect(parseKitchen(raw)?.cooks[0].portions).toBeNull();
+  it("reads a nonsense multiplier as the recipe as written", () => {
+    const raw = JSON.stringify({ cooks: [{ ...lasagne, times: "six", savedAt: NOW }], timers: [], open: null });
+    expect(parseKitchen(raw)?.cooks[0].times).toBe(1);
   });
 
   it("is nothing for anything that is not a kitchen", () => {

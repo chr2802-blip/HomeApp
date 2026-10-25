@@ -1,4 +1,5 @@
 import { homeDb } from "./home-db";
+import type { PantryStock } from "./pantry";
 
 /**
  * Everything the home says it has in, as keys.
@@ -16,4 +17,19 @@ export async function stockedKeys(homeId: string): Promise<Set<string>> {
     select: { key: true },
   });
   return new Set(stocked.map((item) => item.key));
+}
+
+/**
+ * Everything the home keeps, run out or not, with how much and how it is kept — what
+ * `planPantry` spends from when recipes go on a list. `ids` is how its draws are written
+ * back.
+ */
+export async function pantryStock(homeId: string): Promise<{ stock: PantryStock; ids: Map<string, string> }> {
+  const entries = await homeDb(homeId).pantryItem.findMany({
+    select: { id: true, key: true, quantity: true, measure: true },
+  });
+  return {
+    stock: new Map(entries.map((entry) => [entry.key, { quantity: entry.quantity, measure: entry.measure }])),
+    ids: new Map(entries.map((entry) => [entry.key, entry.id])),
+  };
 }

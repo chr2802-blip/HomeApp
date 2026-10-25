@@ -477,7 +477,7 @@ describe("a pantry entry's picture", () => {
     const item = await keep(home.id, photo.id);
     await signIn(member);
 
-    await submit(editPantryItem, { pantryItemId: item.id, unit: "KG" });
+    await submit(editPantryItem, { pantryItemId: item.id, measure: "ENDLESS" });
     expect((await prisma.pantryItem.findUniqueOrThrow({ where: { id: item.id } })).photoId).toBe(photo.id);
   });
 

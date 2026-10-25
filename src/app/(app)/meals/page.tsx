@@ -169,6 +169,7 @@ export default async function MealsPage({
       select: {
         date: true,
         leftoverOf: true,
+        times: true,
         // Read as an include on a query that went through homeDb, and `photoId` only —
         // never `photo: true`, which would pull both copies of every picture's bytes
         // into a page that needs a URL.
@@ -416,6 +417,7 @@ export default async function MealsPage({
           date: day,
           title: `${weekdayName(day, user.homeLanguage)} ${dayAndMonth(day, user.homeLanguage)}`,
           selected: planSelection(planned.get(day)),
+          times: planned.get(day)?.times ?? 1,
           groups: groupsFor(day),
           highlighted: day === today,
           // A day already lived through is read-only: there is nothing left to plan for

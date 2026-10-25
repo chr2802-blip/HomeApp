@@ -75,22 +75,25 @@ describe("keeping the pantry", () => {
       name: "Kiks",
       homeId: home.id,
       quantity: 1,
-      unit: null,
+      measure: "PIECES",
       category: null,
     });
   });
 
-  it("stores the amount and unit the add sheet sent, stk as no unit", async () => {
-    await submit(createPantryItem, { name: "Ris", quantity: "2,5", unit: "KG" });
-    // "Ris" is kg on the list, but the sheet said stk and the sheet is what was asked.
-    await submit(createPantryItem, { name: "Pasta", quantity: "3", unit: "" });
-    await submit(createPantryItem, { name: "Kiks", quantity: "", unit: "GALLON" });
+  it("stores how it is kept as the add sheet sent it, and the list's way where it sent none", async () => {
+    await submit(createPantryItem, { name: "Ris", quantity: "2,5", measure: "PIECES" });
+    // Salt is endless on the list, but the sheet said stk and the sheet is what was asked.
+    await submit(createPantryItem, { name: "Salt", quantity: "3", measure: "PIECES" });
+    await submit(createPantryItem, { name: "Peber", quantity: "4" });
+    await submit(createPantryItem, { name: "Kiks", quantity: "", measure: "GALLON" });
 
     const stored = await prisma.pantryItem.findMany({ orderBy: { name: "asc" } });
-    expect(stored.map(({ name, quantity, unit }) => ({ name, quantity, unit }))).toEqual([
-      { name: "Kiks", quantity: 1, unit: null },
-      { name: "Pasta", quantity: 3, unit: null },
-      { name: "Ris", quantity: 2.5, unit: "KG" },
+    expect(stored.map(({ name, quantity, measure }) => ({ name, quantity, measure }))).toEqual([
+      { name: "Kiks", quantity: 1, measure: "PIECES" },
+      // Endless is had or not: four of it is having it.
+      { name: "Peber", quantity: 1, measure: "ENDLESS" },
+      { name: "Ris", quantity: 3, measure: "PIECES" },
+      { name: "Salt", quantity: 3, measure: "PIECES" },
     ]);
   });
 
@@ -180,26 +183,29 @@ describe("keeping the pantry", () => {
     expect((await prisma.pantryItem.findFirstOrThrow()).quantity).toBe(0);
   });
 
-  it("keeps one decimal of a quantity, written with either a comma or a point", async () => {
+  it("counts whole uses, and keeps an endless entry to had or not", async () => {
+    const entry = (name: string) => prisma.pantryItem.findFirstOrThrow({ where: { name } });
     await submit(createPantryItem, { name: "Ris" });
-    const item = await prisma.pantryItem.findFirstOrThrow();
+    await submit(createPantryItem, { name: "Salt" });
+    const ris = await entry("Ris");
+    const salt = await entry("Salt");
 
-    await setPantryQuantity(formData({ pantryItemId: item.id, quantity: "1,5" }));
-    expect((await prisma.pantryItem.findFirstOrThrow()).quantity).toBe(1.5);
+    await setPantryQuantity(formData({ pantryItemId: ris.id, quantity: "1,5" }));
+    expect((await entry("Ris")).quantity).toBe(2);
 
-    await setPantryQuantity(formData({ pantryItemId: item.id, quantity: "2.25" }));
-    expect((await prisma.pantryItem.findFirstOrThrow()).quantity).toBe(2.3);
+    await setPantryQuantity(formData({ pantryItemId: salt.id, quantity: "5" }));
+    expect((await entry("Salt")).quantity).toBe(1);
   });
 
   it("clamps a quantity to the floor of zero, and writes nothing but the quantity", async () => {
     await submit(createPantryItem, { name: "Ris" });
     const item = await prisma.pantryItem.findFirstOrThrow();
-    expect(item.unit).toBe("KG");
+    expect(item.measure).toBe("PIECES");
 
-    // A unit riding along is ignored: the unit belongs to the sheet behind the three dots
-    // now, and a stepper that wrote the one it was drawn with would undo that sheet.
-    await setPantryQuantity(formData({ pantryItemId: item.id, quantity: "-5", unit: "G" }));
-    expect(await prisma.pantryItem.findFirstOrThrow()).toMatchObject({ quantity: 0, unit: "KG" });
+    // A way of keeping it riding along is ignored: it belongs to the sheet behind the
+    // three dots, and a stepper that wrote the one it was drawn with would undo that sheet.
+    await setPantryQuantity(formData({ pantryItemId: item.id, quantity: "-5", measure: "ENDLESS" }));
+    expect(await prisma.pantryItem.findFirstOrThrow()).toMatchObject({ quantity: 0, measure: "PIECES" });
   });
 
   it("drops an entry the household no longer treats as a basic", async () => {
@@ -223,7 +229,7 @@ describe("keeping the pantry", () => {
     await deletePantryItem(formData({ pantryItemId: theirs.id }));
     await setPantryQuantity(formData({ pantryItemId: theirs.id, quantity: "0" }));
     expect(
-      await submit(editPantryItem, { pantryItemId: theirs.id, category: "FREEZER", unit: "KG" }),
+      await submit(editPantryItem, { pantryItemId: theirs.id, category: "FREEZER", measure: "ENDLESS" }),
     ).toEqual({ ok: false, error: "That is no longer in your supplies." });
     // Sorting is this home's unsorted entries and nobody else's.
     await sortPantry();
@@ -231,7 +237,7 @@ describe("keeping the pantry", () => {
     expect(await prisma.pantryItem.findUniqueOrThrow({ where: { id: theirs.id } })).toMatchObject({
       name: "Salt",
       quantity: 1,
-      unit: null,
+      measure: "PIECES",
       category: null,
     });
   });
@@ -394,6 +400,71 @@ describe("what the pantry does to a recipe's ingredients", () => {
   });
 });
 
+describe("what a recipe on a list takes out of the cupboard", () => {
+  const stockOf = async (name: string) =>
+    (await prisma.pantryItem.findFirstOrThrow({ where: { homeId: home.id, name } })).quantity;
+
+  it("takes one stk of what it is counted in per time made, and never touches an endless entry", async () => {
+    const list = await listFor();
+    await keepIn("Ris", 5);
+    await keepIn("Salt");
+    const recipe = await recipeFor({ ingredients: "300 g ris\nSalt\nKylling" });
+
+    const result = await addRecipeIngredients(formData({ recipeId: recipe.id, listId: list.id, times: "2" }));
+
+    expect(result).toEqual({ ok: true, note: "Ris and Salt already in your supplies." });
+    expect(await stockOf("Ris")).toBe(3);
+    expect(await stockOf("Salt")).toBe(1);
+    expect(await textsOnList()).toEqual(["Kylling"]);
+  });
+
+  it("counts half a time as a use", async () => {
+    const list = await listFor();
+    await keepIn("Ris", 2);
+    const recipe = await recipeFor({ ingredients: "Ris\nKylling" });
+
+    await addRecipeIngredients(formData({ recipeId: recipe.id, listId: list.id, times: "0.5" }));
+    expect(await stockOf("Ris")).toBe(1);
+  });
+
+  it("uses up what is left and puts the line on the list when there is too little", async () => {
+    const list = await listFor();
+    await keepIn("Ris", 1);
+    const recipe = await recipeFor({ ingredients: "Ris" });
+
+    expect(await addRecipeIngredients(formData({ recipeId: recipe.id, listId: list.id, times: "2" }))).toEqual({
+      ok: true,
+    });
+    expect(await stockOf("Ris")).toBe(0);
+    expect(await textsOnList()).toEqual(["Ris"]);
+  });
+
+  it("still counts down when the cupboard answered for every line and nothing was added", async () => {
+    const list = await listFor();
+    await keepIn("Ris", 3);
+    const recipe = await recipeFor({ ingredients: "Ris" });
+
+    expect(await addRecipeIngredients(formData({ recipeId: recipe.id, listId: list.id }))).toMatchObject({
+      ok: false,
+    });
+    expect(await stockOf("Ris")).toBe(2);
+  });
+
+  it("counts a week's days by how many times over each is made", async () => {
+    const list = await listFor();
+    await keepIn("Ris", 5);
+    const monday = weekStartInZone(new Date());
+    const [tuesday, wednesday] = weekDays(monday).slice(1, 3);
+    const curry = await recipeFor({ title: "Curry", ingredients: "Ris\nKylling" });
+
+    await submit(planMeal, { date: tuesday, plan: curry.id, times: "2" });
+    await submit(planMeal, { date: wednesday, plan: curry.id });
+    await addMealPlanIngredients(formData({ listId: list.id, week: monday }));
+
+    expect(await stockOf("Ris")).toBe(2);
+  });
+});
+
 describe("putting what has run out on a list", () => {
   it("adds everything switched off, and nothing that is still in", async () => {
     const list = await listFor();
@@ -471,21 +542,21 @@ describe("filing things on shelves", () => {
   const entry = (name: string) =>
     prisma.pantryItem.findFirstOrThrow({ where: { homeId: home.id, name } });
 
-  it("files a good the list knows the moment it is added, with its usual unit", async () => {
+  it("files a good the list knows the moment it is added, kept its usual way", async () => {
     await submit(createPantryItem, { name: "Spidskommen" });
     // Either language, and a qualifier in front is still the same good.
     await submit(createPantryItem, { name: "Olive oil" });
     await submit(createPantryItem, { name: "Røget paprika" });
 
-    expect(await entry("Spidskommen")).toMatchObject({ category: "SPICES", unit: "JAR", quantity: 1 });
-    expect(await entry("Olive oil")).toMatchObject({ category: "OIL_VINEGAR", unit: "L" });
+    expect(await entry("Spidskommen")).toMatchObject({ category: "SPICES", measure: "ENDLESS", quantity: 1 });
+    expect(await entry("Olive oil")).toMatchObject({ category: "OIL_VINEGAR", measure: "ENDLESS" });
     expect(await entry("Røget paprika")).toMatchObject({ category: "SPICES" });
     expect(sortPantryGoods).not.toHaveBeenCalled();
   });
 
   it("takes the shelf the household chose over the one the list would have", async () => {
     await submit(createPantryItem, { name: "Smør", category: "FREEZER" });
-    expect(await entry("Smør")).toMatchObject({ category: "FREEZER", unit: "PACK" });
+    expect(await entry("Smør")).toMatchObject({ category: "FREEZER", measure: "ENDLESS" });
 
     // And one it does not offer is no choice at all, so the list decides.
     await submit(createPantryItem, { name: "Mælk", category: "CELLAR" });
@@ -499,7 +570,6 @@ describe("filing things on shelves", () => {
       submit(editPantryItem, {
         pantryItemId: item.id,
         category: "DRY_GOODS",
-        unit: "PACK",
         ...(expiresOn === undefined ? {} : { expiresOn }),
       });
 
@@ -518,22 +588,23 @@ describe("filing things on shelves", () => {
     expect((await entry("Kiks")).expiresOn).toBeNull();
   });
 
-  it("changes the shelf and the unit from the sheet, holding both to what is offered", async () => {
-    await submit(createPantryItem, { name: "Kiks" });
+  it("changes the shelf and the way it is kept from the sheet, holding both to what is offered", async () => {
+    await submit(createPantryItem, { name: "Kiks", quantity: "4" });
     const item = await entry("Kiks");
 
     expect(
-      await submit(editPantryItem, { pantryItemId: item.id, category: "DRY_GOODS", unit: "PACK" }),
+      await submit(editPantryItem, { pantryItemId: item.id, category: "DRY_GOODS", measure: "ENDLESS" }),
     ).toEqual({ ok: true });
-    expect(await entry("Kiks")).toMatchObject({ category: "DRY_GOODS", unit: "PACK" });
+    // Four uses, turned endless, is having it.
+    expect(await entry("Kiks")).toMatchObject({ category: "DRY_GOODS", measure: "ENDLESS", quantity: 1 });
 
-    // An empty unit is "no unit", a real answer; an unknown one is dropped to it.
-    await submit(editPantryItem, { pantryItemId: item.id, category: "DRY_GOODS", unit: "bogus" });
-    expect((await entry("Kiks")).unit).toBeNull();
+    // An unknown way is ignored rather than guessed at.
+    await submit(editPantryItem, { pantryItemId: item.id, category: "DRY_GOODS", measure: "bogus" });
+    expect((await entry("Kiks")).measure).toBe("ENDLESS");
 
     // A shelf that did not arrive leaves the entry where it was.
-    await submit(editPantryItem, { pantryItemId: item.id, unit: "BAG" });
-    expect(await entry("Kiks")).toMatchObject({ category: "DRY_GOODS", unit: "BAG" });
+    await submit(editPantryItem, { pantryItemId: item.id, measure: "PIECES" });
+    expect(await entry("Kiks")).toMatchObject({ category: "DRY_GOODS", measure: "PIECES", quantity: 1 });
   });
 
   it("sorts what the list knows for free, and asks the model only about the rest", async () => {
@@ -552,7 +623,7 @@ describe("filing things on shelves", () => {
     expect(await sortPantry()).toEqual({ ok: true });
 
     expect(sortPantryGoods).toHaveBeenCalledWith(["Gochujang", "Panko"], home.id);
-    expect(await entry("Salt")).toMatchObject({ category: "SPICES", unit: null });
+    expect(await entry("Salt")).toMatchObject({ category: "SPICES", measure: "PIECES" });
     expect(await entry("Gochujang")).toMatchObject({ category: "SAUCES" });
     expect(await entry("Panko")).toMatchObject({ category: "DRY_GOODS" });
   });

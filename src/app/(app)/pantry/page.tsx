@@ -91,7 +91,7 @@ export default async function PantryPage() {
           name: item.name,
           key: item.key,
           quantity: item.quantity,
-          unit: item.unit,
+          measure: item.measure,
           shelf: shelfOf(item),
           expiresOn: item.expiresOn,
           photoId: item.photoId,

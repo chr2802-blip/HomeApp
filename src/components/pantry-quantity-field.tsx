@@ -1,23 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import type { HomeLanguage, PantryUnit } from "@prisma/client";
-import { MAX_PANTRY_QUANTITY, clampPantryQuantity, formatPantryQuantity } from "@/lib/pantry";
+import type { HomeLanguage } from "@prisma/client";
+import { MAX_PANTRY_QUANTITY, clampPantryQuantity } from "@/lib/pantry";
 import { sayIn } from "@/lib/copy/say";
-import { PANTRY, PANTRY_UNIT_LABELS } from "@/lib/copy/pantry";
+import { PANTRY, PANTRY_MEASURE_LABELS } from "@/lib/copy/pantry";
 
 /**
- * How much of a basic good the household has — the pantry's own stepper, with the unit
- * it is counted in read out beside the number ("2 kg") rather than offered as a control.
+ * How many uses of a basic good the household has — the pantry's own stepper, with "stk"
+ * read out beside the number rather than offered as a control. Drawn only for a counted
+ * entry; an endless one is a switch on the row (`PantryRow`).
  *
  * Zero is the stepper's ordinary floor here rather than out-of-range input to correct
- * away from: it is the pantry's own "run out", what `inStock: false` used to mean.
- *
- * **The unit is not chosen here any more.** It used to be a menu on every row, and a
- * control on every row is room taken from the name on every row — for a thing that is
- * set once, when the entry is new, and then left alone. So it moved into the sheet
- * behind the three dots beside the shelf (`editPantryItem`), and the row only says it.
- * The quantity is what changes on a Tuesday; that is what stays under the thumb.
+ * away from: it is the pantry's own "run out".
  *
  * Optimistic the same way `AmountPicker` is, and for the same reason: this is tapped
  * with a thumb on the way past, and a control that waits for the server to agree gets
@@ -25,20 +20,18 @@ import { PANTRY, PANTRY_UNIT_LABELS } from "@/lib/copy/pantry";
  */
 export function PantryQuantityField({
   quantity,
-  unit,
   onChange,
   label,
   language,
 }: {
   quantity: number;
-  unit: PantryUnit | null;
   onChange: (quantity: number) => void;
   /** Names the control for a screen reader — "Quantity of Rice". */
   label: string;
   language: HomeLanguage;
 }) {
   const say = sayIn(language);
-  const written = (value: number) => formatPantryQuantity(value, language);
+  const written = (value: number) => String(value);
   const [draft, setDraft] = useState(written(quantity));
   const [shown, setShown] = useState(quantity);
 
@@ -74,10 +67,10 @@ export function PantryQuantityField({
         −
       </button>
       <input
-        // Text rather than `number`: a number input answers "" for "1,5" in a browser
-        // whose locale writes a point, and the box has to take the Danish comma.
+        // Text rather than `number`, so a stray "1,5" is read (and rounded up) rather than
+        // answered with "" by a browser whose locale writes a point.
         type="text"
-        inputMode="decimal"
+        inputMode="numeric"
         aria-label={say(PANTRY.quantityAria, { name: label })}
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
@@ -88,15 +81,14 @@ export function PantryQuantityField({
             event.currentTarget.blur();
           }
         }}
-        // Three characters' room for the everyday count, widening only for "1500" or
-        // "2,5" and up, so the name beside it keeps its room on every other row.
-        style={{ width: `${Math.max(3, draft.length) + 0.5}ch` }}
+        // Two characters' room for the everyday count, widening only past 99, so the
+        // name beside it keeps its room on every other row.
+        style={{ width: `${Math.max(2, draft.length) + 0.5}ch` }}
         className="border-0 bg-transparent p-0 text-center text-sm tabular-nums outline-none"
       />
-      {/* Read, not pressed: the number's own unit, so "2" says "2 kg" — and a plain
-          count, stored as no unit, says "2 stk". */}
+      {/* Read, not pressed: "2" says "2 stk". */}
       <span data-testid="pantry-unit" className="pr-0.5 text-xs text-slate-500">
-        {say(unit ? PANTRY_UNIT_LABELS[unit] : PANTRY.pieces)}
+        {say(PANTRY_MEASURE_LABELS.PIECES)}
       </span>
       <button
         type="button"

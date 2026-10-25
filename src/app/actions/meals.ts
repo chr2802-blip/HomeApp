@@ -5,6 +5,7 @@ import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
 import { dueAtDaysFrom, dueAtOn, todayInZone, weekDays, weekStartOn } from "@/lib/time";
 import { PLAN_FIELD, PLAN_OUT, leftoversDay } from "@/lib/meals";
+import { readTimes, TIMES_FIELD } from "@/lib/recipes";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { sayIn } from "@/lib/copy/say";
 import { MEALS } from "@/lib/copy/meals";
@@ -74,6 +75,9 @@ export async function planMeal(_prev: ActionResult, formData: FormData): Promise
   }
 
   const recipeId = choice === PLAN_OUT || leftoverOf !== null ? null : choice;
+  // Only a recipe is made any number of times; anything else is stored at 1, so a day
+  // turned back into a recipe later starts as written.
+  const times = recipeId ? readTimes(formData.get(TIMES_FIELD)) : 1;
 
   // Asked through `homeDb`, so another household's recipe is simply not found: the check
   // is the query rather than a comparison somebody has to remember to write.
@@ -85,11 +89,11 @@ export async function planMeal(_prev: ActionResult, formData: FormData): Promise
     // homeDb stamps the home onto a create and adds it to the where, but its types still
     // ask for the column — the same shape `recordListCleared` writes a week with.
     where: { homeId_date: { homeId: user.homeId, date } },
-    create: { homeId: user.homeId, date, recipeId, leftoverOf },
+    create: { homeId: user.homeId, date, recipeId, leftoverOf, times },
     // Both columns are written every time, never only the one this choice filled: a day
     // going from leftovers to a recipe has to put the pointer down on the way past, or
     // the row would be claiming both at once.
-    update: { recipeId, leftoverOf },
+    update: { recipeId, leftoverOf, times },
   });
 
   refreshMealViews();

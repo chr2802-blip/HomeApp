@@ -2,7 +2,7 @@ import { Client, Receiver } from "@upstash/qstash";
 
 import { prisma } from "./prisma";
 import { sendPushToUsers } from "./push";
-import { PORTIONS_PARAM } from "./recipes";
+import { readTimes, TIMES_PARAM } from "./recipes";
 import { sayIn } from "./copy/say";
 import { APP } from "./copy/app";
 
@@ -45,9 +45,9 @@ export type TimerPush = {
   /** Zero-based, as action mode counts; said one-based. */
   step: number;
   endsAt: number;
-  /** How many the dish was being cooked for, so tapping the notification opens action
-   *  mode at the same amounts. Null for the recipe as written. */
-  portions: number | null;
+  /** How many times over the dish was being made, so tapping the notification opens
+   *  action mode at the same amounts. 1 for the recipe as written. */
+  times: number;
 };
 
 export type TimerRequest = Omit<TimerPush, "userId">;
@@ -76,15 +76,11 @@ export function timerPushConfigured(): boolean {
 /** The shape both directions share, and nothing about when. */
 function readTimerShape(body: unknown): TimerRequest | null {
   if (!body || typeof body !== "object") return null;
-  const { recipeId, step, endsAt, portions } = body as Record<string, unknown>;
+  const { recipeId, step, endsAt, times } = body as Record<string, unknown>;
   if (typeof recipeId !== "string" || !recipeId || recipeId.length > 64) return null;
   if (!Number.isInteger(step) || (step as number) < 0) return null;
   if (typeof endsAt !== "number" || !Number.isFinite(endsAt)) return null;
-  const shown =
-    Number.isInteger(portions) && (portions as number) >= 1 && (portions as number) <= 999
-      ? (portions as number)
-      : null;
-  return { recipeId, step: step as number, endsAt, portions: shown };
+  return { recipeId, step: step as number, endsAt, times: readTimes(times) };
 }
 
 /**
@@ -203,7 +199,7 @@ export async function ringTimer(timer: TimerPush, now: number): Promise<number> 
   if (!recipe || recipe.home.members.length === 0) return 0;
 
   const say = sayIn(recipe.home.language);
-  const query = timer.portions !== null ? `?${PORTIONS_PARAM}=${timer.portions}` : "";
+  const query = timer.times !== 1 ? `?${TIMES_PARAM}=${timer.times}` : "";
   return sendPushToUsers([timer.userId], {
     title: recipe.title,
     body: say(APP.push.timerDone, { number: timer.step + 1 }),

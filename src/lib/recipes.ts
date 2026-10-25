@@ -164,19 +164,51 @@ export function shoppingText(line: string): string {
 export const MAX_SERVINGS = 99;
 
 /**
- * The address parameter that carries how many a recipe is being cooked for, from the
- * recipe page into action mode and back out again — so the amounts at the hob are the
- * ones that were on screen when "Start cooking" was pressed.
+ * How many times over a recipe is being made: ½×, 1×, 2×, 3× and on. A multiplier rather
+ * than a number of people, because it is also what the pantry is asked for — a recipe made
+ * twice takes two stk of rice (`pantryUses`) — and a household divides its cupboard into
+ * "enough for once", not into grams per person. The people it feeds are still said beside
+ * it where the recipe knows its `servings`.
+ *
+ * Only ever shown, never stored on the recipe: the stored lines are the recipe as written.
  */
-export const PORTIONS_PARAM = "portions";
+export const TIMES_CHOICES = [0.5, 1, 2, 3, 4, 5, 6, 8, 10] as const;
 
 /**
- * How many a recipe is being shown for: what the address asked, where that is a whole
- * number in range, and the recipe's own `servings` otherwise. Null only for a recipe
- * nobody has said the servings of, which has nothing to scale from.
+ * The address parameter that carries it, from the recipe page into action mode and back
+ * out again — so the amounts at the hob are the ones that were on screen when "Start
+ * cooking" was pressed.
  */
-export function portionsShown(servings: number | null, asked: unknown): number | null {
-  if (servings === null) return null;
+export const TIMES_PARAM = "times";
+
+/** The form field "Add to list" and the meal plan send it in. */
+export const TIMES_FIELD = "times";
+
+/** A multiplier this app offers, or 1 — what an address, a form or a stored cook is held
+ *  to. 1 is the recipe as written. */
+export function readTimes(asked: unknown): number {
   const value = Number(Array.isArray(asked) ? asked[0] : asked);
-  return Number.isInteger(value) && value >= 1 && value <= MAX_SERVINGS ? value : servings;
+  return (TIMES_CHOICES as readonly number[]).includes(value) ? value : 1;
+}
+
+/** The next multiplier up or down from `times`, or `times` itself at either end. */
+export function stepTimes(times: number, by: 1 | -1): number {
+  const index = (TIMES_CHOICES as readonly number[]).indexOf(readTimes(times));
+  return TIMES_CHOICES[Math.min(TIMES_CHOICES.length - 1, Math.max(0, index + by))];
+}
+
+/** How a multiplier is written: "½×", "2×". The same in both languages. */
+export function timesLabel(times: number): string {
+  return `${times === 0.5 ? "½" : times}×`;
+}
+
+/** How many stk of a counted pantry entry a recipe made `times` over uses: one per time,
+ *  and half a time is still a use of the packet. */
+export function pantryUses(times: number): number {
+  return Math.ceil(times);
+}
+
+/** The people a multiplier feeds, where the recipe says how many it is for. */
+export function portionsFor(servings: number | null, times: number): number | null {
+  return servings === null ? null : Math.max(1, Math.round(servings * times));
 }

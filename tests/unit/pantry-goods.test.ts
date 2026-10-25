@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { goodsMatching, lookupGood, PANTRY_GOODS } from "@/lib/pantry-goods";
 import { lookupAisle } from "@/lib/shop-goods";
-import { isPantryCategory, isPantryUnit, pantryKey } from "@/lib/pantry";
+import { isPantryCategory, isPantryMeasure, pantryKey } from "@/lib/pantry";
 import { readSorted } from "@/lib/pantry-sort";
 
 /**
@@ -10,10 +10,10 @@ import { readSorted } from "@/lib/pantry-sort";
  * the two cannot disagree.
  */
 describe("the common basics", () => {
-  it("files every good on a shelf and a unit this app actually offers", () => {
+  it("files every good on a shelf, kept in a way this app actually offers", () => {
     for (const good of PANTRY_GOODS) {
       expect(isPantryCategory(good.category), good.name.EN).toBe(true);
-      if (good.unit) expect(isPantryUnit(good.unit), good.name.EN).toBe(true);
+      expect(isPantryMeasure(good.measure), good.name.EN).toBe(true);
       // A name with no key left would match nothing the household ever typed.
       expect(pantryKey(good.name.EN), good.name.EN).not.toBe("");
       expect(pantryKey(good.name.DA), good.name.DA).not.toBe("");
@@ -24,7 +24,8 @@ describe("the common basics", () => {
     expect(lookupGood("Spidskommen")?.category).toBe("SPICES");
     expect(lookupGood("cumin")?.category).toBe("SPICES");
     expect(lookupGood("Sort peber")?.name.EN).toBe("Pepper");
-    expect(lookupGood("  RIS ")?.unit).toBe("KG");
+    expect(lookupGood("  RIS ")?.measure).toBe("PIECES");
+    expect(lookupGood("Salt")?.measure).toBe("ENDLESS");
   });
 
   it("still knows a good behind a qualifier, a whole word at a time", () => {

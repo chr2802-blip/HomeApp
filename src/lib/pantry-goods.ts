@@ -1,14 +1,14 @@
-import type { HomeLanguage, PantryCategory, PantryUnit } from "@prisma/client";
+import type { HomeLanguage, PantryCategory, PantryMeasure } from "@prisma/client";
 import type { Phrase } from "./copy/say";
 import { pantryKey } from "./pantry";
 
 /**
- * The basic goods almost every kitchen keeps, with the shelf each one sits on and what it
- * is usually counted in.
+ * The basic goods almost every kitchen keeps, with the shelf each one sits on and how it
+ * is usually kept: counted in uses (rice, a tin, an onion) or simply had (salt, oil).
  *
  * It answers two questions for the add box, both instantly and for free: "which of these
  * did you mean" (the suggestions under the name, for somebody who has not typed the salt
- * in yet) and "where does this go" (the shelf and unit a new entry starts with). Only a
+ * in yet) and "where does this go" (the shelf and the way of keeping a new entry starts with). Only a
  * name this list has never heard of is left for the model — `sortPantry`, after the add —
  * so the everyday case never waits on anything and never costs anything.
  *
@@ -23,142 +23,142 @@ import { pantryKey } from "./pantry";
 export type PantryGood = {
   name: Phrase;
   category: PantryCategory;
-  unit: PantryUnit | null;
+  measure: PantryMeasure;
   also?: string[];
 };
 
-const good = (EN: string, DA: string, category: PantryCategory, unit: PantryUnit | null, also?: string[]): PantryGood => ({
+const good = (EN: string, DA: string, category: PantryCategory, measure: PantryMeasure, also?: string[]): PantryGood => ({
   name: { EN, DA },
   category,
-  unit,
+  measure,
   also,
 });
 
 export const PANTRY_GOODS: PantryGood[] = [
-  // Spices & herbs — a jar each, which is how a spice rack counts.
-  good("Salt", "Salt", "SPICES", "PACK", ["Havsalt", "Flagesalt", "Sea salt", "Flaky salt"]),
-  good("Pepper", "Peber", "SPICES", "JAR", ["Sort peber", "Black pepper"]),
-  good("Paprika", "Paprika", "SPICES", "JAR"),
-  good("Cumin", "Spidskommen", "SPICES", "JAR"),
-  good("Cinnamon", "Kanel", "SPICES", "JAR"),
-  good("Curry powder", "Karry", "SPICES", "JAR", ["Curry"]),
-  good("Oregano", "Oregano", "SPICES", "JAR"),
-  good("Thyme", "Timian", "SPICES", "JAR"),
-  good("Chilli flakes", "Chiliflager", "SPICES", "JAR", ["Chili flakes"]),
-  good("Turmeric", "Gurkemeje", "SPICES", "JAR"),
-  good("Coriander seeds", "Korianderfrø", "SPICES", "JAR"),
-  good("Cardamom", "Kardemomme", "SPICES", "JAR"),
-  good("Nutmeg", "Muskatnød", "SPICES", "JAR"),
-  good("Bay leaves", "Laurbærblade", "SPICES", "JAR"),
-  good("Garam masala", "Garam masala", "SPICES", "JAR"),
-  good("Ginger powder", "Ingefær, stødt", "SPICES", "JAR"),
-  good("Rosemary", "Rosmarin", "SPICES", "JAR"),
-  good("Stock cubes", "Bouillonterninger", "SPICES", "PACK", ["Bouillon", "Stock"]),
-  good("Vanilla sugar", "Vaniljesukker", "BAKING", "JAR"),
+  // Spices & herbs — had or not, which is how a spice rack is kept.
+  good("Salt", "Salt", "SPICES", "ENDLESS", ["Havsalt", "Flagesalt", "Sea salt", "Flaky salt"]),
+  good("Pepper", "Peber", "SPICES", "ENDLESS", ["Sort peber", "Black pepper"]),
+  good("Paprika", "Paprika", "SPICES", "ENDLESS"),
+  good("Cumin", "Spidskommen", "SPICES", "ENDLESS"),
+  good("Cinnamon", "Kanel", "SPICES", "ENDLESS"),
+  good("Curry powder", "Karry", "SPICES", "ENDLESS", ["Curry"]),
+  good("Oregano", "Oregano", "SPICES", "ENDLESS"),
+  good("Thyme", "Timian", "SPICES", "ENDLESS"),
+  good("Chilli flakes", "Chiliflager", "SPICES", "ENDLESS", ["Chili flakes"]),
+  good("Turmeric", "Gurkemeje", "SPICES", "ENDLESS"),
+  good("Coriander seeds", "Korianderfrø", "SPICES", "ENDLESS"),
+  good("Cardamom", "Kardemomme", "SPICES", "ENDLESS"),
+  good("Nutmeg", "Muskatnød", "SPICES", "ENDLESS"),
+  good("Bay leaves", "Laurbærblade", "SPICES", "ENDLESS"),
+  good("Garam masala", "Garam masala", "SPICES", "ENDLESS"),
+  good("Ginger powder", "Ingefær, stødt", "SPICES", "ENDLESS"),
+  good("Rosemary", "Rosmarin", "SPICES", "ENDLESS"),
+  good("Stock cubes", "Bouillonterninger", "SPICES", "ENDLESS", ["Bouillon", "Stock"]),
+  good("Vanilla sugar", "Vaniljesukker", "BAKING", "ENDLESS"),
 
   // Oil & vinegar.
-  good("Olive oil", "Olivenolie", "OIL_VINEGAR", "L"),
-  good("Rapeseed oil", "Rapsolie", "OIL_VINEGAR", "L", ["Neutral olie", "Vegetable oil"]),
-  good("Sesame oil", "Sesamolie", "OIL_VINEGAR", null),
-  good("Vinegar", "Eddike", "OIL_VINEGAR", "L", ["Lagereddike"]),
-  good("Balsamic vinegar", "Balsamico", "OIL_VINEGAR", null, ["Balsamicoeddike"]),
-  good("White wine vinegar", "Hvidvinseddike", "OIL_VINEGAR", null),
+  good("Olive oil", "Olivenolie", "OIL_VINEGAR", "ENDLESS"),
+  good("Rapeseed oil", "Rapsolie", "OIL_VINEGAR", "ENDLESS", ["Neutral olie", "Vegetable oil"]),
+  good("Sesame oil", "Sesamolie", "OIL_VINEGAR", "ENDLESS"),
+  good("Vinegar", "Eddike", "OIL_VINEGAR", "ENDLESS", ["Lagereddike"]),
+  good("Balsamic vinegar", "Balsamico", "OIL_VINEGAR", "ENDLESS", ["Balsamicoeddike"]),
+  good("White wine vinegar", "Hvidvinseddike", "OIL_VINEGAR", "ENDLESS"),
 
   // Sauces & condiments.
-  good("Soy sauce", "Sojasauce", "SAUCES", null, ["Soja"]),
-  good("Ketchup", "Ketchup", "SAUCES", null),
-  good("Mustard", "Sennep", "SAUCES", null, ["Dijonsennep", "Dijon mustard"]),
-  good("Mayonnaise", "Mayonnaise", "SAUCES", null),
-  good("Honey", "Honning", "SAUCES", "JAR"),
-  good("Fish sauce", "Fiskesauce", "SAUCES", null),
-  good("Sriracha", "Sriracha", "SAUCES", null),
-  good("Tomato paste", "Tomatpuré", "SAUCES", null, ["Tomatkoncentrat", "Tomato purée"]),
+  good("Soy sauce", "Sojasauce", "SAUCES", "ENDLESS", ["Soja"]),
+  good("Ketchup", "Ketchup", "SAUCES", "ENDLESS"),
+  good("Mustard", "Sennep", "SAUCES", "ENDLESS", ["Dijonsennep", "Dijon mustard"]),
+  good("Mayonnaise", "Mayonnaise", "SAUCES", "ENDLESS"),
+  good("Honey", "Honning", "SAUCES", "ENDLESS"),
+  good("Fish sauce", "Fiskesauce", "SAUCES", "ENDLESS"),
+  good("Sriracha", "Sriracha", "SAUCES", "ENDLESS"),
+  good("Tomato paste", "Tomatpuré", "SAUCES", "ENDLESS", ["Tomatkoncentrat", "Tomato purée"]),
 
   // Baking.
-  good("Flour", "Hvedemel", "BAKING", "KG", ["Mel", "Plain flour"]),
-  good("Sugar", "Sukker", "BAKING", "KG", ["Rørsukker"]),
-  good("Icing sugar", "Flormelis", "BAKING", null),
-  good("Brown sugar", "Farin", "BAKING", null, ["Brun farin"]),
-  good("Baking powder", "Bagepulver", "BAKING", "PACK"),
-  good("Bicarbonate of soda", "Natron", "BAKING", "PACK", ["Baking soda"]),
-  good("Yeast", "Gær", "BAKING", "PACK", ["Tørgær", "Dry yeast"]),
-  good("Cocoa powder", "Kakao", "BAKING", null, ["Kakaopulver"]),
-  good("Cornflour", "Majsstivelse", "BAKING", null, ["Maizena", "Cornstarch"]),
-  good("Oats", "Havregryn", "DRY_GOODS", "KG", ["Rolled oats"]),
+  good("Flour", "Hvedemel", "BAKING", "ENDLESS", ["Mel", "Plain flour"]),
+  good("Sugar", "Sukker", "BAKING", "ENDLESS", ["Rørsukker"]),
+  good("Icing sugar", "Flormelis", "BAKING", "ENDLESS"),
+  good("Brown sugar", "Farin", "BAKING", "ENDLESS", ["Brun farin"]),
+  good("Baking powder", "Bagepulver", "BAKING", "ENDLESS"),
+  good("Bicarbonate of soda", "Natron", "BAKING", "ENDLESS", ["Baking soda"]),
+  good("Yeast", "Gær", "BAKING", "ENDLESS", ["Tørgær", "Dry yeast"]),
+  good("Cocoa powder", "Kakao", "BAKING", "ENDLESS", ["Kakaopulver"]),
+  good("Cornflour", "Majsstivelse", "BAKING", "ENDLESS", ["Maizena", "Cornstarch"]),
+  good("Oats", "Havregryn", "DRY_GOODS", "PIECES", ["Rolled oats"]),
 
   // Pasta, rice & grains.
-  good("Rice", "Ris", "DRY_GOODS", "KG", ["Jasminris", "Basmatiris", "Jasmine rice", "Basmati rice"]),
-  good("Pasta", "Pasta", "DRY_GOODS", "BAG", ["Spaghetti", "Penne"]),
-  good("Couscous", "Couscous", "DRY_GOODS", "BAG"),
-  good("Bulgur", "Bulgur", "DRY_GOODS", "BAG"),
-  good("Quinoa", "Quinoa", "DRY_GOODS", "BAG"),
-  good("Lentils", "Linser", "DRY_GOODS", "BAG", ["Røde linser", "Red lentils"]),
-  good("Noodles", "Nudler", "DRY_GOODS", "PACK", ["Ægnudler", "Egg noodles"]),
-  good("Breadcrumbs", "Rasp", "DRY_GOODS", "BAG"),
+  good("Rice", "Ris", "DRY_GOODS", "PIECES", ["Jasminris", "Basmatiris", "Jasmine rice", "Basmati rice"]),
+  good("Pasta", "Pasta", "DRY_GOODS", "PIECES", ["Spaghetti", "Penne"]),
+  good("Couscous", "Couscous", "DRY_GOODS", "PIECES"),
+  good("Bulgur", "Bulgur", "DRY_GOODS", "PIECES"),
+  good("Quinoa", "Quinoa", "DRY_GOODS", "PIECES"),
+  good("Lentils", "Linser", "DRY_GOODS", "PIECES", ["Røde linser", "Red lentils"]),
+  good("Noodles", "Nudler", "DRY_GOODS", "PIECES", ["Ægnudler", "Egg noodles"]),
+  good("Breadcrumbs", "Rasp", "DRY_GOODS", "ENDLESS"),
 
   // Tins & jars.
-  good("Chopped tomatoes", "Hakkede tomater", "TINS_JARS", "CAN", ["Tinned tomatoes", "Flåede tomater"]),
-  good("Coconut milk", "Kokosmælk", "TINS_JARS", "CAN"),
-  good("Chickpeas", "Kikærter", "TINS_JARS", "CAN"),
-  good("Kidney beans", "Kidneybønner", "TINS_JARS", "CAN"),
-  good("Tuna", "Tun", "TINS_JARS", "CAN"),
-  good("Passata", "Passata", "TINS_JARS", null),
-  good("Jam", "Syltetøj", "TINS_JARS", "JAR", ["Marmelade"]),
-  good("Peanut butter", "Peanutbutter", "TINS_JARS", "JAR", ["Jordnøddesmør"]),
+  good("Chopped tomatoes", "Hakkede tomater", "TINS_JARS", "PIECES", ["Tinned tomatoes", "Flåede tomater"]),
+  good("Coconut milk", "Kokosmælk", "TINS_JARS", "PIECES"),
+  good("Chickpeas", "Kikærter", "TINS_JARS", "PIECES"),
+  good("Kidney beans", "Kidneybønner", "TINS_JARS", "PIECES"),
+  good("Tuna", "Tun", "TINS_JARS", "PIECES"),
+  good("Passata", "Passata", "TINS_JARS", "PIECES"),
+  good("Jam", "Syltetøj", "TINS_JARS", "ENDLESS", ["Marmelade"]),
+  good("Peanut butter", "Peanutbutter", "TINS_JARS", "ENDLESS", ["Jordnøddesmør"]),
 
   // Fridge.
-  good("Butter", "Smør", "FRIDGE", "PACK"),
-  good("Milk", "Mælk", "FRIDGE", "L", ["Letmælk", "Sødmælk"]),
-  good("Eggs", "Æg", "FRIDGE", null),
-  good("Cream", "Fløde", "FRIDGE", "DL", ["Piskefløde", "Madlavningsfløde"]),
-  good("Parmesan", "Parmesan", "FRIDGE", null),
-  good("Cheese", "Ost", "FRIDGE", null, ["Revet ost", "Grated cheese"]),
-  good("Greek yoghurt", "Græsk yoghurt", "FRIDGE", null),
-  good("Garlic", "Hvidløg", "FRIDGE", null),
-  good("Lemons", "Citroner", "FRIDGE", null, ["Citron", "Lemon"]),
+  good("Butter", "Smør", "FRIDGE", "ENDLESS"),
+  good("Milk", "Mælk", "FRIDGE", "ENDLESS", ["Letmælk", "Sødmælk"]),
+  good("Eggs", "Æg", "FRIDGE", "ENDLESS"),
+  good("Cream", "Fløde", "FRIDGE", "PIECES", ["Piskefløde", "Madlavningsfløde"]),
+  good("Parmesan", "Parmesan", "FRIDGE", "ENDLESS"),
+  good("Cheese", "Ost", "FRIDGE", "ENDLESS", ["Revet ost", "Grated cheese"]),
+  good("Greek yoghurt", "Græsk yoghurt", "FRIDGE", "ENDLESS"),
+  good("Garlic", "Hvidløg", "FRIDGE", "ENDLESS"),
+  good("Lemons", "Citroner", "FRIDGE", "ENDLESS", ["Citron", "Lemon"]),
 
   // Freezer.
-  good("Frozen peas", "Frosne ærter", "FREEZER", "BAG", ["Ærter", "Peas"]),
-  good("Frozen spinach", "Frossen spinat", "FREEZER", "BAG"),
-  good("Minced meat", "Hakket oksekød", "FREEZER", null, ["Hakket kød", "Mince"]),
+  good("Frozen peas", "Frosne ærter", "FREEZER", "PIECES", ["Ærter", "Peas"]),
+  good("Frozen spinach", "Frossen spinat", "FREEZER", "PIECES"),
+  good("Minced meat", "Hakket oksekød", "FREEZER", "PIECES", ["Hakket kød", "Mince"]),
 
   // Drinks.
-  good("Coffee", "Kaffe", "DRINKS", "BAG"),
-  good("Tea", "Te", "DRINKS", "PACK"),
+  good("Coffee", "Kaffe", "DRINKS", "PIECES"),
+  good("Tea", "Te", "DRINKS", "ENDLESS"),
 
   // Baby.
-  good("Baby formula", "Modermælkserstatning", "BABY", "PACK", ["Formula", "Mælkepulver"]),
-  good("Baby food", "Babymos", "BABY", "JAR", ["Babymad", "Babygrød", "Klemmepose"]),
-  good("Nappies", "Bleer", "BABY", "PACK", ["Diapers", "Ble"]),
-  good("Baby wipes", "Vådservietter", "BABY", "PACK", ["Wipes", "Vådserviet"]),
+  good("Baby formula", "Modermælkserstatning", "BABY", "ENDLESS", ["Formula", "Mælkepulver"]),
+  good("Baby food", "Babymos", "BABY", "ENDLESS", ["Babymad", "Babygrød", "Klemmepose"]),
+  good("Nappies", "Bleer", "BABY", "ENDLESS", ["Diapers", "Ble"]),
+  good("Baby wipes", "Vådservietter", "BABY", "ENDLESS", ["Wipes", "Vådserviet"]),
 
   // Bathroom.
-  good("Toilet paper", "Toiletpapir", "BATHROOM", "PACK", ["Toiletrulle", "Toilet roll"]),
-  good("Hand soap", "Håndsæbe", "BATHROOM", null, ["Sæbe", "Soap"]),
-  good("Shampoo", "Shampoo", "BATHROOM", null),
-  good("Conditioner", "Balsam", "BATHROOM", null),
-  good("Shower gel", "Brusesæbe", "BATHROOM", null, ["Bodyshampoo", "Body wash"]),
-  good("Toothpaste", "Tandpasta", "BATHROOM", null),
-  good("Toothbrushes", "Tandbørster", "BATHROOM", null, ["Tandbørste", "Toothbrush"]),
-  good("Deodorant", "Deodorant", "BATHROOM", null, ["Deo"]),
-  good("Cotton pads", "Vatrondeller", "BATHROOM", "PACK", ["Vatrondel"]),
-  good("Plasters", "Plastre", "BATHROOM", "PACK", ["Plaster", "Band-aids"]),
+  good("Toilet paper", "Toiletpapir", "BATHROOM", "ENDLESS", ["Toiletrulle", "Toilet roll"]),
+  good("Hand soap", "Håndsæbe", "BATHROOM", "ENDLESS", ["Sæbe", "Soap"]),
+  good("Shampoo", "Shampoo", "BATHROOM", "ENDLESS"),
+  good("Conditioner", "Balsam", "BATHROOM", "ENDLESS"),
+  good("Shower gel", "Brusesæbe", "BATHROOM", "ENDLESS", ["Bodyshampoo", "Body wash"]),
+  good("Toothpaste", "Tandpasta", "BATHROOM", "ENDLESS"),
+  good("Toothbrushes", "Tandbørster", "BATHROOM", "ENDLESS", ["Tandbørste", "Toothbrush"]),
+  good("Deodorant", "Deodorant", "BATHROOM", "ENDLESS", ["Deo"]),
+  good("Cotton pads", "Vatrondeller", "BATHROOM", "ENDLESS", ["Vatrondel"]),
+  good("Plasters", "Plastre", "BATHROOM", "ENDLESS", ["Plaster", "Band-aids"]),
 
   // Cleaning.
-  good("Washing-up liquid", "Opvaskemiddel", "CLEANING", null, ["Dish soap", "Sulfo"]),
-  good("Dishwasher tablets", "Opvasketabs", "CLEANING", "PACK", ["Opvaskemaskinetabs", "Tabs"]),
-  good("Laundry detergent", "Vaskemiddel", "CLEANING", null, ["Vaskepulver", "Washing powder"]),
-  good("Fabric softener", "Skyllemiddel", "CLEANING", null),
-  good("All-purpose cleaner", "Universalrengøring", "CLEANING", null, ["Rengøringsmiddel", "Cleaning spray"]),
-  good("Toilet cleaner", "Toiletrens", "CLEANING", null),
-  good("Sponges", "Svampe", "CLEANING", "PACK", ["Svamp", "Sponge", "Opvaskesvampe"]),
-  good("Cloths", "Klude", "CLEANING", "PACK", ["Karklude", "Karklud", "Dish cloths"]),
-  good("Bin bags", "Affaldsposer", "CLEANING", "PACK", ["Skraldeposer", "Bin liners"]),
-  good("Paper towels", "Køkkenrulle", "CLEANING", "PACK", ["Kitchen roll"]),
+  good("Washing-up liquid", "Opvaskemiddel", "CLEANING", "ENDLESS", ["Dish soap", "Sulfo"]),
+  good("Dishwasher tablets", "Opvasketabs", "CLEANING", "ENDLESS", ["Opvaskemaskinetabs", "Tabs"]),
+  good("Laundry detergent", "Vaskemiddel", "CLEANING", "ENDLESS", ["Vaskepulver", "Washing powder"]),
+  good("Fabric softener", "Skyllemiddel", "CLEANING", "ENDLESS"),
+  good("All-purpose cleaner", "Universalrengøring", "CLEANING", "ENDLESS", ["Rengøringsmiddel", "Cleaning spray"]),
+  good("Toilet cleaner", "Toiletrens", "CLEANING", "ENDLESS"),
+  good("Sponges", "Svampe", "CLEANING", "ENDLESS", ["Svamp", "Sponge", "Opvaskesvampe"]),
+  good("Cloths", "Klude", "CLEANING", "ENDLESS", ["Karklude", "Karklud", "Dish cloths"]),
+  good("Bin bags", "Affaldsposer", "CLEANING", "ENDLESS", ["Skraldeposer", "Bin liners"]),
+  good("Paper towels", "Køkkenrulle", "CLEANING", "ENDLESS", ["Kitchen roll"]),
 
   // Other.
-  good("Onions", "Løg", "OTHER", null, ["Løg", "Onion"]),
-  good("Potatoes", "Kartofler", "OTHER", "KG", ["Potato"]),
+  good("Onions", "Løg", "OTHER", "PIECES", ["Løg", "Onion"]),
+  good("Potatoes", "Kartofler", "OTHER", "PIECES", ["Potato"]),
 ];
 
 /** Every spelling a good answers to, as keys — built once, since the add box asks per keystroke. */

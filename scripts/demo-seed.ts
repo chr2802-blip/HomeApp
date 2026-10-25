@@ -19,7 +19,7 @@
  * Alex (an admin everywhere) and Sam (a member) are in all three; both log in with
  * `DEMO_PASSWORD`. Refuses any database that is not on this machine.
  */
-import { PrismaClient, type HomeLanguage, type PantryCategory, type ListGrouping, type PantryUnit, type ShopAisle } from "@prisma/client";
+import { PrismaClient, type HomeLanguage, type PantryCategory, type ListGrouping, type PantryMeasure, type ShopAisle } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { pantryKey } from "../src/lib/pantry";
 import { dueAtDaysFrom, todayInZone, weekStartInZone } from "../src/lib/time";
@@ -49,7 +49,7 @@ type Content = {
     items: { text: string; amount?: number; done?: boolean; aisle?: ShopAisle; category?: string }[];
   }[];
   tasks: { title: string; days: number; interval: number | null; who: "alex" | "sam" | null; done?: boolean }[];
-  pantry: { name: string; quantity: number; unit?: PantryUnit; shelf: PantryCategory | null; expiresInDays?: number }[];
+  pantry: { name: string; quantity: number; measure?: PantryMeasure; shelf: PantryCategory | null; expiresInDays?: number }[];
 };
 
 const CONTENT: Record<HomeLanguage, Content> = {
@@ -135,21 +135,21 @@ const CONTENT: Record<HomeLanguage, Content> = {
       { title: "Return the library books", days: -1, interval: null, who: "sam", done: true },
     ],
     pantry: [
-      { name: "Salt", quantity: 1, shelf: "SPICES" },
-      { name: "Black pepper", quantity: 1, shelf: "SPICES" },
-      { name: "Smoked paprika", quantity: 0, shelf: "SPICES" },
-      { name: "Olive oil", quantity: 0.5, unit: "L", shelf: "OIL_VINEGAR" },
-      { name: "Soy sauce", quantity: 1, shelf: "SAUCES" },
-      { name: "Flour", quantity: 2, unit: "KG", shelf: "BAKING" },
-      { name: "Sugar", quantity: 1, unit: "KG", shelf: "BAKING" },
-      { name: "Rice", quantity: 0, unit: "KG", shelf: "DRY_GOODS" },
-      { name: "Pasta", quantity: 3, unit: "BAG", shelf: "DRY_GOODS" },
-      { name: "Chopped tomatoes", quantity: 4, unit: "CAN", shelf: "TINS_JARS" },
-      { name: "Butter", quantity: 1, shelf: "FRIDGE", expiresInDays: 6 },
-      { name: "Frozen peas", quantity: 1, unit: "BAG", shelf: "FREEZER" },
-      { name: "Toilet paper", quantity: 0, unit: "PACK", shelf: "BATHROOM" },
-      { name: "Washing-up liquid", quantity: 1, shelf: "CLEANING" },
-      { name: "Tahini", quantity: 1, unit: "JAR", shelf: null },
+      { name: "Salt", quantity: 1, measure: "ENDLESS", shelf: "SPICES" },
+      { name: "Black pepper", quantity: 1, measure: "ENDLESS", shelf: "SPICES" },
+      { name: "Smoked paprika", quantity: 0, measure: "ENDLESS", shelf: "SPICES" },
+      { name: "Olive oil", quantity: 1, measure: "ENDLESS", shelf: "OIL_VINEGAR" },
+      { name: "Soy sauce", quantity: 1, measure: "ENDLESS", shelf: "SAUCES" },
+      { name: "Flour", quantity: 2, measure: "PIECES", shelf: "BAKING" },
+      { name: "Sugar", quantity: 1, measure: "ENDLESS", shelf: "BAKING" },
+      { name: "Rice", quantity: 0, measure: "PIECES", shelf: "DRY_GOODS" },
+      { name: "Pasta", quantity: 3, measure: "PIECES", shelf: "DRY_GOODS" },
+      { name: "Chopped tomatoes", quantity: 4, measure: "PIECES", shelf: "TINS_JARS" },
+      { name: "Butter", quantity: 1, measure: "ENDLESS", shelf: "FRIDGE", expiresInDays: 6 },
+      { name: "Frozen peas", quantity: 1, measure: "PIECES", shelf: "FREEZER" },
+      { name: "Toilet paper", quantity: 0, measure: "ENDLESS", shelf: "BATHROOM" },
+      { name: "Washing-up liquid", quantity: 1, measure: "ENDLESS", shelf: "CLEANING" },
+      { name: "Tahini", quantity: 1, measure: "ENDLESS", shelf: null },
     ],
   },
   DA: {
@@ -234,21 +234,21 @@ const CONTENT: Record<HomeLanguage, Content> = {
       { title: "Aflever biblioteksbøgerne", days: -1, interval: null, who: "sam", done: true },
     ],
     pantry: [
-      { name: "Salt", quantity: 1, shelf: "SPICES" },
-      { name: "Sort peber", quantity: 1, shelf: "SPICES" },
-      { name: "Røget paprika", quantity: 0, shelf: "SPICES" },
-      { name: "Olivenolie", quantity: 0.5, unit: "L", shelf: "OIL_VINEGAR" },
-      { name: "Sojasauce", quantity: 1, shelf: "SAUCES" },
-      { name: "Hvedemel", quantity: 2, unit: "KG", shelf: "BAKING" },
-      { name: "Sukker", quantity: 1, unit: "KG", shelf: "BAKING" },
-      { name: "Ris", quantity: 0, unit: "KG", shelf: "DRY_GOODS" },
-      { name: "Pasta", quantity: 3, unit: "BAG", shelf: "DRY_GOODS" },
-      { name: "Hakkede tomater", quantity: 4, unit: "CAN", shelf: "TINS_JARS" },
-      { name: "Smør", quantity: 1, shelf: "FRIDGE", expiresInDays: 6 },
-      { name: "Frosne ærter", quantity: 1, unit: "BAG", shelf: "FREEZER" },
-      { name: "Toiletpapir", quantity: 0, unit: "PACK", shelf: "BATHROOM" },
-      { name: "Opvaskemiddel", quantity: 1, shelf: "CLEANING" },
-      { name: "Tahin", quantity: 1, unit: "JAR", shelf: null },
+      { name: "Salt", quantity: 1, measure: "ENDLESS", shelf: "SPICES" },
+      { name: "Sort peber", quantity: 1, measure: "ENDLESS", shelf: "SPICES" },
+      { name: "Røget paprika", quantity: 0, measure: "ENDLESS", shelf: "SPICES" },
+      { name: "Olivenolie", quantity: 1, measure: "ENDLESS", shelf: "OIL_VINEGAR" },
+      { name: "Sojasauce", quantity: 1, measure: "ENDLESS", shelf: "SAUCES" },
+      { name: "Hvedemel", quantity: 2, measure: "PIECES", shelf: "BAKING" },
+      { name: "Sukker", quantity: 1, measure: "ENDLESS", shelf: "BAKING" },
+      { name: "Ris", quantity: 0, measure: "PIECES", shelf: "DRY_GOODS" },
+      { name: "Pasta", quantity: 3, measure: "PIECES", shelf: "DRY_GOODS" },
+      { name: "Hakkede tomater", quantity: 4, measure: "PIECES", shelf: "TINS_JARS" },
+      { name: "Smør", quantity: 1, measure: "ENDLESS", shelf: "FRIDGE", expiresInDays: 6 },
+      { name: "Frosne ærter", quantity: 1, measure: "PIECES", shelf: "FREEZER" },
+      { name: "Toiletpapir", quantity: 0, measure: "ENDLESS", shelf: "BATHROOM" },
+      { name: "Opvaskemiddel", quantity: 1, measure: "ENDLESS", shelf: "CLEANING" },
+      { name: "Tahin", quantity: 1, measure: "ENDLESS", shelf: null },
     ],
   },
 };
@@ -416,7 +416,7 @@ async function furnish(
       name: entry.name,
       key: pantryKey(entry.name),
       quantity: entry.quantity,
-      unit: entry.unit ?? null,
+      measure: entry.measure ?? "PIECES",
       category: entry.shelf,
       expiresOn: entry.expiresInDays === undefined ? null : day(entry.expiresInDays),
     })),

@@ -97,7 +97,7 @@ describe("starting a timer", () => {
     await subscribe(member.id);
     const endsAt = Date.now() + 10 * MINUTE + 400;
 
-    const response = await schedule({ recipeId: recipe.id, step: 2, endsAt, portions: 6 });
+    const response = await schedule({ recipeId: recipe.id, step: 2, endsAt, times: 2 });
 
     expect(await response.json()).toEqual({ id: "msg_1", available: true });
     expect(qstash.publishJSON).toHaveBeenCalledWith(
@@ -105,7 +105,7 @@ describe("starting a timer", () => {
         url: "https://homehub.example.test/api/cook-timers/ring",
         // Rounded up: a second late is a timer, a second early rang before the page said so.
         notBefore: Math.ceil(endsAt / 1000),
-        body: { userId: member.id, recipeId: recipe.id, step: 2, endsAt, portions: 6 },
+        body: { userId: member.id, recipeId: recipe.id, step: 2, endsAt, times: 2 },
       }),
     );
   });
@@ -165,7 +165,7 @@ describe("reading what a browser asked for", () => {
       recipeId: "r",
       step: 0,
       endsAt: now + MAX_TIMER_MS,
-      portions: null,
+      times: 1,
     });
   });
 
@@ -180,8 +180,8 @@ describe("reading what a browser asked for", () => {
     expect(readTimerRequest(body, now)).toBeNull();
   });
 
-  it("reads nonsense portions as the recipe as written", () => {
-    expect(readTimerRequest({ recipeId: "r", step: 0, endsAt: now + 1, portions: 0 }, now)?.portions).toBeNull();
+  it("reads a nonsense multiplier as the recipe as written", () => {
+    expect(readTimerRequest({ recipeId: "r", step: 0, endsAt: now + 1, times: 7 }, now)?.times).toBe(1);
   });
 });
 
@@ -229,7 +229,7 @@ describe("a timer running out", () => {
     recipeId: recipe.id,
     step: 2,
     endsAt: Date.now() - 1000,
-    portions: 6,
+    times: 2,
   });
 
   it("refuses a request QStash did not sign, before anything is sent", async () => {
@@ -245,7 +245,7 @@ describe("a timer running out", () => {
     expect(sendPushToUsers).toHaveBeenCalledWith([member.id], {
       title: "Risotto",
       body: "The timer for step 3 is done",
-      url: `/recipes/${recipe.id}/cook?portions=6`,
+      url: `/recipes/${recipe.id}/cook?times=2`,
       tag: `cook-timer:${recipe.id}:2`,
       requireInteraction: true,
     });

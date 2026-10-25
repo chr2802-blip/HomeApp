@@ -10,7 +10,7 @@ export async function requestTimerPush(timer: {
   recipeId: string;
   step: number;
   endsAt: number;
-  portions: number | null;
+  times: number;
 }): Promise<TimerPushAnswer> {
   try {
     const response = await fetch("/api/cook-timers", {

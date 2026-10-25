@@ -5,7 +5,7 @@ import { requireHomeUser } from "@/lib/auth";
 import { cookSteps, isPrepared } from "@/lib/cook";
 import { homeDb } from "@/lib/home-db";
 import { todayInZone } from "@/lib/time";
-import { ingredientLines, PORTIONS_PARAM, portionsShown } from "@/lib/recipes";
+import { ingredientLines, readTimes, TIMES_PARAM } from "@/lib/recipes";
 import { scaleIngredient } from "@/lib/ingredient-line";
 import { CookMode } from "@/components/cook-mode";
 
@@ -32,7 +32,7 @@ export default async function CookPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
-  const asked = (await searchParams)[PORTIONS_PARAM];
+  const asked = (await searchParams)[TIMES_PARAM];
   const user = await requireHomeUser();
 
   // Scoped to the caller's home, so another home's id simply finds nothing —
@@ -60,12 +60,11 @@ export default async function CookPage({
   // The amounts the recipe page was showing when "Start cooking" was pressed. Scaled line
   // by line, so every line keeps its position and the stored breakdown's indices still
   // point at the same ingredients; `isPrepared` is asked of the stored text, not this.
-  const portions = portionsShown(recipe.servings, asked);
-  const factor = recipe.servings && portions ? portions / recipe.servings : 1;
+  const times = readTimes(asked);
   const scaled = {
     ...recipe,
     ingredients: ingredientLines(recipe.ingredients)
-      .map((line) => scaleIngredient(line, factor, user.homeLanguage))
+      .map((line) => scaleIngredient(line, times, user.homeLanguage))
       .join("\n"),
   };
 
@@ -76,7 +75,7 @@ export default async function CookPage({
       title={recipe.title}
       steps={cookSteps(scaled)}
       ingredients={ingredientLines(scaled.ingredients)}
-      portions={portions !== recipe.servings ? portions : null}
+      times={times}
       servings={recipe.servings}
       prepared={isPrepared(recipe)}
       prepareAction={prepareRecipeSteps}

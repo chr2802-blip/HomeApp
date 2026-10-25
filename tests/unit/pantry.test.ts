@@ -7,7 +7,8 @@ import {
   expiryWarning,
   readExpiryDate,
   warnsOfExpiry,
-  formatPantryQuantity,
+  heldAs,
+  planPantry,
   namesInWords,
   pantryKey,
   pantryNote,
@@ -285,32 +286,72 @@ describe("the two notes", () => {
 });
 
 describe("clampPantryQuantity", () => {
-  it("keeps a cupboard counted in grams past a thousand", () => {
-    expect(clampPantryQuantity(2000)).toBe(2000);
-    expect(clampPantryQuantity("1500")).toBe(1500);
+  it("counts whole uses, rounding a part-use up", () => {
+    expect(clampPantryQuantity("3")).toBe(3);
+    expect(clampPantryQuantity("1,5")).toBe(2);
+    expect(clampPantryQuantity(0.2)).toBe(1);
   });
 
-  it("stops at four digits, and at zero", () => {
-    expect(clampPantryQuantity(20000)).toBe(9999);
+  it("stops at three digits, and at zero", () => {
+    expect(clampPantryQuantity(20000)).toBe(999);
     expect(clampPantryQuantity(-3)).toBe(0);
     expect(clampPantryQuantity("abc")).toBe(0);
   });
 });
 
-describe("a pantry quantity with a decimal", () => {
-  it("keeps one decimal, and reads a Danish comma as the point", () => {
-    expect(clampPantryQuantity("1,5")).toBe(1.5);
-    expect(clampPantryQuantity("0.25")).toBe(0.3);
-    expect(clampPantryQuantity(2.04)).toBe(2);
-    // A step of the stepper on a decimal lands on a decimal, not on float noise.
-    expect(clampPantryQuantity(0.1 + 0.2)).toBe(0.3);
+describe("heldAs", () => {
+  it("keeps an endless entry to had or not", () => {
+    expect(heldAs("ENDLESS", 5)).toBe(1);
+    expect(heldAs("ENDLESS", 0)).toBe(0);
+    expect(heldAs("PIECES", 5)).toBe(5);
+  });
+});
+
+describe("planPantry", () => {
+  const lines = (...texts: string[]) => new Map(texts.map((text) => [text.toLowerCase(), text]));
+  const stock = (entries: Record<string, [number, "PIECES" | "ENDLESS"]>) =>
+    new Map(Object.entries(entries).map(([key, [quantity, measure]]) => [key, { quantity, measure }]));
+
+  it("takes one stk of a counted entry per time made, and never counts down an endless one", () => {
+    const plan = planPantry([{ wanted: lines("Ris", "Salt", "Kylling"), uses: 2 }], stock({ ris: [5, "PIECES"], salt: [1, "ENDLESS"] }));
+    expect(plan.draws).toEqual(new Map([["ris", 2]]));
+    expect([...plan.keeps[0].values()]).toEqual(["Kylling"]);
+    expect(plan.covered).toEqual(["Ris", "Salt"]);
   });
 
-  it("is written the way the household writes a decimal, and a whole number bare", () => {
-    expect(formatPantryQuantity(1.5, "DA")).toBe("1,5");
-    expect(formatPantryQuantity(1.5, "EN")).toBe("1.5");
-    expect(formatPantryQuantity(2000, "DA")).toBe("2000");
-    expect(clampPantryQuantity(formatPantryQuantity(9999.5, "DA"))).toBe(9999);
+  it("puts a counted entry on the list after all when it has too little left, and uses up what it has", () => {
+    const plan = planPantry([{ wanted: lines("Ris"), uses: 2 }], stock({ ris: [1, "PIECES"] }));
+    expect(plan.draws).toEqual(new Map([["ris", 1]]));
+    expect([...plan.keeps[0].values()]).toEqual(["Ris"]);
+    expect(plan.covered).toEqual([]);
+  });
+
+  it("spends the stock recipe by recipe, so the second one to want the last stk shops for it", () => {
+    const plan = planPantry(
+      [
+        { wanted: lines("Ris"), uses: 1 },
+        { wanted: lines("Ris"), uses: 1 },
+      ],
+      stock({ ris: [1, "PIECES"] }),
+    );
+    expect(plan.draws).toEqual(new Map([["ris", 1]]));
+    expect(plan.keeps[0].size).toBe(0);
+    expect([...plan.keeps[1].values()]).toEqual(["Ris"]);
+  });
+
+  it("takes nothing for what has run out, which goes on the list as ever", () => {
+    const plan = planPantry([{ wanted: lines("Ris"), uses: 1 }], stock({ ris: [0, "PIECES"] }));
+    expect(plan.draws.size).toBe(0);
+    expect([...plan.keeps[0].values()]).toEqual(["Ris"]);
+  });
+
+  it("counts down an entry the household said answers for a qualified line", () => {
+    const wanted = lines("Basmati ris");
+    const left = planPantry([{ wanted, uses: 1 }], stock({ ris: [3, "PIECES"] }), new Set());
+    expect(left.draws).toEqual(new Map([["ris", 1]]));
+    // "Still add it" is buying it, and buying takes nothing from the cupboard.
+    const kept = planPantry([{ wanted, uses: 1 }], stock({ ris: [3, "PIECES"] }), new Set(["basmati ris"]));
+    expect(kept.draws.size).toBe(0);
   });
 });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { PantryUnit } from "@prisma/client";
+import type { PantryMeasure } from "@prisma/client";
 import { Card } from "@/components/ui";
 import { PantryRow } from "@/components/pantry-row";
 import { PantrySortButton } from "@/components/pantry-sort-button";
@@ -18,7 +18,7 @@ export type ShelfEntry = {
   name: string;
   key: string;
   quantity: number;
-  unit: PantryUnit | null;
+  measure: PantryMeasure;
   /** The one shelf it is on (`shelfOf`), or null for "not sorted yet". */
   shelf: ShelfId | null;
   expiresOn: string | null;
@@ -298,7 +298,7 @@ export function PantryShelves({
                           id={item.id}
                           name={item.name}
                           quantity={item.quantity}
-                          unit={item.unit}
+                          measure={item.measure}
                           shelf={item.shelf}
                           shelves={shelves}
                           expiresOn={item.expiresOn}
