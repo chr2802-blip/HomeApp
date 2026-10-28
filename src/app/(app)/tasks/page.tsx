@@ -26,8 +26,21 @@ import { TaskFields, TaskRow, type TaskSummary } from "@/components/task-row";
 import { EmojiField } from "@/components/emoji-field";
 import { Collapsible } from "@/components/collapsible";
 import { PhotoField } from "@/components/photo-field";
+import {
+  TaskDoneSummary,
+  TaskMatch,
+  TaskMatchGroup,
+  TaskSearch,
+  type TaskSearchEntry,
+} from "@/components/task-search";
 
 type TaskItemRow = TaskSummary & { notes: string | null; assigneeId: string | null };
+
+/** What the search box finds a task by: its name, its notes and who it is for. */
+function searchEntry(task: TaskItemRow & { assignee: { name: string } | null }): TaskSearchEntry {
+  const text = [task.title, task.notes, task.assignee?.name].filter(Boolean).join("\n");
+  return { id: task.id, text: text.toLowerCase() };
+}
 
 /**
  * One task as a row of the page's card. Pressing it opens the task's own page; the
@@ -105,17 +118,22 @@ function TaskList({
   language: HomeLanguage;
 }) {
   return (
-    <Card padded={false} className="divide-y divide-slate-100">
-      {tasks.map((task, index) => (
-        <div
-          key={task.id}
-          className="animate-row-in"
-          style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
-        >
-          <TaskItem task={task} members={members} now={now} language={language} />
-        </div>
-      ))}
-    </Card>
+    <TaskMatchGroup ids={tasks.map((task) => task.id)}>
+      {/* The rule goes between visible rows rather than `divide-y`, which counts a row
+          the search has hidden and leaves a line under the last one still showing. */}
+      <Card
+        padded={false}
+        className="[&>:not([hidden])~:not([hidden])]:border-t [&>:not([hidden])~:not([hidden])]:border-slate-100"
+      >
+        {tasks.map((task, index) => (
+          <TaskMatch key={task.id} id={task.id}>
+            <div className="animate-row-in" style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}>
+              <TaskItem task={task} members={members} now={now} language={language} />
+            </div>
+          </TaskMatch>
+        ))}
+      </Card>
+    </TaskMatchGroup>
   );
 }
 
@@ -190,27 +208,38 @@ export default async function TasksPage() {
 
       {todo.length === 0 && done.length === 0 ? (
         <EmptyState art="home">{say(TASKS.empty)}</EmptyState>
-      ) : todo.length === 0 ? (
-        <EmptyState art="mug">{say(TASKS.allDone)}</EmptyState>
       ) : (
-        <TaskList tasks={todo} members={members} now={now} language={user.homeLanguage} />
-      )}
+        <TaskSearch entries={[...todo, ...done].map(searchEntry)}>
+          {todo.length === 0 ? (
+            // Hidden while searching: "everything is done" is not an answer to a search.
+            <TaskMatchGroup ids={[]}>
+              <EmptyState art="mug">{say(TASKS.allDone)}</EmptyState>
+            </TaskMatchGroup>
+          ) : (
+            <TaskList tasks={todo} members={members} now={now} language={user.homeLanguage} />
+          )}
 
-      {/* Only once something has been finished. A household that keeps no one-offs
-          would otherwise carry a permanently empty heading.
-          Folded away, like a list's ticked-off items: a year of finished one-offs is
-          worth keeping and not worth scrolling past to reach what is still to do. */}
-      {done.length > 0 && (
-        <section className="mt-8">
-          <Collapsible
-            summary={say(TASKS.done, { count: done.length })}
-            headingClassName="mb-3 text-sm font-semibold text-slate-500 uppercase"
-            triggerClassName="hover:text-slate-700"
-            panelClassName="pb-1"
-          >
-            <TaskList tasks={done} members={members} now={now} language={user.homeLanguage} />
-          </Collapsible>
-        </section>
+          {/* Only once something has been finished. A household that keeps no one-offs
+              would otherwise carry a permanently empty heading.
+              Folded away, like a list's ticked-off items: a year of finished one-offs is
+              worth keeping and not worth scrolling past to reach what is still to do.
+              A search counts its matches on the heading and leaves it shut, as the
+              lists' does. */}
+          {done.length > 0 && (
+            <TaskMatchGroup ids={done.map((task) => task.id)} className="mt-8">
+              <section>
+                <Collapsible
+                  summary={<TaskDoneSummary ids={done.map((task) => task.id)} />}
+                  headingClassName="mb-3 text-sm font-semibold text-slate-500 uppercase"
+                  triggerClassName="hover:text-slate-700"
+                  panelClassName="pb-1"
+                >
+                  <TaskList tasks={done} members={members} now={now} language={user.homeLanguage} />
+                </Collapsible>
+              </section>
+            </TaskMatchGroup>
+          )}
+        </TaskSearch>
       )}
     </>
   );

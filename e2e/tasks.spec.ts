@@ -415,3 +415,47 @@ test("a one-off that has been done drops off the dashboard", async ({ page }) =>
   await expect(page.getByText("Book the plumber")).toBeHidden();
   await expect(page.getByRole("heading", { name: "Due for you" })).toBeHidden();
 });
+
+test.describe("searching the tasks", () => {
+  /** Types into the box, retrying until React has hydrated enough to filter on it. */
+  async function search(page: Page, text: string, shown: string[], hidden: string[]) {
+    await expect(async () => {
+      await page.getByLabel("Search tasks").fill(text);
+      for (const title of shown) await expect(row(page, title)).toBeVisible({ timeout: 1000 });
+      for (const title of hidden) await expect(row(page, title)).toBeHidden({ timeout: 1000 });
+    }).toPass({ timeout: 20_000 });
+  }
+
+  test("narrows the tasks by name, notes or who they are for", async ({ page }) => {
+    await addTask(page, { title: "Water the plants" });
+    await addTask(page, { title: "Descale the kettle", notes: "Vinegar under the sink" });
+    await addTask(page, { title: "Take the bins out", assignTo: ACCOUNTS.admin.name });
+
+    await search(page, "PLANTS", ["Water the plants"], ["Descale the kettle", "Take the bins out"]);
+    await search(page, "vinegar", ["Descale the kettle"], ["Water the plants", "Take the bins out"]);
+    await search(page, ACCOUNTS.admin.name.toLowerCase(), ["Take the bins out"], ["Water the plants", "Descale the kettle"]);
+    await search(page, "", ["Water the plants", "Descale the kettle", "Take the bins out"], []);
+  });
+
+  test("says so when nothing matches", async ({ page }) => {
+    await addTask(page, { title: "Water the plants" });
+
+    await search(page, "nonsense", [], ["Water the plants"]);
+    await expect(page.getByText("No task matches “nonsense”.")).toBeVisible();
+  });
+
+  test("counts only the matching finished tasks on the fold", async ({ page }) => {
+    // One at a time: each is the only open task when its Done is pressed.
+    for (const title of ["Book the chimney sweep", "Return the drill"]) {
+      await addTask(page, { title, once: true });
+      await doneButton(page).click();
+      await expect(doneButton(page)).toBeHidden();
+    }
+    await expect(page.getByRole("button", { name: "Done (2)" })).toBeVisible();
+
+    await expect(async () => {
+      await page.getByLabel("Search tasks").fill("drill");
+      await expect(page.getByRole("button", { name: "Done (1)" })).toBeVisible({ timeout: 1000 });
+    }).toPass({ timeout: 20_000 });
+  });
+});
