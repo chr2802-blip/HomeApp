@@ -23,6 +23,8 @@ export const TASKS = {
   },
   allDone: { EN: "Everything is done. Feet up — you have earned it.", DA: "Alt er klaret. Fødderne op — det har I fortjent." },
   done: { EN: "Done ({count})", DA: "Afsluttede ({count})" },
+  searchTasks: { EN: "Search tasks", DA: "Søg i opgaver" },
+  noMatch: { EN: "No task matches “{query}”.", DA: "Ingen opgave matcher “{query}”." },
 
   // The card's summary
   doneBadge: { EN: "Done", DA: "Klaret" },

@@ -1667,6 +1667,10 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
   nothing while looking entirely correct: `transition` and `transition-transform` name all
   four and are safe, but an arbitrary `transition-[…]` list, or a hand-written `transition`
   in `globals.css` such as the `press-*` tiers, has to name the property that actually changes.
+- **`divide-y` counts a `hidden` row.** Its rule goes under every child but the last in
+  the DOM, so a search that hides the last row leaves a line under the last one showing.
+  A card whose rows can be hidden draws the rule between visible siblings instead
+  (`[&>:not([hidden])~:not([hidden])]:border-t`, as `/tasks` does).
 - **Hydration has no DOM signal.** A widget's markup looks identical before and after
   React attaches listeners. Browser tests of interactive widgets must wait on something
   the widget itself emits — the drag tests wait on dnd-kit's announcements, and a context
