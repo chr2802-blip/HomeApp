@@ -21,6 +21,7 @@ export function ConfirmButton({
   confirmLabel,
   triggerVariant = "danger",
   triggerClassName = "",
+  confirmVariant = "danger",
   children,
 }: {
   message: string;
@@ -29,6 +30,11 @@ export function ConfirmButton({
   /** The row buttons inside a list stay quiet; page-level ones stay red. */
   triggerVariant?: "danger" | "ghost";
   triggerClassName?: string;
+  /**
+   * Red, unless what is being confirmed is not a loss: red means "about to be deleted",
+   * and putting ticked items back on a list deletes nothing.
+   */
+  confirmVariant?: "danger" | "primary";
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -63,7 +69,7 @@ export function ConfirmButton({
           <div className="flex gap-2">
             <Button
               type="button"
-              variant="danger"
+              variant={confirmVariant}
               onClick={confirm}
               disabled={submitting}
               aria-busy={submitting}
