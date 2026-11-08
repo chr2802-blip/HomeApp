@@ -11,6 +11,7 @@ import {
   setListItemAmount,
   toggleListFavorite,
   toggleListItem,
+  untickAllListItems,
   updateList,
 } from "@/app/actions/lists";
 import {
@@ -590,6 +591,52 @@ describe("renaming an item", () => {
     expect((await prisma.listItem.findUniqueOrThrow({ where: { id: item.id } })).text).toBe(
       "Milk",
     );
+  });
+});
+
+describe("untickAllListItems", () => {
+  it("puts every ticked item back on the list and leaves the open ones alone", async () => {
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+    await prisma.listItem.createMany({
+      data: [
+        { listId: list.id, text: "Tent", position: 1, done: true, completedById: member.id },
+        { listId: list.id, text: "Torch", position: 2, done: true, completedById: admin.id, amount: 2 },
+        { listId: list.id, text: "Socks", position: 3, amount: 3 },
+      ],
+    });
+
+    await untickAllListItems(formData({ listId: list.id }));
+
+    const items = await prisma.listItem.findMany({ orderBy: { position: "asc" } });
+    expect(items.map((item) => [item.text, item.done, item.completedById, item.amount])).toEqual([
+      ["Tent", false, null, 1],
+      ["Torch", false, null, 2],
+      ["Socks", false, null, 3],
+    ]);
+  });
+
+  it("touches no other list", async () => {
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+    const other = await seedList({ homeId: home.id, createdById: member.id });
+    const kept = await prisma.listItem.create({
+      data: { listId: other.id, text: "Milk", position: 1, done: true, completedById: member.id },
+    });
+
+    await untickAllListItems(formData({ listId: list.id }));
+
+    expect((await prisma.listItem.findUniqueOrThrow({ where: { id: kept.id } })).done).toBe(true);
+  });
+
+  it("refuses another home's list", async () => {
+    const neighbour = await createHomeWithMembers();
+    const otherList = await seedList({ homeId: neighbour.home.id, createdById: neighbour.member.id });
+    const item = await prisma.listItem.create({
+      data: { listId: otherList.id, text: "Milk", position: 1, done: true },
+    });
+
+    await expect(untickAllListItems(formData({ listId: otherList.id }))).rejects.toThrow();
+
+    expect((await prisma.listItem.findUniqueOrThrow({ where: { id: item.id } })).done).toBe(true);
   });
 });
 

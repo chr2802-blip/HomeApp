@@ -322,6 +322,29 @@ export async function toggleListItem(formData: FormData) {
   refreshListViews(item.list);
 }
 
+/**
+ * Puts every ticked item on a list back on it at once — a packing list, say, taken out
+ * again for the next trip.
+ *
+ * The same thing as unticking each row by hand (`setItemDone` with `done: false`): the
+ * name of whoever got it goes, the amount stays as it was. Nothing is counted towards
+ * the week, because nothing was finished. Online-only, like a delete: it is a
+ * kitchen-table edit, and a queued "untick everything" would need a rule for what the
+ * other phone ticked meanwhile.
+ */
+export async function untickAllListItems(formData: FormData) {
+  await requireHomeUser();
+  const list = await listInScope(String(formData.get("listId")));
+  if (!list) return;
+
+  await prisma.listItem.updateMany({
+    where: { listId: list.id, done: true },
+    data: { done: false, completedById: null },
+  });
+
+  refreshListViews(list);
+}
+
 export async function deleteListItem(formData: FormData) {
   const item = await itemInScope(String(formData.get("itemId")));
   if (!item) return;

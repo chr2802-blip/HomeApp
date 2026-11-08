@@ -21,6 +21,7 @@ export function Collapsible({
   headingClassName,
   triggerClassName = "",
   panelClassName = "",
+  aside,
   children,
 }: {
   /** What the trigger says beside the chevron — usually a name and a count. */
@@ -34,6 +35,11 @@ export function Collapsible({
   headingClassName?: string;
   triggerClassName?: string;
   panelClassName?: string;
+  /**
+   * A control drawn at the end of the heading, beside the trigger rather than inside it
+   * (a button cannot hold a button) — "Untick all" on a list's completed items.
+   */
+  aside?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -64,9 +70,19 @@ export function Collapsible({
     </button>
   );
 
+  const heading =
+    headingClassName === undefined ? trigger : <h2 className={headingClassName}>{trigger}</h2>;
+
   return (
     <>
-      {headingClassName === undefined ? trigger : <h2 className={headingClassName}>{trigger}</h2>}
+      {aside === undefined ? (
+        heading
+      ) : (
+        <div className="flex items-center">
+          <div className="min-w-0 flex-1">{heading}</div>
+          {aside}
+        </div>
+      )}
       {fold.shown && (
         <div className={fold.className} style={fold.style}>
           {/* The grid item is bare: padding or a border on it is height the fold cannot

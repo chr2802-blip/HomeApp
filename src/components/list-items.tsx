@@ -36,6 +36,7 @@ import {
   setListItemAmount,
   sortListAisles,
   toggleListItem,
+  untickAllListItems,
 } from "@/app/actions/lists";
 import type { ShopAisle } from "@prisma/client";
 import { GroupMoveButton } from "@/components/group-move-button";
@@ -71,7 +72,8 @@ type Change =
   | { type: "amount"; id: string; amount: number }
   | { type: "rename"; id: string; text: string }
   | { type: "category"; id: string; categoryId: string | null }
-  | { type: "reorder"; ids: string[] };
+  | { type: "reorder"; ids: string[] }
+  | { type: "untickAll" };
 
 function applyTo(items: Item[], change: Change): Item[] {
   if (change.type === "toggle") {
@@ -91,6 +93,11 @@ function applyTo(items: Item[], change: Change): Item[] {
           }
         : item,
     );
+  }
+  if (change.type === "untickAll") {
+    // Every ticked row back on the list, the way unticking each by hand puts it back:
+    // the name goes, the amount and anything else stay as they are.
+    return items.map((item) => (item.done ? { ...item, done: false, completedBy: null } : item));
   }
   if (change.type === "remove") {
     return items.filter((item) => item.id !== change.id);
@@ -843,6 +850,31 @@ export function ListItems({
             }
             triggerClassName="w-full px-4 py-3 text-sm font-medium text-slate-500 hover:bg-slate-50"
             panelClassName="divide-y divide-slate-100 border-t border-slate-100"
+            aside={
+              // Everything back on the list at once — a packing list taken out again.
+              // Asked first, because a slip of the thumb would undo a whole shop's
+              // ticks; online-only, like a delete.
+              <form
+                action={async () => {
+                  applyChange({ type: "untickAll" });
+                  const data = new FormData();
+                  data.set("listId", listId);
+                  await onlyOnline(() => untickAllListItems(data));
+                }}
+                className="shrink-0 pr-2"
+              >
+                <ConfirmButton
+                  title={say(LISTS.untickAllTitle)}
+                  message={say(LISTS.untickAllMessage, { count: done.length })}
+                  confirmLabel={say(LISTS.untickAllConfirm)}
+                  confirmVariant="primary"
+                  triggerVariant="ghost"
+                  triggerClassName="px-2 py-1 text-sm text-slate-500"
+                >
+                  {say(LISTS.untickAll)}
+                </ConfirmButton>
+              </form>
+            }
           >
             {done.map((item) => rowFor(item, false))}
           </Collapsible>
