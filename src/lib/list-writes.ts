@@ -89,6 +89,26 @@ export async function setItemDone(
   }
 }
 
+/**
+ * Puts every one of the given ticked items back on the list at once — a packing list
+ * emptied on the trip and wanted again for the next one.
+ *
+ * The same change as `setItemDone(item, false, …)` row by row, made in one statement:
+ * the tick and the name under it go, and nothing else moves. The order stays the order
+ * the list was ticked off in, which for a packing list is the order it is packed in.
+ * Only rows of this list that are still ticked are touched, so the same press sent
+ * twice, or a row another phone already put back, changes nothing a second time.
+ * Unticking never counts towards the household's week, so there is nothing to count.
+ */
+export async function setItemsUndone(listId: string, itemIds: string[]) {
+  if (itemIds.length === 0) return 0;
+  const { count } = await prisma.listItem.updateMany({
+    where: { listId, id: { in: itemIds }, done: true },
+    data: { done: false, completedById: null },
+  });
+  return count;
+}
+
 export type AddOutcome =
   | { ok: true }
   /** Already on the list and not ticked off: the caller has wording to show. */

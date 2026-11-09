@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { QUEUE_EVENT, dropOps, queueOp, queuedOps } from "@/lib/offline-queue";
-import { isSettled, type ListRow, type OfflineOp } from "@/lib/offline-ops";
+import { isSettled, MAX_OPS, type ListRow, type OfflineOp } from "@/lib/offline-ops";
 
 /** What happened to a change: run against the server, or kept for when there is one. */
 export type Recorded<T> = { sent: true; result: T } | { sent: false };
@@ -41,9 +41,27 @@ export function flushQueue(): Promise<OfflineOp[]> {
   return flushing;
 }
 
+/*
+ * The queue in requests of at most `MAX_OPS`, which is all the endpoint takes: a queue
+ * past it — a long packing list put back in one press with no signal — would otherwise
+ * be refused whole on every flush and never leave the phone. Stops at the first request
+ * that took nothing, which is a connection gone again rather than a queue to keep at.
+ */
 async function send(): Promise<OfflineOp[]> {
-  const ops = await queuedOps();
-  if (ops.length === 0) return [];
+  const sent: OfflineOp[] = [];
+  let queued = await queuedOps();
+  while (queued.length > 0) {
+    const batch = queued.slice(0, MAX_OPS);
+    const taken = await sendBatch(batch);
+    sent.push(...taken.applied);
+    if (taken.settled === 0 || queued.length <= MAX_OPS) break;
+    queued = await queuedOps();
+  }
+  return sent;
+}
+
+async function sendBatch(ops: OfflineOp[]): Promise<{ applied: OfflineOp[]; settled: number }> {
+  const nothing = { applied: [], settled: 0 };
 
   let body: { applied?: unknown; rejected?: unknown };
   try {
@@ -55,17 +73,17 @@ async function send(): Promise<OfflineOp[]> {
       // be an answer to somebody else's.
       cache: "no-store",
     });
-    if (!response.ok) return [];
+    if (!response.ok) return nothing;
     body = await response.json();
   } catch {
-    return [];
+    return nothing;
   }
 
   const applied = new Set(asIds(body.applied));
   const rejected = asRejectedIds(body.rejected);
   await dropOps([...applied, ...rejected]);
 
-  return ops.filter((op) => applied.has(op.id));
+  return { applied: ops.filter((op) => applied.has(op.id)), settled: applied.size + rejected.length };
 }
 
 function asIds(value: unknown): string[] {

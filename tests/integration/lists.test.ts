@@ -11,6 +11,7 @@ import {
   setListItemAmount,
   toggleListFavorite,
   toggleListItem,
+  untickListItems,
   updateList,
 } from "@/app/actions/lists";
 import {
@@ -781,5 +782,68 @@ describe("reorderListItems", () => {
     await reorderListItems(formData({ listId: list.id, itemIds: "" }));
 
     expect(await order()).toEqual(["One", "Two", "Three"]);
+  });
+});
+
+describe("untickListItems", () => {
+  async function seedItems(listId: string, rows: { text: string; done: boolean }[]) {
+    for (const [index, row] of rows.entries()) {
+      await prisma.listItem.create({
+        data: {
+          listId,
+          text: row.text,
+          done: row.done,
+          position: index + 1,
+          completedById: row.done ? member.id : null,
+        },
+      });
+    }
+    return prisma.listItem.findMany({ where: { listId }, orderBy: { position: "asc" } });
+  }
+
+  it("puts every named ticked item back, keeping the order and dropping who got it", async () => {
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+    const items = await seedItems(list.id, [
+      { text: "Sleeping bags", done: true },
+      { text: "Torch", done: false },
+      { text: "Board games", done: true },
+    ]);
+
+    await untickListItems(formData({ listId: list.id, itemId: items.map((item) => item.id) }));
+
+    const after = await prisma.listItem.findMany({ where: { listId: list.id }, orderBy: { position: "asc" } });
+    expect(after.map((item) => [item.text, item.done, item.completedById])).toEqual([
+      ["Sleeping bags", false, null],
+      ["Torch", false, null],
+      ["Board games", false, null],
+    ]);
+  });
+
+  it("leaves alone a ticked item the press did not name", async () => {
+    const list = await seedList({ homeId: home.id, createdById: member.id });
+    const [first, second] = await seedItems(list.id, [
+      { text: "Sleeping bags", done: true },
+      { text: "Torch", done: true },
+    ]);
+
+    await untickListItems(formData({ listId: list.id, itemId: [first.id] }));
+
+    expect((await prisma.listItem.findUniqueOrThrow({ where: { id: second.id } })).done).toBe(true);
+  });
+
+  it("refuses another home's list, and an item from another list", async () => {
+    const neighbour = await createHomeWithMembers();
+    const theirs = await seedList({ homeId: neighbour.home.id, createdById: neighbour.member.id });
+    const [theirItem] = await seedItems(theirs.id, [{ text: "Passport", done: true }]);
+    const mine = await seedList({ homeId: home.id, createdById: member.id });
+
+    // `member` is signed in and belongs to `home`, not `neighbour.home`.
+    await expect(
+      untickListItems(formData({ listId: theirs.id, itemId: [theirItem.id] })),
+    ).rejects.toThrow();
+    // Named under a list that is theirs, the item is simply not on it.
+    await untickListItems(formData({ listId: mine.id, itemId: [theirItem.id] }));
+
+    expect((await prisma.listItem.findUniqueOrThrow({ where: { id: theirItem.id } })).done).toBe(true);
   });
 });

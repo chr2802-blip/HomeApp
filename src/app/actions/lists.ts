@@ -38,6 +38,7 @@ import {
   restoreItem,
   setItemAmount,
   setItemDone,
+  setItemsUndone,
   setItemText,
 } from "@/lib/list-writes";
 
@@ -320,6 +321,22 @@ export async function toggleListItem(formData: FormData) {
   await setItemDone(item, !item.done, item.list.homeId, user.id);
 
   refreshListViews(item.list);
+}
+
+/**
+ * Takes the tick off every ticked item the page showed, in one press.
+ *
+ * Told which rows rather than "everything ticked": what is put back is what the person
+ * was looking at, and a row ticked on another phone a moment ago is not swept up with
+ * them. Like toggling it acts on ids and reports nothing.
+ */
+export async function untickListItems(formData: FormData) {
+  await requireHomeUser();
+  const list = await listInScope(String(formData.get("listId")));
+  if (!list) return;
+
+  const ids = formData.getAll("itemId").map(String);
+  if ((await setItemsUndone(list.id, ids)) > 0) refreshListViews(list);
 }
 
 export async function deleteListItem(formData: FormData) {

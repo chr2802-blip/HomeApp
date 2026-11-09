@@ -19,6 +19,7 @@ export function Collapsible({
   summary,
   defaultOpen = false,
   headingClassName,
+  aside,
   triggerClassName = "",
   panelClassName = "",
   children,
@@ -32,6 +33,12 @@ export function Collapsible({
    * page's outline is the same whether the section happens to be open or shut.
    */
   headingClassName?: string;
+  /**
+   * Something that acts on the whole section, drawn at the end of the heading's row and
+   * outside the trigger — a button cannot sit inside a button, and it has to be reachable
+   * whether the section is open or shut.
+   */
+  aside?: React.ReactNode;
   triggerClassName?: string;
   panelClassName?: string;
   children: React.ReactNode;
@@ -64,9 +71,19 @@ export function Collapsible({
     </button>
   );
 
+  const heading =
+    headingClassName === undefined ? trigger : <h2 className={headingClassName}>{trigger}</h2>;
+
   return (
     <>
-      {headingClassName === undefined ? trigger : <h2 className={headingClassName}>{trigger}</h2>}
+      {aside === undefined ? (
+        heading
+      ) : (
+        <div className="flex items-center gap-2 [&>:first-child]:min-w-0 [&>:first-child]:flex-1">
+          {heading}
+          {aside}
+        </div>
+      )}
       {fold.shown && (
         <div className={fold.className} style={fold.style}>
           {/* The grid item is bare: padding or a border on it is height the fold cannot
