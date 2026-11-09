@@ -96,6 +96,40 @@ test("there is no clear-completed button", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Clear/ })).toHaveCount(0);
 });
 
+test("every tick comes off at once, and the rows stay where they were", async ({ page }) => {
+  await openDialog(page, "New list");
+  await page.getByLabel("List name").fill("Packing");
+  await page.getByRole("button", { name: "Create list" }).click();
+  await page.waitForURL(/\/lists\/[a-z0-9]+$/);
+
+  for (const item of ["Sleeping bags", "Torch", "Board games"]) {
+    await page.getByPlaceholder("Add an item").fill(item);
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByText(item, { exact: true })).toBeVisible();
+  }
+  for (const item of ["Sleeping bags", "Board games"]) {
+    const row = page.locator("div").filter({ hasText: new RegExp(`^${item}`) }).last();
+    await row.getByRole("button", { name: "Mark as done" }).click();
+  }
+  await expect(page.getByRole("button", { name: "Completed (2)" })).toBeVisible();
+
+  // Offered on the folded heading, and asked about before anything happens.
+  await page.getByRole("button", { name: "Untick all", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Untick everything?" });
+  await expect(sheet).toContainText("All 2 ticked items go back on the list");
+  await sheet.getByRole("button", { name: "Untick all" }).click();
+
+  await expect(page.getByRole("button", { name: /Completed/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Mark as done" })).toHaveCount(3);
+
+  // Kept, and in the order the list was written in rather than the order it came back.
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Mark as done" })).toHaveCount(3);
+  await expect(page.getByRole("button", { name: /Completed/ })).toHaveCount(0);
+  const texts = await page.getByRole("button", { name: /^Edit / }).allTextContents();
+  expect(texts.map((text) => text.trim())).toEqual(["Sleeping bags", "Torch", "Board games"]);
+});
+
 /**
  * What a bar is actually drawing, as the browser lays it out: the fraction of the track
  * its fill covers, and the colour that fill is painted in.

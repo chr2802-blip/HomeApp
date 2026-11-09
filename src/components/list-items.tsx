@@ -36,6 +36,7 @@ import {
   setListItemAmount,
   sortListAisles,
   toggleListItem,
+  untickListItems,
 } from "@/app/actions/lists";
 import type { ShopAisle } from "@prisma/client";
 import { GroupMoveButton } from "@/components/group-move-button";
@@ -45,6 +46,7 @@ import { pantryKey } from "@/lib/pantry";
 import { ConfirmButton } from "@/components/confirm-button";
 import { AmountPicker } from "@/components/amount-picker";
 import { Collapsible } from "@/components/collapsible";
+import { UntickAllButton } from "@/components/untick-all-button";
 import { Celebration } from "@/components/celebration";
 import { PersonMark } from "@/components/person-mark";
 import { ProgressBar } from "@/components/progress-bar";
@@ -67,6 +69,7 @@ type Item = ListRow;
 
 type Change =
   | { type: "toggle"; id: string; by: Person }
+  | { type: "untick"; ids: string[] }
   | { type: "remove"; id: string }
   | { type: "amount"; id: string; amount: number }
   | { type: "rename"; id: string; text: string }
@@ -90,6 +93,14 @@ function applyTo(items: Item[], change: Change): Item[] {
             completedBy: item.done ? null : change.by,
           }
         : item,
+    );
+  }
+  if (change.type === "untick") {
+    // Every one of them as a single untick would leave it: back on the list, nobody's
+    // name under it, the amount and the place in the order as they were.
+    const ids = new Set(change.ids);
+    return items.map((item) =>
+      ids.has(item.id) && item.done ? { ...item, done: false, completedBy: null } : item,
     );
   }
   if (change.type === "remove") {
@@ -545,6 +556,29 @@ export function ListItems({
     if (wereDone * 2 < size && (wereDone + 1) * 2 >= size) setHalfway(true);
   }
 
+  /*
+   * Every ticked row back on the list at once. Recorded as one untick per row, the same
+   * op a single press queues, so a packing list reset in a car park with no signal is
+   * kept like any other tick and sent when there is one.
+   */
+  function untickAll() {
+    const ids = optimisticItems.filter((item) => item.done).map((item) => item.id);
+    if (ids.length === 0) return;
+    for (const id of ids) stopSettling(id);
+
+    const data = new FormData();
+    data.set("listId", listId);
+    for (const id of ids) data.append("itemId", id);
+
+    startTransition(async () => {
+      applyChange({ type: "untick", ids });
+      await record(
+        ids.map((itemId) => ({ id: newId(), kind: "tick" as const, listId, itemId, done: false })),
+        () => untickListItems(data),
+      );
+    });
+  }
+
   const sensors = useSensors(
     // A little movement before a drag starts, so tapping the handle on a phone does
     // not read as a drag.
@@ -841,6 +875,7 @@ export function ListItems({
                 {say(LISTS.completed, { count: done.length })}
               </span>
             }
+            aside={<UntickAllButton count={done.length} onConfirm={untickAll} />}
             triggerClassName="w-full px-4 py-3 text-sm font-medium text-slate-500 hover:bg-slate-50"
             panelClassName="divide-y divide-slate-100 border-t border-slate-100"
           >

@@ -64,7 +64,8 @@ shoots each path at 390×844 into `screenshots/` (git-ignored), and prints the f
 at a tenth of its speed, through CDP) cover the rest; anything it cannot do — a sheet
 opened, a row pressed — is a throwaway that imports `scripts/demo-cast.ts` and copies
 from `screenshot.ts`, put inside the checkout (from the scratchpad it cannot resolve
-`@prisma/client`) and deleted afterwards. A new kind of thing on screen wants a row in
+`@prisma/client`), run with `npx tsx --env-file=.env` (`tsx` does not read `.env` itself)
+and deleted afterwards. A new kind of thing on screen wants a row in
 `demo-seed.ts`, so the next session finds it there.
 It hides Next's dev overlay ("1 Issue"), which otherwise sits over the tab bar in every
 phone shot — a hydration warning between `SnackbarProvider` and `KitchenProvider` that
@@ -645,6 +646,14 @@ the hearts always inserts, never updates.
   and says nothing in words.
 - **A ticked row says who got it** (`PersonMark`), drawn only where the home has more than
   one member.
+- **Every tick comes off at once from "Completed"'s heading** (`UntickAllButton`, through
+  `Collapsible`'s `aside`) — a packing list wanted again for the next trip. Asked first in a
+  drawer whose confirm is the home's colour, not red: nothing is deleted. It is the same
+  change a single untick makes (`setItemsUndone` beside `setItemDone`): rows keep their
+  place, the name under them goes, and the press names the rows it saw, so one ticked on
+  another phone meanwhile is left alone. Queued as one `tick` op per row, so it works in
+  the car park; the queue is sent in batches of `MAX_OPS`, because one request past it is
+  refused whole on every flush. Still no clear-completed: ticked rows are vocabulary.
 - **A task is marked done at `TaskDoneButton` and nowhere else**, which is the one component
   behind both places. **Reopening keeps a plain form**: an undo is not an achievement.
 

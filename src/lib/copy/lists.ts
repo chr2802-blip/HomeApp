@@ -129,6 +129,19 @@ export const LISTS = {
     DA: "🎉 Fint — alt her er krydset af.",
   },
   completed: { EN: "Completed ({count})", DA: "Afkrydset ({count})" },
+  untickAll: { EN: "Untick all", DA: "Fjern alle" },
+  untickAllTitle: { EN: "Untick everything?", DA: "Fjern alle afkrydsninger?" },
+  untickAllMessage: {
+    EN: {
+      one: "The {count} ticked item goes back on the list, ready for next time.",
+      other: "All {count} ticked items go back on the list, ready for next time.",
+    },
+    DA: {
+      one: "Den {count} afkrydsede ting kommer tilbage på listen, klar til næste gang.",
+      other: "Alle {count} afkrydsede ting kommer tilbage på listen, klar til næste gang.",
+    },
+  },
+  untickAllConfirm: { EN: "Untick all", DA: "Fjern afkrydsninger" },
 
   // The add box
   addItem: { EN: "Add an item", DA: "Tilføj en vare" },
