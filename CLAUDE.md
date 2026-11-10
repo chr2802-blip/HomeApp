@@ -832,8 +832,13 @@ sheet behind the round button beside the list's title (`ListCategoriesButton`,
   A heading id from another list is simply not found — the row is filed under none.
 - **The add box offers the headings as chips** and keeps the chosen one for the next item.
   A queued add carries `categoryId` (optional in `opsSchema`, so an older queue still
-  parses). Adding a ticked line under a chosen heading moves it there; adding it under
-  none keeps the heading it had.
+  parses). Adding it under none keeps the heading it had.
+- **Under a chosen heading, an item is its text *and* that heading** (`findSameItem` in
+  `src/lib/list-writes.ts`): "Legetøj" under "Bagsæde" and under "Bella" are two rows, and
+  only a row under the same heading clashes or comes back. A ticked row filed nowhere is
+  adopted and moved there; a ticked row under *another* heading is that heading's and is
+  left alone — so the add box's suggestions under a chosen heading leave those out too.
+  Asked under no heading, the whole list is searched, as before.
 - **The sheet lives once, beside the title.** The list's own "Set up categories" offer
   (while it has none) opens it by an event (`SetUpCategoriesButton`) rather than drawing a
   second sheet: that offer unmounts the moment the first heading exists, and took its

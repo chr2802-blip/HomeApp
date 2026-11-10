@@ -180,6 +180,47 @@ describe("filing an item", () => {
     );
   });
 
+  it("keeps the same item under two headings, and clashes only under the same one", async () => {
+    const list = await ownList("Trip");
+    await submit(createListCategory, { listId: list.id, name: "Back seat" });
+    await submit(createListCategory, { listId: list.id, name: "Bella" });
+    await submit(createListCategory, { listId: list.id, name: "Boot" });
+    const [backSeat, bella, boot] = await headings(list.id);
+
+    expect((await submit(addListItem, { listId: list.id, text: "Toys", categoryId: backSeat!.id }))?.ok).toBe(true);
+    expect((await submit(addListItem, { listId: list.id, text: "toys", categoryId: bella!.id }))?.ok).toBe(true);
+    // The same heading twice is still a duplicate, and so is no heading at all.
+    expect((await submit(addListItem, { listId: list.id, text: "Toys", categoryId: bella!.id }))?.ok).toBe(false);
+    expect((await submit(addListItem, { listId: list.id, text: "Toys" }))?.ok).toBe(false);
+
+    // A ticked row under another heading stays that heading's: Boot gets its own.
+    await prisma.listItem.updateMany({ where: { listId: list.id }, data: { done: true } });
+    await submit(addListItem, { listId: list.id, text: "Toys", categoryId: boot!.id });
+    // A ticked row under the heading asked for is the one brought back.
+    await submit(addListItem, { listId: list.id, text: "Toys", categoryId: bella!.id });
+
+    const items = await prisma.listItem.findMany({ where: { listId: list.id } });
+    const byHeading = (id: string) => items.filter((item) => item.categoryId === id).map((item) => item.done);
+    expect(items).toHaveLength(3);
+    expect(byHeading(backSeat!.id)).toEqual([true]);
+    expect(byHeading(bella!.id)).toEqual([false]);
+    expect(byHeading(boot!.id)).toEqual([false]);
+  });
+
+  it("adopts a ticked row filed under no heading", async () => {
+    const list = await ownList();
+    await submit(createListCategory, { listId: list.id, name: "Hardware" });
+    const [hardware] = await headings(list.id);
+    const rope = await prisma.listItem.create({
+      data: { listId: list.id, text: "Rope", position: 1, done: true },
+    });
+
+    await submit(addListItem, { listId: list.id, text: "Rope", categoryId: hardware!.id });
+
+    const items = await prisma.listItem.findMany({ where: { listId: list.id } });
+    expect(items.map((item) => [item.id, item.done, item.categoryId])).toEqual([[rope.id, false, hardware!.id]]);
+  });
+
   it("adds a queued item under its heading, and unsorted when the heading has gone", async () => {
     const list = await ownList();
     await submit(createListCategory, { listId: list.id, name: "Hardware" });
