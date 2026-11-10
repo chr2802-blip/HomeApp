@@ -161,7 +161,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
           action={addListItem}
           listId={list.id}
           trackAmounts={list.trackAmounts}
-          suggestions={ticked.map((item) => ({ id: item.id, text: item.text }))}
+          suggestions={ticked.map((item) => ({ id: item.id, text: item.text, categoryId: item.categoryId }))}
           categories={list.grouping === "OWN" ? list.categories : null}
         />
       </Card>

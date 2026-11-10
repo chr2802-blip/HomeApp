@@ -114,6 +114,8 @@ const CONTENT: Record<HomeLanguage, Content> = {
           { text: "Sun cream", category: "Pharmacy" },
           { text: "Sleeping bags", category: "Pack" },
           { text: "Board games", category: "Pack" },
+          // The same thing under two headings: bought at the pharmacy, and packed.
+          { text: "Sun cream", category: "Pack" },
           { text: "Firewood" },
           { text: "Torch", category: "Pack", done: true },
         ],
@@ -213,6 +215,8 @@ const CONTENT: Record<HomeLanguage, Content> = {
           { text: "Solcreme", category: "Apotek" },
           { text: "Soveposer", category: "Pakkes" },
           { text: "Brætspil", category: "Pakkes" },
+          // Det samme under to overskrifter: købes på apoteket, og pakkes.
+          { text: "Solcreme", category: "Pakkes" },
           { text: "Brænde" },
           { text: "Lommelygte", category: "Pakkes", done: true },
         ],
@@ -364,10 +368,11 @@ async function furnish(
         },
       },
     });
-    // Each item under the heading it names, on a list kept in its own categories.
+    // Each item under the heading it names, on a list kept in its own categories. Matched
+    // by position, not text: one list can hold the same thing under two headings.
     const headings = await prisma.listCategory.findMany({ where: { listId: made.id } });
     for (const item of await prisma.listItem.findMany({ where: { listId: made.id } })) {
-      const name = list.items.find((wanted) => wanted.text === item.text)?.category;
+      const name = list.items[item.position]?.category;
       const heading = headings.find((candidate) => candidate.name === name);
       if (heading) {
         await prisma.listItem.update({ where: { id: item.id }, data: { categoryId: heading.id } });

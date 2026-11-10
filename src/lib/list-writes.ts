@@ -148,16 +148,13 @@ export async function addItem(
     if (arrived) id = undefined;
   }
 
-  const existing = await prisma.listItem.findFirst({
-    where: { listId, text: { equals: text, mode: "insensitive" } },
-    orderBy: { done: "desc" },
-  });
+  const existing = await findSameItem(listId, text, category?.id ?? null);
 
   if (existing?.done) {
     await restoreItem(existing.id, listId, amount);
     // Brought back under the heading it was asked for, where one was. Asked for nothing
     // in particular, it keeps the one it had — which is the list remembering.
-    if (category) {
+    if (category && existing.categoryId !== category.id) {
       await prisma.listItem.update({ where: { id: existing.id }, data: { categoryId: category.id } });
     }
     return { ok: true };
@@ -175,6 +172,30 @@ export async function addItem(
     },
   });
   return { ok: true };
+}
+
+/**
+ * The row an add means, if one is already on the list.
+ *
+ * Asked under one of the list's own headings, an item is its text *and* that heading:
+ * "Toys" under "Back seat" and "Toys" under "Bella" are two things to pack, and the one
+ * already under "Back seat" is no reason to refuse the second. So only rows under the
+ * heading asked for count — and, failing those, a ticked row under no heading at all,
+ * which belongs to nobody and is the list's vocabulary waiting to be filed. A ticked row
+ * under another heading is that heading's own, and is left where it is.
+ *
+ * Asked under no heading, the whole list is searched, as it was before headings existed:
+ * typing "Toys" with no heading chosen is "the toys", not a third lot.
+ */
+async function findSameItem(listId: string, text: string, categoryId: string | null) {
+  const sameText = { listId, text: { equals: text, mode: "insensitive" as const } };
+  if (!categoryId) {
+    return prisma.listItem.findFirst({ where: sameText, orderBy: { done: "desc" } });
+  }
+  return (
+    (await prisma.listItem.findFirst({ where: { ...sameText, categoryId }, orderBy: { done: "desc" } })) ??
+    (await prisma.listItem.findFirst({ where: { ...sameText, categoryId: null, done: true } }))
+  );
 }
 
 /** How many of an item are wanted. Absolute, like everything else here. */

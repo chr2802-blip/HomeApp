@@ -14,7 +14,8 @@ import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
 import { LISTS } from "@/lib/copy/lists";
 
-export type Suggestion = { id: string; text: string };
+/** A ticked row the box can bring back, with the heading it is filed under on a list of its own. */
+export type Suggestion = { id: string; text: string; categoryId?: string | null };
 
 const MAX_SUGGESTIONS = 6;
 
@@ -97,9 +98,20 @@ export function AddItemForm({
   });
 
   const needle = query.trim().toLowerCase();
+  /*
+   * Under a chosen heading, only rows that heading could take back: its own, or a row
+   * filed nowhere. A ticked "Toys" under "Back seat" is that heading's, and offering it
+   * while "Bella" is chosen would move it there rather than add Bella's own — the same
+   * rule `addItem` keeps on the server.
+   */
   const matches = needle
-    ? suggestions.filter((item) => item.text.toLowerCase().includes(needle)).slice(0, MAX_SUGGESTIONS)
+    ? suggestions
+        .filter((item) => !categoryId || !item.categoryId || item.categoryId === categoryId)
+        .filter((item) => item.text.toLowerCase().includes(needle))
+        .slice(0, MAX_SUGGESTIONS)
     : [];
+  const headingOf = (item: Suggestion) =>
+    item.categoryId ? categories?.find((category) => category.id === item.categoryId)?.name : undefined;
   const isOpen = matches.length > 0;
 
   function restore(item: Suggestion) {
@@ -241,7 +253,10 @@ export function AddItemForm({
                 }`}
               >
                 <span className="text-slate-400">↩</span>
-                {item.text}
+                <span className="min-w-0 flex-1 truncate">{item.text}</span>
+                {headingOf(item) && (
+                  <span className="shrink-0 truncate text-xs text-slate-400">{headingOf(item)}</span>
+                )}
               </button>
             </li>
           ))}
