@@ -25,6 +25,7 @@ import { pantryKey } from "../src/lib/pantry";
 import { dueAtDaysFrom, todayInZone, weekStartInZone } from "../src/lib/time";
 import { canSealSecrets, sealSecret } from "../src/lib/secret-box";
 import { DEMO_HOMES, DEMO_PASSWORD, DEMO_PEOPLE, type DemoHomeKey } from "./demo-cast";
+import { pngBytes } from "../tests/helpers/images";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -314,6 +315,15 @@ async function furnish(
     content.categories.map((name) => prisma.recipeCategory.create({ data: { homeId, name } })),
   );
 
+  // A picture on tonight's dinner, so the recipe page has one to open full screen
+  // (`PhotoViewer`). Drawn here rather than shipped as a file: there is no image in the
+  // repo, and a stand-in pattern is enough to show the viewer works.
+  const picture = pngBytes(1200, 800);
+  const thumb = pngBytes(600, 400);
+  const dinnerPhoto = await prisma.photo.create({
+    data: { homeId, contentType: "image/png", width: 1200, height: 800, bytes: picture, thumbWidth: 600, thumbHeight: 400, thumbBytes: thumb },
+  });
+
   const recipes = [];
   for (const [index, recipe] of content.recipes.entries()) {
     recipes.push(
@@ -325,6 +335,7 @@ async function furnish(
           instructions: recipe.steps.join("\n"),
           totalTimeMinutes: recipe.minutes,
           servings: recipe.servings,
+          photoId: index === 0 ? dinnerPhoto.id : null,
           createdById: people.alex.id,
           // The last one is the cake; the rest are dinners.
           categories: { create: { categoryId: (index === content.recipes.length - 1 ? baking : weeknight)!.id } },

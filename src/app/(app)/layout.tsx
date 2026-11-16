@@ -6,6 +6,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { SectionTabs } from "@/components/section-tabs";
 import { PageTransition } from "@/components/page-transition";
 import { BackButton } from "@/components/back-button";
+import { ScrollBars } from "@/components/scroll-bars";
 import { HomeMenu } from "@/components/home-menu";
 import { OfflineSupport } from "@/components/offline-support";
 import { ResumeCooking } from "@/components/resume-cooking";
@@ -22,8 +23,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const say = sayIn(user.homeLanguage);
   // Admin is the installation, not a household: the list of every home and how the
   // deployment itself is doing. Running a home is administered from that home's own
-  // Settings, behind its name in the header, so the tab belongs to the one person the
-  // whole installation is for.
+  // Settings, behind its name in the header, and so is Admin — offered there only to the
+  // one person the whole installation is for.
   const showAdmin = user.role === "SUPER_ADMIN";
 
   return (
@@ -32,7 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {/* Above every page, because a timer on the hob does not stop for a change of
             screen — see `components/kitchen.tsx`. */}
         <KitchenProvider>
-          <div className="min-h-screen">
+          <div className="min-h-screen overflow-x-clip">
             {/* Asked for on every page rather than when notifications are turned on: what
                 keeps a list readable in a shop has to be installed before the signal goes. */}
             <OfflineSupport language={user.homeLanguage} />
@@ -44,9 +45,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 is laid out under the phone's bars (`viewportFit` in the root layout), so the
                 header pads itself past the top inset and paints the strip above its own row.
                 Without that padding the name and the back arrow sit under the clock. */}
-            <header className="sticky top-0 z-30 border-b border-[var(--accent-line)] bg-[var(--band)] pt-[env(safe-area-inset-top)]">
+            <header className="app-topbar sticky top-0 z-30 border-b border-[var(--accent-line)] bg-[var(--band)] pt-[env(safe-area-inset-top)]">
               <div className="mx-auto flex max-w-5xl items-center gap-x-6 py-3 pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))]">
-                <div className="flex min-w-0 items-center gap-1.5">
+                <div className="flex min-w-0 items-center">
                   <BackButton />
                   {/* The household's own picture and name, not the product's: everyone here
                       knows what the app is, and somebody between homes is told which one they
@@ -59,16 +60,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                     label={user.homeName ?? "HomeHub"}
                     photoId={user.homePhotoId}
                     canAdminister={canAdministerCurrentHome(user)}
+                    showAdmin={showAdmin}
                   />
                   {/* Outside the menu's button so its accessible name stays the home's
                       own, and only where the household switched the season on. */}
                   {user.homeSeasonal && (
-                    <span aria-hidden="true" className="animate-season-in shrink-0 text-lg leading-none">
+                    <span aria-hidden="true" className="animate-season-in ml-1.5 shrink-0 text-lg leading-none">
                       {SEASON_MARK[seasonOn(todayInZone())]}
                     </span>
                   )}
                 </div>
-                <NavLinks showAdmin={showAdmin} />
+                <NavLinks />
                 <div className="ml-auto flex items-center gap-3 text-sm">
                   {/* Just the person: the home is named at the other end of the bar. */}
                   <span className="hidden text-slate-500 sm:inline">{user.name}</span>
@@ -86,7 +88,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </main>
 
             <KitchenTimers />
-            <BottomNav showAdmin={showAdmin} />
+            <BottomNav />
+            <ScrollBars />
           </div>
         </KitchenProvider>
       </SnackbarProvider>

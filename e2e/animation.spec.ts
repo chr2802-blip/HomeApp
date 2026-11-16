@@ -115,20 +115,20 @@ test.describe("a page", () => {
     await page.getByRole("button", { name: "Create list" }).click();
     await page.waitForURL(/\/lists\/[a-z0-9]+$/);
 
-    // Back out of the list to the page that holds it: a segment shallower.
+    // Back out of the list to the page that holds it: a segment shallower closes it.
     await page.getByRole("link", { name: "Lists" }).first().click();
     await page.waitForURL(/\/lists$/);
-    await expectArrival(page, "page-back");
+    await expectArrival(page, "page-close");
 
-    // And into it again: a segment deeper, whichever way it was reached.
+    // And into it again: a segment deeper opens out of it, whichever way it was reached.
     await page.getByRole("link", { name: "Weekly shop" }).click();
     await page.waitForURL(/\/lists\/[a-z0-9]+$/);
-    await expectArrival(page, "page-forward");
+    await expectArrival(page, "page-open");
 
-    // Neither path contains the other, so this is a move between tabs.
+    // Tasks sits to the right of Lists in the tab bar, so it comes in from the right.
     await page.getByRole("link", { name: "Tasks" }).first().click();
     await page.waitForURL(/\/tasks$/);
-    await expectArrival(page, "page-switch");
+    await expectArrival(page, "page-forward");
   });
 
   test("steps sideways between the pages of one section, from the side the pill moved to", async ({

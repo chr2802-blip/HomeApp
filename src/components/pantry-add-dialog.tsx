@@ -1,9 +1,10 @@
 "use client";
 
+import { CreateFab } from "@/components/create-button";
 import { useState, useTransition } from "react";
 import type { PantryMeasure } from "@prisma/client";
 import { createPantryItem, sortPantry } from "@/app/actions/pantry";
-import { IconButton, Input, Label } from "@/components/ui";
+import { Input, Label } from "@/components/ui";
 import { Modal } from "@/components/modal";
 import { DialogForm } from "@/components/form-dialog";
 import { Chip } from "@/components/pantry-row";
@@ -23,8 +24,8 @@ const MAX_KEPT = 4;
 const MAX_GOODS = 5;
 
 /**
- * Adding to the pantry the way everything else in the app is added: the green "+" beside
- * the page's title, and a sheet — the same `IconButton` `create` and `DialogForm` the
+ * Adding to the pantry the way everything else in the app is added: the page's "+" in the
+ * tab bar, and a sheet — the same `CreateFab` and `DialogForm` the
  * lists and tasks pages use through `FormDialog`. Written out here rather than through
  * `FormDialog` because this sheet has two things that one does not: its fields read the
  * name as it is typed, and a successful add may have one more thing to send afterwards.
@@ -66,18 +67,7 @@ export function PantryAddDialog({ kept, shelves }: { kept: KeptEntry[]; shelves:
 
   return (
     <>
-      <IconButton variant="create" label={say(PANTRY.add)} onClick={() => setOpen(true)}>
-        <svg
-          viewBox="0 0 24 24"
-          className="h-5 w-5"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          aria-hidden="true"
-        >
-          <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </IconButton>
+      <CreateFab label={say(PANTRY.add)} onClick={() => setOpen(true)} expanded={open} />
 
       <Modal open={open} onClose={() => setOpen(false)} title={say(PANTRY.add)}>
         <DialogForm

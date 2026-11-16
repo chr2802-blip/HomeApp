@@ -160,9 +160,11 @@ anything to tell them.
 
 ### Administration is two different things, in two different places
 
-**Admin** is a tab, and it is the super admin's alone: `/admin` holds the installation —
-**System** (how the deployment itself is doing) and **Homes** (create, switch into, delete).
-`requireSuperAdmin` guards all three pages.
+**Admin** is the super admin's alone, and it is the last entry in the menu under the home's
+name (`HomeMenu`'s `showAdmin`), not a tab: `/admin` holds the installation — **System**
+(how the deployment itself is doing) and **Homes** (create, switch into, delete). The tab
+bar is the household's pages, and a fifth tab for one person crowded the "+" out of its
+middle. `requireSuperAdmin` guards all three pages.
 
 Running one household is not that. It is `/settings`, reached from the home's own picture
 and name in the header, and it follows the home on screen rather than the person:
@@ -183,7 +185,7 @@ password, picture and notifications, one page however many households they are i
 in the same menu because that menu is "this home, and me in it".
 
 **The header's name is a menu for everybody**, not only for somebody with a home to switch
-to — it is how the Pantry, Settings and Profile are reached. The pantry is in it and is
+to — it is how the Pantry, Settings, Profile and (for the super admin) Admin are reached. The pantry is in it and is
 not administration: it is above Settings and drawn for every member, because what the
 household has in the cupboard is everyday business rather than a setting (see *The
 household has a cupboard*). `HomeMenu` in
@@ -700,8 +702,13 @@ Almost nobody scrolls a dashboard, so every block is spending the only screen th
   tonight is already the dinner row.
 - **The lists stop at `DASHBOARD_LISTS` and offer the rest**, two to a row, and the query
   takes one more than it draws so the section knows without counting every list.
-- **The home's picture is a square beside the greeting, not a banner** — a banner's
+- **The home's picture is a square beside the greeting, not a photo banner** — a photo's
   height is what the numbers and the days ahead needed. Drawn only when there is one.
+- **The opening — date, greeting, ring, the three numbers — hangs from the header as one
+  band** (`HomeBanner`, `.home-banner`), full width in the header's linen, rolling down on
+  arrival and back up when a tab leads away (`useLeaveHome` holds the navigation for
+  `banner-up`). It is the same content in the same height, so it costs the first screen
+  nothing; the header drops its line while it hangs there.
 - `e2e/suggested-recipe.spec.ts` holds the result: the dinner row under 160px, and the
   week, the dinner, what is due and the lists all on one 390×680 screen.
 
@@ -1539,14 +1546,50 @@ about which words to throw away.
   two sets of classes** — a transition only runs from a state the browser has already painted.
   Which one a sheet plays is a media query in `globals.css`, not `sm:` classes. Everything is
   switched off under `prefers-reduced-motion` by the one rule at the end of `globals.css`.
-  A sideways step between a section's pages (Recipes | Plan, Lists | Supplies) is
-  `sectionStep`, and slides in from the side the pill moved to rather than rising.
+  The rule is `pageMotion` (`src/lib/page-motion.ts`, unit-tested): a tab comes in from
+  the side it sits on in the tab bar, a section's other page from the side the pill moved
+  to, a page deeper in a tab *opens* and one higher *closes*, and a page outside the tabs
+  (Settings, Profile, Admin) opens over wherever one was. **The page's element is never
+  remounted** — `PageTransition` writes `data-motion` on `#app-page` and restarts its
+  animation, so the swipes below can hand the element they dragged to the page arriving
+  in it. A link pressed dims the page on screen while its successor is fetched
+  (`PageLeaving`, inside the link), and the arrival starts from that dimness. The
+  browser's own back and forward bring nothing in: a phone draws its own slide for those.
 - **A page gone to starts at the top; a page gone back to starts where it was left.**
   `PageTransition` does both itself (`useScrollOnArrival`) rather than trusting the
   router's reset, which skips any page whose first element is already in view — under
   the sticky header counts. "Back" is a `popstate` (the browser restores those itself)
-  *or* the header's back arrow, which is a link up one segment and would otherwise land
-  at the top. `e2e/scroll.spec.ts` holds all three.
+  *or* the header's back arrow. `e2e/scroll.spec.ts` holds all three.
+- **The back arrow steps back to where the page was opened from**, as the phone's back
+  would — a list opened from the dashboard goes back to the dashboard — while there is a
+  page of the app behind it (`behind` in `back-button.tsx`, counted per change of path).
+  With none (a push, a shared link, a fresh launch) it goes one segment up (`backHref`).
+  **A link with `replace` must call `replacingNext()`** in its `onNavigate` (the section
+  pill does), or it is counted as a page behind that history does not have, and the arrow
+  steps back out of the app. Its slot in the header is always mounted and slides open
+  (`.back-slot`), so the home's name moves aside rather than jumping.
+- **Two swipes, both only on a phone.** In the installed app a finger from the left edge
+  drags the page back (`useEdgeSwipe`; a browser has its own). On a section's page a
+  sideways finger drags it to the page beside it, with the pill following
+  (`useSectionSwipe`, skipping anything that scrolls sideways itself). Both move the page
+  by `translate`, never `transform`, which the arrival animation owns; both stand down
+  while anything `aria-modal` is open. Rules in `src/lib/edge-swipe.ts`, unit-tested.
+- **The page's "+" lives in the middle of the tab bar** (`CreateFab`, portalled to
+  `<body>`), in the home's `--accent`. One per page: `FormDialog`'s `triggerShape="fab"`,
+  or a sheet that draws `CreateFab` itself (new recipe, pantry). A page with nothing to
+  make shows a greyed one (`.app-create-idle`, hidden by `:has(.app-create)`). The
+  dashboard's is `CreateMenu`, a drawer of links to the pages that make things, each with
+  `?new` (`CREATE_PARAM`), which presses that page's "+" once on arrival and is taken off
+  the address first. From `md` up it sits in the bottom-right corner.
+- **The header, the tab bar and what floats over it go with the scroll** (`ScrollBars`
+  writes `--bars`, 0 to 1; `.app-topbar`, `.app-bottombar`, `.app-above-bar`, phone
+  only). The "+" travels to the corner as the bar goes rather than leaving. Something new
+  that sits just above the tab bar carries `app-above-bar`, or it floats over an empty
+  strip once the bar has gone.
+- **A picture shown at size opens across the whole screen** (`PhotoBanner` wraps it in
+  `PhotoOpener` → `PhotoViewer`): pinch, double-tap and wheel zoom (`src/lib/zoom.ts`,
+  unit-tested), pull down or back to close. It holds a history entry the way a sheet does,
+  through `holdHistoryEntry` in `modal.tsx`, and so is closed by `popOwnEntry` too.
 - **How the app moves is tokens, at the top of `globals.css`**: four curves
   (`--ease-arrive`, `--ease-leave`, `--ease-sheet`, `--ease-spring`) and a handful of
   `--dur-*`. **Never a `cubic-bezier` or a duration literal in a new rule** — read a token,
@@ -1562,7 +1605,8 @@ about which words to throw away.
   `<Link>` is `relative` and carries `<LinkCue />` (an accent ring after a 120ms beat). A
   row of tabs — the bottom nav, the desktop links, the section pill — lights the pressed one
   through `usePendingHref` and its link's `onNavigate`, so exactly one is lit and it moves on
-  the tap. No `animate-pulse`: nothing in view loops.
+  the tap. In the tab bar it is one light that glides between the tabs (`.app-pill`),
+  measured from the icons; until measured, the lit tab draws its own. No `animate-pulse`: nothing in view loops.
 - **Things leave as well as arrive**: the three-dot menu grows out of its dots and shrinks
   back (`menu-in`/`menu-out`, origin flipped when the panel opens above), a snack slides
   back under the tab bar. A closing menu is `inert` and `aria-hidden`.

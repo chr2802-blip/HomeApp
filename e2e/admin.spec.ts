@@ -145,9 +145,12 @@ test.describe("as a super admin", () => {
     await expect(page.getByText("Select a home first.")).toBeVisible();
   });
 
-  test("the Admin tab leads to the installation, not to a household", async ({ page }) => {
+  test("Admin, in the menu under the home's name, leads to the installation", async ({ page }) => {
     await page.goto("/dashboard");
-    await page.getByRole("link", { name: "Admin" }).click();
+    // Not a tab any more: the bar holds the household's pages, and Admin is nobody's home.
+    await expect(page.locator("nav").getByRole("link", { name: "Admin" })).toHaveCount(0);
+    await openHomeMenu(page);
+    await page.getByRole("menuitem", { name: "Admin" }).click();
 
     await expect(page).toHaveURL(/\/admin$/);
     await page.getByRole("link", { name: "Homes" }).click();

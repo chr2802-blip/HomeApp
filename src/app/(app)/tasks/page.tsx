@@ -177,8 +177,7 @@ export default async function TasksPage() {
         action={
           <FormDialog
             triggerLabel={say(TASKS.newTask)}
-            triggerVariant="create"
-            triggerShape="icon"
+            triggerShape="fab"
             title={say(TASKS.newTask)}
             submitLabel={say(TASKS.addTask)}
             action={createTask}

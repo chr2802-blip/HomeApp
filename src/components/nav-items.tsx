@@ -65,32 +65,16 @@ const NAV_ICONS: Record<keyof typeof APP.nav, { href: string; also?: string[]; i
       </svg>
     ),
   },
-  admin: {
-    href: "/admin",
-    icon: ({ className }) => (
-      <svg viewBox="0 0 24 24" className={className} {...stroke}>
-        <circle cx="12" cy="12" r="3" />
-        <path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" />
-      </svg>
-    ),
-  },
 };
 
 /**
- * Admin is a tab only for the super admin, because what is behind it is the
- * installation: every home on it, and how the deployment itself is doing. Running a
- * single household is not here — it is that household's Settings, behind its name in
- * the header, where the person who runs it already looks.
- *
- * It is passed as a yes or no rather than as a role, so the tabs stay a list of
- * destinations and the question of who may see one is answered where the session is.
+ * The tabs, every one drawn for everybody. Admin is not among them: it is the installation
+ * rather than a household, so it is reached from the menu under the home's name, where
+ * Settings and Profile already are (`HomeMenu`).
  */
-export function navItemsFor(showAdmin: boolean, language: HomeLanguage): NavItem[] {
+export function navItemsFor(language: HomeLanguage): NavItem[] {
   const say = sayIn(language);
-  const keys: (keyof typeof APP.nav)[] = showAdmin
-    ? ["dashboard", "food", "lists", "tasks", "admin"]
-    : ["dashboard", "food", "lists", "tasks"];
-
+  const keys: (keyof typeof APP.nav)[] = ["dashboard", "food", "lists", "tasks"];
   return keys.map((key) => ({ ...NAV_ICONS[key], label: say(APP.nav[key]) }));
 }
 
@@ -98,3 +82,9 @@ export function navItemsFor(showAdmin: boolean, language: HomeLanguage): NavItem
 export function isInTab(item: NavItem, pathname: string): boolean {
   return [item.href, ...(item.also ?? [])].some((h) => pathname === h || pathname.startsWith(`${h}/`));
 }
+
+/** The tabs in the order they sit in the tab bar, for which way a page comes in (`pageMotion`). */
+export const TAB_PATHS: string[][] = (["dashboard", "food", "lists", "tasks"] as const).map((key) => [
+  NAV_ICONS[key].href,
+  ...(NAV_ICONS[key].also ?? []),
+]);
