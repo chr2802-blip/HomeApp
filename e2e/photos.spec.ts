@@ -76,6 +76,32 @@ test("a phone-sized picture is shrunk in the browser and shown on the recipe", a
   expect(photo.thumbBytes.length).toBeLessThan(photo.bytes.length);
 });
 
+test("a recipe's picture opens across the whole screen, and back closes it", async ({ page, loginAs }) => {
+  await loginAs(ACCOUNTS.member);
+  await page.goto("/recipes/new");
+  await page.getByLabel("Title").fill("Pancakes");
+  await page.getByLabel("Portions").fill("4");
+  await page.getByRole("checkbox", { name: CATEGORIES[0], exact: true }).check({ force: true });
+  await attachPicture(page, "Picture");
+  await page.getByRole("button", { name: "Save recipe" }).click();
+  await expect(page).toHaveURL(SAVED_RECIPE);
+
+  await page.getByRole("button", { name: "Show the picture full screen" }).click();
+  const viewer = page.getByRole("dialog", { name: "Pancakes" });
+  await expect(viewer.getByRole("img", { name: "Pancakes" })).toBeVisible();
+
+  // Back closes the picture and leaves the recipe where it was.
+  const url = page.url();
+  await page.goBack();
+  await expect(viewer).toHaveCount(0);
+  expect(page.url()).toBe(url);
+
+  // And so does its own ×.
+  await page.getByRole("button", { name: "Show the picture full screen" }).click();
+  await page.getByRole("button", { name: "Close picture" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
 test("the picture is shown on the recipe's card in the directory", async ({ page, loginAs }) => {
   await loginAs(ACCOUNTS.member);
   await page.goto("/recipes/new");

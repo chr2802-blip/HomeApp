@@ -57,8 +57,7 @@ export default async function ListsPage() {
         action={
           <FormDialog
             triggerLabel={say(LISTS.newList)}
-            triggerVariant="create"
-            triggerShape="icon"
+            triggerShape="fab"
             title={say(LISTS.newList)}
             submitLabel={say(LISTS.createList)}
             action={createList}

@@ -14,6 +14,8 @@
  * beyond the id the row already carries.
  */
 
+import { PhotoOpener } from "@/components/photo-opener";
+
 export function photoUrl(photoId: string, size: "full" | "thumb" = "full") {
   return size === "thumb" ? `/api/photos/${photoId}?size=thumb` : `/api/photos/${photoId}`;
 }
@@ -153,9 +155,12 @@ export function PhotoBanner({
     );
   }
 
+  // Pressed, the picture opens across the whole screen to pinch and look closer.
   return (
     <div className={box}>
-      <Img src={photoUrl(photoId)} alt={alt} className="h-full w-full object-cover" />
+      <PhotoOpener photoId={photoId} alt={alt} className="h-full w-full">
+        <Img src={photoUrl(photoId)} alt={alt} className="h-full w-full object-cover" />
+      </PhotoOpener>
     </div>
   );
 }

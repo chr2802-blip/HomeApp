@@ -54,6 +54,40 @@ if (typeof window !== "undefined") {
   );
 }
 
+/** A surface's entry being taken back off, deferred a tick so a re-run can cancel it. */
+let pendingRelease: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * The same history entry a `Modal` holds, for a surface that is not one (the full-screen
+ * picture, `PhotoViewer`): back closes it, and closing it any other way takes the entry
+ * off through `popOwnEntry`. Call on open; the function returned is the close. Deferred
+ * like the sheet's, because React's development double-run closes and reopens in one
+ * breath.
+ */
+export function holdHistoryEntry(onClose: () => void): () => void {
+  if (pendingRelease !== undefined) {
+    clearTimeout(pendingRelease);
+    pendingRelease = undefined;
+  } else {
+    window.history.pushState({ homehubModal: true }, "");
+  }
+  const href = window.location.href;
+  let poppedByBack = false;
+  const onPopState = () => {
+    poppedByBack = true;
+    onClose();
+  };
+  window.addEventListener("popstate", onPopState);
+  return () => {
+    window.removeEventListener("popstate", onPopState);
+    if (poppedByBack) return;
+    pendingRelease = setTimeout(() => {
+      pendingRelease = undefined;
+      if (window.location.href === href) popOwnEntry();
+    }, 0);
+  };
+}
+
 /**
  * Full-screen sheet on mobile, centred dialog from `sm` up.
  * Mounts through a portal so it always sits above the bottom tab bar.

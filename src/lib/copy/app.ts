@@ -17,7 +17,6 @@ export const APP = {
     food: { EN: "Food", DA: "Mad" },
     lists: { EN: "Lists", DA: "Lister" },
     tasks: { EN: "Tasks", DA: "Opgaver" },
-    admin: { EN: "Admin", DA: "Admin" },
   },
   /** The segments inside a tab — a tab is an area, and these are its pages. */
   sections: {
@@ -27,6 +26,18 @@ export const APP = {
     supplies: { EN: "Supplies", DA: "Forråd" },
   },
   logOut: { EN: "Log out", DA: "Log ud" },
+  /** The greyed-out "+" in the tab bar, on a page with nothing to make. */
+  /** The full-screen picture (`PhotoViewer`). */
+  photo: {
+    open: { EN: "Show the picture full screen", DA: "Vis billedet i fuld skærm" },
+    close: { EN: "Close picture", DA: "Luk billede" },
+    previous: { EN: "Previous picture", DA: "Forrige billede" },
+    next: { EN: "Next picture", DA: "Næste billede" },
+    ofCount: { EN: "{name} ({n} of {count})", DA: "{name} ({n} af {count})" },
+  },
+  /** The dashboard's "+", and the drawer it opens of things to make. */
+  create: { EN: "Create", DA: "Opret" },
+  nothingToAdd: { EN: "Nothing to add here", DA: "Intet at tilføje her" },
 
   /** The title on the reminder job's push notification — read with no session, in the
    *  home the task belongs to rather than whoever happens to be looking at a screen. */
@@ -66,6 +77,7 @@ export const APP = {
     pantry: { EN: "Supplies", DA: "Forråd" },
     settings: { EN: "Settings", DA: "Indstillinger" },
     profile: { EN: "Profile", DA: "Profil" },
+    admin: { EN: "Admin", DA: "Admin" },
     current: { EN: "Current", DA: "Nuværende" },
     allHomes: { EN: "All your homes", DA: "Alle dine hjem" },
   },

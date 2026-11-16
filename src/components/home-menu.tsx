@@ -38,6 +38,7 @@ export function HomeMenu({
   label,
   photoId,
   canAdminister,
+  showAdmin = false,
 }: {
   homes: HomeOption[];
   /** Null while a super admin is looking at a home they are not a member of. */
@@ -47,6 +48,8 @@ export function HomeMenu({
   photoId: string | null;
   /** Whether the home on screen is theirs to run — Settings appears only then. */
   canAdminister: boolean;
+  /** The super admin's way to the installation (`/admin`), which is no household's tab. */
+  showAdmin?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [ready, setReady] = useState(false);
@@ -143,6 +146,18 @@ export function HomeMenu({
           >
             {say(APP.homeMenu.profile)}
           </Link>
+          {/* The installation rather than this home, so it is the last of them: the one
+              person it is for looks after every household, not this one. */}
+          {showAdmin && (
+            <Link
+              href="/admin"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className={`${entry} text-slate-700`}
+            >
+              {say(APP.homeMenu.admin)}
+            </Link>
+          )}
 
           {/* Switching homes is below the two above rather than beside them: this is a
               different question — not "what about this home" but "which home". Somebody

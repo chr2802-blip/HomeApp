@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AiOverlay, aiWaitActive, type AiWait } from "@/components/ai-overlay";
 import { Modal, ModalBody, ModalFooter } from "@/components/modal";
 import { Button, IconButton } from "@/components/ui";
+import { CreateFab } from "@/components/create-button";
 import { useFormAction } from "@/components/use-form-action";
 import type { FormAction } from "@/lib/action-result";
 import { useLanguage } from "@/components/language-provider";
@@ -127,7 +128,8 @@ export function FormDialog({
   triggerLabel: string;
   triggerVariant?: "primary" | "secondary" | "create";
   triggerIcon?: keyof typeof ICONS | "none";
-  triggerShape?: "button" | "icon";
+  /** `"fab"` is the page's own "+" in the tab bar (`CreateFab`): one per page. */
+  triggerShape?: "button" | "icon" | "fab";
   title: string;
   submitLabel: string;
   action: FormAction;
@@ -137,7 +139,9 @@ export function FormDialog({
 
   return (
     <>
-      {triggerShape === "icon" ? (
+      {triggerShape === "fab" ? (
+        <CreateFab label={triggerLabel} onClick={() => setOpen(true)} expanded={open} />
+      ) : triggerShape === "icon" ? (
         <IconButton
           variant={triggerVariant}
           label={triggerLabel}

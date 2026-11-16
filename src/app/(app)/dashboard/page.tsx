@@ -28,6 +28,12 @@ import { APP } from "@/lib/copy/app";
 import { DATE } from "@/lib/copy/dates";
 import { MEALS } from "@/lib/copy/meals";
 import { LinkCue } from "@/components/link-cue";
+import { CreateMenu } from "@/components/create-button";
+import { HomeBanner } from "@/components/home-banner";
+import { LISTS } from "@/lib/copy/lists";
+import { TASKS } from "@/lib/copy/tasks";
+import { RECIPES } from "@/lib/copy/recipes";
+import { PANTRY } from "@/lib/copy/pantry";
 
 /**
  * How many lists the dashboard draws before it stops and offers the rest.
@@ -231,73 +237,85 @@ export default async function DashboardPage() {
 
   return (
     <>
-      {/*
-        The home's picture, the date, the greeting and the week, in the space a greeting
-        alone used to take. The picture used to open the page as a banner across the
-        full width; as a square beside the greeting it still says whose home this is
-        and costs no height, which is what lets everything below fit on one screen.
-        Only when the household has put one up — a placeholder glyph here would be
-        decoration on the one screen that has no room for it.
-      */}
-      <header className="mb-3 flex items-center gap-4">
-        {user.homePhotoId && (
-          <PhotoThumb
-            photoId={user.homePhotoId}
-            alt={user.homeName ?? say(DASHBOARD.thisHome)}
-            className="h-16 w-16"
-          />
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold tracking-wide text-[var(--accent)] uppercase">
-            {readDayInZone(today, DATE.weekdayDayMonth, user.homeLanguage)}
-          </p>
-          <h1 className="mt-0.5 text-2xl">{greeting(firstName, now, user.homeLanguage)}</h1>
-          {/* One line under the greeting, never two — the header shares its height with
-              the week's ring, and a second line is height the first screen needs. A
-              streak running is the better thing to say, so it wins; otherwise the day
-              is said in words. */}
-          <p className="mt-1 text-xs text-slate-500">
-            {streak.weeks > 0
-              ? streakLine(streak, user.homeLanguage)
-              : dayLine(
-                  {
-                    dish: dinner?.suggestable ? dinner.title : null,
-                    dueCount: mine.length,
-                    seasonal: user.homeSeasonal,
-                  },
-                  now,
-                  user.homeLanguage,
-                )}
-          </p>
-        </div>
-        <WeekRing week={week} language={user.homeLanguage} />
-      </header>
+      {/* The dashboard makes nothing itself, so its "+" offers what the other pages make
+          and opens that page's own sheet there. */}
+      <CreateMenu
+        choices={[
+          { href: "/lists", label: LISTS.newList, emoji: "📝" },
+          { href: "/tasks", label: TASKS.newTask, emoji: "🧹" },
+          { href: "/recipes", label: RECIPES.newRecipe, emoji: "🍲" },
+          { href: "/pantry", label: PANTRY.add, emoji: "🫙" },
+        ]}
+      />
+      <HomeBanner>
+        {/*
+          The home's picture, the date, the greeting and the week, in the space a greeting
+          alone used to take. The picture used to open the page as a banner across the
+          full width; as a square beside the greeting it still says whose home this is
+          and costs no height, which is what lets everything below fit on one screen.
+          Only when the household has put one up — a placeholder glyph here would be
+          decoration on the one screen that has no room for it.
+        */}
+        <header className="mb-3 flex items-center gap-4">
+          {user.homePhotoId && (
+            <PhotoThumb
+              photoId={user.homePhotoId}
+              alt={user.homeName ?? say(DASHBOARD.thisHome)}
+              className="h-16 w-16"
+            />
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold tracking-wide text-[var(--accent)] uppercase">
+              {readDayInZone(today, DATE.weekdayDayMonth, user.homeLanguage)}
+            </p>
+            <h1 className="mt-0.5 text-2xl">{greeting(firstName, now, user.homeLanguage)}</h1>
+            {/* One line under the greeting, never two — the header shares its height with
+                the week's ring, and a second line is height the first screen needs. A
+                streak running is the better thing to say, so it wins; otherwise the day
+                is said in words. */}
+            <p className="mt-1 text-xs text-slate-500">
+              {streak.weeks > 0
+                ? streakLine(streak, user.homeLanguage)
+                : dayLine(
+                    {
+                      dish: dinner?.suggestable ? dinner.title : null,
+                      dueCount: mine.length,
+                      seasonal: user.homeSeasonal,
+                    },
+                    now,
+                    user.homeLanguage,
+                  )}
+            </p>
+          </div>
+          <WeekRing week={week} language={user.homeLanguage} />
+        </header>
 
-      <div className="grid grid-cols-3 gap-2">
-        <StatTile
-          href="/tasks"
-          value={mine.length}
-          label={say(DASHBOARD.dueForYouTile)}
-          detail={
-            overdue > 0
-              ? say(DASHBOARD.overdueCount, { count: overdue })
-              : say(DASHBOARD.noneOverdue)
-          }
-          warn={overdue > 0}
-        />
-        <StatTile
-          href="/lists"
-          value={toBuy}
-          label={say(DASHBOARD.toBuy)}
-          detail={say(DASHBOARD.onLists, { count: openCounts.length })}
-        />
-        <StatTile
-          href="/pantry"
-          value={runOut}
-          label={say(DASHBOARD.runOut)}
-          detail={say(DASHBOARD.inThePantry)}
-        />
-      </div>
+        <div className="grid grid-cols-3 gap-2">
+          <StatTile
+            href="/tasks"
+            value={mine.length}
+            label={say(DASHBOARD.dueForYouTile)}
+            detail={
+              overdue > 0
+                ? say(DASHBOARD.overdueCount, { count: overdue })
+                : say(DASHBOARD.noneOverdue)
+            }
+            warn={overdue > 0}
+          />
+          <StatTile
+            href="/lists"
+            value={toBuy}
+            label={say(DASHBOARD.toBuy)}
+            detail={say(DASHBOARD.onLists, { count: openCounts.length })}
+          />
+          <StatTile
+            href="/pantry"
+            value={runOut}
+            label={say(DASHBOARD.runOut)}
+            detail={say(DASHBOARD.inThePantry)}
+          />
+        </div>
+      </HomeBanner>
 
       <NotificationSetup />
 

@@ -1,9 +1,10 @@
 "use client";
 
+import { CreateFab } from "@/components/create-button";
 import { useState } from "react";
 import { Modal, ModalBody, ModalFooter } from "@/components/modal";
 import { DialogForm } from "@/components/form-dialog";
-import { Button, IconButton } from "@/components/ui";
+import { Button } from "@/components/ui";
 import {
   recipeSaveOverlay,
   RecipeFields,
@@ -129,18 +130,7 @@ export function NewRecipeDialog({
 
   return (
     <>
-      <IconButton variant="create" label={say(RECIPES.newRecipe)} onClick={openFresh}>
-        <svg
-          viewBox="0 0 24 24"
-          className="h-5 w-5"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          aria-hidden="true"
-        >
-          <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </IconButton>
+      <CreateFab label={say(RECIPES.newRecipe)} onClick={openFresh} expanded={open} />
 
       <Modal open={open} onClose={close} title={titleFor(step, say)}>
         {step === "choose" && (

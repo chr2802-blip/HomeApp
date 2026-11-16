@@ -302,6 +302,12 @@ h1,
   --dur-sheet-out: 200ms;
   --dur-menu-in: 160ms;
   --dur-menu-out: 120ms;
+  /* A page arriving from beside the one it replaces, and one opening out of the page above
+     it (longer, because it travels further); the page being left dims in --dur-page-out. */
+  --ease-page: cubic-bezier(0.33, 1, 0.68, 1);
+  --dur-page: 300ms;
+  --dur-page-push: 360ms;
+  --dur-page-out: 140ms;
 }
 
 /*
@@ -402,14 +408,15 @@ h1,
  * Moving between screens.
  *
  * Which way a page arrives from says where it came from, the way a phone's own apps do:
- * going into something slides in from the right, coming back out slides in from the
- * left, and switching tabs — which is sideways to both — rises instead. Getting that
+ * going into something opens out of the right, coming back out closes in from the left,
+ * and a change of tab comes in from the side that tab sits on in the tab bar. Getting that
  * wrong is worse than having no animation at all, so the direction is worked out from
  * the two paths rather than from which link was pressed; see components/page-transition.
  *
- * Only the arriving page is animated. The one being left is gone the moment the router
- * swaps it, and holding a copy of it on screen to slide out would mean keeping a whole
- * page rendered for a quarter of a second after it stopped being the page.
+ * Only the arriving page moves. The one being left dims while its successor is fetched
+ * (`PageLeaving`), and is gone the moment the router swaps it: holding a copy of it on
+ * screen to slide out would mean keeping a whole page rendered after it stopped being
+ * the page.
  *
  * So the arriving page starts at half opacity, not at none: from zero, the frame between
  * the old page going and the new one appearing is an empty screen under the header, and
@@ -429,7 +436,7 @@ h1,
 
 @keyframes page-forward {
   from {
-    opacity: 0.5;
+    opacity: calc(var(--page-from, 1) * 0.5);
     transform: translate3d(28px, 0, 0);
   }
   to {
@@ -440,7 +447,7 @@ h1,
 
 @keyframes page-back {
   from {
-    opacity: 0.5;
+    opacity: calc(var(--page-from, 1) * 0.5);
     transform: translate3d(-28px, 0, 0);
   }
   to {
@@ -449,14 +456,259 @@ h1,
   }
 }
 
-@keyframes page-switch {
+/*
+ * Opening a page out of the one above it travels further than a step sideways, and comes
+ * in faded, so the move reads even before it ends. Closing comes in from the left, the way
+ * back.
+ */
+@keyframes page-open {
   from {
-    opacity: 0.5;
-    transform: translate3d(0, 14px, 0);
+    opacity: calc(var(--page-from, 1) * 0.4);
+    transform: translate3d(32%, 0, 0);
+  }
+}
+
+@keyframes page-close {
+  from {
+    opacity: calc(var(--page-from, 1) * 0.4);
+    transform: translate3d(-24%, 0, 0);
+  }
+}
+
+/*
+ * The element every page sits in (`PageTransition`), which is never remounted: the page's
+ * motion is written into `data-motion` and its animation started again. `--page-from` is
+ * how dimmed the page being left was, so the one arriving starts from there.
+ */
+.app-page {
+  /* What a page stacks stays under the header and the tab bar. */
+  position: relative;
+  isolation: isolate;
+  animation: page-in var(--dur-base) var(--ease-arrive) backwards;
+}
+.app-page[data-motion="forward"] {
+  animation: page-forward var(--dur-page) var(--ease-page) backwards;
+}
+.app-page[data-motion="backward"] {
+  animation: page-back var(--dur-page) var(--ease-page) backwards;
+}
+.app-page[data-motion="open"] {
+  animation: page-open var(--dur-page-push) var(--ease-page) backwards;
+}
+.app-page[data-motion="close"] {
+  animation: page-close var(--dur-page-push) var(--ease-page) backwards;
+}
+.app-page[data-motion="none"] {
+  animation: none;
+}
+/* A link pressed and its page on the way: the page on screen dims at once (`PageLeaving`). */
+.app-page[data-leaving] {
+  opacity: 0.45;
+  will-change: opacity, transform;
+  transition: opacity var(--dur-page-out) ease-out;
+}
+
+/*
+ * The back arrow's place in the header (`BackButton`). It is always there and opens as the
+ * arrow comes, so the home's name moves aside instead of jumping, and closes again behind
+ * it when the arrow goes.
+ */
+.back-slot {
+  display: flex;
+  flex-shrink: 0;
+  width: 0;
+  margin-left: 0;
+  opacity: 0;
+  translate: -8px 0;
+  pointer-events: none;
+  transition:
+    width var(--dur-base) var(--ease-arrive),
+    margin var(--dur-base) var(--ease-arrive),
+    opacity var(--dur-base) ease-out,
+    translate var(--dur-base) var(--ease-arrive);
+}
+.back-slot[data-shown] {
+  width: 2.25rem;
+  margin-left: -0.375rem;
+  margin-right: 0.25rem;
+  opacity: 1;
+  translate: 0 0;
+  pointer-events: auto;
+}
+
+/*
+ * The header, the tab bar and the "+" move with the scroll. `ScrollBars` writes `--bars`
+ * (0 shown, 1 gone) as the page moves and settles it when the page stops; while it follows
+ * the finger (`data-bars="live"`) the easing is off, so nothing lags behind the finger.
+ * The header keeps the strip under the phone's status bar, so the clock never sits on top
+ * of the page. From `md` up there is no tab bar, and the header stays where it is.
+ */
+@media (width < 48rem) {
+  .app-topbar,
+  .app-bottombar,
+  .app-above-bar {
+    transition: translate var(--dur-base) var(--ease-arrive);
+  }
+
+  .app-topbar {
+    translate: 0 calc(var(--bars, 0) * (-100% + env(safe-area-inset-top)));
+  }
+
+  .app-bottombar {
+    /* Past its own height, so the shadow above it goes too. */
+    translate: 0 calc(var(--bars, 0) * (100% + 32px));
+  }
+
+  /* The kitchen's timers and a snack sit just above the tab bar, and go down with it. */
+  .app-above-bar {
+    translate: 0 calc(var(--bars, 0) * (4.25rem + env(safe-area-inset-bottom)));
+  }
+
+  :root[data-bars="live"] :is(.app-topbar, .app-bottombar, .app-above-bar) {
+    transition: none;
+  }
+}
+
+/* The tab bar's light glides from the tab being left to the one pressed (`BottomNav`). */
+.app-pill {
+  transition: translate var(--dur-page) var(--ease-spring);
+}
+
+/*
+ * The page's "+" (`CreateFab`). On a phone it sits in the gap in the middle of the tab bar,
+ * standing a little proud of it; as the bar goes it travels to the bottom right corner,
+ * as far as the bar has gone, and stays. From `md` up there is no tab bar, and it lives
+ * in that corner.
+ */
+.app-create {
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 0.625rem);
+  translate: calc(-50% + var(--bars, 0) * (50vw - 50% - max(1rem, env(safe-area-inset-right)))) 0;
+  transition:
+    translate var(--dur-base) var(--ease-arrive),
+    scale var(--dur-release) var(--ease-spring),
+    background-color var(--dur-quick);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  animation: create-in var(--dur-base) var(--ease-spring) both;
+}
+
+:root[data-bars="live"] .app-create {
+  transition:
+    scale var(--dur-release) var(--ease-spring),
+    background-color var(--dur-quick);
+}
+
+.app-create:active {
+  scale: 0.92;
+  transition-duration: var(--dur-press);
+}
+
+.app-create svg {
+  transition: rotate var(--dur-page) var(--ease-spring);
+}
+
+/* While its drawer is open the "+" is the drawer's ×. */
+.app-create[aria-expanded="true"] svg {
+  rotate: 135deg;
+}
+
+/* A "+" arriving with its page grows out of the greyed-out one it replaces. */
+@keyframes create-in {
+  from {
+    scale: 0.6;
+    opacity: 0;
+  }
+}
+
+/* The rows of the "+"'s drawer come in one after another. */
+.menu-rows > li {
+  animation: row-in var(--dur-row) var(--ease-arrive) both;
+}
+.menu-rows > li:nth-child(2) {
+  animation-delay: 40ms;
+}
+.menu-rows > li:nth-child(3) {
+  animation-delay: 80ms;
+}
+.menu-rows > li:nth-child(n + 4) {
+  animation-delay: 120ms;
+}
+
+/* The greyed-out "+" in the tab bar, for a page with nothing to make; the real one takes its place. */
+:root:has(.app-create) .app-create-idle {
+  visibility: hidden;
+}
+
+@media (width >= 48rem) {
+  .app-create {
+    left: auto;
+    right: max(1.5rem, env(safe-area-inset-right));
+    bottom: 1.5rem;
+    translate: none;
+  }
+}
+
+/*
+ * The dashboard's banner hangs from the header, as wide as the screen and in the header's
+ * own linen, and rolls down out of it on arrival and back up into it on leaving
+ * (`HomeBanner`). The header drops its line while the banner hangs from it, so the two
+ * read as one piece of the frame.
+ */
+.home-banner {
+  margin-top: -2rem;
+  margin-inline: calc(50% - 50vw);
+  background: var(--band);
+  border-bottom: 1px solid var(--accent-line);
+  border-radius: 0 0 1.75rem 1.75rem;
+  animation: banner-down var(--dur-page-push) var(--ease-arrive) both;
+}
+.home-banner[data-leaving] {
+  animation: banner-up var(--dur-menu-out) var(--ease-leave) both;
+}
+.home-banner > * {
+  animation: banner-content var(--dur-page-push) var(--ease-arrive) var(--dur-press) both;
+}
+.home-banner[data-leaving] > * {
+  animation: banner-content-out var(--dur-quick) var(--ease-leave) both;
+}
+/* The rest of the dashboard fades as the banner rolls up, so no empty band is left. */
+:has(> .home-banner[data-leaving]) > :not(.home-banner) {
+  animation: banner-content-out var(--dur-quick) var(--ease-leave) both;
+}
+/* The banner is the page's arrival; the page's own slide would lift it off the header. */
+.app-page:has(> .home-banner) {
+  animation: none;
+}
+:root:has(.home-banner) .app-topbar {
+  border-bottom-color: transparent;
+}
+@keyframes banner-down {
+  from {
+    clip-path: inset(0 0 100% 0);
   }
   to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes banner-up {
+  from {
+    clip-path: inset(0 0 0 0);
+  }
+  to {
+    clip-path: inset(0 0 100% 0);
+  }
+}
+@keyframes banner-content {
+  from {
+    opacity: 0;
+    translate: 0 -14px;
+  }
+}
+@keyframes banner-content-out {
+  to {
+    opacity: 0;
+    translate: 0 -10px;
   }
 }
 
@@ -917,7 +1169,6 @@ h1,
 .animate-page-in,
 .animate-page-forward,
 .animate-page-back,
-.animate-page-switch,
 .animate-row-in,
 .animate-row-out {
   animation-timing-function: var(--ease-arrive);
@@ -936,11 +1187,6 @@ h1,
 
 .animate-page-back {
   animation-name: page-back;
-  animation-duration: var(--dur-base);
-}
-
-.animate-page-switch {
-  animation-name: page-switch;
   animation-duration: var(--dur-base);
 }
 

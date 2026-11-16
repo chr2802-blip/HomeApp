@@ -57,7 +57,7 @@ export function SnackbarProvider({ children }: { children: React.ReactNode }) {
             <div
               aria-live="polite"
               role="status"
-              className="pointer-events-none fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 flex justify-center px-4 md:bottom-6"
+              className="app-above-bar pointer-events-none fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-50 flex justify-center px-4 md:bottom-6"
             >
               {snack && (
                 <div

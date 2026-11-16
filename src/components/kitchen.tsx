@@ -197,7 +197,7 @@ export function KitchenTimers() {
     <div
       role="region"
       aria-label={say(RECIPES.timersRegion)}
-      className="pointer-events-none fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-40 flex flex-wrap justify-center gap-2 px-4 md:bottom-4"
+      className="app-above-bar pointer-events-none fixed inset-x-0 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-40 flex flex-wrap justify-center gap-2 px-4 md:bottom-4"
     >
       {kitchen.timers.map((timer) => {
         const remaining = (timer.endsAt - now) / 1000;
