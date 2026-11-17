@@ -17,6 +17,10 @@ Setup → read the recipe actions, both readers, cook mode, the directory, tonig
 bulk) → screenshots in Danish → integration tests → browser specs → `npm run verify` green
 first time (4950 unit/integration, 325 e2e).
 
+Mid-session the household changed the bulk editing: choosing starts by press and hold
+(not a "Choose" button), and the bar grew Delete, Add to list and Cancel beside Categories.
+Rebuilt as `RecipeSelectionBar` + `useLongPress`, on the same branch.
+
 ## Where the time went
 
 | Stage | Roughly | Notes |
@@ -37,6 +41,17 @@ first time (4950 unit/integration, 325 e2e).
 - **A snack from a sheet whose owner unmounts on success.** An effect on the action's
   state never ran, because the success also unmounted the component. Calling `notify`
   from a wrapper around the action is what works.
+
+- **Holding a card in e2e** needs `scrollIntoViewIfNeeded` before `mouse.down`: a
+  bounding box below the fold puts the mouse outside the viewport and the hold silently
+  never starts — two of four tests failed that way, the two with a third recipe.
+
+- **Three list specs failed in the full run after the selection change** (`page.reload`
+  ERR_ABORTED, a reorder that "did not move"). They failed the same way, at random, on
+  `main` itself in a worktree, at one worker. Proving that took a worktree build; the
+  first "baseline" was taken with `git stash`, which left the new untracked files behind
+  importing actions the stash had removed — the build failed and the "base" run was
+  meaningless. A baseline wants `git worktree add`, never a stash.
 
 ## What CLAUDE.md did not say
 

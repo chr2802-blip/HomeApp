@@ -597,6 +597,18 @@ and it follows the page when that scrolls rather than closing.
 
 **[`docs/design/recipes.md`](docs/design/recipes.md) has the rest.**
 
+### The recipe list chooses many recipes by press and hold
+
+Holding a card (`useLongPress`, `src/components/use-long-press.ts`) starts choosing with
+it — "Choose several" in its three dots does the same, for anybody who cannot hold; then a
+tap adds or removes one. `RecipeSelectionBar` floats above the tab bar with Delete,
+Categories, Add to list and Cancel, and `data-choosing` stands the page's "+" down while
+it is there. Filing only ever **adds** headings (`addRecipesToCategories`), so no recipe
+can end up under none; deleting asks first (`deleteRecipes`); a list gets each recipe once
+through `writeRecipesToList` (`addRecipesIngredients`), pantry and all. Every action
+leaves choosing once it has worked. An edit from a card's three dots sends `STAY_FIELD`,
+so the save closes over the list instead of redirecting to the recipe.
+
 ### A recipe's rating is every rating ever given, averaged
 
 `RecipeRating` is one row per time somebody rated a recipe, 1 to 5 hearts (`MIN_HEARTS`,

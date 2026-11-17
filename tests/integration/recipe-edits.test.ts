@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { addRecipesToCategories, createRecipe, editCookStep, updateRecipe } from "@/app/actions/recipes";
+import { addRecipesToCategories, createRecipe, deleteRecipes, editCookStep, updateRecipe } from "@/app/actions/recipes";
+import { addRecipesIngredients } from "@/app/actions/lists";
 import { RECIPES } from "@/lib/copy/recipes";
 import { IN_FORMAT } from "@/lib/cook";
 import { STAY_FIELD } from "@/lib/recipes";
@@ -8,6 +9,7 @@ import {
   createHome,
   createHomeWithMembers,
   createRecipe as seedRecipe,
+  createList,
   createRecipeCategory,
   formData,
   signIn,
@@ -166,5 +168,44 @@ describe("editCookStep", () => {
       editCookStep(undefined, formData({ recipeId: theirs.id, step: "0", stepText: "Brænd." })),
     ).rejects.toThrow();
     expect((await prisma.recipe.findUniqueOrThrow({ where: { id: theirs.id } })).instructions).toBe("Kog.");
+  });
+});
+
+describe("deleteRecipes", () => {
+  it("deletes the chosen recipes of this home and nothing else", async () => {
+    const a = await seed({ title: "A" });
+    const b = await seed({ title: "B" });
+    const kept = await seed({ title: "Kept" });
+    const neighbour = await createHome({ name: "Next door" });
+    const theirs = await seedRecipe({ homeId: neighbour.id, createdById: member.id, title: "Theirs" });
+
+    await deleteRecipes(formData({ recipeIds: [a.id, b.id, theirs.id] }));
+
+    const left = await prisma.recipe.findMany({ select: { id: true } });
+    expect(left.map((recipe) => recipe.id).sort()).toEqual([kept.id, theirs.id].sort());
+  });
+});
+
+describe("addRecipesIngredients", () => {
+  it("puts every chosen recipe's lines on the list, once each", async () => {
+    const list = await createList({ homeId: home.id, createdById: member.id });
+    const soup = await seed({ title: "Soup", ingredients: "2 gulerødder\n1 løg" });
+    const stew = await seed({ title: "Stew", ingredients: "1 løg\n500 g oksekød" });
+
+    const result = await addRecipesIngredients(formData({ listId: list.id, recipeIds: `${soup.id},${stew.id}` }));
+
+    expect(result).toMatchObject({ ok: true });
+    const items = await prisma.listItem.findMany({ where: { listId: list.id }, orderBy: { position: "asc" } });
+    // "Løg" is wanted by both, and is one row.
+    expect(items.map((item) => item.text)).toEqual(["Gulerødder", "Løg", "Oksekød"]);
+  });
+
+  it("refuses when none of the ids is this home's", async () => {
+    const list = await createList({ homeId: home.id, createdById: member.id });
+    const neighbour = await createHome({ name: "Next door" });
+    const theirs = await seedRecipe({ homeId: neighbour.id, createdById: member.id, ingredients: "1 løg" });
+
+    expect(await addRecipesIngredients(formData({ listId: list.id, recipeIds: theirs.id }))).toMatchObject({ ok: false });
+    expect(await prisma.listItem.count()).toBe(0);
   });
 });

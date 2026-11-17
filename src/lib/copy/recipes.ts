@@ -261,11 +261,14 @@ export const RECIPES = {
     DA: "Disse trin er endnu ikke forberedt til madlavning — de vises uden deres ingredienser. At forberede dem rydder op i trinnene og finder ud af, hvad hvert af dem skal bruge.",
   },
   prepareSteps: { EN: "Prepare these steps", DA: "Forbered disse trin" },
-  bulkChoose: { EN: "Choose", DA: "Vælg" },
-  bulkCancel: { EN: "Done", DA: "Færdig" },
+  bulkChoose: { EN: "Choose several", DA: "Vælg flere" },
   bulkSelected: { EN: "{count} chosen", DA: "{count} valgt" },
-  bulkAddCategory: { EN: "Add category", DA: "Tilføj kategori" },
-  bulkSheetTitle: { EN: "Add a category", DA: "Tilføj en kategori" },
+  bulkAddCategory: { EN: "Categories", DA: "Kategorier" },
+  bulkDeleteMessage: {
+    EN: { one: "Delete {count} recipe? It cannot be brought back.", other: "Delete {count} recipes? They cannot be brought back." },
+    DA: { one: "Slet {count} opskrift? Den kan ikke hentes tilbage.", other: "Slet {count} opskrifter? De kan ikke hentes tilbage." },
+  },
+  bulkSheetTitle: { EN: "Add categories", DA: "Tilføj kategorier" },
   bulkSheetHint: {
     EN: "The recipes keep the categories they already have.",
     DA: "Opskrifterne beholder de kategorier, de allerede har.",

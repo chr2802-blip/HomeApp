@@ -460,6 +460,28 @@ export async function deleteRecipe(formData: FormData) {
 }
 
 /**
+ * Deletes several recipes chosen on the recipe list, after the sheet asked. Each is found
+ * through `homeDb`, so an id from another home is simply not there; each picture goes
+ * with its recipe, as `deleteRecipe` does it. Stays on the list rather than redirecting —
+ * that is where the household is.
+ */
+export async function deleteRecipes(formData: FormData) {
+  const user = await requireHomeUser();
+  const ids = [...new Set(formData.getAll(RECIPE_IDS_FIELD).map(String).filter(Boolean))];
+  const db = homeDb(user.homeId);
+  const recipes = await db.recipe.findMany({ where: { id: { in: ids } }, select: { id: true, photoId: true } });
+
+  for (const recipe of recipes) {
+    await db.recipe.delete({ where: { id: recipe.id } });
+    await discardPhoto(user.homeId, recipe.photoId);
+  }
+
+  revalidatePath("/recipes");
+  revalidatePath("/meals");
+  revalidatePath("/dashboard");
+}
+
+/**
  * Adds one rating to a recipe, from whoever pressed the hearts.
  *
  * Always a new row, never an update of the person's last one: the same person rates the

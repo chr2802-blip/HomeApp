@@ -14,7 +14,7 @@ import { readForm, requiredText } from "@/lib/form";
 import { readEmojiChoice } from "@/lib/emoji";
 import { MAX_ITEM_TEXT } from "@/lib/offline-ops";
 import { clampAmount, MIN_AMOUNT } from "@/lib/amount";
-import { ingredientLines, pantryUses, readTimes, shoppingText, TIMES_FIELD } from "@/lib/recipes";
+import { ingredientLines, pantryUses, RECIPE_IDS_FIELD, readTimes, shoppingText, TIMES_FIELD } from "@/lib/recipes";
 import {
   ambiguousLines,
   pantryKey,
@@ -669,6 +669,43 @@ export async function addMealPlanIngredients(
   if (withIngredients.length === 0) {
     return fail(say(LISTS.weekHasNoIngredients));
   }
+
+  const result = await writeRecipesToList(list, withIngredients, readPantryKeep(formData));
+  if ("needsDecision" in result) return result;
+  const { covered, added } = result;
+  if (added === 0) return fail(say(LISTS.pantryHasAll));
+
+  return ok(pantryNote(covered, user.homeLanguage));
+}
+
+/**
+ * Puts several recipes chosen on the recipe list onto one of the home's lists in one
+ * press, each made once — the same write, pantry and all, as adding them one at a time
+ * from their own pages.
+ *
+ * The ids arrive comma-joined in one field (`AddToListMenu` carries plain strings) and
+ * are looked up through `homeDb`, so another home's id is simply not found; a press
+ * naming none that are this home's is refused.
+ */
+export async function addRecipesIngredients(
+  formData: FormData,
+): Promise<ActionResult | PantryDecision> {
+  const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
+  const list = await listInScope(String(formData.get("listId")));
+  const ids = String(formData.get(RECIPE_IDS_FIELD) ?? "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+
+  const recipes = await homeDb(user.homeId).recipe.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, ingredients: true },
+  });
+  const withIngredients = recipes
+    .filter((recipe) => dedupedIngredients(recipe.ingredients).size > 0)
+    .map((recipe) => ({ ...recipe, times: 1 }));
+  if (withIngredients.length === 0) return fail(say(LISTS.recipeHasNoIngredients));
 
   const result = await writeRecipesToList(list, withIngredients, readPantryKeep(formData));
   if ("needsDecision" in result) return result;

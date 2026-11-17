@@ -60,11 +60,19 @@ export function AddToListMenu({
   action,
   extraData,
   sheet = false,
+  triggerClassName,
+  onAdded,
+  disabled = false,
 }: {
   lists: ListChoice[];
   action: (formData: FormData) => Promise<ActionResult | PantryDecision>;
   extraData: Record<string, string>;
   sheet?: boolean;
+  /** The sheet's trigger drawn as a labelled button of another bar's (see `SheetButton`). */
+  triggerClassName?: string;
+  /** Told once something has been added — the recipe list leaves choosing then. */
+  onAdded?: () => void;
+  disabled?: boolean;
 }) {
   const [pending, startAdding] = useTransition();
   const [decision, setDecision] = useState<Decision | null>(null);
@@ -103,6 +111,7 @@ export function AddToListMenu({
       notify(
         [say(APP.addToList.addedTo, { list: list.title }), outcome?.note].filter(Boolean).join(" "),
       );
+      onAdded?.();
     });
   }
 
@@ -131,7 +140,14 @@ export function AddToListMenu({
   return (
     <div className={sheet ? "contents" : "flex flex-col items-end gap-1"}>
       {sheet ? (
-        <SheetButton label={say(APP.addToList.label)} icon={<CartIcon />} busy={pending} disabled={pending}>
+        <SheetButton
+          label={say(APP.addToList.label)}
+          icon={<CartIcon />}
+          busy={pending}
+          disabled={pending || disabled}
+          className={triggerClassName}
+          showLabel={triggerClassName !== undefined}
+        >
           {(close) => (
             <ModalBody className="!px-0 !py-2">
               {lists.length === 0 ? (

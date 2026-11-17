@@ -16,7 +16,11 @@ import { RECIPES } from "@/lib/copy/recipes";
 import { formatAverage } from "@/lib/rating";
 import { HeartIcon } from "@/components/recipe-rating";
 import { LinkCue } from "@/components/link-cue";
-import { BulkCategoryBar } from "@/components/recipe-bulk-categories";
+import { RecipeSelectionBar } from "@/components/recipe-selection-bar";
+import { MenuItem } from "@/components/context-menu";
+import type { ListChoice } from "@/components/add-to-list-menu";
+import { useLongPress } from "@/components/use-long-press";
+import { tick } from "@/lib/haptics";
 
 export type RecipeSummary = {
   id: string;
@@ -71,15 +75,19 @@ function matchesTimeFilter(totalTimeMinutes: number | null, filter: TimeFilter):
 export function RecipeDirectory({
   recipes,
   categories,
+  lists,
 }: {
   recipes: RecipeSummary[];
   categories: RecipeCategorySummary[];
+  /** The lists that track amounts, for putting chosen recipes on one. */
+  lists: ListChoice[];
 }) {
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState<string>(ALL);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
-  // Choosing many recipes at once, to file them under a heading together. Null is not
-  // choosing: the cards are links again, each with its own three dots.
+  // Choosing many recipes at once — started by pressing and holding a card (or "Choose
+  // several" in its three dots), then a tap adds or removes one. Null is not choosing:
+  // the cards are links again, each with its own three dots.
   const [chosen, setChosen] = useState<Set<string> | null>(null);
   const language = useLanguage();
   const say = sayIn(language);
@@ -183,6 +191,12 @@ export function RecipeDirectory({
     </>
   );
 
+  /** A hold on a card: start choosing with that one, or add it while choosing. */
+  function hold(id: string) {
+    tick();
+    setChosen((current) => new Set(current ?? []).add(id));
+  }
+
   function toggle(id: string) {
     setChosen((current) => {
       const next = new Set(current);
@@ -217,20 +231,6 @@ export function RecipeDirectory({
             className="pl-9"
           />
         </div>
-        {categories.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setChosen(chosen ? null : new Set())}
-            aria-pressed={chosen !== null}
-            className={`press-button shrink-0 rounded-full border px-3 py-2 text-sm font-medium ${
-              chosen
-                ? "border-slate-900 bg-slate-900 text-white"
-                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
-            }`}
-          >
-            {chosen ? say(RECIPES.bulkCancel) : say(RECIPES.bulkChoose)}
-          </button>
-        )}
       </div>
 
       <div
@@ -360,10 +360,10 @@ export function RecipeDirectory({
                         </span>
                       </button>
                     ) : (
-                      <Link href={`/recipes/${recipe.id}`} prefetch className="press-card relative block h-full">
+                      <HoldableLink href={`/recipes/${recipe.id}`} onHold={() => hold(recipe.id)}>
                         {face(recipe)}
                         <LinkCue />
-                      </Link>
+                      </HoldableLink>
                     )}
                     {/* Over the card rather than in it: the card is one link, and a
                         button inside a link is neither valid nor pressable without
@@ -379,7 +379,14 @@ export function RecipeDirectory({
                         extraFields={<input type="hidden" name={STAY_FIELD} value="1" />}
                         deleteAction={deleteRecipe}
                         deleteMessage={say(RECIPES.deleteRecipeMessage, { title: recipe.title })}
-                        extraItems={<AddToMealPlanMenuItem recipeId={recipe.id} />}
+                        extraItems={
+                          <>
+                            <AddToMealPlanMenuItem recipeId={recipe.id} />
+                            <MenuItem icon="check" onSelect={() => hold(recipe.id)}>
+                              {say(RECIPES.bulkChoose)}
+                            </MenuItem>
+                          </>
+                        }
                         className="absolute top-2 right-2 bg-white/80 backdrop-blur-sm"
                       >
                         <RecipeFields recipe={recipe} categories={categories} language={language} />
@@ -396,9 +403,34 @@ export function RecipeDirectory({
       {chosen && (
         // While choosing, the bar takes the place the page's "+" would float in once the
         // tab bar has scrolled away — `data-choosing` stands the "+" down (globals.css).
-        <BulkCategoryBar chosen={[...chosen]} categories={categories} onDone={() => setChosen(null)} />
+        <RecipeSelectionBar
+          chosen={[...chosen]}
+          categories={categories}
+          lists={lists}
+          onDone={() => setChosen(null)}
+        />
       )}
     </>
+  );
+}
+
+/**
+ * A recipe card's link that also answers a press and hold — which starts choosing
+ * rather than opening the recipe. `select-none` and the callout off, so a held finger
+ * selects no text and raises no "open in new tab" menu of the browser's own.
+ */
+function HoldableLink({ href, onHold, children }: { href: string; onHold: () => void; children: React.ReactNode }) {
+  const press = useLongPress(onHold);
+  return (
+    <Link
+      href={href}
+      prefetch
+      draggable={false}
+      {...press}
+      className="press-card relative block h-full select-none [-webkit-touch-callout:none]"
+    >
+      {children}
+    </Link>
   );
 }
 

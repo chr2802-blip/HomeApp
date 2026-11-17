@@ -26,6 +26,8 @@ export function SheetButton({
   title = label,
   disabled = false,
   busy = false,
+  className,
+  showLabel = false,
   children,
 }: {
   /** The button's accessible name — what it opens. */
@@ -36,6 +38,10 @@ export function SheetButton({
   title?: string;
   disabled?: boolean;
   busy?: boolean;
+  /** Replaces the round control's own look — the recipe list's selection bar. */
+  className?: string;
+  /** Writes the label under the icon rather than leaving it to `aria-label` alone. */
+  showLabel?: boolean;
   children: (close: () => void) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -53,9 +59,13 @@ export function SheetButton({
         data-ready={ready ? "true" : undefined}
         disabled={disabled}
         onClick={() => setOpen(true)}
-        className="press-icon inline-flex h-9 min-w-9 shrink-0 items-center justify-center gap-1 rounded-full border border-slate-300 bg-white px-2 text-sm font-medium text-slate-700 tabular-nums hover:bg-slate-100 disabled:opacity-50"
+        className={
+          className ??
+          "press-icon inline-flex h-9 min-w-9 shrink-0 items-center justify-center gap-1 rounded-full border border-slate-300 bg-white px-2 text-sm font-medium text-slate-700 tabular-nums hover:bg-slate-100 disabled:opacity-50"
+        }
       >
         {icon}
+        {showLabel && <span aria-hidden="true">{label}</span>}
         {value !== undefined && value !== null && (
           <span aria-hidden="true">{value}</span>
         )}
