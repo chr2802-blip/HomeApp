@@ -19,8 +19,14 @@ import {
   MAX_SERVINGS,
   READING_FIELD,
   readCategoryChoice,
+  RECIPE_IDS_FIELD,
+  STAY_FIELD,
+  STEP_FIELD,
+  STEP_MINUTES_FIELD,
+  STEP_TEXT_FIELD,
+  STEP_USES_FIELD,
 } from "@/lib/recipes";
-import { IN_FORMAT, isInFormat, readingStands } from "@/lib/cook";
+import { editStep, IN_FORMAT, isInFormat, MAX_STEP_MINUTES, readingStands } from "@/lib/cook";
 import { readingFor } from "@/lib/reading-token";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { sayIn, type Say } from "@/lib/copy/say";
@@ -43,8 +49,8 @@ function recipeSchema(say: Say) {
       error: timeMessage,
     });
 
-  /** Blank is a recipe nobody has said the servings of, which is shown unscaled. The
-   *  form asks every time; only a submission that did not come from it arrives blank. */
+  /** Blank is a recipe nobody has said the servings of: it still scales by the
+   *  multiplier, and simply says no number of people beside it. Optional in the form. */
   const servings = z
     .string()
     .trim()
@@ -101,6 +107,22 @@ async function chosenCategories(homeId: string, formData: FormData) {
   });
 
   return known === categoryIds.length ? categoryIds : null;
+}
+
+/**
+ * Another recipe in this home already called `title`, ignoring case and the spaces round
+ * it — "Lasagne" and "lasagne " are the same dish twice. `except` is the recipe being
+ * edited, which may of course keep its own name.
+ */
+async function titleTaken(homeId: string, title: string, except?: string) {
+  const clash = await homeDb(homeId).recipe.findFirst({
+    where: {
+      title: { equals: title.trim(), mode: "insensitive" },
+      ...(except ? { id: { not: except } } : {}),
+    },
+    select: { title: true },
+  });
+  return clash?.title ?? null;
 }
 
 /** The pairings a recipe is written with, as a nested create on the recipe itself. */
@@ -225,13 +247,24 @@ export async function createRecipe(_prev: ActionResult, formData: FormData): Pro
   const categoryIds = await chosenCategories(user.homeId, formData);
   if (!categoryIds) return fail(say(RECIPES.chooseCategory));
 
+  // Asked before the reader, so a recipe the household already has spends no model call.
+  const taken = await titleTaken(user.homeId, form.fields.title);
+  if (taken) return fail(say(RECIPES.duplicateTitle, { title: taken }));
+
   const photo = await readPhotoChoice(formData, user.homeId, user.homeLanguage);
   if (!photo.ok) return fail(photo.error);
+
+  const read = await readForCreating(form.fields, formData, user.homeId, user.id, user.homeLanguage);
+  // And again after it: the reader may have renamed it — translated into the home's
+  // language — onto the title of one the household already keeps.
+  const readTitle = "title" in read ? read.title : undefined;
+  const takenAfter = readTitle && (await titleTaken(user.homeId, readTitle));
+  if (takenAfter) return fail(say(RECIPES.duplicateTitle, { title: takenAfter }));
 
   const recipe = await prisma.recipe.create({
     data: {
       ...form.fields,
-      ...(await readForCreating(form.fields, formData, user.homeId, user.id, user.homeLanguage)),
+      ...read,
       photoId: photo.photoId ?? null,
       homeId: user.homeId,
       createdById: user.id,
@@ -252,6 +285,9 @@ export async function updateRecipe(_prev: ActionResult, formData: FormData): Pro
 
   const categoryIds = await chosenCategories(recipe.homeId, formData);
   if (!categoryIds) return fail(say(RECIPES.chooseCategory));
+
+  const taken = await titleTaken(recipe.homeId, form.fields.title, recipe.id);
+  if (taken) return fail(say(RECIPES.duplicateTitle, { title: taken }));
 
   const photo = await readPhotoChoice(formData, recipe.homeId, user.homeLanguage);
   if (!photo.ok) return fail(photo.error);
@@ -288,6 +324,9 @@ export async function updateRecipe(_prev: ActionResult, formData: FormData): Pro
 
   revalidatePath("/recipes");
   revalidatePath(`/recipes/${recipe.id}`);
+  // Edited from the recipe list, the sheet closes over the list where it was opened —
+  // a redirect would land on the recipe and lose the household's place in the list.
+  if (formData.get(STAY_FIELD) === "1") return ok();
   redirect(`/recipes/${recipe.id}`);
 }
 
@@ -333,6 +372,81 @@ export async function prepareRecipeSteps(
   revalidatePath(`/recipes/${recipe.id}`);
   revalidatePath(`/recipes/${recipe.id}/cook`);
   return ok();
+}
+
+/**
+ * One step of a recipe corrected by hand, from action mode — its text, which ingredients
+ * it uses, and its timer — for when the reader got a step wrong and reading the whole
+ * recipe again would not be the fix.
+ *
+ * No model call: the line and its breakdown entry are written together by `editStep`, so
+ * the breakdown still lines up with the steps, and the recipe keeps whatever version its
+ * breakdown had (the ingredient lines were not touched). Anybody in the home may, as they
+ * may edit the recipe itself.
+ */
+export async function editCookStep(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
+  const recipe = await recipeInScope(String(formData.get("recipeId")));
+
+  const text = String(formData.get(STEP_TEXT_FIELD) ?? "");
+  if (!text.trim()) return fail(say(RECIPES.stepTextRequired));
+
+  const rawMinutes = String(formData.get(STEP_MINUTES_FIELD) ?? "").trim();
+  const minutes = rawMinutes ? Number(rawMinutes) : null;
+  if (minutes !== null && !(Number.isInteger(minutes) && minutes >= 1 && minutes <= MAX_STEP_MINUTES)) {
+    return fail(say(RECIPES.stepMinutesMessage, { max: MAX_STEP_MINUTES }));
+  }
+
+  const edited = editStep(recipe, Number(formData.get(STEP_FIELD)), {
+    text,
+    uses: formData.getAll(STEP_USES_FIELD).map(Number),
+    minutes,
+  });
+  // The step went away underneath the sheet — the recipe was edited elsewhere meanwhile.
+  if (!edited) return fail(say(RECIPES.stepGone));
+
+  await prisma.recipe.update({
+    where: { id: recipe.id },
+    data: { instructions: edited.instructions, cookSteps: edited.cookSteps },
+  });
+
+  revalidatePath(`/recipes/${recipe.id}`);
+  revalidatePath(`/recipes/${recipe.id}/cook`);
+  return ok();
+}
+
+/**
+ * Files many recipes under one or more headings at once — the recipe list's "Choose",
+ * for a household sorting a collection it built up before it had categories for it.
+ *
+ * It only ever adds: a recipe keeps every heading it already had, so no recipe can be
+ * left under none (the one thing a recipe's categories must never be). A pairing already
+ * there is skipped rather than refused. Every recipe and every heading is checked through
+ * `homeDb`, and a single one that is not this home's refuses the whole press — a stale
+ * page, or a submission that did not come from the list.
+ */
+export async function addRecipesToCategories(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
+
+  const recipeIds = [...new Set(formData.getAll(RECIPE_IDS_FIELD).map(String).filter(Boolean))];
+  if (recipeIds.length === 0) return fail(say(RECIPES.bulkChooseRecipes));
+
+  const categoryIds = await chosenCategories(user.homeId, formData);
+  if (!categoryIds) return fail(say(RECIPES.chooseCategory));
+
+  const known = await homeDb(user.homeId).recipe.count({ where: { id: { in: recipeIds } } });
+  if (known !== recipeIds.length) return fail(say(RECIPES.bulkRecipesGone));
+
+  await prisma.recipeCategoryLink.createMany({
+    data: recipeIds.flatMap((recipeId) => categoryIds.map((categoryId) => ({ recipeId, categoryId }))),
+    skipDuplicates: true,
+  });
+
+  revalidatePath("/recipes");
+  for (const id of recipeIds) revalidatePath(`/recipes/${id}`);
+  return ok(say(RECIPES.bulkFiled, { count: recipeIds.length }));
 }
 
 export async function deleteRecipe(formData: FormData) {

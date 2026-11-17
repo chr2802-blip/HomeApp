@@ -640,6 +640,12 @@ h1,
   visibility: hidden;
 }
 
+/* While recipes are being chosen (`BulkCategoryBar`), its bar is the page's action, and
+   sits where the "+" floats once the tab bar has scrolled away. */
+:root:has([data-choosing]) .app-create {
+  visibility: hidden;
+}
+
 @media (width >= 48rem) {
   .app-create {
     left: auto;

@@ -129,9 +129,7 @@ test("speaks the pantry, the importer's own copy, and the hardest sentence in th
   await expect(page.getByText("Ingen pligter skrevet ned endnu. Heldige jer — eller tilføj den første ovenfor.")).toBeVisible();
 
   // The meals area is converted too — the week's own heading, and an unplanned day
-  // saying so in Danish. Not a count of all seven: `tonightsDinner` auto-plans today
-  // the moment anything calls it, including the bottom nav's own prefetch of
-  // /dashboard, so today's row is not reliably still empty by the time this runs.
+  // saying so in Danish.
   await page.goto("/meals");
   await expect(page.getByRole("heading", { name: "Måltider", level: 1 })).toBeVisible();
   await expect(page.getByText("Intet planlagt").first()).toBeVisible();

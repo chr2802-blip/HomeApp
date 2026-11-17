@@ -13,7 +13,7 @@ import { LinkCue } from "@/components/link-cue";
  * apart from it — the two pages agree because they are reading the same row.
  *
  * Absent entirely when there is nothing to show — a night out already decided, or
- * nothing planned and nothing eligible to plan either — which is why the page asks
+ * nothing planned yet (nothing is auto-picked) — which is why the page asks
  * `tonightsDinner` itself and hands the answer in: it has to know whether the "Today"
  * card has anything in it before it draws one.
  *
@@ -30,8 +30,7 @@ import { LinkCue } from "@/components/link-cue";
  * must be the same height as the tasks beside it.
  *
  * **"Find new" is only offered where it would not be arguing with the household.** A
- * recipe already planned — whether auto-picked by `tonightsDinner` or chosen by hand on
- * `/meals` — is a suggestion, and the button replaces it. Leftovers are a decision
+ * recipe chosen on `/meals` can be swapped for another at random by the button. Leftovers are a decision
  * already made, so the row says what they are the leftovers of and stops there.
  */
 export function DinnerRow({

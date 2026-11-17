@@ -1,4 +1,4 @@
-import type { HomeLanguage, MemberRole } from "@prisma/client";
+import type { HomeLanguage, MemberRole, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createSession, hashPassword } from "@/lib/auth";
 import { generateInviteCode, hashInviteCode } from "@/lib/invite-code";
@@ -198,6 +198,8 @@ export async function createRecipe(options: {
   title?: string;
   description?: string | null;
   ingredients?: string;
+  instructions?: string;
+  cookSteps?: Prisma.InputJsonValue;
   videoUrl?: string | null;
   totalTimeMinutes?: number | null;
 }) {
@@ -212,7 +214,8 @@ export async function createRecipe(options: {
       title: options.title ?? "Pancakes",
       description: options.description ?? null,
       ingredients: options.ingredients ?? "Flour\nMilk",
-      instructions: "Mix and fry.",
+      instructions: options.instructions ?? "Mix and fry.",
+      ...(options.cookSteps === undefined ? {} : { cookSteps: options.cookSteps }),
       videoUrl: options.videoUrl ?? null,
       totalTimeMinutes: options.totalTimeMinutes ?? null,
     },

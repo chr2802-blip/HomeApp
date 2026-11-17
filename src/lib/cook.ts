@@ -103,6 +103,8 @@ export type CookStep = {
   text: string;
   /** The recipe's own ingredient lines, verbatim — never a rewording of them. */
   ingredients: string[];
+  /** Where those lines sit in the recipe's ingredients — what an edit of the step ticks. */
+  uses: number[];
   minutes: number | null;
 };
 
@@ -169,6 +171,7 @@ export function cookSteps(recipe: RecipeText): CookStep[] {
     return {
       text,
       ingredients: (step?.uses ?? []).map((line) => lines[line]),
+      uses: step?.uses ?? [],
       minutes: step?.minutes ?? null,
     };
   });
@@ -184,6 +187,53 @@ export function cookSteps(recipe: RecipeText): CookStep[] {
  */
 export function isPrepared(recipe: RecipeText): boolean {
   return storedSteps(recipe, instructionLines(recipe.instructions).length) !== null;
+}
+
+/** The longest a step's own timer may be set to by hand: a day, in minutes. */
+export const MAX_STEP_MINUTES = 24 * 60;
+
+/** One step as somebody corrected it by hand in action mode. */
+export type StepEdit = { text: string; uses: number[]; minutes: number | null };
+
+/**
+ * A recipe with one of its steps corrected by hand: the step's line in `instructions`
+ * replaced, and its entry in the breakdown with it — **both written together**, so the
+ * breakdown still has one entry per line and still points at the same ingredients.
+ *
+ * The text is one line, because a step *is* a line of `instructions`: a newline typed
+ * into it would split it into two steps and shift every entry after it. Ingredient
+ * indices past the end are dropped, as `storedSteps` drops them on the way out.
+ *
+ * A recipe whose breakdown is missing or no longer lines up gets one written fresh, at
+ * version 1 — a hand-edited step proves nothing about whether the ingredient lines are
+ * in the one format, so the recipe's next ordinary save still reads it. One already in
+ * the format keeps its version: the ingredients were not touched.
+ *
+ * Null where there is no such step, or the text is empty.
+ */
+export function editStep(
+  recipe: RecipeText,
+  index: number,
+  edit: StepEdit,
+): { instructions: string; cookSteps: { v: number; steps: StoredStep[] } } | null {
+  const lines = instructionLines(recipe.instructions);
+  const text = edit.text.replace(/\s+/g, " ").trim();
+  if (!Number.isInteger(index) || index < 0 || index >= lines.length || !text) return null;
+
+  const ingredientCount = ingredientLines(recipe.ingredients).length;
+  const stored = storedSteps(recipe, lines.length);
+  const version = stored ? StoredSteps.parse(recipe.cookSteps).v : 1;
+  const steps = stored ?? lines.map(() => ({ uses: [], minutes: null }));
+
+  steps[index] = {
+    uses: [...new Set(edit.uses)]
+      .filter((line) => Number.isInteger(line) && line >= 0 && line < ingredientCount)
+      .sort((a, b) => a - b),
+    minutes: edit.minutes === null ? null : cookMinutes(Math.min(edit.minutes, MAX_STEP_MINUTES)),
+  };
+  lines[index] = text;
+
+  return { instructions: lines.join("\n"), cookSteps: { v: version, steps } };
 }
 
 /** A running timer's remaining seconds as a clock reads them — "9:05", "12:00". */

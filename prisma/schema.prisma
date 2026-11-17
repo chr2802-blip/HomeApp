@@ -542,8 +542,7 @@ model Recipe {
   categories RecipeCategoryLink[]
   /// The list items this recipe's ingredients have been added to.
   listItems  ListItemSource[]
-  /// The days a household has planned to cook this on — including, when nothing else
-  /// has been decided yet, today's own auto-picked suggestion (see MealPlan).
+  /// The days a household has planned to cook this on (see MealPlan).
   mealPlans  MealPlan[]
   /// Every time somebody has rated it (RecipeRating).
   ratings    RecipeRating[]

@@ -23,13 +23,11 @@ async function seedRecipe(title: string, categoryNames: string[] = [CATEGORIES[0
   });
 }
 
-async function excludeCategory(name: string) {
+/** Today planned by hand, as `/meals` would — the dashboard picks nothing itself. */
+async function planToday(recipeId: string) {
   const db = prisma();
   const home = await db.home.findFirstOrThrow({ where: { name: HOME_NAME } });
-  await db.recipeCategory.update({
-    where: { homeId_name: { homeId: home.id, name } },
-    data: { excludeFromSuggestion: true },
-  });
+  await db.mealPlan.create({ data: { homeId: home.id, date: todayInZone(), recipeId } });
 }
 
 test.beforeEach(async ({ loginAs }) => {
@@ -41,22 +39,20 @@ test("says nothing on the dashboard when there is nothing to suggest", async ({ 
   await expect(page.getByRole("heading", { name: "Tonight's dinner" })).toHaveCount(0);
 });
 
-test("suggests a recipe and remembers it across a reload", async ({ page }) => {
+test("leaves today empty until a recipe is chosen on /meals", async ({ page }) => {
   const recipe = await seedRecipe("Pancakes");
 
   await page.goto("/dashboard");
-  await expect(page.getByRole("heading", { name: "Tonight's dinner" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Pancakes" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tonight's dinner" })).toHaveCount(0);
 
+  await planToday(recipe.id);
   await page.reload();
-  await expect(page.getByRole("link", { name: "Pancakes" })).toBeVisible();
-
   await page.getByRole("link", { name: "Pancakes" }).click();
   await expect(page).toHaveURL(`/recipes/${recipe.id}`);
 });
 
 test("is a row on the dashboard, not a picture that fills the first screen", async ({ page }) => {
-  await seedRecipe("Pancakes");
+  await planToday((await seedRecipe("Pancakes")).id);
 
   // A task and a list, so the page holds what it usually does.
   const db = prisma();
@@ -101,7 +97,7 @@ test("is a row on the dashboard, not a picture that fills the first screen", asy
 });
 
 test("Find new switches to the other eligible recipe", async ({ page }) => {
-  await seedRecipe("Pancakes");
+  await planToday((await seedRecipe("Pancakes")).id);
   await seedRecipe("Lasagne");
 
   await page.goto("/dashboard");
@@ -113,18 +109,6 @@ test("Find new switches to the other eligible recipe", async ({ page }) => {
   await page.getByRole("button", { name: "Find new" }).click();
   await expect.poll(suggestionTitle, { timeout: 5000 }).not.toBe(before);
   expect(["Pancakes", "Lasagne"]).toContain(await suggestionTitle());
-});
-
-test("never suggests a recipe filed only under an excluded category", async ({ page }) => {
-  await excludeCategory(CATEGORIES[0]);
-  await seedRecipe("Baby purée", [CATEGORIES[0]]);
-
-  await page.goto("/dashboard");
-  await expect(page.getByRole("heading", { name: "Tonight's dinner" })).toHaveCount(0);
-
-  await seedRecipe("Feta pasta", [CATEGORIES[1]]);
-  await page.reload();
-  await expect(page.getByRole("link", { name: "Feta pasta" })).toBeVisible();
 });
 
 test("shows a recipe already planned by hand on /meals, still with Find new", async ({ page }) => {

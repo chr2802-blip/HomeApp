@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clockLabel, cookSteps, isPrepared, needsReading, readingStands } from "@/lib/cook";
+import { clockLabel, cookSteps, editStep, IN_FORMAT, isPrepared, needsReading, readingStands } from "@/lib/cook";
 
 /**
  * What action mode will and will not show.
@@ -38,6 +38,7 @@ describe("a prepared recipe", () => {
     expect(steps[0]).toEqual({
       text: "Kog pastaen.",
       ingredients: ["400 g pasta", "Salt"],
+      uses: [0, 2],
       minutes: 10,
     });
     expect(steps[1].ingredients).toEqual(["2 dl fløde"]);
@@ -197,5 +198,49 @@ describe("which saves the AI reads", () => {
 
   it("reads a recipe never read into the format, whatever the edit", () => {
     expect(needsReading(RECIPE, { ...saved, inFormat: false })).toBe(true);
+  });
+});
+
+/*
+ * A step corrected by hand in action mode. The line and its breakdown entry are written
+ * together, so the breakdown still has one entry per line pointing at the same
+ * ingredients — the invariant every other writer of `instructions` keeps too.
+ */
+describe("a step edited by hand", () => {
+  it("replaces the line and its entry, and leaves the other steps alone", () => {
+    const edited = editStep(PREPARED, 1, { text: "Pisk fløden let.", uses: [1, 2], minutes: 3 });
+
+    expect(edited!.instructions).toBe("Kog pastaen.\nPisk fløden let.\nSmag til.");
+    const steps = cookSteps({ ...RECIPE, ...edited! });
+    expect(steps[1]).toEqual({ text: "Pisk fløden let.", ingredients: ["2 dl fløde", "Salt"], uses: [1, 2], minutes: 3 });
+    expect(steps[0].ingredients).toEqual(["400 g pasta", "Salt"]);
+    expect(steps[2].ingredients).toEqual(["Salt"]);
+  });
+
+  it("keeps the step one line, so no other step moves", () => {
+    const edited = editStep(PREPARED, 0, { text: "Kog\n pastaen\n\n i 10 min.", uses: [0], minutes: null });
+    expect(edited!.instructions.split("\n")).toHaveLength(3);
+    expect(edited!.instructions.split("\n")[0]).toBe("Kog pastaen i 10 min.");
+  });
+
+  it("drops ingredients the recipe does not have, and a timer of nothing", () => {
+    const edited = editStep(PREPARED, 0, { text: "Kog.", uses: [2, 9, -1, 2], minutes: 0 });
+    expect(edited!.cookSteps.steps[0]).toEqual({ uses: [2], minutes: null });
+  });
+
+  it("keeps the breakdown's version, and writes a version 1 one where there was none", () => {
+    const inFormat = withSteps({ v: IN_FORMAT, steps: [{ uses: [0] }, { uses: [1] }, { uses: [] }] });
+    expect(editStep(inFormat, 2, { text: "Smag til med salt.", uses: [2], minutes: null })!.cookSteps.v).toBe(IN_FORMAT);
+
+    const fresh = editStep(withSteps(null), 2, { text: "Smag til med salt.", uses: [2], minutes: null });
+    expect(fresh!.cookSteps).toEqual({
+      v: 1,
+      steps: [{ uses: [], minutes: null }, { uses: [], minutes: null }, { uses: [2], minutes: null }],
+    });
+  });
+
+  it("refuses a step that is not there, and an empty one", () => {
+    expect(editStep(PREPARED, 3, { text: "Server.", uses: [], minutes: null })).toBeNull();
+    expect(editStep(PREPARED, 0, { text: "   ", uses: [], minutes: null })).toBeNull();
   });
 });

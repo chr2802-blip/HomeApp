@@ -9,13 +9,14 @@ import { ItemMenu } from "@/components/item-menu";
 import { AddToMealPlanMenuItem } from "@/components/add-to-meal-plan-menu-item";
 import { recipeSaveOverlay, RecipeFields } from "@/components/recipe-fields";
 import { PhotoCover } from "@/components/photo";
-import { QUICK_RECIPE_MINUTES, timeLabel } from "@/lib/recipes";
+import { QUICK_RECIPE_MINUTES, STAY_FIELD, timeLabel } from "@/lib/recipes";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
 import { formatAverage } from "@/lib/rating";
 import { HeartIcon } from "@/components/recipe-rating";
 import { LinkCue } from "@/components/link-cue";
+import { BulkCategoryBar } from "@/components/recipe-bulk-categories";
 
 export type RecipeSummary = {
   id: string;
@@ -77,6 +78,9 @@ export function RecipeDirectory({
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState<string>(ALL);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
+  // Choosing many recipes at once, to file them under a heading together. Null is not
+  // choosing: the cards are links again, each with its own three dots.
+  const [chosen, setChosen] = useState<Set<string> | null>(null);
   const language = useLanguage();
   const say = sayIn(language);
 
@@ -141,29 +145,92 @@ export function RecipeDirectory({
     matchesTimeFilter(recipe.totalTimeMinutes, "slow"),
   ).length;
 
+  /** What a card shows, whether it is a link to the recipe or a box to tick. */
+  const face = (recipe: RecipeSummary) => (
+    <>
+      {/* Decorative: the recipe's own title is directly below it. */}
+      <PhotoCover photoId={recipe.photoId} alt="" />
+      <div className="p-3 sm:p-5">
+        <p className="pr-7 font-medium sm:pr-9">{recipe.title}</p>
+        {recipe.description && (
+          <p className="mt-1 line-clamp-2 text-sm text-slate-600">
+            {recipe.description}
+          </p>
+        )}
+        {(recipe.totalTimeMinutes !== null || recipe.rating) && (
+          <p className="mt-2 flex items-center gap-1 text-xs text-slate-500">
+            {timeLabel(recipe.totalTimeMinutes, language)}
+            {recipe.totalTimeMinutes !== null && recipe.rating && (
+              <span aria-hidden="true">{" · "}</span>
+            )}
+            {recipe.rating && (
+              <span
+                className="inline-flex items-center gap-0.5"
+                aria-label={say(RECIPES.ratingAria, {
+                  average: formatAverage(recipe.rating.average, language),
+                  count: recipe.rating.count,
+                })}
+              >
+                <HeartIcon filled className="h-3.5 w-3.5 text-[var(--accent)]" />
+                <span aria-hidden="true">
+                  {formatAverage(recipe.rating.average, language)}
+                </span>
+              </span>
+            )}
+          </p>
+        )}
+      </div>
+    </>
+  );
+
+  function toggle(id: string) {
+    setChosen((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   return (
     <>
-      <div className="relative mb-3">
-        <svg
-          viewBox="0 0 20 20"
-          className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          aria-hidden="true"
-        >
-          <circle cx="9" cy="9" r="5.5" />
-          <path d="M13 13l4 4" strokeLinecap="round" />
-        </svg>
-        <Input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={say(RECIPES.searchRecipes)}
-          aria-label={say(RECIPES.searchRecipesAria)}
-          autoComplete="off"
-          className="pl-9"
-        />
+      <div className="mb-3 flex items-center gap-2">
+        <div className="relative min-w-0 flex-1">
+          <svg
+            viewBox="0 0 20 20"
+            className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden="true"
+          >
+            <circle cx="9" cy="9" r="5.5" />
+            <path d="M13 13l4 4" strokeLinecap="round" />
+          </svg>
+          <Input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={say(RECIPES.searchRecipes)}
+            aria-label={say(RECIPES.searchRecipesAria)}
+            autoComplete="off"
+            className="pl-9"
+          />
+        </div>
+        {categories.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setChosen(chosen ? null : new Set())}
+            aria-pressed={chosen !== null}
+            className={`press-button shrink-0 rounded-full border px-3 py-2 text-sm font-medium ${
+              chosen
+                ? "border-slate-900 bg-slate-900 text-white"
+                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+            }`}
+          >
+            {chosen ? say(RECIPES.bulkCancel) : say(RECIPES.bulkChoose)}
+          </button>
+        )}
       </div>
 
       <div
@@ -247,7 +314,7 @@ export function RecipeDirectory({
          * that has just been mounted. Only the category does this and not the search
          * box: a re-entrance on every keystroke is a page that will not sit still.
          */
-        <div key={categoryId} className="space-y-6">
+        <div key={categoryId} className={`space-y-6 ${chosen ? "pb-20" : ""}`}>
           {groups.map((group) => (
             <section key={group.category.id}>
               <h2 className="mb-3 flex items-baseline gap-2 text-sm font-semibold text-slate-500 uppercase">
@@ -262,71 +329,74 @@ export function RecipeDirectory({
                   <Card
                     key={recipe.id}
                     padded={false}
-                    className="animate-row-in relative h-full overflow-hidden transition-colors duration-(--dur-quick) hover:border-slate-400"
+                    className={`animate-row-in relative h-full overflow-hidden transition-colors duration-(--dur-quick) hover:border-slate-400 ${
+                      chosen?.has(recipe.id) ? "border-[var(--accent)] ring-2 ring-[var(--accent)]" : ""
+                    }`}
                     style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
                   >
-                    <Link
-                      href={`/recipes/${recipe.id}`}
-                      prefetch
-                      className="press-card relative block h-full"
-                    >
-                      {/* Decorative: the recipe's own title is directly below it. */}
-                      <PhotoCover photoId={recipe.photoId} alt="" />
-                      <div className="p-3 sm:p-5">
-                        <p className="pr-7 font-medium sm:pr-9">{recipe.title}</p>
-                        {recipe.description && (
-                          <p className="mt-1 line-clamp-2 text-sm text-slate-600">
-                            {recipe.description}
-                          </p>
-                        )}
-                        {(recipe.totalTimeMinutes !== null || recipe.rating) && (
-                          <p className="mt-2 flex items-center gap-1 text-xs text-slate-500">
-                            {timeLabel(recipe.totalTimeMinutes, language)}
-                            {recipe.totalTimeMinutes !== null && recipe.rating && (
-                              <span aria-hidden="true">{" · "}</span>
-                            )}
-                            {recipe.rating && (
-                              <span
-                                className="inline-flex items-center gap-0.5"
-                                aria-label={say(RECIPES.ratingAria, {
-                                  average: formatAverage(recipe.rating.average, language),
-                                  count: recipe.rating.count,
-                                })}
-                              >
-                                <HeartIcon filled className="h-3.5 w-3.5 text-[var(--accent)]" />
-                                <span aria-hidden="true">
-                                  {formatAverage(recipe.rating.average, language)}
-                                </span>
-                              </span>
-                            )}
-                          </p>
-                        )}
-                      </div>
-                      <LinkCue />
-                    </Link>
+                    {chosen ? (
+                      // While choosing, the whole card is the box to tick — a link here
+                      // would open the recipe under a thumb that meant to pick it.
+                      <button
+                        type="button"
+                        onClick={() => toggle(recipe.id)}
+                        aria-pressed={chosen.has(recipe.id)}
+                        className="press-card relative block h-full w-full text-left"
+                      >
+                        {face(recipe)}
+                        <span
+                          aria-hidden="true"
+                          className={`absolute top-2 left-2 grid h-6 w-6 place-items-center rounded-full border-2 ${
+                            chosen.has(recipe.id)
+                              ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                              : "border-white bg-white/70 backdrop-blur-sm"
+                          }`}
+                        >
+                          {chosen.has(recipe.id) && (
+                            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="3">
+                              <path d="M5 12.5l4.5 4.5L19 7.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </span>
+                      </button>
+                    ) : (
+                      <Link href={`/recipes/${recipe.id}`} prefetch className="press-card relative block h-full">
+                        {face(recipe)}
+                        <LinkCue />
+                      </Link>
+                    )}
                     {/* Over the card rather than in it: the card is one link, and a
                         button inside a link is neither valid nor pressable without
                         following it. The backdrop keeps the dots legible on a photo. */}
-                    <ItemMenu
-                      name="recipeId"
-                      id={recipe.id}
-                      label={recipe.title}
-                      editTitle={say(RECIPES.editRecipe)}
-                      editAction={updateRecipe}
-                      editOverlay={recipeSaveOverlay(language, recipe)}
-                      deleteAction={deleteRecipe}
-                      deleteMessage={say(RECIPES.deleteRecipeMessage, { title: recipe.title })}
-                      extraItems={<AddToMealPlanMenuItem recipeId={recipe.id} />}
-                      className="absolute top-2 right-2 bg-white/80 backdrop-blur-sm"
-                    >
-                      <RecipeFields recipe={recipe} categories={categories} language={language} />
-                    </ItemMenu>
+                    {!chosen && (
+                      <ItemMenu
+                        name="recipeId"
+                        id={recipe.id}
+                        label={recipe.title}
+                        editTitle={say(RECIPES.editRecipe)}
+                        editAction={updateRecipe}
+                        editOverlay={recipeSaveOverlay(language, recipe)}
+                        extraFields={<input type="hidden" name={STAY_FIELD} value="1" />}
+                        deleteAction={deleteRecipe}
+                        deleteMessage={say(RECIPES.deleteRecipeMessage, { title: recipe.title })}
+                        extraItems={<AddToMealPlanMenuItem recipeId={recipe.id} />}
+                        className="absolute top-2 right-2 bg-white/80 backdrop-blur-sm"
+                      >
+                        <RecipeFields recipe={recipe} categories={categories} language={language} />
+                      </ItemMenu>
+                    )}
                   </Card>
                 ))}
               </div>
             </section>
           ))}
         </div>
+      )}
+
+      {chosen && (
+        // While choosing, the bar takes the place the page's "+" would float in once the
+        // tab bar has scrolled away — `data-choosing` stands the "+" down (globals.css).
+        <BulkCategoryBar chosen={[...chosen]} categories={categories} onDone={() => setChosen(null)} />
       )}
     </>
   );

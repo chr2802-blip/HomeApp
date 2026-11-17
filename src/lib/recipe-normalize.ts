@@ -47,40 +47,40 @@ import { overMonthlyLimit, recordAiUsage } from "./ai-usage";
 /**
  * The model that reads a recipe, and how hard it is asked to think about it.
  *
- * Haiku with no thinking, chosen in 2026-09 for speed: Sonnet at `medium` effort with
- * adaptive thinking sat close enough to `NORMALIZE_TIMEOUT_MS` that the household waited
- * the better part of half a minute, and timed out outright when anything added to it.
+ * Sonnet 5.5 at `low` effort, chosen in 2026-11 because Haiku 4.5 with no thinking made
+ * too many mistakes the household had to correct by hand — moving every ingredient's
+ * preparation into the steps is a cross-reference over the whole recipe, and Haiku missed
+ * matches a better reader does not. Haiku had been chosen in 2026-09 for speed: Sonnet 5 at
+ * `medium` sat near the old 25s timeout. `low` is the trade back towards speed, and
+ * thinking is left at the model's own adaptive default (Sonnet 5.5 refuses
+ * `{ type: "disabled" }` with a 400) — so it thinks only where a recipe asks for it.
  *
- * What that gave up is known, and worth watching for. Moving every ingredient's preparation
- * into the steps is a cross-reference over the whole recipe, and even Sonnet at `low` effort
- * missed matches — a step naming the very word an ingredient carried, just inflected
- * differently ("lunkne" beside "lunkent"). Haiku without thinking is further down the same
- * road. A failure here is at least visible immediately: the form opens pre-filled and wrong
- * in front of the person who pasted the link, rather than going quietly into a database.
- *
- * Haiku 4.5 takes no `effort` (it is a 400 there) and has no adaptive thinking; leaving
- * `thinking` out is what turns it off.
+ * Judge a change here by Admin → System → AI call times, which splits by model, and by
+ * `npm run eval:ai`.
  */
-const MODEL = "claude-haiku-4-5";
+const MODEL = "claude-sonnet-5-5";
+
+/** How hard the model is asked to think — see `MODEL`. */
+const EFFORT = "low";
 
 /**
- * How long one attempt at a read may take before it is given up on. Milliseconds in this
- * SDK, rather than the seconds the fetch timeouts next door are written in.
+ * How long the one attempt at a read may take before it is given up on. Milliseconds in
+ * this SDK, rather than the seconds the fetch timeouts next door are written in.
  *
- * **The budget is the route's `maxDuration` (60s), not this number alone.** The client
- * retries once, and a timeout is one of the things it retries — so a stuck call costs
- * twice this, on top of the page fetch (`FETCH_TIMEOUT_MS`, 8s) before it. At 25s that
- * sum was 58s before the picture, and the platform cut the request off before the
- * honest "the reader is not answering" could be said. Haiku answers in about 7s, so
- * 15s is still twice a typical read. `tests/unit/ai-readers.test.ts` holds the sum.
+ * **The budget is the route's `maxDuration` (60s), not this number alone.** A reel has
+ * already spent up to three caption fetches (`FETCH_TIMEOUT_MS`, 8s each) before it asks,
+ * so 24s are gone before the model is. Sonnet answers more slowly than Haiku did, so the
+ * one attempt gets the room two short ones used to share: a retried timeout on a reader
+ * that typically takes 10–20s would cut off good answers to pay for a second try that
+ * rarely does better. `tests/unit/ai-readers.test.ts` holds the sum.
  */
-export const NORMALIZE_TIMEOUT_MS = 15_000;
+export const NORMALIZE_TIMEOUT_MS = 30_000;
 
-/** One retry: an overloaded API often answers the second time, and the budget allows one. */
-export const NORMALIZE_MAX_RETRIES = 1;
+/** No retry: the whole budget goes to the one attempt — see `NORMALIZE_TIMEOUT_MS`. */
+export const NORMALIZE_MAX_RETRIES = 0;
 
 /** Enough for a long recipe with its method; a recipe that needs more is not a recipe. */
-const MAX_TOKENS = 8_000;
+const MAX_TOKENS = 16_000;
 
 /** How much raw text is ever sent, so a pathological page cannot become a pathological bill. */
 const MAX_INPUT_CHARS = 24_000;
@@ -264,7 +264,7 @@ export async function normalizeRecipe(
         model: MODEL,
         max_tokens: MAX_TOKENS,
         system: systemPrompt(language),
-        output_config: { format: zodOutputFormat(NormalizedRecipeSchema) },
+        output_config: { effort: EFFORT, format: zodOutputFormat(NormalizedRecipeSchema) },
         messages: [{ role: "user", content: userMessage(raw) }],
       },
       { timeout: NORMALIZE_TIMEOUT_MS },

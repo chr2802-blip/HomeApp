@@ -6,12 +6,23 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { clockLabel, type CookStep } from "@/lib/cook";
+import { clockLabel, MAX_STEP_MINUTES, type CookStep } from "@/lib/cook";
 import { finishCook, findCook, leaveCook, showCook, startTimer, stopTimer, turnCook } from "@/lib/cook-session";
 import { cheer, tick } from "@/lib/haptics";
-import { portionsFor, TIMES_PARAM, timeLabel, timesLabel } from "@/lib/recipes";
+import {
+  portionsFor,
+  STEP_FIELD,
+  STEP_MINUTES_FIELD,
+  STEP_TEXT_FIELD,
+  STEP_USES_FIELD,
+  TIMES_PARAM,
+  timeLabel,
+  timesLabel,
+} from "@/lib/recipes";
 import type { FormAction } from "@/lib/action-result";
-import { Button } from "@/components/ui";
+import { Button, Input, Label, Textarea } from "@/components/ui";
+import { Modal } from "@/components/modal";
+import { DialogForm } from "@/components/form-dialog";
 import { useFormAction } from "@/components/use-form-action";
 import { useWakeLock } from "@/components/use-wake-lock";
 import { cookHref, useKitchen } from "@/components/kitchen";
@@ -68,6 +79,7 @@ export function CookMode({
   ingredients,
   prepared,
   prepareAction,
+  editStepAction,
   times,
   servings,
   recipes,
@@ -79,6 +91,8 @@ export function CookMode({
   ingredients: string[];
   prepared: boolean;
   prepareAction: FormAction;
+  /** Saves one step corrected by hand (`editCookStep`). */
+  editStepAction: FormAction;
   /** How many times over this is being made — the amounts arrive already scaled; this is
    *  only for saying so, and for taking the same number back to the recipe page. */
   times: number;
@@ -105,6 +119,10 @@ export function CookMode({
 
   const { kitchen, loaded, now, update, pushOffer, enablePush } = useKitchen();
   const [picking, setPicking] = useState(false);
+  // The step whose sheet is open, by its index — held here rather than in `StepPage`, so
+  // the sheet is drawn outside the swipeable `main`: React bubbles a portalled sheet's
+  // pointer events up through its parents, and a drag inside it would turn the page.
+  const [editing, setEditing] = useState<number | null>(null);
 
   // The screen stays on for as long as this is open. Nothing to press: somebody who has
   // opened the cooking view has already said what they are doing for the next half hour.
@@ -436,6 +454,7 @@ export function CookMode({
             step={step}
             running={own.some((timer) => timer.step === page - 1)}
             onStartTimer={(minutes) => start(page - 1, minutes)}
+            onEdit={() => setEditing(page - 1)}
             language={language}
           />
         )}
@@ -453,6 +472,16 @@ export function CookMode({
               : say(RECIPES.next)}
         </Button>
       </footer>
+
+      <StepEditor
+        index={editing}
+        step={editing === null ? undefined : steps[editing]}
+        ingredients={ingredients}
+        recipeId={recipeId}
+        action={editStepAction}
+        onClose={() => setEditing(null)}
+        language={language}
+      />
 
       <CookPicker
         open={picking}
@@ -518,16 +547,24 @@ function MiseEnPlace({
         </ul>
       )}
 
-      {hasSteps && !prepared && (
-        <PrepareOffer recipeId={recipeId} action={prepareAction} language={language} />
+      {hasSteps && (
+        <PrepareOffer
+          recipeId={recipeId}
+          action={prepareAction}
+          notice={say(prepared ? RECIPES.redoGuideNotice : RECIPES.notPreparedNotice)}
+          label={say(prepared ? RECIPES.redoGuide : RECIPES.prepareSteps)}
+          language={language}
+        />
       )}
     </div>
   );
 }
 
 /**
- * What a recipe written before action mode existed is offered, and the second chance for
- * one saved while the reader was down.
+ * What a recipe written before action mode existed is offered, the second chance for one
+ * saved while the reader was down — and, for one already prepared, "make the guide
+ * again", for when the reader got the steps wrong. The same reading either way
+ * (`prepareRecipeSteps`); only the words differ.
  *
  * It says what it would do rather than simply doing it: this rewrites the recipe's own
  * steps, which is not something to take on a cook's behalf because they opened a screen.
@@ -535,10 +572,14 @@ function MiseEnPlace({
 function PrepareOffer({
   recipeId,
   action,
+  notice,
+  label,
   language,
 }: {
   recipeId: string;
   action: FormAction;
+  notice: string;
+  label: string;
   language: HomeLanguage;
 }) {
   const { state, pending, handleSubmit } = useFormAction(action);
@@ -546,10 +587,10 @@ function PrepareOffer({
 
   return (
     <form onSubmit={handleSubmit} className="mt-8 rounded-xl border border-dashed border-slate-300 p-4">
-      <p className="text-sm text-slate-600">{say(RECIPES.notPreparedNotice)}</p>
+      <p className="text-sm text-slate-600">{notice}</p>
       <input type="hidden" name="recipeId" value={recipeId} />
       <Button type="submit" variant="secondary" disabled={pending} aria-busy={pending} className="mt-3">
-        {pending ? say(RECIPES.preparing) : say(RECIPES.prepareSteps)}
+        {pending ? say(RECIPES.preparing) : label}
       </Button>
       {state?.ok === false && (
         <p role="alert" className="mt-2 text-sm text-red-600">
@@ -566,19 +607,33 @@ function StepPage({
   step,
   running,
   onStartTimer,
+  onEdit,
   language,
 }: {
   number: number;
   step: CookStep;
   running: boolean;
   onStartTimer: (minutes: number) => void;
+  onEdit: () => void;
   language: HomeLanguage;
 }) {
   const say = sayIn(language);
 
   return (
     <div className="mx-auto max-w-xl">
-      <p className="text-sm font-semibold text-[var(--accent)]">{say(RECIPES.stepNumber, { number })}</p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-[var(--accent)]">{say(RECIPES.stepNumber, { number })}</p>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="press-button -my-1 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+        >
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {say(RECIPES.editStep)}
+        </button>
+      </div>
       <p className="mt-3 text-xl leading-relaxed break-words">{step.text}</p>
 
       {step.minutes !== null && (
@@ -622,5 +677,96 @@ function StepPage({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * One step corrected by hand: its text, which of the recipe's ingredients it uses, and its
+ * timer. Saved without the reader (`editCookStep`) — for the step the AI got wrong, where
+ * reading the whole recipe again is not the fix.
+ *
+ * Every ingredient is offered as a chip to tick, labelled as the guide shows it (scaled,
+ * where it is being made more than once); what is sent is its position, which is what the
+ * breakdown stores.
+ */
+function StepEditor({
+  index,
+  step,
+  ingredients,
+  recipeId,
+  action,
+  onClose,
+  language,
+}: {
+  index: number | null;
+  step: CookStep | undefined;
+  ingredients: string[];
+  recipeId: string;
+  action: FormAction;
+  onClose: () => void;
+  language: HomeLanguage;
+}) {
+  const say = sayIn(language);
+  // The last step shown, kept while the sheet animates away, so it does not empty first.
+  const [shown, setShown] = useState<{ index: number; step: CookStep } | null>(null);
+  if (index !== null && step && (shown?.index !== index || shown.step !== step)) setShown({ index, step });
+
+  return (
+    <Modal
+      open={index !== null}
+      onClose={onClose}
+      title={shown ? say(RECIPES.editStepTitle, { number: shown.index + 1 }) : say(RECIPES.editStep)}
+    >
+      {shown && (
+        <DialogForm
+          key={shown.index}
+          action={action}
+          submitLabel={say(RECIPES.saveStep)}
+          onDone={onClose}
+          onCancel={onClose}
+        >
+          <input type="hidden" name="recipeId" value={recipeId} />
+          <input type="hidden" name={STEP_FIELD} value={shown.index} />
+          <div className="space-y-1">
+            <Label htmlFor="step-text">{say(RECIPES.stepTextField)}</Label>
+            <Textarea id="step-text" name={STEP_TEXT_FIELD} rows={4} required defaultValue={shown.step.text} />
+          </div>
+          {ingredients.length > 0 && (
+            <fieldset className="space-y-2">
+              <legend className="mb-2 text-sm font-medium">{say(RECIPES.stepUsesField)}</legend>
+              <div className="flex flex-wrap gap-2">
+                {ingredients.map((line, position) => (
+                  <label key={position} className="press-button relative cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name={STEP_USES_FIELD}
+                      value={position}
+                      defaultChecked={shown.step.uses.includes(position)}
+                      className="peer sr-only"
+                    />
+                    <span className="block rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors duration-(--dur-quick) peer-checked:border-slate-900 peer-checked:bg-slate-900 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-slate-400 peer-focus-visible:ring-offset-2">
+                      {line}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          <div className="space-y-1">
+            <Label htmlFor="step-minutes">{say(RECIPES.stepMinutesField)}</Label>
+            <Input
+              id="step-minutes"
+              name={STEP_MINUTES_FIELD}
+              type="number"
+              min={1}
+              max={MAX_STEP_MINUTES}
+              inputMode="numeric"
+              defaultValue={shown.step.minutes ?? ""}
+            />
+            <p className="text-xs text-slate-500">{say(RECIPES.stepMinutesHint)}</p>
+          </div>
+        </DialogForm>
+      )}
+    </Modal>
   );
 }
