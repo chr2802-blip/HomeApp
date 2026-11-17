@@ -58,8 +58,9 @@ export function recipeSaveOverlay(language: HomeLanguage, recipe?: RecipeValues)
       RECIPES.savingStage4,
       RECIPES.savingStage5,
     ].map(say),
-    // The save's median on Haiku (Admin → System → AI call times), rounded up.
-    expectedSeconds: 8,
+    // A guess for Sonnet 5.5 at low effort; set it from Admin → System → AI call times
+    // once a few real saves have been timed.
+    expectedSeconds: 15,
   };
 }
 
@@ -78,8 +79,9 @@ export function recipeImportOverlay(language: HomeLanguage): AiWait {
       RECIPES.readingStage3,
       RECIPES.readingStage4,
     ].map(say),
-    // The reader's median on Haiku, rounded up, plus the page fetch before it.
-    expectedSeconds: 10,
+    // A guess for Sonnet 5.5 at low effort plus the page fetch before it; set it from
+    // Admin → System → AI call times once a few real imports have been timed.
+    expectedSeconds: 18,
   };
 }
 
@@ -98,7 +100,7 @@ export function recipeImportOverlay(language: HomeLanguage): AiWait {
  * dead end with no explanation is worse than being shown one you must ask somebody else
  * to clear.
  */
-function CategoryField({
+export function CategoryField({
   categories,
   selected = [],
   language,
@@ -132,7 +134,7 @@ function CategoryField({
       <p className="text-xs text-slate-500">{say(RECIPES.tickEveryHeading)}</p>
       <div className="flex flex-wrap gap-2 pt-1">
         {categories.map((category) => (
-          <label key={category.id} className="press-button cursor-pointer">
+          <label key={category.id} className="press-button relative cursor-pointer">
             {/* Off-screen rather than hidden: a hidden input cannot be focused, and the
                 keyboard is the only way some people reach it. The chip beside it shows
                 both the tick and the focus ring. */}
@@ -192,8 +194,8 @@ export function RecipeFields({
         />
       </div>
 
-      {/* Required here and not in the action: the form asks every time, and a recipe
-          stored before anybody was asked still saves — it is simply shown unscaled. */}
+      {/* Optional: a recipe with no portions still scales by the multiplier, and the
+          sheet simply says no number of people beside it. */}
       <div className="space-y-1">
         <Label htmlFor="servings">{say(RECIPES.servingsField)}</Label>
         <Input
@@ -203,7 +205,6 @@ export function RecipeFields({
           min={1}
           max={MAX_SERVINGS}
           inputMode="numeric"
-          required
           defaultValue={recipe?.servings ?? ""}
         />
         <p className="text-xs text-slate-500">{say(RECIPES.servingsHint)}</p>

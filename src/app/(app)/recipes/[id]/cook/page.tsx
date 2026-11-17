@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { prepareRecipeSteps } from "@/app/actions/recipes";
+import { editCookStep, prepareRecipeSteps } from "@/app/actions/recipes";
 import { requireHomeUser } from "@/lib/auth";
 import { cookSteps, isPrepared } from "@/lib/cook";
 import { homeDb } from "@/lib/home-db";
@@ -79,6 +79,7 @@ export default async function CookPage({
       servings={recipe.servings}
       prepared={isPrepared(recipe)}
       prepareAction={prepareRecipeSteps}
+      editStepAction={editCookStep}
       recipes={recipes}
       tonightId={tonight?.recipeId ?? null}
     />

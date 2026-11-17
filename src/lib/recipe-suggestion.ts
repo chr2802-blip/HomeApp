@@ -25,8 +25,7 @@ function pickFrom(ids: string[], exclude: string | undefined) {
 
 /**
  * Picks a fresh recipe and writes it as today's plan, replacing whatever `recipeId` was
- * there — this is the one write both the dashboard's silent auto-pick and its "Find new"
- * button share.
+ * there — the dashboard's "Find new" button.
  *
  * `leftoverOf` is cleared alongside it: a plan this function touches is being told what
  * to cook, and the two columns are never both filled.
@@ -79,15 +78,13 @@ export type TonightsDinner = {
 /**
  * Today's dinner, read from the same `MealPlan` row `/meals` reads and writes.
  *
- * A day with nothing planned yet is where the auto-pick belongs: one eligible recipe is
- * chosen and written into `MealPlan` as today's `recipeId` before this returns, so a
- * second visit the same evening — or a glance at `/meals` — sees the same dinner rather
- * than a fresh coin flip. A day already decided is shown as it was decided: a recipe as
- * itself, leftovers as what they are the leftovers of, and a night out as nothing to
- * suggest instead of.
+ * **Nothing is picked here.** A day with nothing planned shows no dinner until somebody
+ * chooses one on `/meals` — an auto-pick written into the plan on the first visit was a
+ * decision the household had not made, sitting on the dashboard as though it had. A day
+ * already decided is shown as it was decided: a recipe as itself, leftovers as what they
+ * are the leftovers of, and a night out as nothing.
  *
- * Returns null when there is nothing to show at all: a night out, or nothing planned and
- * nothing eligible to plan either.
+ * Returns null when there is nothing to show: a night out, or nothing planned.
  */
 export async function tonightsDinner(homeId: string, language: HomeLanguage): Promise<TonightsDinner> {
   const today = todayInZone();
@@ -117,14 +114,10 @@ export async function tonightsDinner(homeId: string, language: HomeLanguage): Pr
     };
   }
 
-  // A row with neither column filled is a night out, already decided — there is
-  // nothing to suggest instead of it.
-  if (plan) return null;
-
-  const recipeId = await pickAndStore(homeId, today);
-  if (!recipeId) return null;
-  const recipe = await db.recipe.findUnique({ where: { id: recipeId }, select: RECIPE_FACE });
-  return recipe && fromRecipe(recipe, true);
+  // A row with neither column filled is a night out, already decided; no row at all is a
+  // day nobody has planned yet. Neither has a dinner to show, and nothing is picked on
+  // the household's behalf: today stays empty until somebody chooses on `/meals`.
+  return null;
 }
 
 /**

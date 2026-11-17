@@ -17,13 +17,8 @@ async function seedRecipe(title: string, ingredients = "Something") {
     where: { homeId: home.id, name: CATEGORIES[0] },
   });
 
-  // Written before the recipe is, not after: `tonightsDinner` auto-picks a recipe for
-  // today's own row the moment one becomes eligible, and the app's nav bar prefetches
-  // the dashboard the instant its link is on screen — so the window between a home
-  // gaining its first recipe and a test's own next move is exactly when an unasked-for
-  // plan for today could land. A row already there — eating out, same as an untouched
-  // today reads everywhere else in this file — closes that window before it opens:
-  // every test below still writes today's own plan explicitly wherever it means to.
+  // Today starts as a night out, the same as an untouched today reads everywhere else in
+  // this file — every test below writes today's own plan explicitly wherever it means to.
   await db.mealPlan.upsert({
     where: { homeId_date: { homeId: home.id, date: todayInZone() } },
     create: { homeId: home.id, date: todayInZone() },

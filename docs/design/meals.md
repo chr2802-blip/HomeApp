@@ -165,20 +165,17 @@ today's `MealPlan` row instead, so the two pages agree because they are reading 
 one.
 
 **A day already decided is shown as it was decided, and "Find new" is offered only where
-it would not be arguing with the household.** A recipe — auto-picked by this component or
-chosen by hand on `/meals`, the row cannot tell the two apart and does not need to — is a
-suggestion, so the button replaces it. Leftovers and a night out are not: the row says
+it would not be arguing with the household.** A recipe chosen on `/meals` can be swapped by
+the button for another at random. Leftovers and a night out are not: the row says
 what the leftovers are the leftovers of (or nothing at all for a night out, the same
 "absent entirely" the dashboard uses for a heading with nothing behind it), and stops
 there, the same reason `/meals` never draws a suggestion beside a day already planned.
 
-**A day with no row yet is where the auto-pick belongs.** One eligible recipe — the same
-pool `excludeFromSuggestion` narrows for `/meals`' own suggestions — is written into
-`MealPlan` as today's `recipeId` before this returns, so a second visit the same evening
-shows the same dinner rather than a fresh coin flip, and `/meals` shows the same plan for
-today the moment either page is opened next. A plain random pick on every render would be
-simpler code for a feature that has to look like it remembers, and would leave `/meals`
-not knowing what the dashboard had just decided on the household's behalf.
+**A day with no row yet shows no dinner.** It used to be where the auto-pick belonged —
+one eligible recipe written into `MealPlan` before the dashboard drew, so a second visit
+showed the same dinner. The household asked for it gone (2026-11): a pick written on the
+first glance at the dashboard was a decision nobody had made, sitting in the week as though
+somebody had. Today stays empty until a recipe is chosen on `/meals`.
 
 "Find new" replaces `recipeId` for today rather than adding to it — `@@id([homeId,
 date])` on `MealPlan` already makes that the only shape a day's row can take — and

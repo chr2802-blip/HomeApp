@@ -26,7 +26,7 @@ export default async function RecipesPage() {
   const say = sayIn(user.homeLanguage);
   const db = homeDb(user.homeId);
 
-  const [recipes, categories] = await Promise.all([
+  const [recipes, categories, lists] = await Promise.all([
     // The headings each recipe is filed under come back with it, as ids rather than
     // rows: the page already has every category's name, and the cards only need to
     // know which of them a recipe belongs to. The ratings come back as their hearts
@@ -42,6 +42,13 @@ export default async function RecipesPage() {
     // of creation is not one a reader can scan by. Only the two columns the page shows,
     // since these cross to the client.
     db.recipeCategory.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    // The lists that track amounts, for putting chosen recipes on one — the same choice
+    // a recipe's own "Add to list" offers, in the same order.
+    db.list.findMany({
+      where: { trackAmounts: true },
+      orderBy: { title: "asc" },
+      select: { id: true, title: true, _count: { select: { items: { where: { done: false } } } } },
+    }),
   ]);
 
   const summaries: RecipeSummary[] = recipes.map((recipe) => ({
@@ -66,7 +73,11 @@ export default async function RecipesPage() {
         action={<NewRecipeDialog categories={categories} action={createRecipe} />}
       />
 
-      <RecipeDirectory recipes={summaries} categories={categories} />
+      <RecipeDirectory
+        recipes={summaries}
+        categories={categories}
+        lists={lists.map((list) => ({ id: list.id, title: list.title, open: list._count.items }))}
+      />
     </>
   );
 }

@@ -24,6 +24,7 @@ import { monthStartInstant } from "./time";
  * was true when it was made even after this table is edited for a new one.
  */
 const PRICE_PER_MTOK_USD: Record<string, { input: number; output: number }> = {
+  "claude-sonnet-5-5": { input: 2, output: 10 },
   "claude-sonnet-5": { input: 2, output: 10 },
   "claude-haiku-4-5": { input: 1, output: 5 },
 };

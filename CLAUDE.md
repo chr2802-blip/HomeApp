@@ -597,6 +597,18 @@ and it follows the page when that scrolls rather than closing.
 
 **[`docs/design/recipes.md`](docs/design/recipes.md) has the rest.**
 
+### The recipe list chooses many recipes by press and hold
+
+Holding a card (`useLongPress`, `src/components/use-long-press.ts`) starts choosing with
+it — "Choose several" in its three dots does the same, for anybody who cannot hold; then a
+tap adds or removes one. `RecipeSelectionBar` floats above the tab bar with Delete,
+Categories, Add to list and Cancel, and `data-choosing` stands the page's "+" down while
+it is there. Filing only ever **adds** headings (`addRecipesToCategories`), so no recipe
+can end up under none; deleting asks first (`deleteRecipes`); a list gets each recipe once
+through `writeRecipesToList` (`addRecipesIngredients`), pantry and all. Every action
+leaves choosing once it has worked. An edit from a card's three dots sends `STAY_FIELD`,
+so the save closes over the list instead of redirecting to the recipe.
+
 ### A recipe's rating is every rating ever given, averaged
 
 `RecipeRating` is one row per time somebody rated a recipe, 1 to 5 hearts (`MIN_HEARTS`,
@@ -1194,8 +1206,8 @@ dashboard and `/meals` agree because they are reading the same one.
 
 - **A day already decided is shown as it was decided**, and "Find new" is offered only where
   it would not be arguing with the household — a recipe, never leftovers or a night out.
-- **A day with no row yet is where the auto-pick belongs**: one eligible recipe is written
-  into `MealPlan` before this returns, so a second visit shows the same dinner.
+- **A day with no row yet shows no dinner.** Nothing is picked on the household's behalf;
+  today stays empty until somebody chooses a recipe on `/meals`.
 - "Find new" replaces `recipeId` for today, prefers a recipe other than the one showing, and
   revalidates `/meals` alongside the dashboard.
 - A category's `excludeFromSuggestion` keeps its recipes out of the pool **entirely** — a
@@ -1361,9 +1373,10 @@ and never markup: `isReelUrl` routes those links there before anything is fetche
 stay apart). Both routes — page and reel — produce one `RawExtract`.
 
 **Stage two is `recipe-normalize.ts`, and it is the only thing in this app that reads text as
-a recipe.** One model call (`claude-haiku-4-5`, no thinking — chosen for speed in 2026-09,
-over Sonnet at `medium` effort; both readers' `MODEL` comments say what that gave up, and
-**Admin → System → AI call times** says what it bought), one zod-constrained answer, deduplicating
+a recipe.** One model call (`claude-sonnet-5-5` at `low` effort, adaptive thinking — moved
+off Haiku 4.5 in 2026-11 because it made too many mistakes; both readers' `MODEL` comments
+say the trade, and **Admin → System → AI call times** what it cost in waiting. One attempt,
+no retry, so the attempt gets the whole route budget), one zod-constrained answer, deduplicating
 lines, splitting each amount from its unit and its ingredient, and throwing away the hashtags
 and the "follow for more". It is also allowed to refuse: `isRecipe: false` is the answer for
 a shop page or somebody's lunch, and that refusal is what makes stage one's fall back to
@@ -1708,8 +1721,9 @@ whether reminders are reaching their own household, and what their own home is s
 
 **A model change is a price change too.** `PRICE_PER_MTOK_USD` in `src/lib/ai-usage.ts`
 prices a model it has never heard of at **zero**, which quietly switches off the monthly
-limit. `tests/unit/ai-readers.test.ts` fails if either reader sends an unpriced model, or
-sends `thinking` or `effort` (Haiku 4.5 answers `effort` with a 400).
+limit. `tests/unit/ai-readers.test.ts` fails if any reader sends an unpriced model, sends
+`thinking` at all (Sonnet 5.5 answers `disabled` with a 400), or sends `effort` to Haiku 4.5
+(a 400 there) — the recipe readers send `low`, the pantry and aisle sorters none.
 
 The reminder job writes a row before it starts work, because a schedule that silently
 stops looks exactly like a week with nothing due. `/api/health` gives an uptime monitor a
@@ -1725,6 +1739,10 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
   nothing while looking entirely correct: `transition` and `transition-transform` name all
   four and are safe, but an arbitrary `transition-[…]` list, or a hand-written `transition`
   in `globals.css` such as the `press-*` tiers, has to name the property that actually changes.
+- **A chip checkbox inside a sheet is pressed by its text in e2e, not `check({ force: true })`.**
+  The input is `sr-only`, and inside a `Modal` still animating in Playwright calls it
+  "outside of the viewport" even forced. `sheet.getByText(name, { exact: true }).click()`
+  waits for the sheet and presses the chip a person would.
 - **`divide-y` counts a `hidden` row.** Its rule goes under every child but the last in
   the DOM, so a search that hides the last row leaves a line under the last one showing.
   A card whose rows can be hidden draws the rule between visible siblings instead

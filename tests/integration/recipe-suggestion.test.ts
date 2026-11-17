@@ -23,6 +23,10 @@ beforeEach(async () => {
   ({ home, member } = await createHomeWithMembers());
 });
 
+/** Today planned by hand, as `/meals` would — nothing is auto-picked any more. */
+const planToday = (recipeId: string) =>
+  prisma.mealPlan.create({ data: { homeId: home.id, date: today(), recipeId } });
+
 const stored = () =>
   prisma.mealPlan.findUniqueOrThrow({ where: { homeId_date: { homeId: home.id, date: today() } } });
 
@@ -32,49 +36,11 @@ describe("tonightsDinner", () => {
     expect(await prisma.mealPlan.count()).toBe(0);
   });
 
-  it("picks the home's only recipe and writes it as today's plan", async () => {
-    const recipe = await createRecipe({ homeId: home.id, createdById: member.id });
-
-    const dinner = await tonightsDinner(home.id, "EN");
-    expect(dinner).toMatchObject({ recipeId: recipe.id, title: recipe.title, suggestable: true });
-    expect((await stored()).recipeId).toBe(recipe.id);
-  });
-
-  it("keeps the same pick on a second call the same day", async () => {
-    await createRecipe({ homeId: home.id, createdById: member.id, title: "A" });
-    await createRecipe({ homeId: home.id, createdById: member.id, title: "B" });
-
-    const first = await tonightsDinner(home.id, "EN");
-    const second = await tonightsDinner(home.id, "EN");
-    expect(second?.recipeId).toBe(first?.recipeId);
-  });
-
-  it("excludes a recipe filed under an excluded category", async () => {
-    const babyFood = await createRecipeCategory({ homeId: home.id, excludeFromSuggestion: true });
-    await createRecipe({ homeId: home.id, createdById: member.id, categoryIds: [babyFood.id] });
-    const weeknight = await createRecipeCategory({ homeId: home.id });
-    const allowed = await createRecipe({
-      homeId: home.id,
-      createdById: member.id,
-      categoryIds: [weeknight.id],
-    });
-
-    expect((await tonightsDinner(home.id, "EN"))?.recipeId).toBe(allowed.id);
-  });
-
-  it("returns null once every recipe is excluded", async () => {
-    const babyFood = await createRecipeCategory({ homeId: home.id, excludeFromSuggestion: true });
-    await createRecipe({ homeId: home.id, createdById: member.id, categoryIds: [babyFood.id] });
+  it("picks nothing on a day nobody has planned, and writes nothing", async () => {
+    await createRecipe({ homeId: home.id, createdById: member.id });
 
     expect(await tonightsDinner(home.id, "EN")).toBeNull();
     expect(await prisma.mealPlan.count()).toBe(0);
-  });
-
-  it("never suggests another home's recipe", async () => {
-    const neighbour = await createHome({ name: "Next door" });
-    await createRecipe({ homeId: neighbour.id, createdById: member.id });
-
-    expect(await tonightsDinner(home.id, "EN")).toBeNull();
   });
 
   it("shows a recipe already planned by hand, without picking a new one", async () => {
@@ -112,7 +78,7 @@ describe("refreshTonightsDinner", () => {
   it("replaces today's plan with the other eligible recipe", async () => {
     const a = await createRecipe({ homeId: home.id, createdById: member.id, title: "A" });
     const b = await createRecipe({ homeId: home.id, createdById: member.id, title: "B" });
-    await tonightsDinner(home.id, "EN");
+    await planToday(a.id);
     const before = (await stored()).recipeId;
 
     const after = await refreshTonightsDinner(home.id);
@@ -124,9 +90,28 @@ describe("refreshTonightsDinner", () => {
 
   it("has nothing else to offer when only one recipe is eligible", async () => {
     const recipe = await createRecipe({ homeId: home.id, createdById: member.id });
-    await tonightsDinner(home.id, "EN");
+    await planToday(recipe.id);
 
     expect(await refreshTonightsDinner(home.id)).toBe(recipe.id);
+  });
+
+  it("never switches to a recipe filed under an excluded category", async () => {
+    const babyFood = await createRecipeCategory({ homeId: home.id, excludeFromSuggestion: true });
+    await createRecipe({ homeId: home.id, createdById: member.id, categoryIds: [babyFood.id] });
+    const weeknight = await createRecipeCategory({ homeId: home.id });
+    const allowed = await createRecipe({ homeId: home.id, createdById: member.id, categoryIds: [weeknight.id] });
+    await planToday(allowed.id);
+
+    expect(await refreshTonightsDinner(home.id)).toBe(allowed.id);
+  });
+
+  it("never switches to another home's recipe", async () => {
+    const mine = await createRecipe({ homeId: home.id, createdById: member.id });
+    const neighbour = await createHome({ name: "Next door" });
+    await createRecipe({ homeId: neighbour.id, createdById: member.id });
+    await planToday(mine.id);
+
+    expect(await refreshTonightsDinner(home.id)).toBe(mine.id);
   });
 
   it("returns null when there is nothing eligible to switch to", async () => {
@@ -136,10 +121,10 @@ describe("refreshTonightsDinner", () => {
 
 describe("findNewSuggestedRecipe", () => {
   it("re-picks for the caller's own home", async () => {
-    await createRecipe({ homeId: home.id, createdById: member.id, title: "A" });
+    const a = await createRecipe({ homeId: home.id, createdById: member.id, title: "A" });
     await createRecipe({ homeId: home.id, createdById: member.id, title: "B" });
     await signIn(member);
-    await tonightsDinner(home.id, "EN");
+    await planToday(a.id);
     const before = (await stored()).recipeId;
 
     await findNewSuggestedRecipe();
@@ -150,13 +135,12 @@ describe("findNewSuggestedRecipe", () => {
 
 /*
  * A planned recipe cascades from the recipe it points at, so a deleted recipe cannot be
- * left as a stale pick — the next visit simply picks again, the same as any other day
- * nothing was stored yet.
+ * left as a stale pick — today simply goes back to nothing planned.
  */
 describe("deleting the planned recipe", () => {
   it("clears today's plan along with it", async () => {
     const recipe = await createRecipe({ homeId: home.id, createdById: member.id });
-    await tonightsDinner(home.id, "EN");
+    await planToday(recipe.id);
 
     await prisma.recipe.delete({ where: { id: recipe.id } });
 

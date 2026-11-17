@@ -19,6 +19,22 @@ export const CATEGORY_FIELD = "categoryIds";
 export const READING_FIELD = "reading";
 
 /**
+ * Sent as "1" by an edit sheet opened from the recipe list: the save answers in place
+ * rather than redirecting to the recipe, so the sheet closes over the list where it was.
+ */
+export const STAY_FIELD = "stay";
+
+/** One entry per recipe chosen on the recipe list, for filing many at once. */
+export const RECIPE_IDS_FIELD = "recipeIds";
+
+/** The fields of a step edited by hand in action mode (`editCookStep`): which step, its
+ *  text, one `uses` entry per ingredient ticked, and its timer in minutes. */
+export const STEP_FIELD = "step";
+export const STEP_TEXT_FIELD = "stepText";
+export const STEP_USES_FIELD = "uses";
+export const STEP_MINUTES_FIELD = "minutes";
+
+/**
  * The categories a submitted form chose: in the order the picker offered them, without
  * repeats, and with nothing blank.
  *

@@ -42,29 +42,33 @@ import { ingredientLines, instructionLines } from "./recipes";
  */
 
 /**
- * Haiku with no thinking, as the importer is and for the same reason: speed, bought knowing
- * that moving every ingredient's preparation into the steps is a cross-reference Sonnet at
- * `low` effort already missed matches on. See the importer's `MODEL` for the trade in full.
- * Haiku 4.5 takes no `effort`, and leaving `thinking` out is what turns it off.
+ * Sonnet 5.5 at `low` effort, as the importer is and for the same reason: Haiku 4.5 made
+ * too many mistakes moving each ingredient's preparation into the steps. See the
+ * importer's `MODEL` for the trade in full. Thinking is left at the model's adaptive
+ * default; Sonnet 5.5 refuses `{ type: "disabled" }`.
  */
-const MODEL = "claude-haiku-4-5";
+const MODEL = "claude-sonnet-5-5";
+
+/** How hard the model is asked to think — see `MODEL`. */
+const EFFORT = "low";
 
 /**
- * How long one attempt may take, because somebody is watching a Save button. Milliseconds,
- * as this SDK counts.
+ * How long the one attempt may take, because somebody is watching a Save button.
+ * Milliseconds, as this SDK counts.
  *
- * Bounded by the route's `maxDuration` (60s) together with the retry: the client retries a
- * timeout once, so a stuck call costs twice this. At 30s that was the whole 60s before the
- * save's own writes, and a request the platform cuts off is not a save that degrades — it
- * is an error screen and a hand-typed recipe gone. `tests/unit/ai-readers.test.ts` holds it.
+ * Bounded by the route's `maxDuration` (60s): a request the platform cuts off is not a
+ * save that degrades — it is an error screen and a hand-typed recipe gone. Sonnet is
+ * slower than Haiku was, so the single attempt gets the room two short ones used to
+ * share. `tests/unit/ai-readers.test.ts` holds it.
  */
-export const PREPARE_TIMEOUT_MS = 15_000;
+export const PREPARE_TIMEOUT_MS = 45_000;
 
-/** One retry, as the importer: an overloaded API often answers the second time. */
-export const PREPARE_MAX_RETRIES = 1;
+/** No retry: the whole budget goes to the one attempt — see `PREPARE_TIMEOUT_MS`. */
+export const PREPARE_MAX_RETRIES = 0;
 
-/** Room for a long recipe's whole answer: an answer that stops short is refused whole. */
-const MAX_TOKENS = 8_000;
+/** Room for a long recipe's whole answer, and the thinking before it: an answer that
+ *  stops short is refused whole. */
+const MAX_TOKENS = 16_000;
 
 /**
  * A recipe whose ingredients and instructions together are longer than this is not sent
@@ -323,7 +327,7 @@ export async function prepareCookSteps(
         model: MODEL,
         max_tokens: MAX_TOKENS,
         system: systemPrompt(language),
-        output_config: { format: zodOutputFormat(PreparedStepsSchema) },
+        output_config: { effort: EFFORT, format: zodOutputFormat(PreparedStepsSchema) },
         messages: [{ role: "user", content: userMessage(recipe) }],
       },
       { timeout: PREPARE_TIMEOUT_MS },

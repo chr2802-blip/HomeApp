@@ -293,12 +293,15 @@ describe("the shopping list's aisle reader", () => {
 
 /*
  * What goes on the wire, for the one thing the e2e stub can never tell us: whether the
- * real API accepts it. Haiku 4.5 answers `output_config.effort` with a 400 and has no
- * adaptive thinking, so both readers must send neither. And a model this app has never
- * priced is billed at nothing, which would quietly switch off the monthly limit.
+ * real API accepts it. The two recipe readers are Sonnet 5.5 at `low` effort, which
+ * refuses `thinking: { type: "disabled" }` — so they leave thinking at its adaptive
+ * default and send only the effort. The pantry and aisle sorters are Haiku 4.5, which
+ * answers `output_config.effort` with a 400 and has no adaptive thinking, so they send
+ * neither. And a model this app has never priced is billed at nothing, which would
+ * quietly switch off the monthly limit.
  */
 describe("the request every reader sends", () => {
-  it("names a priced model, and carries no thinking and no effort", async () => {
+  it("names a priced model, and only the effort that model accepts", async () => {
     parse.mockResolvedValue(answer("end_turn"));
     await prepareCookSteps(recipe("Ælt."), "home", "DA");
     parse.mockResolvedValue({ ...answer("end_turn"), parsed_output: null });
@@ -316,6 +319,14 @@ describe("the request every reader sends", () => {
     for (const [request] of parse.mock.calls) {
       expect(costMicros(request.model, 1_000_000, 0)).toBeGreaterThan(0);
       expect(request.thinking).toBeUndefined();
+    }
+    const [prepare, normalize, pantry, aisle] = parse.mock.calls.map(([request]) => request);
+    for (const request of [prepare, normalize]) {
+      expect(request.model).toBe("claude-sonnet-5-5");
+      expect(request.output_config.effort).toBe("low");
+    }
+    for (const request of [pantry, aisle]) {
+      expect(request.model).toBe("claude-haiku-4-5");
       expect(request.output_config.effort).toBeUndefined();
     }
   });

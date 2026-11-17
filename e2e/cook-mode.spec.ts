@@ -329,9 +329,39 @@ test("cooks a recipe nothing has prepared, and offers to prepare it", async ({ p
   // The reader is stubbed (see e2e/helpers/anthropic-stub.mjs) and hands the steps back
   // as they were, with one ingredient against each.
   await expect(surface.getByRole("button", { name: "Prepare these steps" })).toHaveCount(0);
+  // Prepared, the same reading is still offered — for when it got the steps wrong.
+  await expect(surface.getByRole("button", { name: "Make the guide again" })).toBeVisible();
   await surface.getByRole("button", { name: "Start" }).click();
   await expect(surface.getByText("For this step")).toBeVisible();
   await expect(surface.getByText("500 g kartofler")).toBeVisible();
+});
+
+test("corrects one step by hand: its words, its ingredients and its timer", async ({ page }) => {
+  const recipe = await seedPrepared();
+  const surface = await openCookMode(page, recipe.id);
+  await surface.getByRole("button", { name: "Start" }).click();
+  await expect(surface.getByText("Skær kartoflerne i både.")).toBeVisible();
+
+  await surface.getByRole("button", { name: "Edit step" }).click();
+  const sheet = page.getByRole("dialog", { name: "Edit step 1" });
+  await expect(sheet).toBeVisible();
+  await sheet.getByLabel("What to do").fill("Skær kartoflerne i tynde både.");
+  await sheet.getByText("Salt", { exact: true }).click();
+  await sheet.getByLabel("Timer, in minutes").fill("5");
+  await sheet.getByRole("button", { name: "Save step" }).click();
+  await expect(sheet).toBeHidden();
+
+  // Still on the same page of the guide, now saying what was written.
+  await expect(surface.getByText("Skær kartoflerne i tynde både.")).toBeVisible();
+  await expect(surface.getByRole("listitem").filter({ hasText: "Salt" })).toBeVisible();
+  await expect(surface.getByRole("button", { name: "Start 5 min" })).toBeVisible();
+
+  const stored = await prisma().recipe.findUniqueOrThrow({ where: { id: recipe.id } });
+  expect(stored.instructions.split("\n")).toEqual([
+    "Skær kartoflerne i tynde både.",
+    "Vend dem i olien.",
+    "Bag dem i ovnen.",
+  ]);
 });
 
 test("is reached from the recipe, and only where there is something to cook", async ({ page }) => {
