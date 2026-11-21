@@ -5,6 +5,7 @@ import type { HomeLanguage } from "@prisma/client";
 import { useQueueFlush } from "@/components/use-offline-list";
 import { clearQueue } from "@/lib/offline-queue";
 import { clearCookSession } from "@/lib/cook-session";
+import { readPushState } from "@/lib/push-client";
 
 /**
  * Installs the service worker on every visit to the app.
@@ -40,6 +41,10 @@ export function OfflineSupport({ language }: { language: HomeLanguage }) {
       // A browser that refuses is a browser without the offline half of the app, which is
       // no reason to trouble the person reading it.
     });
+    // Notifications are put right on every load, not only where the offer is drawn: a
+    // subscription iOS dropped is found on whichever page the household opens next, and
+    // nobody has to visit the dashboard to start hearing about tasks again.
+    void readPushState();
   }, []);
 
   useEffect(() => {

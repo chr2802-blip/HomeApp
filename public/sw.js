@@ -259,7 +259,10 @@ async function offlinePage() {
 self.addEventListener("push", (event) => {
   event.waitUntil(
     (async () => {
-      const t = SW_STRINGS[await storedLanguage()];
+      // A push that shows nothing is one iOS counts against the app, and after a few it
+      // takes the subscription away — so nothing on the way to `showNotification` may
+      // throw: a cache that cannot be read falls back to English rather than to silence.
+      const t = SW_STRINGS[await storedLanguage().catch(() => "EN")];
       let payload = { title: t.pushTitle, body: t.pushBody, url: "/dashboard" };
       try {
         if (event.data) payload = { ...payload, ...event.data.json() };
@@ -279,6 +282,20 @@ self.addEventListener("push", (event) => {
         ...(payload.requireInteraction ? { requireInteraction: true } : {}),
       });
     })(),
+  );
+});
+
+/**
+ * A browser that replaces a subscription on its own says so here (Chrome and Firefox do;
+ * iOS has not been seen to). The worker cannot tell the server — it has no session to say
+ * whose it is — so it only subscribes again with the same key, and the next page load
+ * hands the new endpoint over (`readPushState` in `src/lib/push-client.ts`).
+ */
+self.addEventListener("pushsubscriptionchange", (event) => {
+  const key = event.oldSubscription && event.oldSubscription.options.applicationServerKey;
+  if (!key) return;
+  event.waitUntil(
+    self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }).catch(() => {}),
   );
 });
 

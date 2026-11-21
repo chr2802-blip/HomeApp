@@ -1781,6 +1781,17 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
   SVG at the size, `page.screenshot`). `tests/unit/app-icon.test.ts` holds the manifest
   to it. An already-installed app keeps its old icon until it is reinstalled or Chrome
   refreshes the WebAPK, which can take days.
+- **A push subscription goes missing on its own, mostly on an iPhone**: iOS drops a
+  home-screen app's subscription without telling it, and `sendPushToUsers` deletes one a
+  push service answers 410 for while the browser still holds it. So `readPushState`
+  (`src/lib/push-client.ts`) heals once per page load, from `OfflineSupport`. It sends
+  the browser's subscription back to the server, and subscribes again without asking
+  where the permission is still granted. The "turn on" offer is shown only when that
+  fails. The push handler in `sw.js` must reach `showNotification` whatever happens: iOS
+  counts a push that shows nothing and takes the subscription away after a few.
+- **A function passed to Playwright's `addInitScript` from a script run with `tsx` breaks
+  in the page** with `__name is not defined`, because esbuild wraps named functions in a
+  helper the page does not have. Pass the init script as a string.
 - **`vercel.json` is schema-validated.** An unknown key can fail the deploy; keep
   explanations in the README.
 - **On Windows, `npx.cmd` cannot be spawned without a shell.** Invoke a CLI's entry point
