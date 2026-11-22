@@ -21,7 +21,7 @@ import { weekWorkload } from "@/lib/week";
 import { WeekRing } from "@/components/week-progress";
 import { Collapsible } from "@/components/collapsible";
 import { tonightsDinner } from "@/lib/recipe-suggestion";
-import { readDayInZone, todayInZone, weekDays } from "@/lib/time";
+import { endOfDayInZone, readDayInZone, todayInZone, weekDays } from "@/lib/time";
 import { sayIn } from "@/lib/copy/say";
 import { DASHBOARD } from "@/lib/copy/dashboard";
 import { APP } from "@/lib/copy/app";
@@ -167,7 +167,9 @@ export default async function DashboardPage() {
   }
 
   const now = new Date();
-  const soon = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+  // Only what is due today or already overdue: the dashboard is what needs attention
+  // now, and next week's jobs are on /tasks. Today ends on the household's clock.
+  const endOfToday = endOfDayInZone(now);
 
   const db = homeDb(user.homeId);
   const today = todayInZone(now);
@@ -177,7 +179,7 @@ export default async function DashboardPage() {
   const [dueTasks, favorites, recent, open, week, streak, dinner, plans, runOut] = await Promise.all([
     db.task.findMany({
       // A one-off already done is not due, however long its date has been in the past.
-      where: { nextDueAt: { lte: soon }, ...UNFINISHED },
+      where: { nextDueAt: { lte: endOfToday }, ...UNFINISHED },
       orderBy: { nextDueAt: "asc" },
       include: { assignee: { select: { name: true, photoId: true } } },
     }),

@@ -194,10 +194,10 @@ test("the dashboard can put off a task due today", async ({ page }) => {
   await openMenu(page, { label: "Bins" });
   await page.getByRole("menuitem", { name: "Snooze to tomorrow" }).click();
 
-  // Off today's plate. It is still within the three days the dashboard reaches, so the
-  // row stays — with tomorrow's date on it.
+  // Off today's plate, and so off the dashboard: it shows only what is due today or
+  // overdue.
   await expect(page.getByText("Due today")).toBeHidden();
-  await expect(page.getByText("Due tomorrow")).toBeVisible();
+  await expect(page.getByText("Bins")).toBeHidden();
 });
 
 test("an overdue task is flagged", async ({ page }) => {

@@ -708,6 +708,8 @@ Almost nobody scrolls a dashboard, so every block is spending the only screen th
 - **Tonight's dinner is a row, not a hero.** The appetising photograph is one tap away.
   The page asks `tonightsDinner` itself and hands it to `DinnerRow`, because it has to
   know whether "Today" has anything in it before drawing the card.
+- **Only tasks due today or overdue are drawn** (`nextDueAt` up to `endOfDayInZone`, the
+  reminder job's bound) — what is due later in the week is `/tasks`' to show.
 - **A due task is one row**, the date as coloured text rather than a badge — a card per
   task was ~100px each and three of them pushed everything else off the screen.
 - **The days ahead are drawn only when one of them is planned**, and start tomorrow:
