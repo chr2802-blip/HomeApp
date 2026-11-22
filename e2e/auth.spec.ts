@@ -56,45 +56,42 @@ test.describe("pages that need a session", () => {
   }
 });
 
-test.describe("accepting an invite", () => {
-  test("an admin issues a code and the invitee signs up with it", async ({ page, loginAs }) => {
+test.describe("joining with an invitation link", () => {
+  test("an admin makes a link and a newcomer signs up through it", async ({ page, loginAs }) => {
     await loginAs(ACCOUNTS.admin);
     await page.goto("/settings/members");
+    await page.getByRole("button", { name: "Make invitation link" }).click();
+    // The field starts as the bare path and gains the browser's origin once mounted.
+    const field = page.getByLabel("Invitation link", { exact: true });
+    await expect(field).toHaveValue(/^https?:\/\/.+\/join\/[A-Za-z0-9_-]{43}$/);
+    const url = await field.inputValue();
 
-    await page.getByLabel("Email to invite").fill("newcomer@e2e.test");
-    await page.getByRole("button", { name: "Create invite" }).click();
-
-    await expect(page.getByText("Invitation ready for newcomer@e2e.test")).toBeVisible();
-    const code = (await page.locator("p.font-mono").innerText()).trim();
-    expect(code).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
-
-    // The invitee arrives as a fresh visitor: nobody signed in, and no account yet.
+    // The newcomer arrives as a fresh visitor: nobody signed in, and no account yet.
     await page.getByRole("button", { name: "Log out" }).click();
     await page.waitForURL(/\/login$/);
 
-    await page.goto("/accept-invite");
-    await page.getByLabel("Invited email").fill("newcomer@e2e.test");
-    await page.getByLabel("Invitation code").fill(code);
+    await page.goto(new URL(url).pathname);
+    await expect(page.getByRole("heading", { name: `Join ${HOME_NAME}` })).toBeVisible();
     await page.getByLabel("Your name").fill("Nina Newcomer");
-    await page.getByLabel("Choose a password").fill("a-good-password");
-    await page.getByRole("button", { name: "Create account" }).click();
+    await page.getByLabel("Email").fill("newcomer@e2e.test");
+    await page.getByLabel("Password").fill("a-good-password");
+    await page.getByRole("button", { name: "Create me and join" }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.getByText("Nina Newcomer")).toBeVisible();
 
-    const created = await prisma().user.findUnique({ where: { email: "newcomer@e2e.test" } });
-    expect(created?.role).toBe("USER");
+    const created = await prisma().user.findUnique({
+      where: { email: "newcomer@e2e.test" },
+      include: { memberships: true },
+    });
+    expect(created?.memberships.map((m) => m.role)).toEqual(["USER"]);
   });
 
-  test("a wrong code is refused and no account appears", async ({ page }) => {
-    await page.goto("/accept-invite");
-    await page.getByLabel("Invited email").fill("newcomer@e2e.test");
-    await page.getByLabel("Invitation code").fill("AAAA-BBBB");
-    await page.getByLabel("Your name").fill("Nina Newcomer");
-    await page.getByLabel("Choose a password").fill("a-good-password");
-    await page.getByRole("button", { name: "Create account" }).click();
+  test("a link that does not work says so and offers no form", async ({ page }) => {
+    await page.goto("/join/not-a-real-link");
 
-    await expect(page.getByText("That email and code don't match an open invitation.")).toBeVisible();
-    expect(await prisma().user.findUnique({ where: { email: "newcomer@e2e.test" } })).toBeNull();
+    await expect(page.getByText("This link does not work.")).toBeVisible();
+    await expect(page.getByLabel("Email")).toHaveCount(0);
   });
 });
+

@@ -1,45 +1,45 @@
 import type { Phrase, Plural } from "./say";
 
-/** `/login` and `/accept-invite` — reached before there is a session, so these read
+/** `/login` and `/join/<token>` — reached before there is a session, so these read
  *  through `currentLanguage()` rather than a page's own `user.homeLanguage`. */
 export const AUTH = {
   logInToYourHome: { EN: "Log in to your home.", DA: "Log ind i jeres hjem." },
-  gotAnInvitationCode: { EN: "Got an invitation code?", DA: "Har du en invitationskode?" },
-  createYourAccount: { EN: "Create your account", DA: "Opret din konto" },
+  openYourInviteLink: {
+    EN: "Invited? Open the link you were sent, and you can make your account there.",
+    DA: "Inviteret? Åbn det link, du har fået, så kan du oprette dig der.",
+  },
 
   email: { EN: "Email", DA: "E-mail" },
   password: { EN: "Password", DA: "Kodeord" },
   loggingIn: { EN: "Logging in…", DA: "Logger ind…" },
   logIn: { EN: "Log in", DA: "Log ind" },
 
-  joinAHome: { EN: "Join a home", DA: "Deltag i et hjem" },
-  joinHint: {
-    EN: "Enter the email you were invited with and the code you were given. The home joins the ones you are already in.",
-    DA: "Indtast den e-mail, du blev inviteret med, og den kode, du fik. Hjemmet føjes til dem, du allerede er i.",
+  // src/app/join/[token]
+  invitation: { EN: "Invitation", DA: "Invitation" },
+  joinHomeTitle: { EN: "Join {home}", DA: "Kom med i {home}" },
+  joinHomeHint: {
+    EN: "Make an account, and you are in the home.",
+    DA: "Opret dig, så er du med i hjemmet.",
   },
-  createAccountHint: {
-    EN: "Enter the email you were invited with and the code your home admin gave you.",
-    DA: "Indtast den e-mail, du blev inviteret med, og koden din hjemmeadmin gav dig.",
-  },
-  backToYourHomes: { EN: "Back to your homes", DA: "Tilbage til jeres hjem" },
-  alreadyHaveAccount: { EN: "Already have an account?", DA: "Har du allerede en konto?" },
-
-  invitedEmail: { EN: "Invited email", DA: "Inviteret e-mail" },
-  invitationCode: { EN: "Invitation code", DA: "Invitationskode" },
+  alreadyInThisHome: { EN: "You are already in {home}.", DA: "Du er allerede med i {home}." },
+  loggedInAs: { EN: "You are logged in as {name}.", DA: "Du er logget ind som {name}." },
+  notYou: { EN: "Not you?", DA: "Ikke dig?" },
+  goToHome: { EN: "Go to {home}", DA: "Gå til {home}" },
+  oneMoment: { EN: "One moment…", DA: "Et øjeblik…" },
+  toLogin: { EN: "Go to login", DA: "Til login" },
   yourName: { EN: "Your name", DA: "Dit navn" },
-  yourPassword: { EN: "Your password", DA: "Dit kodeord" },
-  choosePassword: { EN: "Choose a password", DA: "Vælg et kodeord" },
-  passwordOnAccountHint: {
-    EN: "The password on your account, so nobody else can join a home as you.",
-    DA: "Kodeordet på din konto, så ingen andre kan tilslutte sig et hjem som dig.",
+  joinPasswordHint: {
+    EN: "At least 8 characters. Already have an account? Enter the password you have.",
+    DA: "Mindst 8 tegn. Har du allerede en konto, så skriv dit nuværende kodeord.",
   },
-  newPasswordHint: {
-    EN: "At least 8 characters. If that email already has an account, give its password instead and the home is added to it.",
-    DA: "Mindst 8 tegn. Hvis den e-mail allerede har en konto, skal du i stedet give dens kodeord, så tilføjes hjemmet til den.",
+  joining: { EN: "Creating…", DA: "Opretter…" },
+  joinAndCreate: { EN: "Create me and join", DA: "Opret mig og kom med" },
+  linkUnknown: {
+    EN: "This link does not work. Perhaps it was withdrawn — ask for a new one.",
+    DA: "Linket virker ikke. Måske er det trukket tilbage — bed om et nyt.",
   },
-  joining: { EN: "Joining…", DA: "Tilslutter…" },
-  joinHome: { EN: "Join home", DA: "Tilslut hjem" },
-  createAccount: { EN: "Create account", DA: "Opret konto" },
+  linkExpired: { EN: "This link has expired. Ask for a new one.", DA: "Linket er udløbet. Bed om et nyt." },
+  linkUsedUp: { EN: "This link has been used up. Ask for a new one.", DA: "Linket er brugt op. Bed om et nyt." },
 
   // src/app/actions/auth.ts
   invalidEmailAndPassword: {
@@ -57,9 +57,9 @@ export const AUTH = {
     DA: "Kodeordet skal være mindst 8 tegn.",
   },
   checkFormAndRetry: { EN: "Check the form and try again.", DA: "Tjek formularen og prøv igen." },
-  noMatchingInvite: {
-    EN: "That email and code don't match an open invitation.",
-    DA: "Den e-mail og kode matcher ikke en åben invitation.",
+  tooManyAccounts: {
+    EN: { one: "Many accounts have been made from here in a short time. Try again in {minutes} minute.", other: "Many accounts have been made from here in a short time. Try again in {minutes} minutes." },
+    DA: { one: "Der er oprettet mange konti herfra på kort tid. Prøv igen om {minutes} minut.", other: "Der er oprettet mange konti herfra på kort tid. Prøv igen om {minutes} minutter." },
   },
   accountExistsWrongPassword: {
     EN: "That email already has an account. Enter its password to join this home.",

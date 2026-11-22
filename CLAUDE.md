@@ -206,6 +206,31 @@ household has a cupboard*). `HomeMenu` in
 `src/components/home-menu.tsx` draws it; the list of other homes appears inside it only
 when there is more than one, because a chooser with a single choice is furniture.
 
+### Somebody joins a home through a link, never an addressed code
+
+An admin makes an `InviteLink` on Settings → Members, under "Invite someone" (`createInviteLink`, gated by
+`assertHomeAdmin` on the form's `homeId`), choosing a lifetime and a number of people from
+`src/lib/invite-link-options.ts`, and posts it wherever the household talks. It is the
+same flow as the Swingkings app's, ported rather than shared.
+
+- **Only the token's hash is stored** (`src/lib/invite-links.ts`), so the action hands the
+  path back once in `ActionResult.note` and `ShareLink` puts the browser's origin in front.
+- **A link carries no role**: everybody joins as `USER`, and an admin promotes them under
+  Members. It is passed around rather than addressed, so a role on it would be a role for
+  whoever it reached.
+- **A place is taken only by `redeemInviteLink`**, whose `updateMany` matches only while
+  `uses < maxUses` and unexpired, in the same transaction that makes the account and the
+  membership — two people on the last place cannot both get in. Somebody already in the
+  home uses no place and keeps their role. Opening `/join/<token>` takes nothing: chat
+  apps fetch a link to draw its preview.
+- `/join/<token>` speaks the **inviting home's** language and wears its colour, because
+  there is no session to ask. Signed in, it is one press (`joinWithLinkAsMe`); signed out
+  it is name, email, password (`joinWithLink`) — an email with an account must give that
+  account's password. Accounts made are counted under `signup` (per address) and
+  `join-link` (per link), wrong passwords under `join`.
+- The demo household keeps one open link per home: `/join/demo-flat`, `/join/demo-da`,
+  `/join/demo-empty` (`demoJoinToken`).
+
 ### A home is dressed in a colour, and it dresses the controls
 
 `Home.theme` is one of a fixed set (`HomeTheme`), picked by that household's admins in the
@@ -397,7 +422,7 @@ const lists = await homeDb(user.homeId).list.findMany({ orderBy: { createdAt: "d
 ```
 
 `src/lib/home-db.ts` carries the home into every query against a home-scoped model
-(List, Task, Recipe, RecipeCategory, Invite, HomeMember, Photo) and stamps it onto
+(List, Task, Recipe, RecipeCategory, InviteLink, HomeMember, Photo) and stamps it onto
 anything created. A query that forgets the home returns nothing rather than another
 household's rows.
 

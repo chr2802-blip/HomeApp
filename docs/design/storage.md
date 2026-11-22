@@ -21,7 +21,7 @@ connection in order to weigh it, on a page somebody is waiting for.
 **A picture counts towards the thing showing it**, which is why the slices are Recipes,
 Lists and Tasks and not Photos. A recipe's photo is a hundred times its text, so "Recipes:
 40 MB" is something a household can act on and "Photos: 40 MB" is the same number with the
-useful half taken out. What is left — the home record, its members and invites, the home's
+useful half taken out. What is left — the home record, its members and invitation links, the home's
 own picture, its pantry, the avatars filed here and the uploads nobody finished — is `rest`,
 drawn in the one deliberately quiet colour.
 

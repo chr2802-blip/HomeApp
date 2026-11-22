@@ -28,6 +28,10 @@ const WINDOW_MS = 15 * 60 * 1000;
  * counts baskets filled. Both guard somebody else's service rather than a secret, so
  * going over says so and costs nothing but a wait. The Nemlig *login* on `/settings` is
  * guarding a password, and keeps the default eight (`nemlig-login`).
+ *
+ * `join-link` counts accounts made through one invitation link from anywhere; a link
+ * can bring in ten people, and only a loop goes past twenty. `signup` (accounts made
+ * from one address) keeps the default eight.
  */
 const MAX_ATTEMPTS: Record<string, number> = {
   prepare: 30,
@@ -36,6 +40,7 @@ const MAX_ATTEMPTS: Record<string, number> = {
   photo: 60,
   "nemlig-search": 80,
   "nemlig-send": 20,
+  "join-link": 20,
 };
 const DEFAULT_MAX_ATTEMPTS = 8;
 

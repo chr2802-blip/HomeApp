@@ -86,7 +86,7 @@ model Home {
    * home empties the households of the people who were in it, it does not delete them.
    */
   activeFor        User[]           @relation("ActiveHome")
-  invites          Invite[]
+  inviteLinks      InviteLink[]
   lists            List[]
   tasks            Task[]
   taskCompletions  TaskCompletion[]
@@ -163,7 +163,7 @@ model User {
   tasksAssigned     Task[]             @relation("TaskAssignee")
   tasksCompleted    TaskCompletion[]
   recipes           Recipe[]
-  invitesCreated    Invite[]           @relation("InviteCreatedBy")
+  inviteLinksMade   InviteLink[]       @relation("InviteLinkCreatedBy")
 
   @@index([activeHomeId])
   @@index([photoId])
@@ -193,22 +193,29 @@ model HomeMember {
   @@index([homeId])
 }
 
-model Invite {
-  id          String     @id @default(cuid())
-  email       String
+/**
+ * A link an admin posts wherever the household talks (SMS, Messenger…). Whoever opens it
+ * makes an account, or logs in with the one they have, and joins the home as a USER —
+ * a link carries no role, because it is passed around rather than addressed to anybody.
+ *
+ * Only the token's hash is stored, so the link is shown once, when it is made. `uses` is
+ * counted in the same transaction that brings somebody in, through a guarded update that
+ * compares it with `maxUses` (`redeemInviteLink`).
+ */
+model InviteLink {
+  id          String   @id @default(cuid())
   homeId      String
-  role        MemberRole @default(USER)
-  codeHash    String
+  tokenHash   String   @unique
+  maxUses     Int
+  uses        Int      @default(0)
   expiresAt   DateTime
-  acceptedAt  DateTime?
   createdById String
-  createdAt   DateTime   @default(now())
+  createdAt   DateTime @default(now())
 
   home      Home @relation(fields: [homeId], references: [id], onDelete: Cascade)
-  createdBy User @relation("InviteCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  createdBy User @relation("InviteLinkCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
 
   @@index([homeId])
-  @@index([email])
   @@index([createdById])
 }
 

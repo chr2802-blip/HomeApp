@@ -21,6 +21,7 @@
  */
 import { PrismaClient, type HomeLanguage, type PantryCategory, type ListGrouping, type PantryMeasure, type ShopAisle } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { createHash } from "crypto";
 import { pantryKey } from "../src/lib/pantry";
 import { dueAtDaysFrom, todayInZone, weekStartInZone } from "../src/lib/time";
 import { canSealSecrets, sealSecret } from "../src/lib/secret-box";
@@ -263,6 +264,13 @@ const CONTENT: Record<HomeLanguage, Content> = {
  * and people, then makes them again. `npm run db:demo` runs it against the dev database;
  * `e2e/tap-targets.spec.ts` against a worker's, to measure pages with something on them.
  */
+/**
+ * Each demo home keeps one open invitation link, so Settings has one to list and
+ * `/join/<token>` has something to open: `/join/demo-flat`, `/join/demo-da`,
+ * `/join/demo-empty`. A real link's token is 32 random bytes; this one is meant to be typed.
+ */
+export const demoJoinToken = (key: DemoHomeKey) => `demo-${key}`;
+
 export async function seedDemo(prisma: PrismaClient) {
   // Its own, and only its own: the homes by name and the people by address. Deleting a
   // home cascades to everything in it; deleting a person cascades to their memberships.
@@ -290,6 +298,16 @@ export async function seedDemo(prisma: PrismaClient) {
       },
     });
     homes[key] = home.id;
+    await prisma.inviteLink.create({
+      data: {
+        homeId: home.id,
+        tokenHash: createHash("sha256").update(demoJoinToken(key)).digest("hex"),
+        maxUses: 5,
+        uses: 1,
+        expiresAt: dueAtDaysFrom(7),
+        createdById: alex.id,
+      },
+    });
     if (spec.livedIn) await furnish(prisma, home.id, CONTENT[spec.language], people);
   }
 
