@@ -17,7 +17,9 @@ Read both repos' invite code side by side → schema (`Invite` dropped, `InviteL
 and migration → lib, actions, `/join/<token>`, Settings → a first screenshot of Settings
 and the join page in Danish → integration, unit and browser tests → docs. One browser
 test needed a second run: `getByLabel("Invitation link")` also matched the three dots'
-"Actions for Invitation link".
+"Actions for Invitation link". The first push then failed on a race in the new homes
+spec: it read the share field before `ShareLink` had put the origin in front of the path
+(`new URL("/join/…")` throws). The specs now wait for the full address.
 
 ## Where the time went
 

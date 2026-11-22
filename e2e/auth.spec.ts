@@ -61,8 +61,10 @@ test.describe("joining with an invitation link", () => {
     await loginAs(ACCOUNTS.admin);
     await page.goto("/settings");
     await page.getByRole("button", { name: "Make invitation link" }).click();
-    const url = await page.getByLabel("Invitation link", { exact: true }).inputValue();
-    expect(url).toMatch(/\/join\/[A-Za-z0-9_-]{43}$/);
+    // The field starts as the bare path and gains the browser's origin once mounted.
+    const field = page.getByLabel("Invitation link", { exact: true });
+    await expect(field).toHaveValue(/^https?:\/\/.+\/join\/[A-Za-z0-9_-]{43}$/);
+    const url = await field.inputValue();
 
     // The newcomer arrives as a fresh visitor: nobody signed in, and no account yet.
     await page.getByRole("button", { name: "Log out" }).click();
