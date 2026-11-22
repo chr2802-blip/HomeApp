@@ -59,7 +59,7 @@ test.describe("pages that need a session", () => {
 test.describe("accepting an invite", () => {
   test("an admin issues a code and the invitee signs up with it", async ({ page, loginAs }) => {
     await loginAs(ACCOUNTS.admin);
-    await page.goto("/settings");
+    await page.goto("/settings/members");
 
     await page.getByLabel("Email to invite").fill("newcomer@e2e.test");
     await page.getByRole("button", { name: "Create invite" }).click();

@@ -74,7 +74,7 @@ test.describe("a home's own storage", () => {
   test("draws a ring whose slices came out in a colour", async ({ page, loginAs }) => {
     await photographedRecipe(HOME_NAME);
     await loginAs(ACCOUNTS.admin);
-    await page.goto("/settings");
+    await page.goto("/settings/status");
 
     const section = page.locator("section", {
       has: page.getByRole("heading", { name: "Storage" }),

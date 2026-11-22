@@ -70,7 +70,10 @@ async function expectOneBand(page: Page, hex: string) {
   // band; the tab bar is the one exception, pure white, by the household's choice.
   const { framed, painted } = await page.evaluate(() => ({
     framed: document.querySelector("header") !== null,
+    // `nav` inside `main` is a section's pill (Recipes | Plan, Settings' tabs): a control
+    // dressed in the home's colour, not part of the frame.
     painted: [...document.querySelectorAll("header, nav")]
+      .filter((node) => node.closest("main") === null)
       .map((node) => ({
         tabBar: node.tagName === "NAV" && node.closest("header") === null,
         colour: getComputedStyle(node).backgroundColor,

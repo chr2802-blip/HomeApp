@@ -107,7 +107,7 @@ test.describe("joining a second home", () => {
     loginAs,
   }) => {
     await loginAs(ACCOUNTS.admin);
-    await page.goto("/settings");
+    await page.goto("/settings/members");
     await page.getByLabel("Email to invite").fill(ACCOUNTS.outsider.email);
     await page.getByRole("button", { name: "Create invite" }).click();
     await expect(page.getByText(`Invitation ready for ${ACCOUNTS.outsider.email}`)).toBeVisible();

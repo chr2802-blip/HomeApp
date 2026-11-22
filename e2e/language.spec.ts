@@ -163,7 +163,7 @@ test("speaks settings and admin in the household's own language, and login befor
 
   // Settings is where the picker itself lives, and its own member/invite copy is
   // converted too.
-  await page.goto("/settings");
+  await page.goto("/settings/members");
   await expect(page.getByRole("heading", { name: "Medlemmer" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Inviter nogen" })).toBeVisible();
 

@@ -62,7 +62,7 @@ function duplicate(error: unknown, name: string, say: Say) {
 }
 
 function refreshShelfViews() {
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   revalidatePath("/pantry");
 }
 

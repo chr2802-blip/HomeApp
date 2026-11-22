@@ -142,7 +142,7 @@ test.describe("an admin of a different home", () => {
   });
 
   test("administers only their own home", async ({ page }) => {
-    await page.goto("/settings");
+    await page.goto("/settings/members");
 
     await expect(page.getByText(`Managing ${OTHER_HOME_NAME}`)).toBeVisible();
     await expect(page.getByText(`Managing ${HOME_NAME}`)).toBeHidden();

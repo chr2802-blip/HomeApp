@@ -42,6 +42,7 @@ function refreshTaskViews() {
   // The layout, so a task's own page under it is refreshed along with the list.
   revalidatePath("/tasks", "layout");
   revalidatePath("/dashboard");
+  revalidatePath("/settings/done");
 }
 
 /**
@@ -173,21 +174,32 @@ export async function updateTask(_prev: ActionResult, formData: FormData): Promi
 
 export async function completeTask(formData: FormData) {
   const task = await taskInScope(String(formData.get("taskId")));
+  const user = await requireHomeUser();
   const now = new Date();
 
-  await prisma.task.update({
-    where: { id: task.id },
-    data: {
-      lastCompletedAt: now,
-      lastNotifiedAt: null,
-      // A recurring task books itself in again, counted from today rather than from the
-      // date it slipped past. A one-off is finished, so its date stays where it was:
-      // moving it on would put a done thing back in the diary. Spelled out rather than
-      // asked through `isOneOff`, which reads the same but tells the compiler nothing
-      // about the number below it.
-      ...(task.intervalDays !== null && { nextDueAt: dueAtDaysFrom(task.intervalDays, now) }),
-    },
-  });
+  // The press and who made it, together: Settings' "Done" tab counts the rows, and a
+  // task marked done with nobody credited would be a job the tab says nobody did.
+  await prisma.$transaction([
+    prisma.task.update({
+      where: { id: task.id },
+      data: {
+        lastCompletedAt: now,
+        lastNotifiedAt: null,
+        // A recurring task books itself in again, counted from today rather than from the
+        // date it slipped past. A one-off is finished, so its date stays where it was:
+        // moving it on would put a done thing back in the diary. Spelled out rather than
+        // asked through `isOneOff`, which reads the same but tells the compiler nothing
+        // about the number below it.
+        ...(task.intervalDays !== null && { nextDueAt: dueAtDaysFrom(task.intervalDays, now) }),
+      },
+    }),
+    // Plain `prisma`, with the home spelled out, because a batch transaction takes only
+    // the base client's queries; the task was found through `taskInScope`, so its home is
+    // the caller's.
+    prisma.taskCompletion.create({
+      data: { homeId: task.homeId, taskId: task.id, title: task.title, userId: user.id, completedAt: now },
+    }),
+  ]);
 
   refreshTaskViews();
 }
@@ -237,7 +249,16 @@ export async function reopenTask(formData: FormData) {
   // recurring task reaching here would lose the date it was last done for nothing.
   if (!isOneOff(task)) return;
 
-  await prisma.task.update({ where: { id: task.id }, data: { lastCompletedAt: null } });
+  // The Done being undone never happened, so the tab should not credit anybody with it.
+  const last = await homeDb(task.homeId).taskCompletion.findFirst({
+    where: { taskId: task.id },
+    orderBy: { completedAt: "desc" },
+    select: { id: true },
+  });
+  await prisma.$transaction([
+    prisma.task.update({ where: { id: task.id }, data: { lastCompletedAt: null } }),
+    ...(last ? [prisma.taskCompletion.delete({ where: { id: last.id } })] : []),
+  ]);
 
   refreshTaskViews();
 }

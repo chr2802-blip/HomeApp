@@ -72,6 +72,10 @@ test("every button and link on the household's pages presses in and is at least 
     "/meals",
     "/pantry",
     "/settings",
+    "/settings/members",
+    "/settings/categories",
+    "/settings/done",
+    "/settings/status",
     "/profile",
     "/homes",
   ])));
