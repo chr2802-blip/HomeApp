@@ -27,7 +27,7 @@ test("a task marked done is credited to who pressed it, on Settings' Done tab", 
   await page.getByRole("link", { name: "Done", exact: true }).click();
   await expect(page).toHaveURL(/\/settings\/done$/);
 
-  const tally = page.locator("section", { has: page.getByRole("heading", { name: "The last 30 days" }) });
+  const tally = page.locator("section", { has: page.getByRole("heading", { name: "The last 90 days" }) });
   await expect(tally.getByText("1 job done between you.")).toBeVisible();
   await expect(tally.getByRole("listitem").filter({ hasText: ACCOUNTS.member.name })).toContainText("1 job");
   await expect(tally.getByRole("listitem").filter({ hasText: ACCOUNTS.admin.name })).toContainText("0 jobs");

@@ -434,11 +434,11 @@ async function furnish(
         assigneeId: task.who ? people[task.who].id : null,
       },
     });
-    // Settings' "Done" tab: a recurring task done every interval for the last six weeks,
+    // Settings' "Done" tab: a recurring task done every interval for the last three months,
     // by whoever it is for or by turns, and a finished one-off done yesterday.
     const presses: Date[] = [];
     if (task.interval !== null) {
-      for (let back = task.interval - task.days; back <= 42; back += task.interval) {
+      for (let back = task.interval - task.days; back <= 85; back += task.interval) {
         presses.push(new Date(now.getTime() - back * DAY));
       }
     } else if (task.done) {

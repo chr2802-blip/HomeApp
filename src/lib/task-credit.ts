@@ -1,7 +1,7 @@
 import { dueAtDaysFrom } from "@/lib/time";
 
-/** How far back Settings' "Done" tab counts: a month is long enough to even out a busy week. */
-export const CREDIT_DAYS = 30;
+/** How far back Settings' "Done" tab counts: three months, so a quarter of the household's work is seen at once. */
+export const CREDIT_DAYS = 90;
 
 /** How many of the latest presses the tab lists under the tally. */
 export const RECENT_COMPLETIONS = 20;

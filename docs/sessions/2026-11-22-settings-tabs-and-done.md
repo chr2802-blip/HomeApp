@@ -46,7 +46,7 @@ revalidate the layout — now under *Administration is two different things*.
 ## Decided rather than known
 
 - The tab grouping and names (Home · People · Categories/Sorting · Done · Status).
-- A 30-day window for the tally, and the latest 20 presses listed.
+- A 90-day window for the tally (first 30, changed to 90 at the household's request), and the latest 20 presses listed.
 - The tab is admin-only, as all of Settings is; members do not see the counts.
 - `TaskCompletion.title` is copied at the press, and both relations `SetNull`, so credit
   survives the task being deleted or the person leaving.
