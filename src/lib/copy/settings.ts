@@ -1,5 +1,5 @@
 import type { StorageKind } from "@/lib/storage";
-import type { Phrase } from "./say";
+import type { Phrase, Plural } from "./say";
 
 /** A kind's name, shared by the home's own Settings page and the super admin's System
  *  page. `Record<StorageKind, Phrase>`, so a kind added to `STORAGE_KINDS` in
@@ -81,18 +81,39 @@ export const SETTINGS = {
   },
 
   expires: { EN: "expires {date}", DA: "udløber {date}" },
-  revoke: { EN: "Revoke", DA: "Tilbagekald" },
 
-  // invite-form.tsx
-  emailToInvite: { EN: "Email to invite", DA: "E-mail der skal inviteres" },
-  role: { EN: "Role", DA: "Rolle" },
-  creating: { EN: "Creating…", DA: "Opretter…" },
-  createInvite: { EN: "Create invite", DA: "Opret invitation" },
-  invitationReadyFor: { EN: "Invitation ready for {email}", DA: "Invitation klar til {email}" },
-  sendCodeYourself: {
-    EN: "Send them this code yourself. They sign up at /accept-invite using that exact email plus this code. The code is shown once — create a new invite if it gets lost.",
-    DA: "Send dem selv denne kode. De opretter sig på /accept-invite med netop den e-mail plus denne kode. Koden vises kun én gang — opret en ny invitation, hvis den bliver væk.",
+  // invite-link-form.tsx
+  inviteExplainer: {
+    EN: "Make a link and send it to whoever should join — by text, Messenger or however you talk. Whoever opens it makes an account, or logs in with the one they have, and joins as a member. Make them an admin under Members. The link works for as many people as you choose, and only until it expires.",
+    DA: "Lav et link og send det til dem, der skal med — på SMS, Messenger eller hvor I nu skriver. Den der åbner det, opretter sig selv — eller logger ind, hvis de allerede har en konto — og kommer med som bruger. Gør dem til admin under Medlemmer. Linket virker for det antal personer, du vælger, og kun indtil det udløber.",
   },
+  linkValidFor: { EN: "Valid for", DA: "Gælder i" },
+  linkMaxPeople: { EN: "At most", DA: "Højst antal personer" },
+  makingLink: { EN: "Making link…", DA: "Laver link…" },
+  makeInviteLink: { EN: "Make invitation link", DA: "Lav invitationslink" },
+  linkReady: {
+    EN: "The link is ready. It is shown only now — copy it and send it.",
+    DA: "Linket er klar. Det vises kun nu — kopiér det og send det.",
+  },
+  invitationLink: { EN: "Invitation link", DA: "Invitationslink" },
+  copyLink: { EN: "Copy link", DA: "Kopiér link" },
+  copied: { EN: "Copied ✓", DA: "Kopieret ✓" },
+  shareLink: { EN: "Share…", DA: "Del…" },
+  shareTitle: { EN: "Join {home}", DA: "Kom med i {home}" },
+  linkMadeBy: { EN: "Link · made by {name}", DA: "Link · lavet af {name}" },
+  linkUses: {
+    EN: "{uses} of {max} used",
+    DA: "{uses} af {max} brugt",
+  },
+  linkUsedUp: { EN: "Used up", DA: "Brugt op" },
+  withdrawLinkTitle: { EN: "Withdraw link", DA: "Træk link tilbage" },
+  withdraw: { EN: "Withdraw", DA: "Træk tilbage" },
+  withdrawLinkMessage: {
+    EN: "Withdraw this link? Whoever has it can no longer use it to join. Those who already joined stay.",
+    DA: "Træk linket tilbage? Dem, der har det, kan ikke længere bruge det til at komme med. Dem, der allerede er kommet med, bliver.",
+  },
+  chooseLinkDays: { EN: "Choose how long the link lasts.", DA: "Vælg hvor længe linket gælder." },
+  chooseLinkUses: { EN: "Choose how many may use the link.", DA: "Vælg hvor mange der kan bruge linket." },
 
   // src/app/actions/admin.ts — homeNameRequired above is reused for homeSchema too
   pickAColor: { EN: "Pick one of the colours offered.", DA: "Vælg en af de tilbudte farver." },
@@ -102,7 +123,16 @@ export const SETTINGS = {
     DA: "Et nyt kodeord skal være mindst 8 tegn.",
   },
   notYourPassword: { EN: "That is not your current password.", DA: "Det er ikke dit nuværende kodeord." },
-  notAllowed: { EN: "Not allowed.", DA: "Ikke tilladt." },
-  invalidEmail: { EN: "Enter a valid email address.", DA: "Indtast en gyldig e-mailadresse." },
-  alreadyInHome: { EN: "They are already in this home.", DA: "De er allerede i dette hjem." },
 } as const satisfies Record<string, Phrase | Record<string, Phrase | Record<string, Phrase>>>;
+
+/** The invitation link form's choices, which count. */
+export const LINK_COUNTS = {
+  days: {
+    EN: { one: "{count} day", other: "{count} days" },
+    DA: { one: "{count} dag", other: "{count} dage" },
+  },
+  people: {
+    EN: { one: "{count} person", other: "{count} people" },
+    DA: { one: "{count} person", other: "{count} personer" },
+  },
+} as const satisfies Record<string, Plural>;

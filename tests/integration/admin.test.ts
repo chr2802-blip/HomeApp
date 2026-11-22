@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, verifyPassword } from "@/lib/auth";
-import { inviteCodeMatches } from "@/lib/invite-code";
+import { hashLinkToken } from "@/lib/invite-links";
 import { attemptsAllowed } from "@/lib/rate-limit";
 import {
   createHome,
-  createInvite,
+  createInviteLink,
   deleteHome,
   removeMember,
-  revokeInvite,
+  revokeInviteLink,
   switchHome,
   updateHome,
   updateMemberRole,
@@ -18,7 +18,7 @@ import {
   TEST_PASSWORD,
   createHome as seedHome,
   createHomeWithMembers,
-  createInviteFor,
+  createInviteLinkFor,
   createList,
   createPhoto,
   createUser,
@@ -29,136 +29,78 @@ import {
 import { expectRedirect } from "../helpers/expect";
 import { cookieStore } from "../helpers/next-mocks";
 
-describe("createInvite", () => {
-  it("issues a code an admin can pass on, and stores only its hash", async () => {
+describe("createInviteLink", () => {
+  it("hands back a link to pass on once, and stores only its hash", async () => {
     const { home, admin } = await createHomeWithMembers();
     await signIn(admin);
 
-    const result = await createInvite(
-      undefined,
-      formData({ homeId: home.id, email: "Newcomer@Example.com", role: "USER" }),
-    );
+    const result = await createInviteLink(undefined, formData({ homeId: home.id, days: "7", maxUses: "5" }));
 
-    expect(result).toMatchObject({ ok: true, email: "newcomer@example.com" });
-    const code = result && "code" in result ? result.code : "";
-    expect(code).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+    expect(result?.ok).toBe(true);
+    const path = result?.ok ? result.note! : "";
+    expect(path).toMatch(/^\/join\/[A-Za-z0-9_-]{43}$/);
+    const token = path.slice("/join/".length);
 
-    const invite = await prisma.invite.findFirstOrThrow();
-    expect(invite.codeHash).not.toContain(code.replace("-", ""));
-    expect(inviteCodeMatches(code, invite.codeHash)).toBe(true);
-    expect(invite).toMatchObject({ email: "newcomer@example.com", homeId: home.id, role: "USER" });
+    const link = await prisma.inviteLink.findFirstOrThrow();
+    expect(link).toMatchObject({ homeId: home.id, maxUses: 5, uses: 0, createdById: admin.id });
+    expect(link.tokenHash).toBe(hashLinkToken(token));
+    expect(link.tokenHash).not.toContain(token);
+    const days = (link.expiresAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000);
+    expect(days).toBeGreaterThan(6.9);
+    expect(days).toBeLessThanOrEqual(7);
   });
 
-  it("can invite another admin", async () => {
+  it("makes a new link each time rather than replacing the last", async () => {
     const { home, admin } = await createHomeWithMembers();
     await signIn(admin);
 
-    await createInvite(undefined, formData({ homeId: home.id, email: "a@example.com", role: "ADMIN" }));
+    const first = await createInviteLink(undefined, formData({ homeId: home.id, days: "1", maxUses: "1" }));
+    const second = await createInviteLink(undefined, formData({ homeId: home.id, days: "1", maxUses: "1" }));
 
-    expect((await prisma.invite.findFirstOrThrow()).role).toBe("ADMIN");
+    expect(first?.ok && second?.ok && first.note !== second.note).toBe(true);
+    expect(await prisma.inviteLink.count()).toBe(2);
   });
 
-  it("expires the invite in 14 days", async () => {
+  it("refuses a lifetime or a number of people the form does not offer", async () => {
     const { home, admin } = await createHomeWithMembers();
     await signIn(admin);
 
-    await createInvite(undefined, formData({ homeId: home.id, email: "a@example.com", role: "USER" }));
-
-    const invite = await prisma.invite.findFirstOrThrow();
-    const days = (invite.expiresAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000);
-    expect(days).toBeGreaterThan(13.9);
-    expect(days).toBeLessThan(14.1);
+    expect((await createInviteLink(undefined, formData({ homeId: home.id, days: "365", maxUses: "5" })))?.ok).toBe(false);
+    expect((await createInviteLink(undefined, formData({ homeId: home.id, days: "7", maxUses: "1000" })))?.ok).toBe(false);
+    expect(await prisma.inviteLink.count()).toBe(0);
   });
 
-  it("replaces an earlier unused invite for the same person, invalidating the old code", async () => {
-    const { home, admin } = await createHomeWithMembers();
-    await signIn(admin);
+  it("refuses a member who does not run the home", async () => {
+    const { home, member } = await createHomeWithMembers();
+    await signIn(member);
 
-    const first = await createInvite(
-      undefined,
-      formData({ homeId: home.id, email: "a@example.com", role: "USER" }),
-    );
-    const second = await createInvite(
-      undefined,
-      formData({ homeId: home.id, email: "a@example.com", role: "USER" }),
-    );
-
-    const invites = await prisma.invite.findMany();
-    expect(invites).toHaveLength(1);
-
-    const oldCode = first && "code" in first ? first.code : "";
-    const newCode = second && "code" in second ? second.code : "";
-    expect(inviteCodeMatches(oldCode, invites[0]!.codeHash)).toBe(false);
-    expect(inviteCodeMatches(newCode, invites[0]!.codeHash)).toBe(true);
-  });
-
-  it("invites somebody who already has an account in another home", async () => {
-    const { home, admin } = await createHomeWithMembers();
-    const elsewhere = await seedHome();
-    await createUser({ email: "neighbour@example.com", homeId: elsewhere.id });
-    await signIn(admin);
-
-    const result = await createInvite(
-      undefined,
-      formData({ homeId: home.id, email: "neighbour@example.com", role: "USER" }),
-    );
-
-    expect(result).toMatchObject({ ok: true, email: "neighbour@example.com" });
-    expect(await prisma.invite.count()).toBe(1);
-  });
-
-  it("refuses to invite somebody who is already in this home", async () => {
-    const { home, admin, member } = await createHomeWithMembers();
-    await signIn(admin);
-
-    const result = await createInvite(
-      undefined,
-      formData({ homeId: home.id, email: member.email, role: "USER" }),
-    );
-
-    expect(result).toEqual({ ok: false, error: "They are already in this home." });
-    expect(await prisma.invite.count()).toBe(0);
-  });
-
-  it("rejects a malformed email and an unknown role", async () => {
-    const { home, admin } = await createHomeWithMembers();
-    await signIn(admin);
-
-    expect(
-      await createInvite(undefined, formData({ homeId: home.id, email: "nope", role: "USER" })),
-    ).toEqual({ ok: false, error: "Enter a valid email address." });
-
-    expect(
-      await createInvite(
-        undefined,
-        formData({ homeId: home.id, email: "a@example.com", role: "SUPER_ADMIN" }),
-      ),
-    ).toEqual({ ok: false, error: "Enter a valid email address." });
-
-    expect(await prisma.invite.count()).toBe(0);
+    await expect(
+      createInviteLink(undefined, formData({ homeId: home.id, days: "7", maxUses: "5" })),
+    ).rejects.toThrow();
+    expect(await prisma.inviteLink.count()).toBe(0);
   });
 });
 
-describe("revokeInvite", () => {
-  it("deletes the invite so the code stops working", async () => {
+describe("revokeInviteLink", () => {
+  it("deletes the link so it stops working", async () => {
     const { home, admin } = await createHomeWithMembers();
-    const { invite } = await createInviteFor({
-      email: "a@example.com",
-      homeId: home.id,
-      createdById: admin.id,
-    });
+    const { link } = await createInviteLinkFor({ homeId: home.id, createdById: admin.id });
     await signIn(admin);
 
-    await revokeInvite(formData({ inviteId: invite.id }));
+    await revokeInviteLink(formData({ homeId: home.id, linkId: link.id }));
 
-    expect(await prisma.invite.count()).toBe(0);
+    expect(await prisma.inviteLink.count()).toBe(0);
   });
 
-  it("does nothing for an invite that is already gone", async () => {
-    const { admin } = await createHomeWithMembers();
+  it("leaves another home's link alone, even named by its id", async () => {
+    const { home, admin } = await createHomeWithMembers();
+    const other = await createHomeWithMembers();
+    const { link } = await createInviteLinkFor({ homeId: other.home.id, createdById: other.admin.id });
     await signIn(admin);
 
-    await expect(revokeInvite(formData({ inviteId: "missing" }))).resolves.toBeUndefined();
+    await revokeInviteLink(formData({ homeId: home.id, linkId: link.id }));
+
+    expect(await prisma.inviteLink.count()).toBe(1);
   });
 });
 

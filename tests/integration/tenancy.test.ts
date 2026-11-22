@@ -7,7 +7,7 @@ import {
   deleteRecipeCategory,
   renameRecipeCategory,
 } from "@/app/actions/recipe-categories";
-import { createInvite, removeMember, updateHome, updateMemberRole } from "@/app/actions/admin";
+import { createInviteLink, revokeInviteLink, removeMember, updateHome, updateMemberRole } from "@/app/actions/admin";
 import {
   createHome,
   createList,
@@ -157,14 +157,23 @@ describe("a member of one home cannot touch another home's data", () => {
     );
   });
 
-  it("cannot invite anyone into another home", async () => {
-    const result = await createInvite(
-      undefined,
-      formData({ homeId: victimHome.id, email: "plant@example.com", role: "ADMIN" }),
+  it("cannot make or withdraw an invitation link for another home", async () => {
+    await expectDenied(() =>
+      createInviteLink(undefined, formData({ homeId: victimHome.id, days: "7", maxUses: "10" })),
     );
+    expect(await prisma.inviteLink.count()).toBe(0);
 
-    expect(result).toEqual({ ok: false, error: "Not allowed." });
-    expect(await prisma.invite.count()).toBe(0);
+    const link = await prisma.inviteLink.create({
+      data: {
+        homeId: victimHome.id,
+        tokenHash: "x".repeat(64),
+        maxUses: 1,
+        expiresAt: new Date(Date.now() + 86_400_000),
+        createdById: victimOwner.id,
+      },
+    });
+    await expectDenied(() => revokeInviteLink(formData({ homeId: victimHome.id, linkId: link.id })));
+    expect(await prisma.inviteLink.count()).toBe(1);
   });
 
   it("cannot change a role or remove a member in another home", async () => {

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/accept-invite"];
+const PUBLIC_PATHS = ["/login", "/join/"];
 
 /**
  * Cheap cookie-presence gate so unauthenticated requests never reach a page render.

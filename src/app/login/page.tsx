@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentLanguage, getCurrentUser } from "@/lib/auth";
 import { LoginForm } from "./login-form";
@@ -20,12 +19,7 @@ export default async function LoginPage() {
       <h1 className="text-2xl font-semibold tracking-tight">HomeHub</h1>
       <p className="mt-1 mb-6 text-sm text-slate-500">{say(AUTH.logInToYourHome)}</p>
       <LoginForm language={language} />
-      <p className="mt-6 text-sm text-slate-500">
-        {say(AUTH.gotAnInvitationCode)}{" "}
-        <Link href="/accept-invite" className="press-text tap-inline font-medium text-slate-900 underline">
-          {say(AUTH.createYourAccount)}
-        </Link>
-      </p>
+      <p className="mt-6 text-sm text-slate-500">{say(AUTH.openYourInviteLink)}</p>
     </div>
   );
 }

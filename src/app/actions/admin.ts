@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import type { MemberRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   createSession,
@@ -13,8 +12,10 @@ import {
   requireUser,
   verifyPassword,
 } from "@/lib/auth";
-import { assertHomeAdmin, canAccessHome, canAdministerHome } from "@/lib/access";
-import { generateInviteCode, hashInviteCode } from "@/lib/invite-code";
+import { assertHomeAdmin, canAccessHome } from "@/lib/access";
+import { generateLinkToken, hashLinkToken } from "@/lib/invite-links";
+import { joinPath, LINK_DAYS, LINK_MAX_USES } from "@/lib/invite-link-options";
+import { homeDb } from "@/lib/home-db";
 import { checkRateLimit, clearAttempts, recordFailedAttempt } from "@/lib/rate-limit";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { optionalText, readForm, requiredText } from "@/lib/form";
@@ -89,69 +90,50 @@ function profileSchema(say: Say) {
   });
 }
 
-const INVITE_TTL_DAYS = 14;
-
-export type InviteState =
-  | { ok: true; email: string; code: string }
-  | { ok: false; error: string }
-  | undefined;
-
-export async function createInvite(_prev: InviteState, formData: FormData): Promise<InviteState> {
-  const user = await requireAdmin();
-  const say = sayIn(user.homeLanguage);
-  const homeId = String(formData.get("homeId") ?? "");
-  if (!canAdministerHome(user, homeId)) return { ok: false, error: say(SETTINGS.notAllowed) };
-
-  const form = readForm(
-    z.object({
-      email: z.string().email(say(SETTINGS.invalidEmail)),
-      role: z.enum(["ADMIN", "USER"], { error: say(SETTINGS.invalidEmail) }),
-    }),
-    formData,
-    user.homeLanguage,
-  );
-  if (!form.ok) return { ok: false, error: form.error };
-
-  const email = form.fields.email.toLowerCase();
-  // An account elsewhere on the installation is no longer in the way: somebody can be
-  // in several homes, and inviting them into this one is how they get here. Only being
-  // in *this* home already is a reason to refuse.
-  const existing = await prisma.user.findUnique({
-    where: { email },
-    select: { memberships: { where: { homeId }, select: { homeId: true } } },
+function inviteLinkSchema(say: Say) {
+  return z.object({
+    days: z.coerce
+      .number()
+      .refine((d) => (LINK_DAYS as readonly number[]).includes(d), say(SETTINGS.chooseLinkDays)),
+    maxUses: z.coerce
+      .number()
+      .refine((n) => (LINK_MAX_USES as readonly number[]).includes(n), say(SETTINGS.chooseLinkUses)),
   });
-  if (existing && existing.memberships.length > 0) {
-    return { ok: false, error: say(SETTINGS.alreadyInHome) };
-  }
+}
 
-  const code = generateInviteCode();
-  const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
+/**
+ * There is no mail server: the admin gets a link to post wherever the household talks
+ * (SMS, Messenger…). Only its hash is stored, so the note carrying the path is the one
+ * time it is shown; the browser puts its own origin in front of it.
+ */
+export async function createInviteLink(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const user = await requireAdmin();
+  const homeId = String(formData.get("homeId") ?? "");
+  assertHomeAdmin(user, homeId);
 
-  await prisma.invite.deleteMany({ where: { email, homeId, acceptedAt: null } });
-  await prisma.invite.create({
+  const form = readForm(inviteLinkSchema(sayIn(user.homeLanguage)), formData, user.homeLanguage);
+  if (!form.ok) return fail(form.error);
+
+  const token = generateLinkToken();
+  await homeDb(homeId).inviteLink.create({
     data: {
-      email,
       homeId,
-      role: form.fields.role as MemberRole,
-      codeHash: hashInviteCode(code),
-      expiresAt,
+      tokenHash: hashLinkToken(token),
+      maxUses: form.fields.maxUses,
+      expiresAt: new Date(Date.now() + form.fields.days * 24 * 60 * 60 * 1000),
       createdById: user.id,
     },
   });
 
   revalidatePath("/settings");
-  return { ok: true, email, code };
+  return ok(joinPath(token));
 }
 
-export async function revokeInvite(formData: FormData) {
+export async function revokeInviteLink(formData: FormData) {
   const user = await requireAdmin();
-  const invite = await prisma.invite.findUnique({
-    where: { id: String(formData.get("inviteId")) },
-  });
-  if (!invite) return;
-  assertHomeAdmin(user, invite.homeId);
-
-  await prisma.invite.delete({ where: { id: invite.id } });
+  const homeId = String(formData.get("homeId") ?? "");
+  assertHomeAdmin(user, homeId);
+  await homeDb(homeId).inviteLink.deleteMany({ where: { id: String(formData.get("linkId") ?? "") } });
   revalidatePath("/settings");
 }
 

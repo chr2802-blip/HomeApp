@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { canAdministerHome } from "@/lib/access";
 import { prisma } from "@/lib/prisma";
 import { homeDb } from "@/lib/home-db";
-import { removeMember, revokeInvite, updateHome, updateMemberRole } from "@/app/actions/admin";
+import { removeMember, revokeInviteLink, updateHome, updateMemberRole } from "@/app/actions/admin";
 import {
   Badge,
   Button,
@@ -15,7 +15,7 @@ import {
   PageHeader,
   Select,
 } from "@/components/ui";
-import { InviteForm } from "@/components/invite-form";
+import { InviteLinkForm } from "@/components/invite-link-form";
 import { ActionForm } from "@/components/action-form";
 import { ReminderStatus } from "@/components/reminder-status";
 import { StorageUsage } from "@/components/storage-usage";
@@ -75,7 +75,7 @@ export default async function SettingsPage() {
 
   const db = homeDb(homeId);
 
-  const [home, members, invites] = await Promise.all([
+  const [home, members, links] = await Promise.all([
     prisma.home.findUnique({ where: { id: homeId } }),
     db.homeMember.findMany({
       orderBy: { createdAt: "asc" },
@@ -83,7 +83,11 @@ export default async function SettingsPage() {
         user: { select: { id: true, name: true, email: true, role: true, photoId: true } },
       },
     }),
-    db.invite.findMany({ where: { acceptedAt: null }, orderBy: { createdAt: "desc" } }),
+    db.inviteLink.findMany({
+      where: { expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: "desc" },
+      include: { createdBy: { select: { name: true } } },
+    }),
   ]);
 
   if (!home) return <EmptyState>{say(SETTINGS.homeNotFound)}</EmptyState>;
@@ -228,25 +232,38 @@ export default async function SettingsPage() {
         <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
           {say(SETTINGS.inviteSomeoneHeading)}
         </h2>
-        <InviteForm homeId={home.id} />
+        <InviteLinkForm homeId={home.id} homeName={home.name} />
 
-        {invites.length > 0 && (
+        {links.length > 0 && (
           <Card className="mt-3 divide-y divide-slate-100 p-0">
-            {invites.map((invite) => (
-              <div key={invite.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+            {links.map((link) => (
+              <div key={link.id} className="flex items-center gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{invite.email}</p>
+                  <p className="truncate text-sm font-medium">
+                    {say(SETTINGS.linkMadeBy, { name: link.createdBy.name })}
+                  </p>
                   <p className="text-xs text-slate-500">
-                    {invite.role === "ADMIN" ? say(SETTINGS.adminRole) : say(SETTINGS.userRole)} ·{" "}
+                    {link.uses >= link.maxUses
+                      ? say(SETTINGS.linkUsedUp)
+                      : say(SETTINGS.linkUses, { uses: link.uses, max: link.maxUses })}{" "}
+                    ·{" "}
                     {say(SETTINGS.expires, {
-                      date: readInZone(invite.expiresAt, DATE.dayMonthYear, user.homeLanguage),
+                      date: readInZone(link.expiresAt, DATE.dayMonthYear, user.homeLanguage),
                     })}
                   </p>
                 </div>
-                <form action={revokeInvite}>
-                  <input type="hidden" name="inviteId" value={invite.id} />
-                  <Button variant="danger">{say(SETTINGS.revoke)}</Button>
-                </form>
+                <ItemMenu
+                  name="linkId"
+                  id={link.id}
+                  label={say(SETTINGS.invitationLink)}
+                  deleteTitle={say(SETTINGS.withdrawLinkTitle)}
+                  deleteLabel={say(SETTINGS.withdraw)}
+                  deleteConfirmLabel={say(SETTINGS.withdraw)}
+                  deleteMessage={say(SETTINGS.withdrawLinkMessage)}
+                  deleteAction={revokeInviteLink}
+                  extraFields={<input type="hidden" name="homeId" value={home.id} />}
+                  className="-mr-2"
+                />
               </div>
             ))}
           </Card>

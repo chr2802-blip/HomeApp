@@ -10,8 +10,8 @@ export const HOMES = {
   },
   allHomes: { EN: "All homes", DA: "Alle hjem" },
   notInAHomeYet: {
-    EN: "You are not in a home yet. Somebody in one can invite you by email.",
-    DA: "I er ikke i et hjem endnu. Nogen i et hjem kan invitere jer via e-mail.",
+    EN: "You are not in a home yet. Somebody in one can send you an invitation link.",
+    DA: "I er ikke i et hjem endnu. Nogen i et hjem kan sende jer et invitationslink.",
   },
   youRunThisHome: { EN: "You run this home", DA: "I administrerer dette hjem" },
   member: { EN: "Member", DA: "Medlem" },

@@ -102,16 +102,14 @@ test.describe("somebody in two homes", () => {
 });
 
 test.describe("joining a second home", () => {
-  test("an existing account redeems the code without making another", async ({
+  test("somebody signed in joins through a link with one press, and no second account", async ({
     page,
     loginAs,
   }) => {
     await loginAs(ACCOUNTS.admin);
     await page.goto("/settings");
-    await page.getByLabel("Email to invite").fill(ACCOUNTS.outsider.email);
-    await page.getByRole("button", { name: "Create invite" }).click();
-    await expect(page.getByText(`Invitation ready for ${ACCOUNTS.outsider.email}`)).toBeVisible();
-    const code = (await page.locator("p.font-mono").innerText()).trim();
+    await page.getByRole("button", { name: "Make invitation link" }).click();
+    const url = await page.getByLabel("Invitation link", { exact: true }).inputValue();
 
     const accountsBefore = await prisma().user.count();
 
@@ -119,12 +117,10 @@ test.describe("joining a second home", () => {
     await page.waitForURL(/\/login$/);
     await loginAs(ACCOUNTS.outsider);
 
-    // Signed in already, so the page asks them to join rather than to sign up.
-    await page.goto("/accept-invite");
-    await expect(page.getByLabel("Invited email")).toHaveValue(ACCOUNTS.outsider.email);
-    await page.getByLabel("Invitation code").fill(code);
-    await page.getByLabel("Your password").fill(ACCOUNTS.outsider.password);
-    await page.getByRole("button", { name: "Join home" }).click();
+    // Signed in already, so the page offers to join rather than to sign up.
+    await page.goto(new URL(url).pathname);
+    await expect(page.getByText(`You are logged in as ${ACCOUNTS.outsider.name}.`)).toBeVisible();
+    await page.getByRole("button", { name: `Go to ${HOME_NAME}` }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.getByRole("button", { name: `${HOME_NAME} — home menu` })).toBeVisible();

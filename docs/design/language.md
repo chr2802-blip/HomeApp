@@ -86,7 +86,7 @@ shape, and for the identical reason: the alternative is an ambient value some gl
 reads off the request, which works beautifully until the caller is not a request. The
 reminder job has no session — it notifies several homes in one run, each in its own
 language, and an ambient `t()` could not express "the language of the home this task
-belongs to" without secretly becoming a parameter anyway. `/accept-invite` has to speak
+belongs to" without secretly becoming a parameter anyway. `/join/<token>` has to speak
 the *inviting* home's language to someone who is not a member of any home yet, so
 "whoever is signed in" is not merely unavailable there, it is the wrong question. A
 value passed explicitly answers both; a value read from context answers neither.

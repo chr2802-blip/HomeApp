@@ -81,7 +81,7 @@ const lists = await homeDb(user.homeId).list.findMany({ orderBy: { createdAt: "d
 ```
 
 [`src/lib/home-db.ts`](src/lib/home-db.ts) carries the home into every query against a
-home-scoped model — lists, tasks, recipes, invites and memberships — and stamps it onto
+home-scoped model — lists, tasks, recipes, invitation links and memberships — and stamps it onto
 anything created. A query that forgets the home returns nothing instead of somebody
 else's rows, and a record cannot be filed under the wrong home. Models that belong to
 nobody in particular, such as push subscriptions, pass through untouched.
@@ -182,13 +182,13 @@ home removes its contents and empties it of members, who keep their accounts.
 
 ## Invitations
 
-There is no mail server. An admin creates an invitation for a specific email address and the app
-generates a one-time code. The admin passes that code on however they like (text, chat, in
-person). The invitee goes to `/accept-invite` and must supply **both** the exact invited email
-**and** the code. Somebody new gets an account; somebody who already has one joins the home
-with it, giving their existing password rather than choosing a new one. Codes are stored
-hashed, expire after 14 days, and are displayed only once — create a new invitation if one
-is lost.
+There is no mail server. An admin of a home makes an **invitation link** on Settings,
+choosing how long it lasts (1–30 days) and how many people it may bring in (1–10), and
+posts it wherever the household talks. Whoever opens `/join/<token>` makes an account — or,
+if they already have one, gives its password (or presses once, if they are logged in) —
+and joins the home as a member; an admin makes them an admin under Members. Only the
+token's hash is stored, so the link is shown once; open links are listed on Settings and
+can be withdrawn from their three dots.
 
 ## Local setup
 
@@ -226,8 +226,8 @@ npm run dev
 ```
 
 Log in at `/login` with the super admin credentials, create a home under **Admin → Homes**,
-switch into it, and invite the rest of the household. Inviting somebody who already has an
-account here adds them to this home as well; they keep the ones they were in.
+switch into it, and send the rest of the household an invitation link. Somebody who already
+has an account here joins with it; they keep the homes they were in.
 
 ## Tests
 
@@ -238,10 +238,10 @@ npm test
 Two kinds of test run from that command:
 
 - **Unit** (`tests/unit`) — pure logic with no database: the video-embed allowlist, due-date
-  wording, invite codes and the role rules.
+  wording, invitation links and the role rules.
 - **Integration** (`tests/integration`) — the real server actions and the reminder endpoint,
   driven against a real Postgres database, with only Next.js's per-request APIs stubbed. These
-  cover logging in, throttling, accepting an invite, lists, tasks, recipes,
+  cover logging in, throttling, joining with an invitation link, lists, tasks, recipes,
   administration, and that one home can never reach another home's data.
 
 Run one group on its own with `npm run test:unit` or `npm run test:integration`, and watch them
@@ -254,7 +254,7 @@ npm run e2e
 ```
 
 - **End to end** (`e2e`) — Playwright drives a real Chromium against a production build of the
-  app: signing in and out, issuing an invite and redeeming the code, building a list and ticking
+  app: signing in and out, making an invitation link and joining with it, building a list and ticking
   items off, completing a task of either kind, embedding a recipe video, every administration screen,
   and one home being unable to open another home's pages. `npm run e2e:ui` opens the interactive
   runner; after a failure `npm run e2e:report` shows the trace, screenshot and DOM snapshot.
