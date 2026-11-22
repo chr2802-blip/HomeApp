@@ -14,7 +14,7 @@ import { MEALS } from "@/lib/copy/meals";
  * the way "Add to list" answers which list from the ones that track amounts.
  *
  * Built as a form-data function called in a transition rather than a `<form>`, for the
- * same reason `SnoozeMenuItem` is: the panel is a portal and closes the moment an entry
+ * same reason any menu entry has to: the panel is a portal and closes the moment an entry
  * is chosen, gone before a form inside it could be submitted. The buzz is the only
  * feedback a press here gets — the effect lands on `/meals`, a tab away, so there is
  * nothing on this screen for a status line to update.

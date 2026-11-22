@@ -14,7 +14,8 @@ test("a task marked done is credited to who pressed it, on Settings' Done tab", 
 
   await loginAs(ACCOUNTS.member);
   await page.goto("/tasks");
-  await expect(page.getByRole("button", { name: "Actions for Water the plants" })).toHaveAttribute("data-ready", "true");
+  // The row has no three dots of its own; the header's home menu hydrates in the same pass.
+  await expect(page.getByRole("button", { name: /— home menu$/ })).toHaveAttribute("data-ready", "true");
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(page.getByText("Due today")).toBeHidden();
 

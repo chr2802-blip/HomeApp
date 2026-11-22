@@ -19,6 +19,33 @@ export type MealSuggestion = {
   total: number;
 };
 
+/**
+ * Whether a recipe may be offered for dinner at all — by the meal plan's picker, its
+ * suggestions, and the dashboard's "Find new".
+ *
+ * A recipe is kept out only when **every** heading it is filed under has
+ * `excludeFromSuggestion`: "Baby food" alone is never dinner, but a dish filed under
+ * "Baby food" and "Dinner" is somebody saying it is both. A recipe always has at least
+ * one heading; one with none (which the actions refuse) is offered rather than hidden.
+ * `SUGGESTIBLE` is the same sentence as a `where` clause.
+ */
+export function isSuggestible(recipe: {
+  categories: { category: { excludeFromSuggestion: boolean } }[];
+}): boolean {
+  return !(
+    recipe.categories.length > 0 &&
+    recipe.categories.every((link) => link.category.excludeFromSuggestion)
+  );
+}
+
+/** `isSuggestible` as a Prisma `where` on a recipe. */
+export const SUGGESTIBLE = {
+  OR: [
+    { categories: { some: { category: { excludeFromSuggestion: false } } } },
+    { categories: { none: {} } },
+  ],
+};
+
 /** How many suggestions a day is offered. Three is a choice; ten is a second recipes page. */
 export const SUGGESTION_COUNT = 3;
 

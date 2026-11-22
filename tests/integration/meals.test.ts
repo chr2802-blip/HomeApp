@@ -302,14 +302,14 @@ describe("deleting a home", () => {
 });
 
 describe("resetMealWeek", () => {
-  const week = "2026-06-01"; // A Monday.
+  const week = "2026-05-31"; // A Sunday: the meal plan's week starts on one.
 
   it("clears every day of the week and only that week", async () => {
     const days = weekDays(week);
     await planMeal(undefined, plan(days[0]!, PLAN_OUT));
     await planMeal(undefined, plan(days[6]!, PLAN_OUT));
-    // The Monday after: outside the week being reset, so it must survive.
-    const nextWeekDay = weekDays("2026-06-08")[0]!;
+    // The Sunday after: outside the week being reset, so it must survive.
+    const nextWeekDay = weekDays("2026-06-07")[0]!;
     await planMeal(undefined, plan(nextWeekDay, PLAN_OUT));
 
     await resetMealWeek(formData({ week }));

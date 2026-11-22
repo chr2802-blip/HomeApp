@@ -2,11 +2,19 @@ import { ACCOUNTS, clickAndConfirm, expect, openDialog, openMenu, test } from ".
 import type { Page } from "@playwright/test";
 import { dueAtDaysFrom, formatInZone } from "../src/lib/time";
 
-/** A task is edited from its three dots, on its row or on its own page. */
+/** A task is edited from the three dots on its own page; its row carries none. */
 async function openTask(page: Page, title: string) {
+  if (!/\/tasks\/[^/]+$/.test(new URL(page.url()).pathname)) await openTaskPage(page, title);
   await openMenu(page, { label: title });
   await page.getByRole("menuitem", { name: "Edit" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
+}
+
+/** Saves the open edit sheet and goes back to the list, where the rows are. */
+async function saveAndReturn(page: Page) {
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await page.goto("/tasks");
 }
 
 /** Pressing a task's row opens its own page. */
@@ -144,31 +152,29 @@ test("a task can be edited", async ({ page }) => {
   await page.getByLabel("Repeat every (days)").fill("14");
   await page.getByRole("button", { name: "Save changes" }).click();
 
-  await expect(page.getByText("New title", { exact: true })).toBeVisible();
-  await expect(row(page, "New title")).toContainText("Every 14 days");
+  await expect(page.getByRole("heading", { name: "New title", level: 1 })).toBeVisible();
+  await expect(page.getByText("Every 14 days")).toBeVisible();
 });
 
-test("a task can be deleted from its own menu", async ({ page }) => {
-  await addTask(page, { title: "Doomed task" });
-
-  await openMenu(page, { label: "Doomed task" });
-  await clickAndConfirm(page, "Delete");
-
-  await expect(page.getByText("No chores written down yet. Lucky you — or add the first one above.")).toBeVisible();
-});
-
-test("a due task can be put off until tomorrow from its own menu", async ({ page }) => {
+test("a task's row carries no three dots, only Done", async ({ page }) => {
   await addTask(page, { title: "Bins", intervalDays: "7" });
-  await expect(page.getByText("Due today")).toBeVisible();
 
-  await openMenu(page, { label: "Bins" });
-  await page.getByRole("menuitem", { name: "Snooze to tomorrow" }).click();
+  await expect(page.getByRole("button", { name: "Actions for Bins" })).toHaveCount(0);
+  await expect(doneButton(page)).toBeVisible();
+});
+
+test("a due task can be put off until tomorrow from its own page", async ({ page }) => {
+  await addTask(page, { title: "Bins", intervalDays: "7" });
+  await openTaskPage(page, "Bins");
+
+  await page.getByRole("button", { name: "Snooze to tomorrow" }).click();
 
   await expect(page.getByText("Due tomorrow")).toBeVisible();
   // Put off, not done: the task still repeats, and still has never been completed.
-  await expect(row(page, "Bins")).toContainText("Every 7 days");
-  await openTaskPage(page, "Bins");
+  await expect(page.getByText("Every 7 days")).toBeVisible();
   await expect(page.getByText("Not yet")).toBeVisible();
+  // Tomorrow is not today, so there is nothing left to put off.
+  await expect(page.getByRole("button", { name: "Snooze to tomorrow" })).toHaveCount(0);
 });
 
 test("a task due later is not offered a snooze, which would bring it forward", async ({ page }) => {
@@ -179,24 +185,25 @@ test("a task due later is not offered a snooze, which would bring it forward", a
   await page.getByRole("button", { name: "Add task" }).click();
   await expect(page.getByText("Boiler service", { exact: true })).toBeVisible();
 
-  await openMenu(page, { label: "Boiler service" });
-  await expect(page.getByRole("menuitem", { name: "Snooze to tomorrow" })).toBeHidden();
-  // The menu is still the menu: what it holds for this task is edit and delete.
-  await expect(page.getByRole("menuitem", { name: "Edit" })).toBeVisible();
+  await openTaskPage(page, "Boiler service");
+  await expect(page.getByRole("button", { name: "Mark done" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Snooze to tomorrow" })).toHaveCount(0);
 });
 
-test("the dashboard can put off a task due today", async ({ page }) => {
+test("a task put off from its page leaves the dashboard", async ({ page }) => {
   await addTask(page, { title: "Bins", intervalDays: "7" });
 
   await page.goto("/dashboard");
   await expect(page.getByText("Due today")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Actions for Bins" })).toHaveCount(0);
 
-  await openMenu(page, { label: "Bins" });
-  await page.getByRole("menuitem", { name: "Snooze to tomorrow" }).click();
+  await openTaskPage(page, "Bins");
+  await page.getByRole("button", { name: "Snooze to tomorrow" }).click();
+  await expect(page.getByText("Due tomorrow")).toBeVisible();
 
   // Off today's plate, and so off the dashboard: it shows only what is due today or
   // overdue.
-  await expect(page.getByText("Due today")).toBeHidden();
+  await page.goto("/dashboard");
   await expect(page.getByText("Bins")).toBeHidden();
 });
 
@@ -231,7 +238,7 @@ test("a task is everyone's until somebody is named", async ({ page }) => {
 
   await openTask(page, "Bins");
   await page.getByLabel("Assigned to").selectOption({ label: ACCOUNTS.admin.name });
-  await page.getByRole("button", { name: "Save changes" }).click();
+  await saveAndReturn(page);
 
   await expect(row(page, "Bins")).toContainText(ACCOUNTS.admin.name);
 });
@@ -242,7 +249,7 @@ test("a task can be handed back to the whole home", async ({ page }) => {
 
   await openTask(page, "Bins");
   await page.getByLabel("Assigned to").selectOption({ label: "Everyone in the home" });
-  await page.getByRole("button", { name: "Save changes" }).click();
+  await saveAndReturn(page);
 
   await expect(row(page, "Bins")).not.toContainText(ACCOUNTS.admin.name);
 });
@@ -383,7 +390,7 @@ test("a recurring task can be turned into a one-off", async ({ page }) => {
 
   await openTask(page, "Water the plants");
   await page.getByLabel("Repeat", { exact: true }).selectOption({ label: "Just once" });
-  await page.getByRole("button", { name: "Save changes" }).click();
+  await saveAndReturn(page);
 
   await expect(row(page, "Water the plants")).toContainText("One-off");
   await expect(row(page, "Water the plants")).not.toContainText("Every 30 days");

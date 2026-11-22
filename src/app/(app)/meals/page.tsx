@@ -23,6 +23,7 @@ import {
 import { stockedKeys } from "@/lib/pantry-stock";
 import {
   ingredientKeys,
+  isSuggestible,
   rankByOverlap,
   staplesOf,
   suggestionReason,
@@ -33,9 +34,9 @@ import {
   nextWeekStart,
   previousWeekStart,
   todayInZone,
+  mealWeekStartInZone,
+  mealWeekStartOn,
   weekDays,
-  weekStartInZone,
-  weekStartOn,
 } from "@/lib/time";
 import type { HomeLanguage } from "@prisma/client";
 import { sayIn } from "@/lib/copy/say";
@@ -71,13 +72,13 @@ const RECENT_LOOKBACK = 40;
 /**
  * The week the page is showing.
  *
- * `?week=` is read through `weekStartOn`, which answers with the Monday of a real week or
+ * `?week=` is read through `mealWeekStartOn`, which answers with the Sunday of a real week or
  * with nothing at all — so a mistyped address, or a bookmark from a week that never
  * existed, lands on this week rather than on seven days of arithmetic nobody can read.
  * Normalised rather than rejected: a link to any day of a week is a link to that week.
  */
 function askedWeek(asked: string | undefined, now: Date) {
-  return (asked && weekStartOn(asked)) || weekStartInZone(now);
+  return (asked && mealWeekStartOn(asked)) || mealWeekStartInZone(now);
 }
 
 /** The face of one row: the picture and the words, whichever of the four states it is in. */
@@ -152,20 +153,20 @@ export default async function MealsPage({
 
   const week = askedWeek((await searchParams).week, now);
   const days = weekDays(week);
-  const thisWeek = weekStartInZone(now);
+  const thisWeek = mealWeekStartInZone(now);
 
   const db = homeDb(user.homeId);
 
-  // The Sunday before, fetched alongside the week itself: Monday living off Sunday's
-  // roast is the commonest leftovers there is, and a week that could not see the day
-  // before it would be the one week in seven where the offer disappeared.
-  const sundayBefore = weekDays(previousWeekStart(week))[6]!;
+  // The day before the week (a Saturday, since the meal plan's week opens on Sunday),
+  // fetched alongside the week itself: a week that could not see the day before it would
+  // be the one week in seven where the leftovers offer disappeared.
+  const dayBefore = weekDays(previousWeekStart(week))[6]!;
 
   const [plans, recipes, recentPlans, shoppingLists, stocked] = await Promise.all([
     // Seven days by name rather than a range: the week is seven calendar days in the
     // home's own zone, and comparing strings is what the column is stored as text for.
     db.mealPlan.findMany({
-      where: { date: { in: [sundayBefore, ...days] } },
+      where: { date: { in: [dayBefore, ...days] } },
       select: {
         date: true,
         leftoverOf: true,
@@ -237,7 +238,7 @@ export default async function MealsPage({
    * only outcome is the action refusing it.
    */
   const leftoversFor = (day: string): PlanOption[] =>
-    [sundayBefore, ...days]
+    [dayBefore, ...days]
       .filter((other) => other < day && planned.get(other)?.recipe)
       .map((other) => ({
         value: leftoversChoice(other),
@@ -308,6 +309,11 @@ export default async function MealsPage({
     // already made is a page arguing with the household.
     const suggested = empty ? suggestions : [];
     const claimed = new Set<string>();
+    // A recipe filed only under excluded headings is not offered anywhere in the picker —
+    // except the one this day already holds, because the chosen row always survives.
+    const current = planned.get(day)?.recipe?.id;
+    const offered = (option: PlanOption) =>
+      option.value === current || isSuggestible(byId.get(option.value)!);
 
     const take = (options: PlanOption[]) => {
       const kept = options.filter((option) => !claimed.has(option.value));
@@ -332,8 +338,8 @@ export default async function MealsPage({
           ),
         ),
       },
-      { heading: say(MEALS.recentlyPlanned), options: take(recent) },
-      { heading: say(MEALS.allRecipes), options: take(recipes.map((recipe) => recipeOption(recipe))) },
+      { heading: say(MEALS.recentlyPlanned), options: take(recent.filter(offered)) },
+      { heading: say(MEALS.allRecipes), options: take(recipes.map((recipe) => recipeOption(recipe)).filter(offered)) },
     ].filter((group) => group.options.length > 0);
   };
 
@@ -462,9 +468,8 @@ function planSelection(plan: PlannedDay["plan"] | undefined) {
  * Every recipe in the home is weighed for staples — what a household cooks is the best
  * description of its cupboard there is, short of the pantry it keeps by hand — while
  * only the ones not already on the week,
- * and not filed under a heading its admins excluded, can be offered. The exclusion is
- * the same rule `suggestedRecipeFor` follows for the dashboard's dinner, applied here to
- * rows already in hand rather than asked for again.
+ * and not filed only under headings its admins excluded, can be offered. The exclusion
+ * is `isSuggestible`, the same rule the dashboard's "Find new" asks as a `where`.
  */
 function weekSuggestions(
   recipes: (SuggestionCandidate & {
@@ -484,8 +489,7 @@ function weekSuggestions(
   return rankByOverlap({
     candidates: recipes.filter(
       (recipe) =>
-        !cooking.has(recipe.id) &&
-        !recipe.categories.some((link) => link.category.excludeFromSuggestion),
+        !cooking.has(recipe.id) && isSuggestible(recipe),
     ),
     basket,
     // The derived staples and the declared ones together. `staplesOf` exists so a

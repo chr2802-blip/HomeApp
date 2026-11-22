@@ -27,7 +27,7 @@ import { pantryStock } from "@/lib/pantry-stock";
 import { isShopAisle, lookupAisle } from "@/lib/shop-goods";
 import { MAX_ITEMS_PER_AISLE_SORT, sortShopAisles } from "@/lib/aisle-sort";
 import { checkRateLimit, recordFailedAttempt } from "@/lib/rate-limit";
-import { weekDays, weekStartInZone, weekStartOn } from "@/lib/time";
+import { mealWeekStartInZone, mealWeekStartOn, weekDays } from "@/lib/time";
 import { discardPhoto, discardReplaced, readPhotoChoice } from "@/lib/photos";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { sayIn, type Say } from "@/lib/copy/say";
@@ -639,7 +639,7 @@ export async function addMealPlanIngredients(
   const user = await requireHomeUser();
   const say = sayIn(user.homeLanguage);
   const list = await listInScope(String(formData.get("listId")));
-  const week = weekStartOn(String(formData.get("week") ?? "")) ?? weekStartInZone(new Date());
+  const week = mealWeekStartOn(String(formData.get("week") ?? "")) ?? mealWeekStartInZone(new Date());
 
   const db = homeDb(user.homeId);
   const plans = await db.mealPlan.findMany({
