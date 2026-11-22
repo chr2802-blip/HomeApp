@@ -1,3 +1,5 @@
+import { SETTINGS_PATHS } from "./settings-tabs";
+
 /** Top-level destinations — these are the tabs and their segments, so there is nothing to go back to. */
 const ROOTS = new Set(["/dashboard", "/lists", "/pantry", "/tasks", "/meals", "/recipes"]);
 
@@ -10,6 +12,8 @@ const ROOTS = new Set(["/dashboard", "/lists", "/pantry", "/tasks", "/meals", "/
 export function backHref(pathname: string): string | null {
   const path = pathname.replace(/\/+$/, "") || "/";
   if (ROOTS.has(path)) return null;
+  // Settings' tabs are side by side, not one inside another: each leads out of Settings.
+  if (SETTINGS_PATHS.includes(path)) return "/dashboard";
   const segments = path.split("/").filter(Boolean);
   segments.pop();
   return segments.length ? `/${segments.join("/")}` : "/dashboard";

@@ -20,10 +20,12 @@ async function memberRoleIn(homeName: string, email: string) {
 test.describe("as a home admin", () => {
   test.beforeEach(async ({ loginAs, page }) => {
     await loginAs(ACCOUNTS.admin);
-    await page.goto("/settings");
+    // Most of what this block asks about is who is in the home, which is its own tab.
+    await page.goto("/settings/members");
   });
 
   test("the home's details can be edited", async ({ page }) => {
+    await page.goto("/settings");
     await expect(page.getByText(`Managing ${HOME_NAME}`)).toBeVisible();
 
     await page.getByLabel("Home name").fill("The Nest");

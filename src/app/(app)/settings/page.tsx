@@ -1,36 +1,12 @@
-import { redirect } from "next/navigation";
-import { requireAdmin } from "@/lib/auth";
-import { canAdministerHome } from "@/lib/access";
-import { prisma } from "@/lib/prisma";
-import { homeDb } from "@/lib/home-db";
-import { removeMember, revokeInviteLink, updateHome, updateMemberRole } from "@/app/actions/admin";
-import {
-  Badge,
-  Button,
-  ButtonLink,
-  Card,
-  EmptyState,
-  Input,
-  Label,
-  PageHeader,
-  Select,
-} from "@/components/ui";
-import { InviteLinkForm } from "@/components/invite-link-form";
+import { updateHome } from "@/app/actions/admin";
+import { Card, Input, Label } from "@/components/ui";
 import { ActionForm } from "@/components/action-form";
-import { ReminderStatus } from "@/components/reminder-status";
-import { StorageUsage } from "@/components/storage-usage";
-import { AiSpendUsage } from "@/components/ai-spend";
-import { RecipeCategoriesAdmin } from "@/components/recipe-categories-admin";
-import { PantryShelvesAdmin } from "@/components/pantry-shelves-admin";
 import { NemligSettings } from "@/components/nemlig-settings";
-import { readInZone } from "@/lib/time";
-import { DATE } from "@/lib/copy/dates";
-import { ItemMenu } from "@/components/item-menu";
-import { PhotoAvatar } from "@/components/photo";
 import { PhotoField } from "@/components/photo-field";
 import { ThemeField } from "@/components/theme-field";
 import { LanguageField } from "@/components/language-field";
 import { SeasonalField } from "@/components/seasonal-field";
+import { settingsHome } from "@/lib/settings-home";
 import { sayIn } from "@/lib/copy/say";
 import { SETTINGS } from "@/lib/copy/settings";
 
@@ -41,61 +17,14 @@ import { SETTINGS } from "@/lib/copy/settings";
  */
 export const maxDuration = 60;
 
-/**
- * Running one household: its name and picture, who is in it, who is invited, what its
- * recipes and supplies are filed under, and whether its reminders are arriving.
- *
- * All of it is about this home rather than about the installation, which is why it is
- * reached from the home's own name in the header rather than from a tab. What is about
- * the person doing it — their name, their picture, their notifications — is their
- * profile, one entry above this in the same menu.
- */
-export default async function SettingsPage() {
-  const user = await requireAdmin();
+/** Settings' first tab: what this household looks and sounds like, and where it shops. */
+export default async function SettingsHomePage() {
+  const { user, home } = await settingsHome();
+  if (!home) return null;
   const say = sayIn(user.homeLanguage);
-
-  if (!user.homeId) {
-    return (
-      <>
-        <PageHeader title={say(SETTINGS.title)} />
-        <EmptyState>
-          <p>{say(SETTINGS.selectAHomeFirst)}</p>
-          <ButtonLink href="/admin/homes" className="mt-4">
-            {say(SETTINGS.manageHomes)}
-          </ButtonLink>
-        </EmptyState>
-      </>
-    );
-  }
-
-  const homeId = user.homeId;
-  // requireAdmin only says they run *a* home. Running one household is no licence over
-  // the next, so the one on screen is checked in its own right.
-  if (!canAdministerHome(user, homeId)) redirect("/dashboard");
-
-  const db = homeDb(homeId);
-
-  const [home, members, links] = await Promise.all([
-    prisma.home.findUnique({ where: { id: homeId } }),
-    db.homeMember.findMany({
-      orderBy: { createdAt: "asc" },
-      include: {
-        user: { select: { id: true, name: true, email: true, role: true, photoId: true } },
-      },
-    }),
-    db.inviteLink.findMany({
-      where: { expiresAt: { gt: new Date() } },
-      orderBy: { createdAt: "desc" },
-      include: { createdBy: { select: { name: true } } },
-    }),
-  ]);
-
-  if (!home) return <EmptyState>{say(SETTINGS.homeNotFound)}</EmptyState>;
 
   return (
     <>
-      <PageHeader title={say(SETTINGS.title)} description={say(SETTINGS.managing, { home: home.name })} />
-
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">{say(SETTINGS.homeHeading)}</h2>
         <Card>
@@ -138,142 +67,9 @@ export default async function SettingsPage() {
         </Card>
       </section>
 
-      {/* Beside the home itself rather than down among the readings: which shop the
-          household fills a basket at is part of setting the household up. */}
+      {/* Beside the home itself: which shop the household fills a basket at is part of
+          setting the household up. */}
       <NemligSettings homeId={home.id} language={user.homeLanguage} />
-
-      <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
-          {say(SETTINGS.remindersHeading)}
-        </h2>
-        <ReminderStatus homeId={home.id} language={user.homeLanguage} />
-      </section>
-
-      {/* Where the household's space is going. It sits under Reminders rather than
-          beside the name and the picture because it is a reading rather than a setting:
-          there is nothing on it to change, only something to notice — usually that the
-          recipes somebody photographed are most of the home. */}
-      <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
-          {say(SETTINGS.storageHeading)}
-        </h2>
-        <StorageUsage homeId={home.id} language={user.homeLanguage} />
-      </section>
-
-      {/* Also a reading rather than a setting, beside Storage for the same reason: how
-          much of this month's 5 USD the household's imports have spent so far. */}
-      <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
-          {say(SETTINGS.aiSpendingHeading)}
-        </h2>
-        <AiSpendUsage homeId={home.id} language={user.homeLanguage} />
-      </section>
-
-      <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
-          {say(SETTINGS.membersHeading)}
-        </h2>
-        <Card className="divide-y divide-slate-100 p-0">
-          {members.map(({ user: member, role }) => (
-            <div key={member.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-              {/* Decorative: their name is right beside it. */}
-              <PhotoAvatar photoId={member.photoId} alt="" className="h-9 w-9" />
-              <div className="min-w-0 flex-1">
-                <p className="font-medium">
-                  {member.name}
-                  {member.id === user.id && <span className="text-slate-400"> {say(SETTINGS.you)}</span>}
-                </p>
-                <p className="text-xs text-slate-500">{member.email}</p>
-              </div>
-              {/* The role shown is the one they hold here. A super admin's is not a role
-                  in this home at all — it is what they are everywhere — so it is named
-                  rather than offered as something to change. */}
-              {member.role === "SUPER_ADMIN" || member.id === user.id ? (
-                <Badge tone={member.role === "SUPER_ADMIN" ? "green" : "neutral"}>
-                  {member.role === "SUPER_ADMIN"
-                    ? say(SETTINGS.superAdminRole)
-                    : role === "ADMIN"
-                      ? say(SETTINGS.adminRole)
-                      : say(SETTINGS.userRole)}
-                </Badge>
-              ) : (
-                <>
-                  <form action={updateMemberRole} className="flex items-center gap-2">
-                    <input type="hidden" name="userId" value={member.id} />
-                    <input type="hidden" name="homeId" value={home.id} />
-                    <Select name="role" defaultValue={role}>
-                      <option value="USER">{say(SETTINGS.userRole)}</option>
-                      <option value="ADMIN">{say(SETTINGS.adminRole)}</option>
-                    </Select>
-                    <Button variant="secondary">{say(SETTINGS.save)}</Button>
-                  </form>
-                  {/* The role is changed in place beside this; the menu holds only
-                      what cannot be undone. */}
-                  <ItemMenu
-                    name="userId"
-                    id={member.id}
-                    label={member.name}
-                    deleteAction={removeMember}
-                    deleteTitle={say(SETTINGS.removeMemberTitle)}
-                    deleteLabel={say(SETTINGS.remove)}
-                    deleteConfirmLabel={say(SETTINGS.remove)}
-                    deleteMessage={say(SETTINGS.removeMemberMessage, { name: member.name })}
-                    extraFields={<input type="hidden" name="homeId" value={home.id} />}
-                    className="-mr-2"
-                  />
-                </>
-              )}
-            </div>
-          ))}
-        </Card>
-      </section>
-
-      <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">
-          {say(SETTINGS.inviteSomeoneHeading)}
-        </h2>
-        <InviteLinkForm homeId={home.id} homeName={home.name} />
-
-        {links.length > 0 && (
-          <Card className="mt-3 divide-y divide-slate-100 p-0">
-            {links.map((link) => (
-              <div key={link.id} className="flex items-center gap-3 px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
-                    {say(SETTINGS.linkMadeBy, { name: link.createdBy.name })}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {link.uses >= link.maxUses
-                      ? say(SETTINGS.linkUsedUp)
-                      : say(SETTINGS.linkUses, { uses: link.uses, max: link.maxUses })}{" "}
-                    ·{" "}
-                    {say(SETTINGS.expires, {
-                      date: readInZone(link.expiresAt, DATE.dayMonthYear, user.homeLanguage),
-                    })}
-                  </p>
-                </div>
-                <ItemMenu
-                  name="linkId"
-                  id={link.id}
-                  label={say(SETTINGS.invitationLink)}
-                  deleteTitle={say(SETTINGS.withdrawLinkTitle)}
-                  deleteLabel={say(SETTINGS.withdraw)}
-                  deleteConfirmLabel={say(SETTINGS.withdraw)}
-                  deleteMessage={say(SETTINGS.withdrawLinkMessage)}
-                  deleteAction={revokeInviteLink}
-                  extraFields={<input type="hidden" name="homeId" value={home.id} />}
-                  className="-mr-2"
-                />
-              </div>
-            ))}
-          </Card>
-        )}
-      </section>
-
-      {/* The two sets of headings the household files things under, kept the same way:
-          a list of what has been made, a "+" to make another, three dots on each. */}
-      <RecipeCategoriesAdmin homeId={home.id} language={user.homeLanguage} />
-      <PantryShelvesAdmin homeId={home.id} language={user.homeLanguage} />
     </>
   );
 }

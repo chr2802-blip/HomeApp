@@ -136,3 +136,22 @@ export const LINK_COUNTS = {
     DA: { one: "{count} person", other: "{count} personer" },
   },
 } as const satisfies Record<string, Plural>;
+
+/** Settings' "Done" tab: who has done the household's jobs (`src/lib/task-credit.ts`). */
+export const TASK_CREDIT = {
+  tallyHeading: { EN: "The last {days} days", DA: "De seneste {days} dage" },
+  tallyTotal: {
+    EN: { one: "{count} job done between you.", other: "{count} jobs done between you." },
+    DA: { one: "{count} opgave klaret i alt.", other: "{count} opgaver klaret i alt." },
+  },
+  formerMember: { EN: "Former members", DA: "Tidligere medlemmer" },
+  doneCount: {
+    EN: { one: "{count} job", other: "{count} jobs" },
+    DA: { one: "{count} opgave", other: "{count} opgaver" },
+  },
+  recentHeading: { EN: "Recently done", DA: "Klaret for nylig" },
+  nobodyYet: {
+    EN: "Nothing marked done yet. Every “Mark done” on a task is counted here, with who pressed it.",
+    DA: "Intet er markeret klaret endnu. Hver gang nogen trykker “Marker som klaret” på en opgave, tælles det her, med hvem der trykkede.",
+  },
+} as const satisfies Record<string, Phrase | Plural>;

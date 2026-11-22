@@ -125,7 +125,7 @@ export async function createInviteLink(_prev: ActionResult, formData: FormData):
     },
   });
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return ok(joinPath(token));
 }
 
@@ -134,7 +134,7 @@ export async function revokeInviteLink(formData: FormData) {
   const homeId = String(formData.get("homeId") ?? "");
   assertHomeAdmin(user, homeId);
   await homeDb(homeId).inviteLink.deleteMany({ where: { id: String(formData.get("linkId") ?? "") } });
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
 }
 
 export async function updateHome(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
@@ -164,7 +164,7 @@ export async function updateHome(_prev: ActionResult, formData: FormData): Promi
 
   // The home's picture and its colour both sit in the chrome, which every page renders.
   revalidatePath("/", "layout");
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   revalidatePath("/admin/homes");
   return ok();
 }
@@ -201,7 +201,7 @@ export async function updateMemberRole(formData: FormData) {
     where: { userId_homeId: { userId: membership.userId, homeId: membership.homeId } },
     data: { role },
   });
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
 }
 
 /**
@@ -219,7 +219,7 @@ export async function removeMember(formData: FormData) {
   await prisma.homeMember.delete({
     where: { userId_homeId: { userId: membership.userId, homeId: membership.homeId } },
   });
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   revalidatePath("/homes");
 }
 
@@ -344,6 +344,6 @@ export async function updateOwnProfile(
   // Their name and picture are drawn in the header and beside them on the members list.
   revalidatePath("/", "layout");
   revalidatePath("/profile");
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return ok();
 }

@@ -107,7 +107,7 @@ test.describe("joining a second home", () => {
     loginAs,
   }) => {
     await loginAs(ACCOUNTS.admin);
-    await page.goto("/settings");
+    await page.goto("/settings/members");
     await page.getByRole("button", { name: "Make invitation link" }).click();
     // The field starts as the bare path and gains the browser's origin once mounted.
     const field = page.getByLabel("Invitation link", { exact: true });

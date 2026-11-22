@@ -59,7 +59,7 @@ test.describe("pages that need a session", () => {
 test.describe("joining with an invitation link", () => {
   test("an admin makes a link and a newcomer signs up through it", async ({ page, loginAs }) => {
     await loginAs(ACCOUNTS.admin);
-    await page.goto("/settings");
+    await page.goto("/settings/members");
     await page.getByRole("button", { name: "Make invitation link" }).click();
     // The field starts as the bare path and gains the browser's origin once mounted.
     const field = page.getByLabel("Invitation link", { exact: true });

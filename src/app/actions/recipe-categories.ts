@@ -89,7 +89,7 @@ export async function createRecipeCategory(
     return duplicate(error, form.fields.name, say);
   }
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   revalidatePath("/recipes");
   return ok();
 }
@@ -115,7 +115,7 @@ export async function renameRecipeCategory(
     return duplicate(error, form.fields.name, say);
   }
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   revalidatePath("/recipes");
   return ok();
 }
@@ -138,6 +138,6 @@ export async function deleteRecipeCategory(formData: FormData) {
   if (inUse > 0) return;
 
   await prisma.recipeCategory.delete({ where: { id: category.id } });
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   revalidatePath("/recipes");
 }

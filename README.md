@@ -182,7 +182,7 @@ home removes its contents and empties it of members, who keep their accounts.
 
 ## Invitations
 
-There is no mail server. An admin of a home makes an **invitation link** on Settings,
+There is no mail server. An admin of a home makes an **invitation link** on Settings → Members,
 choosing how long it lasts (1–30 days) and how many people it may bring in (1–10), and
 posts it wherever the household talks. Whoever opens `/join/<token>` makes an account — or,
 if they already have one, gives its password (or presses once, if they are logged in) —

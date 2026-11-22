@@ -105,7 +105,7 @@ export async function connectNemlig(_prev: ActionResult, formData: FormData): Pr
     create: { homeId: user.homeId, username: email, password: sealed },
     update: { username: email, password: sealed },
   });
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   revalidatePath("/lists", "layout");
   return ok(say(NEMLIG.connected));
 }
@@ -114,7 +114,7 @@ export async function connectNemlig(_prev: ActionResult, formData: FormData): Pr
 export async function disconnectNemlig() {
   const user = await adminUser();
   await homeDb(user.homeId).nemligAccount.deleteMany({});
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   revalidatePath("/lists", "layout");
 }
 
