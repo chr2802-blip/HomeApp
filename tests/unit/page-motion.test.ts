@@ -1,15 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { pageMotion } from "@/lib/page-motion";
 import { backHref } from "@/lib/back-link";
+import { SETTINGS_PATHS } from "@/lib/settings-tabs";
 import { followFinger, letsGoBack, sidewaysIntent, startsAtEdge, swipeIntent } from "@/lib/edge-swipe";
 
 // The app's own tabs and sections, written out here so a reorder of the bar is a choice
 // this test is told about.
 const TABS = [["/dashboard"], ["/recipes", "/meals"], ["/lists", "/pantry"], ["/tasks"]];
-const SECTIONS = [
-  ["/recipes", "/meals"],
-  ["/lists", "/pantry"],
-];
+const SETTINGS = ["/settings", "/settings/members", "/settings/categories", "/settings/done", "/settings/status"];
+const SECTIONS = [["/recipes", "/meals"], ["/lists", "/pantry"], SETTINGS];
 const motion = (from: string, to: string) => pageMotion(from, to, TABS, SECTIONS);
 
 describe("pageMotion", () => {
@@ -23,6 +22,8 @@ describe("pageMotion", () => {
   it("steps sideways between the pages of one section, the way the pill moves", () => {
     expect(motion("/recipes", "/meals")).toBe("forward");
     expect(motion("/pantry", "/lists")).toBe("backward");
+    expect(motion("/settings", "/settings/done")).toBe("forward");
+    expect(motion("/settings/status", "/settings/members")).toBe("backward");
   });
 
   it("opens a page deeper in a tab and closes back out of it", () => {
@@ -44,6 +45,10 @@ describe("pageMotion", () => {
   });
 });
 
+it("knows Settings' tabs as written above", () => {
+  expect(SETTINGS_PATHS).toEqual(SETTINGS);
+});
+
 describe("backHref", () => {
   it("has no arrow on a tab's own page or a section's", () => {
     for (const root of ["/dashboard", "/lists", "/pantry", "/tasks", "/meals", "/recipes"]) {
@@ -55,6 +60,8 @@ describe("backHref", () => {
     expect(backHref("/lists/abc")).toBe("/lists");
     expect(backHref("/recipes/abc/cook")).toBe("/recipes/abc");
     expect(backHref("/settings")).toBe("/dashboard");
+    // Settings' tabs sit side by side: each leads out of Settings, not to the first tab.
+    for (const tab of SETTINGS) expect(backHref(tab)).toBe("/dashboard");
     // Admin is reached from the header's menu now, so it has a way back like Settings.
     expect(backHref("/admin")).toBe("/dashboard");
   });

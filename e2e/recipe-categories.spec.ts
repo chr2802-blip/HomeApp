@@ -161,7 +161,7 @@ test.describe("the recipes page", () => {
 test.describe("maintaining the categories", () => {
   test.beforeEach(async ({ loginAs, page }) => {
     await loginAs(ACCOUNTS.admin);
-    await page.goto("/settings");
+    await page.goto("/settings/categories");
   });
 
   /** The list of what has been made, which is what the section is for. */

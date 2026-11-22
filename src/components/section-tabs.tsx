@@ -10,6 +10,7 @@ import { useLanguage } from "./language-provider";
 import { usePendingHref } from "./use-pending-href";
 import { PAGE_ID, PageLeaving, motionBetween } from "./page-transition";
 import { replacingNext } from "./back-button";
+import { SETTINGS_TABS } from "@/lib/settings-tabs";
 
 /**
  * The pages inside one tab. A tab is an area of the household's life, and these are
@@ -25,6 +26,7 @@ export const SECTIONS: { href: string; key: keyof typeof APP.sections }[][] = [
     { href: "/lists", key: "lists" },
     { href: "/pantry", key: "supplies" },
   ],
+  SETTINGS_TABS.map((tab) => ({ href: tab.href, key: tab.key })),
 ];
 
 /** The sections as paths, for which way a page comes in (`pageMotion`). */
@@ -80,7 +82,10 @@ export function SectionTabs() {
               pressed(seg.href);
             }}
             aria-current={active ? "page" : undefined}
-            className={`press-button relative flex-1 rounded-full py-2 text-center text-sm font-semibold ${
+            className={`press-button relative min-w-0 flex-1 truncate rounded-full py-2 text-center font-semibold ${
+              // Five to a pill (Settings) is too many for the size two are drawn at.
+              section.length > 3 ? "px-0.5 text-xs" : "text-sm"
+            } ${
               index === at ? "text-white" : "text-slate-500"
             }`}
           >

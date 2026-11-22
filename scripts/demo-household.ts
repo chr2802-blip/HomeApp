@@ -421,8 +421,9 @@ async function furnish(
     });
   }
 
+  let turn = 0;
   for (const task of content.tasks) {
-    await prisma.task.create({
+    const created = await prisma.task.create({
       data: {
         homeId,
         title: task.title,
@@ -433,6 +434,27 @@ async function furnish(
         assigneeId: task.who ? people[task.who].id : null,
       },
     });
+    // Settings' "Done" tab: a recurring task done every interval for the last three months,
+    // by whoever it is for or by turns, and a finished one-off done yesterday.
+    const presses: Date[] = [];
+    if (task.interval !== null) {
+      for (let back = task.interval - task.days; back <= 85; back += task.interval) {
+        presses.push(new Date(now.getTime() - back * DAY));
+      }
+    } else if (task.done) {
+      presses.push(new Date(now.getTime() - DAY));
+    }
+    if (presses.length > 0) {
+      await prisma.taskCompletion.createMany({
+        data: presses.map((completedAt) => ({
+          homeId,
+          taskId: created.id,
+          title: task.title,
+          userId: people[task.who ?? (turn++ % 2 === 0 ? "alex" : "sam")].id,
+          completedAt,
+        })),
+      });
+    }
   }
 
   await prisma.pantryItem.createMany({

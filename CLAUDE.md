@@ -180,6 +180,20 @@ from the session instead (the recipe-category ones do) asks `canAdministerCurren
 **Never pair `requireAdmin` with the active home**: that combination reads as a check
 and admits an admin of the flat to everything in the summer house.
 
+**`/settings` is five tabs, each its own address** (`SETTINGS_TABS` in
+`src/lib/settings-tabs.ts`): Home (`/settings` — the home card and Nemlig), People
+(`/settings/members` — members and invites), Categories (`/settings/categories` — recipe
+categories and pantry shelves), Done (`/settings/done`) and Status (`/settings/status` —
+reminders, storage, AI spending). They are a row of `SECTIONS` in `section-tabs.tsx`, so
+the pill, the sideways swipe and `pageMotion` are the recipes' and the lists' own; a pill
+of more than three draws its words at `text-xs`, and a label longer than about nine
+letters truncates at 390px — which is why the English is "People" and "Sorting". The
+guard and the header are `settings/layout.tsx`, asked through `settingsHome()`
+(`src/lib/settings-home.ts`, `cache`d), so a tab cannot forget the
+`canAdministerHome` check. **An action that changes anything Settings draws revalidates
+`revalidatePath("/settings", "layout")`**, never the bare path, which would refresh one tab
+of five. Every tab's back arrow leads out of Settings (`backHref`), not to the first tab.
+
 `/profile` is the third thing, and it belongs to nobody's home: a person's name,
 password, picture and notifications, one page however many households they are in. It is
 in the same menu because that menu is "this home, and me in it".
@@ -487,6 +501,15 @@ the picture at size live. The row carries only what somebody scanning the list d
 page lands back on `/tasks` (`deleteTask` redirects), and `refreshTaskViews` revalidates
 the `/tasks` *layout* so the page under it is refreshed too.
 
+**Who pressed Done is `TaskCompletion`, one row per press**, written by `completeTask` in
+the same transaction as `lastCompletedAt`; `reopenTask` deletes the newest row for that
+task, because the press it undoes never happened. It answers a question `lastCompletedAt`
+cannot (*who*), and is never read for "is it finished". It keeps the task's `title` at the
+press and goes `SetNull` on both the task and the person, so deleting a finished one-off or
+a member leaving does not take the household's work with it. Settings' Done tab
+(`src/lib/task-credit.ts`) counts the last `CREDIT_DAYS` per member — members who did none
+included, people who left as one row — and lists the latest presses.
+
 Which kind is being written is submitted in its own field (`REPEAT_FIELD`), never
 inferred from a blank interval — a number that failed to arrive would otherwise turn a
 recurring task into a one-off with nobody saying so. A form that does not mention it is
@@ -690,7 +713,9 @@ the hearts always inserts, never updates.
   Wednesday and mean Wednesday.
 - **Ticking anything refreshes three views, not one** (`refreshListViews`).
 - **Nobody's name is on the week or the streak**: a weekly score with names on it turns the
-  washing-up into a thing worth being seen to do.
+  washing-up into a thing worth being seen to do. **The one place names meet counts is
+  Settings' Done tab**, by the household's own request, and it is there — for the home's
+  admins, one tap off the beaten path — precisely so the dashboard never grows one.
 
 **[`docs/design/week-and-dashboard.md`](docs/design/week-and-dashboard.md) covers this and
 the dashboard's layout.**
@@ -1764,6 +1789,11 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
   The input is `sr-only`, and inside a `Modal` still animating in Playwright calls it
   "outside of the viewport" even forced. `sheet.getByText(name, { exact: true }).click()`
   waits for the sheet and presses the chip a person would.
+- **`<Card className="p-0">` keeps its padding.** `Card` writes `p-5` itself and which of
+  two padding utilities wins is the stylesheet's order, not the attribute's — a card of
+  rows whose rows were meant to run edge to edge is `padded={false}`.
+- **`e2e/theme.spec.ts`'s frame check reads every painted `nav` outside `main`** as the tab
+  bar; a section pill is a `nav` inside `main` and is left out on purpose.
 - **`divide-y` counts a `hidden` row.** Its rule goes under every child but the last in
   the DOM, so a search that hides the last row leaves a line under the last one showing.
   A card whose rows can be hidden draws the rule between visible siblings instead
