@@ -35,7 +35,7 @@ export function GroupingField({
     <fieldset className="space-y-2">
       <legend className="mb-1 text-sm font-medium text-slate-700">{say(LISTS.grouping)}</legend>
       {GROUPINGS.map((grouping) => (
-        <label key={grouping} className="flex items-start gap-2">
+        <label key={grouping} className="press-text flex items-start gap-2 py-1">
           <input
             type="radio"
             name="grouping"

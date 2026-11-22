@@ -324,7 +324,7 @@ export function PhotoViewer({
               type="button"
               onClick={() => go(index - 1)}
               aria-label={say(APP.photo.previous)}
-              className="absolute top-1/2 left-3 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 sm:flex"
+              className="press-icon absolute top-1/2 left-3 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 sm:flex"
             >
               <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="m15 6-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
@@ -336,7 +336,7 @@ export function PhotoViewer({
               type="button"
               onClick={() => go(index + 1)}
               aria-label={say(APP.photo.next)}
-              className="absolute top-1/2 right-3 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 sm:flex"
+              className="press-icon absolute top-1/2 right-3 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 sm:flex"
             >
               <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="m9 6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />

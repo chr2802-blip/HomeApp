@@ -38,7 +38,7 @@ function CategoryFields({
           required
         />
       </div>
-      <label className="flex items-center gap-2 text-sm text-slate-700">
+      <label className="press-text flex min-h-8 items-center gap-2 text-sm text-slate-700">
         <input
           type="checkbox"
           name="excludeFromSuggestion"

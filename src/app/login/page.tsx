@@ -22,7 +22,7 @@ export default async function LoginPage() {
       <LoginForm language={language} />
       <p className="mt-6 text-sm text-slate-500">
         {say(AUTH.gotAnInvitationCode)}{" "}
-        <Link href="/accept-invite" className="font-medium text-slate-900 underline">
+        <Link href="/accept-invite" className="press-text tap-inline font-medium text-slate-900 underline">
           {say(AUTH.createYourAccount)}
         </Link>
       </p>

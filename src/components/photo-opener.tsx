@@ -30,7 +30,7 @@ export function PhotoOpener({
         type="button"
         onClick={() => setOpen(true)}
         aria-label={say(APP.photo.open)}
-        className={`block cursor-zoom-in ${className}`}
+        className={`press-photo block cursor-zoom-in ${className}`}
       >
         {children}
       </button>

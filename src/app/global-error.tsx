@@ -49,6 +49,7 @@ export default function GlobalError({
           </p>
           <button
             onClick={reset}
+            className="press-button"
             style={{
               marginTop: "1.5rem",
               borderRadius: "0.5rem",

@@ -84,7 +84,7 @@ export default async function SystemPage() {
                 href={health.deployment.url}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="font-mono underline underline-offset-2"
+                className="press-text tap-inline font-mono underline underline-offset-2"
               >
                 {health.deployment.version}
               </a>

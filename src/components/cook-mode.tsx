@@ -410,7 +410,7 @@ export function CookMode({
                 type="button"
                 onClick={enablePush}
                 disabled={pushOffer === "busy"}
-                className="font-medium text-[var(--accent)] underline-offset-2 hover:underline disabled:opacity-60"
+                className="press-text tap-inline font-medium text-[var(--accent)] underline-offset-2 hover:underline disabled:opacity-60"
               >
                 {say(RECIPES.timerPushTurnOn)}
               </button>

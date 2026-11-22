@@ -308,15 +308,28 @@ h1,
   --dur-page: 300ms;
   --dur-page-push: 360ms;
   --dur-page-out: 140ms;
+
+  /* The smallest thing a finger is asked to hit, each way (`e2e/tap-targets.spec.ts`). */
+  --tap: 2rem;
+  /* What a card darkens by while pressed. */
+  --press-shade: color-mix(in srgb, var(--color-slate-900) 6%, transparent);
+}
+
+@property --press-tint {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
 }
 
 /*
- * Anything tappable presses in one of three ways, chosen by its size: the smaller the
- * thing, the further it can go in before it reads as broken rather than pressed.
+ * Anything tappable presses in, chosen by its size and look: the smaller the thing, the
+ * further it can go in before it reads as broken rather than pressed.
  *
  *   .press-icon    a glyph or a small square button          — to 90%
  *   .press-button  a button with words, a chip, a tab, a pill — to 96%
- *   .press-card    a card, a row, a menu entry                — to 98%, on a warm tint
+ *   .press-card    a card, a row, a menu entry                — to 98%, under a shade
+ *   .press-text    a word in a line of text                   — fades, never shrinks
+ *   .press-photo   a picture                                  — darkens
  *
  * Going in is quick (`--dur-press`) so the press reads at once; coming back is slower
  * and springs (`--ease-spring`), which is most of what makes a press feel like a thing
@@ -363,9 +376,71 @@ h1,
     scale: 0.96;
   }
 
+  /*
+   * A card darkens a shade as well. Laid over whatever it is dressed in (cream, the home's
+   * tint, a ticked row) as an image, so no background utility hides it, and cut by the
+   * card's own rounded corners. `--press-tint` is a registered colour (above), so the
+   * shade fades in and out with the press.
+   */
+  .press-card {
+    background-image: linear-gradient(var(--press-tint), var(--press-tint));
+    transition:
+      scale var(--dur-release) var(--ease-spring),
+      translate var(--dur-release) var(--ease-spring),
+      rotate var(--dur-release) var(--ease-spring),
+      transform var(--dur-release) var(--ease-spring),
+      --press-tint var(--dur-quick) ease-out,
+      background-color var(--dur-quick) ease-out,
+      border-color var(--dur-quick) ease-out,
+      box-shadow var(--dur-quick) ease-out,
+      color var(--dur-quick) ease-out,
+      opacity var(--dur-quick) ease-out;
+  }
+
   .press-card:active:not(:disabled, [aria-disabled="true"]) {
     scale: 0.98;
-    background-color: var(--color-slate-100);
+    --press-tint: var(--press-shade);
+  }
+
+  /*
+   * A word in a line of text (a name, a link in a sentence): it fades a little rather than
+   * shrinking, which would pull the words beside it about.
+   */
+  .press-text {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      opacity var(--dur-release) ease-out,
+      color var(--dur-quick) ease-out;
+  }
+
+  .press-text:active:not(:disabled, [aria-disabled="true"]) {
+    opacity: 0.55;
+    transition-duration: var(--dur-press);
+  }
+
+  /* A picture darkens a shade, as a card does: it is the picture that is pressed. */
+  .press-photo {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: filter var(--dur-release) ease-out;
+  }
+
+  .press-photo:active:not(:disabled, [aria-disabled="true"]) {
+    filter: brightness(0.9);
+    transition-duration: var(--dur-press);
+  }
+
+  /*
+   * A finger-sized target (32 px each way, `--tap`) round something small set in a line of
+   * text, without moving the line: padding makes the target, a negative margin as big
+   * gives the room back. On anything laid out as a block, `min-h-8 min-w-8` does it.
+   */
+  .tap-inline {
+    display: inline-block;
+    min-width: var(--tap);
+    padding-block: max(0px, calc((var(--tap) - 1lh) / 2));
+    margin-block: min(0px, calc((1lh - var(--tap)) / 2));
   }
 }
 

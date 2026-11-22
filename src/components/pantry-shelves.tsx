@@ -210,7 +210,7 @@ export function PantryShelves({
               setQuery("");
               setRunOutOnly(false);
             }}
-            className="font-medium text-[var(--accent-text)] underline underline-offset-2"
+            className="press-text tap-inline font-medium text-[var(--accent-text)] underline underline-offset-2"
           >
             {say(PANTRY.clearFilter)}
           </button>
@@ -226,7 +226,7 @@ export function PantryShelves({
             <button
               type="button"
               onClick={() => setRunOutOnly(true)}
-              className="font-medium text-slate-700 underline underline-offset-2"
+              className="press-text tap-inline font-medium text-slate-700 underline underline-offset-2"
             >
               {say(PANTRY.overviewRunOut, { count: runOutTotal })}
             </button>

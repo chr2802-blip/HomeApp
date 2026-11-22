@@ -152,7 +152,7 @@ export function PantryRow({
             type="button"
             onClick={open}
             aria-label={say(PANTRY.editAria, { name: shown })}
-            className="-ml-2 min-w-0 flex-1 truncate rounded px-2 py-1 text-left text-sm transition-colors hover:bg-slate-50"
+            className="press-card -ml-2 min-w-0 flex-1 truncate rounded px-2 py-1 text-left text-sm hover:bg-slate-50"
           >
             {shown}
           </button>
@@ -324,7 +324,7 @@ export function Chip({
   children: React.ReactNode;
 }) {
   return (
-    <label className="cursor-pointer">
+    <label className="press-button inline-block cursor-pointer">
       <input
         type="radio"
         name={name}
@@ -334,7 +334,7 @@ export function Chip({
         onChange={onChange}
         className="peer sr-only"
       />
-      <span className="press-button inline-block rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 peer-checked:border-[var(--accent)] peer-checked:bg-[var(--accent)] peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--accent)] peer-focus-visible:ring-offset-1">
+      <span className="inline-block rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 peer-checked:border-[var(--accent)] peer-checked:bg-[var(--accent)] peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--accent)] peer-focus-visible:ring-offset-1">
         {children}
       </span>
     </label>

@@ -17,7 +17,7 @@ export function SeasonalField({ defaultOn, language }: { defaultOn: boolean; lan
   return (
     <div className="space-y-1">
       <input type="hidden" name={SEASONAL_FIELD} value="off" />
-      <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+      <label className="press-text flex min-h-8 items-center gap-2 text-sm font-medium text-slate-700">
         <input
           type="checkbox"
           name={SEASONAL_FIELD}
