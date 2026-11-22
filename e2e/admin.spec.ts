@@ -81,32 +81,21 @@ test.describe("as a home admin", () => {
     ).toHaveCount(0);
   });
 
-  test("an invite can be issued and then revoked", async ({ page }) => {
-    await page.getByLabel("Email to invite").fill("guest@e2e.test");
-    await page.getByLabel("Role").selectOption("ADMIN");
-    await page.getByRole("button", { name: "Create invite" }).click();
+  test("an invitation link can be made, shown once, and withdrawn", async ({ page }) => {
+    await page.getByLabel("Valid for").selectOption("14");
+    await page.getByLabel("At most").selectOption("2");
+    await page.getByRole("button", { name: "Make invitation link" }).click();
 
-    await expect(page.getByText("Invitation ready for guest@e2e.test")).toBeVisible();
-    await expect(page.getByText("guest@e2e.test", { exact: true })).toBeVisible();
+    await expect(page.getByText("The link is ready.")).toBeVisible();
+    await expect(page.getByLabel("Invitation link", { exact: true })).toHaveValue(/\/join\/[A-Za-z0-9_-]{43}$/);
+    await expect(page.getByText("0 of 2 used")).toBeVisible();
 
-    await page.getByRole("button", { name: "Revoke" }).click();
+    await page.getByRole("button", { name: "Actions for Invitation link" }).click();
+    await page.getByRole("menuitem", { name: "Withdraw" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Withdraw" }).click();
 
-    await expect(page.getByText("admin · expires")).toBeHidden();
-    expect(await prisma().invite.count()).toBe(0);
-  });
-
-  test("inviting somebody already in this home is refused", async ({ page }) => {
-    await page.getByLabel("Email to invite").fill(ACCOUNTS.member.email);
-    await page.getByRole("button", { name: "Create invite" }).click();
-
-    await expect(page.getByText("They are already in this home.")).toBeVisible();
-  });
-
-  test("somebody with an account in another home can be invited", async ({ page }) => {
-    await page.getByLabel("Email to invite").fill(ACCOUNTS.outsider.email);
-    await page.getByRole("button", { name: "Create invite" }).click();
-
-    await expect(page.getByText(`Invitation ready for ${ACCOUNTS.outsider.email}`)).toBeVisible();
+    await expect(page.getByText("0 of 2 used")).toBeHidden();
+    expect(await prisma().inviteLink.count()).toBe(0);
   });
 
   test("settings are reached from the home's own name in the header", async ({ page }) => {

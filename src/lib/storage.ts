@@ -111,7 +111,7 @@ function breakdown(scope: Prisma.Sql) {
       UNION ALL
       SELECT m."homeId", 'rest', pg_column_size(m.*) FROM "HomeMember" m
       UNION ALL
-      SELECT v."homeId", 'rest', pg_column_size(v.*) FROM "Invite" v
+      SELECT v."homeId", 'rest', pg_column_size(v.*) FROM "InviteLink" v
       UNION ALL
       SELECT y."homeId", 'rest', pg_column_size(y.*) FROM "PantryItem" y
       UNION ALL

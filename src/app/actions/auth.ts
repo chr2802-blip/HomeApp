@@ -1,15 +1,18 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import {
   createSession,
   destroySession,
   hashPassword,
+  requireUser,
   verifyPassword,
 } from "@/lib/auth";
-import { inviteCodeMatches } from "@/lib/invite-code";
+import { findInviteLink, linkProblem, redeemInviteLink, type Joiner, type LinkProblem } from "@/lib/invite-links";
 import { checkRateLimit, clearAttempts, recordFailedAttempt } from "@/lib/rate-limit";
 import { currentLanguage } from "@/lib/auth";
 import { sayIn, type Say } from "@/lib/copy/say";
@@ -63,94 +66,110 @@ export async function logout() {
   redirect("/login");
 }
 
-function acceptSchema(say: Say) {
+function joinSchema(say: Say) {
   return z.object({
-    email: z.string().email(),
-    code: z.string().min(1),
-    name: z.string().min(1, say(AUTH.enterYourName)),
+    token: z.string().min(1),
+    email: z.string().email(say(AUTH.invalidEmailAndPassword)),
+    name: z.string().trim().min(1, say(AUTH.enterYourName)).max(100),
     password: z.string().min(8, say(AUTH.passwordMinLength)),
   });
 }
 
-/**
- * Joining a home, whether or not the person has been here before.
- *
- * An invitation used to be a way to make an account, so an email that already had one
- * was turned away. Somebody can be in several homes now, so the same code is also how
- * an existing account joins its second household — and the password field means "the
- * one on that account" rather than "choose one" when there is an account to match it
- * against. Getting it wrong is refused, so an invitation to an address cannot be used
- * to walk into the account behind it.
- */
-export async function acceptInvite(_prev: FormState, formData: FormData): Promise<FormState> {
-  const say = sayIn(await currentLanguage());
+function problemText(say: Say, problem: LinkProblem) {
+  return say(problem === "expired" ? AUTH.linkExpired : problem === "usedUp" ? AUTH.linkUsedUp : AUTH.linkUnknown);
+}
 
-  const parsed = acceptSchema(say).safeParse({
+/**
+ * Joining a home with an invitation link. Somebody new gets an account; somebody who
+ * already has one joins with it, giving the password they have — getting it wrong is
+ * refused, so a link cannot be used to walk into the account behind an address.
+ *
+ * Making accounts is limited three ways: the link's own `maxUses`, counted in the same
+ * transaction that makes the account; `signup`, accounts per address; and `join-link`,
+ * accounts per link from anywhere. Wrong passwords count under `join`, like login's.
+ *
+ * It answers in the language of the home the link is for, since there is no session yet
+ * to say which language this person reads.
+ */
+export async function joinWithLink(_prev: FormState, formData: FormData): Promise<FormState> {
+  const link = await findInviteLink(String(formData.get("token") ?? ""));
+  const say = sayIn(link?.home.language ?? (await currentLanguage()));
+  const problem = linkProblem(link);
+  if (!link || problem) return { error: problemText(say, problem ?? "unknown") };
+
+  const parsed = joinSchema(say).safeParse({
+    token: formData.get("token"),
     email: formData.get("email"),
-    code: formData.get("code"),
     name: formData.get("name"),
     password: formData.get("password"),
   });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? say(AUTH.checkFormAndRetry) };
-  }
-
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? say(AUTH.checkFormAndRetry) };
   const email = parsed.data.email.toLowerCase();
 
-  const limit = await checkRateLimit("invite", email);
+  const limit = await checkRateLimit("join", email);
   if (!limit.allowed) {
     return { error: say(AUTH.tooManyAttempts, { count: limit.retryAfterMinutes, minutes: limit.retryAfterMinutes }) };
   }
 
-  const invites = await prisma.invite.findMany({
-    where: { email, acceptedAt: null, expiresAt: { gt: new Date() } },
-  });
-  const invite = invites.find((candidate) => inviteCodeMatches(parsed.data.code, candidate.codeHash));
-  if (!invite) {
-    await recordFailedAttempt("invite", email);
-    return { error: say(AUTH.noMatchingInvite) };
-  }
-
   const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing && !(await verifyPassword(parsed.data.password, existing.passwordHash))) {
-    await recordFailedAttempt("invite", email);
-    return { error: say(AUTH.accountExistsWrongPassword) };
+  let joiner: Joiner;
+  if (existing) {
+    if (!(await verifyPassword(parsed.data.password, existing.passwordHash))) {
+      await recordFailedAttempt("join", email);
+      return { error: say(AUTH.accountExistsWrongPassword) };
+    }
+    joiner = { userId: existing.id };
+  } else {
+    for (const [scope, key] of [
+      ["signup", ""],
+      ["join-link", link.id],
+    ] as const) {
+      const allowed = await checkRateLimit(scope, key);
+      if (!allowed.allowed) {
+        return {
+          error: say(AUTH.tooManyAccounts, { count: allowed.retryAfterMinutes, minutes: allowed.retryAfterMinutes }),
+        };
+      }
+    }
+    // Counted before the account is made, so a burst of requests sees itself.
+    await recordFailedAttempt("signup", "");
+    await recordFailedAttempt("join-link", link.id);
+    joiner = { newUser: { email, name: parsed.data.name, passwordHash: await hashPassword(parsed.data.password) } };
   }
 
-  const user =
-    existing ??
-    (await prisma.user.create({
-      data: {
-        email,
-        name: parsed.data.name.trim(),
-        passwordHash: await hashPassword(parsed.data.password),
-      },
-    }));
+  let result;
+  try {
+    result = await redeemInviteLink(link.id, joiner);
+  } catch (error) {
+    // Two sign-ups with one email at once: the second finds the address taken.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return { error: say(AUTH.accountExistsWrongPassword) };
+    }
+    throw error;
+  }
+  if (!result.ok) return { error: problemText(say, result.problem) };
 
-  // The membership is the joining, and the role on the invitation is a role in this
-  // home only — being an admin here says nothing about the other homes they are in.
-  // Upserted rather than created: an invitation accepted twice must not fail on the
-  // second go, it has simply already been honoured.
-  await prisma.homeMember.upsert({
-    where: { userId_homeId: { userId: user.id, homeId: invite.homeId } },
-    update: { role: invite.role },
-    create: { userId: user.id, homeId: invite.homeId, role: invite.role },
-  });
+  await clearAttempts("join", email);
+  await createSession(result.userId, existing?.tokenVersion ?? 0);
+  redirect("/dashboard");
+}
 
-  // They land in the home they just accepted rather than wherever they were, which is
-  // the one thing they have said they wanted.
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { activeHomeId: invite.homeId },
-  });
-
-  await prisma.invite.update({
-    where: { id: invite.id },
-    data: { acceptedAt: new Date() },
-  });
-
-  await clearAttempts("invite", email);
-
-  await createSession(user.id, user.tokenVersion);
+/** Somebody already logged in joins the link's home with one press. */
+export async function joinWithLinkAsMe(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireUser();
+  const link = await findInviteLink(String(formData.get("token") ?? ""));
+  const say = sayIn(link?.home.language ?? user.homeLanguage);
+  const problem = linkProblem(link);
+  if (!link || problem) {
+    // Already in the home: the link has nothing left to give, but nothing to refuse either.
+    if (link && user.homes.some((home) => home.id === link.homeId)) {
+      await redeemInviteLink(link.id, { userId: user.id });
+      redirect("/dashboard");
+    }
+    return { error: problemText(say, problem ?? "unknown") };
+  }
+  const result = await redeemInviteLink(link.id, { userId: user.id });
+  if (!result.ok) return { error: problemText(say, result.problem) };
+  revalidatePath("/", "layout");
   redirect("/dashboard");
 }

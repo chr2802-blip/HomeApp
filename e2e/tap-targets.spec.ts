@@ -89,6 +89,6 @@ test("the super admin's pages and the pages before signing in press in and are a
   const signedIn = await audit(page, ["/admin/system", "/admin/homes"]);
 
   await context.clearCookies();
-  const signedOut = await audit(page, ["/login", "/accept-invite"]);
+  const signedOut = await audit(page, ["/login", "/join/demo-flat"]);
   expect([...signedIn, ...signedOut]).toEqual([]);
 });

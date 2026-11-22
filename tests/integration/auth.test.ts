@@ -1,17 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { acceptInvite, login, logout } from "@/app/actions/auth";
+import { joinWithLink, joinWithLinkAsMe, login, logout } from "@/app/actions/auth";
 import {
   TEST_PASSWORD,
   createHome,
   createHomeWithMembers,
-  createInviteFor,
+  createInviteLinkFor,
   createUser,
   formData,
   signIn,
 } from "../helpers/factories";
 import { captureRedirect, expectRedirect } from "../helpers/expect";
+import { attemptsAllowed } from "@/lib/rate-limit";
 import { hasSessionCookie, setClientIp } from "../helpers/next-mocks";
 
 describe("login", () => {
@@ -125,8 +126,7 @@ describe("login throttling", () => {
   });
 });
 
-describe("acceptInvite", () => {
-  /** What somebody may do in one named home, which is where a role lives. */
+describe("joinWithLink", () => {
   async function roleIn(userId: string, homeId: string) {
     const membership = await prisma.homeMember.findUnique({
       where: { userId_homeId: { userId, homeId } },
@@ -134,259 +134,186 @@ describe("acceptInvite", () => {
     return membership?.role ?? null;
   }
 
-  async function openInvite(
-    overrides: { email?: string; role?: "ADMIN" | "USER"; expiresAt?: Date } = {},
-  ) {
-    const { home, admin } = await createHomeWithMembers();
-    const { invite, code } = await createInviteFor({
-      email: overrides.email ?? "newcomer@example.com",
-      homeId: home.id,
-      createdById: admin.id,
-      role: overrides.role,
-      expiresAt: overrides.expiresAt,
-    });
-    return { home, admin, invite, code };
+  async function openLink(overrides: { maxUses?: number; uses?: number; expiresAt?: Date } = {}) {
+    const { home, admin, member } = await createHomeWithMembers();
+    const { link, token } = await createInviteLinkFor({ homeId: home.id, createdById: admin.id, ...overrides });
+    return { home, admin, member, link, token };
   }
 
-  it("creates the account, joins the home and signs the person in", async () => {
-    const { home, invite, code } = await openInvite();
+  const newcomer = (token: string, overrides: Record<string, string> = {}) =>
+    formData({ token, name: "  Newcomer  ", email: "Newcomer@Example.com", password: "a-good-password", ...overrides });
 
-    const destination = await captureRedirect(() =>
-      acceptInvite(
-        undefined,
-        formData({
-          email: "newcomer@example.com",
-          code,
-          name: "  Newcomer  ",
-          password: "a-good-password",
-        }),
-      ),
-    );
+  it("creates the account, joins the home as a user, signs in and counts the use", async () => {
+    const { home, link, token } = await openLink();
 
-    expect(destination).toBe("/dashboard");
+    expect(await captureRedirect(() => joinWithLink(undefined, newcomer(token)))).toBe("/dashboard");
 
-    const created = await prisma.user.findUnique({ where: { email: "newcomer@example.com" } });
+    const created = await prisma.user.findUniqueOrThrow({ where: { email: "newcomer@example.com" } });
     expect(created).toMatchObject({ name: "Newcomer", activeHomeId: home.id, role: "USER" });
-    expect(await roleIn(created!.id, home.id)).toBe("USER");
-    expect((await getCurrentUser())?.id).toBe(created!.id);
-
-    const used = await prisma.invite.findUnique({ where: { id: invite.id } });
-    expect(used?.acceptedAt).toBeInstanceOf(Date);
+    expect(await roleIn(created.id, home.id)).toBe("USER");
+    expect((await getCurrentUser())?.id).toBe(created.id);
+    expect((await prisma.inviteLink.findUniqueOrThrow({ where: { id: link.id } })).uses).toBe(1);
   });
 
-  it("grants the role the invite was created with", async () => {
-    const { home, code } = await openInvite({ role: "ADMIN" });
+  it("lets as many people in as the link allows, and no more", async () => {
+    const { token } = await openLink({ maxUses: 2 });
 
-    await captureRedirect(() =>
-      acceptInvite(
-        undefined,
-        formData({
-          email: "newcomer@example.com",
-          code,
-          name: "Newcomer",
-          password: "a-good-password",
-        }),
-      ),
-    );
+    await captureRedirect(() => joinWithLink(undefined, newcomer(token, { email: "a@example.com" })));
+    await captureRedirect(() => joinWithLink(undefined, newcomer(token, { email: "b@example.com" })));
+    const third = await joinWithLink(undefined, newcomer(token, { email: "c@example.com" }));
 
-    const created = await prisma.user.findUnique({ where: { email: "newcomer@example.com" } });
-    // In this home. The account itself is nobody's admin — that is not a thing to be.
-    expect(await roleIn(created!.id, home.id)).toBe("ADMIN");
-    expect(created?.role).toBe("USER");
+    expect(third).toEqual({ error: "This link has been used up. Ask for a new one." });
+    expect(await prisma.user.findUnique({ where: { email: "c@example.com" } })).toBeNull();
   });
 
-  it("accepts the code however it is typed", async () => {
-    const { code } = await openInvite();
+  it("refuses an expired link", async () => {
+    const { token } = await openLink({ expiresAt: new Date(Date.now() - 1000) });
 
-    await expectRedirect(
-      () =>
-        acceptInvite(
-          undefined,
-          formData({
-            email: "NEWCOMER@example.com",
-            code: code.toLowerCase().replace("-", " "),
-            name: "Newcomer",
-            password: "a-good-password",
-          }),
-        ),
-      "/dashboard",
-    );
+    expect(await joinWithLink(undefined, newcomer(token))).toEqual({
+      error: "This link has expired. Ask for a new one.",
+    });
+    expect(await prisma.user.count({ where: { email: "newcomer@example.com" } })).toBe(0);
   });
 
-  it("refuses a wrong code", async () => {
-    await openInvite();
+  it("refuses a token nobody made, and a withdrawn one", async () => {
+    const { link, token } = await openLink();
+    await prisma.inviteLink.delete({ where: { id: link.id } });
 
-    const result = await acceptInvite(
-      undefined,
-      formData({
-        email: "newcomer@example.com",
-        code: "AAAA-BBBB",
-        name: "Newcomer",
-        password: "a-good-password",
-      }),
-    );
-
-    expect(result).toEqual({ error: "That email and code don't match an open invitation." });
-    expect(await prisma.user.findUnique({ where: { email: "newcomer@example.com" } })).toBeNull();
+    for (const attempt of ["made-up", token]) {
+      expect(await joinWithLink(undefined, newcomer(attempt))).toEqual({
+        error: "This link does not work. Perhaps it was withdrawn — ask for a new one.",
+      });
+    }
   });
 
-  it("refuses a valid code presented with a different email", async () => {
-    const { code } = await openInvite({ email: "invited@example.com" });
+  it("answers in the language of the home the link is for", async () => {
+    const { home, token } = await openLink({ expiresAt: new Date(Date.now() - 1000) });
+    await prisma.home.update({ where: { id: home.id }, data: { language: "DA" } });
 
-    const result = await acceptInvite(
-      undefined,
-      formData({
-        email: "gatecrasher@example.com",
-        code,
-        name: "Gatecrasher",
-        password: "a-good-password",
-      }),
-    );
-
-    expect(result?.error).toContain("don't match an open invitation");
-    expect(await prisma.user.count()).toBe(2); // only the seeded admin and member
+    expect(await joinWithLink(undefined, newcomer(token))).toEqual({ error: "Linket er udløbet. Bed om et nyt." });
   });
 
-  it("refuses an expired invite", async () => {
-    const { code } = await openInvite({ expiresAt: new Date(Date.now() - 1000) });
-
-    const result = await acceptInvite(
-      undefined,
-      formData({
-        email: "newcomer@example.com",
-        code,
-        name: "Newcomer",
-        password: "a-good-password",
-      }),
-    );
-
-    expect(result?.error).toContain("don't match an open invitation");
-  });
-
-  it("cannot be used twice", async () => {
-    const { code } = await openInvite();
-    const fields = {
-      email: "newcomer@example.com",
-      code,
-      name: "Newcomer",
-      password: "a-good-password",
-    };
-
-    await captureRedirect(() => acceptInvite(undefined, formData(fields)));
-    const second = await acceptInvite(undefined, formData(fields));
-
-    // The invitation is spent, so there is nothing left for the code to match.
-    expect(second?.error).toContain("don't match an open invitation");
-    expect(await prisma.user.count()).toBe(3);
-  });
-
-  it("joins an existing account to the home, with no second account made", async () => {
-    const { home, code } = await openInvite();
+  it("joins an existing account with its own password, with no second account made", async () => {
     const elsewhere = await createHome();
-    const neighbour = await createUser({ email: "newcomer@example.com", homeId: elsewhere.id });
+    const existing = await createUser({ email: "newcomer@example.com", homeId: elsewhere.id, role: "ADMIN" });
+    const { home, token } = await openLink();
 
-    await expectRedirect(
-      () =>
-        acceptInvite(
-          undefined,
-          formData({
-            email: "newcomer@example.com",
-            code,
-            name: "Ignored",
-            password: TEST_PASSWORD,
-          }),
-        ),
-      "/dashboard",
-    );
+    await captureRedirect(() => joinWithLink(undefined, newcomer(token, { password: TEST_PASSWORD })));
 
-    expect(await prisma.user.count()).toBe(3);
-    expect(await roleIn(neighbour.id, home.id)).toBe("USER");
-    // Both homes, and the one they just accepted is the one they land in.
-    expect(await roleIn(neighbour.id, elsewhere.id)).toBe("USER");
-    const joined = await prisma.user.findUniqueOrThrow({ where: { id: neighbour.id } });
-    expect(joined.activeHomeId).toBe(home.id);
-    expect(joined.name).toBe(neighbour.name);
+    expect(await prisma.user.count({ where: { email: "newcomer@example.com" } })).toBe(1);
+    expect(await roleIn(existing.id, home.id)).toBe("USER");
+    expect(await roleIn(existing.id, elsewhere.id)).toBe("ADMIN");
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: existing.id } })).activeHomeId).toBe(home.id);
   });
 
   it("refuses an existing account when the password is wrong", async () => {
-    const { home, code } = await openInvite();
-    const elsewhere = await createHome();
-    const neighbour = await createUser({ email: "newcomer@example.com", homeId: elsewhere.id });
+    const existing = await createUser({ email: "newcomer@example.com" });
+    const { home, link, token } = await openLink();
 
-    const result = await acceptInvite(
-      undefined,
-      formData({
-        email: "newcomer@example.com",
-        code,
-        name: "Newcomer",
-        password: "not-their-password",
-      }),
-    );
+    const result = await joinWithLink(undefined, newcomer(token, { password: "not-the-password" }));
 
-    expect(result?.error).toContain("Enter its password");
-    expect(await roleIn(neighbour.id, home.id)).toBeNull();
+    expect(result?.error).toMatch(/already has an account/);
+    expect(await roleIn(existing.id, home.id)).toBeNull();
+    expect((await prisma.inviteLink.findUniqueOrThrow({ where: { id: link.id } })).uses).toBe(0);
+    expect(hasSessionCookie()).toBe(false);
   });
 
-  it("requires a password of at least eight characters", async () => {
-    const { code } = await openInvite();
-
-    const result = await acceptInvite(
-      undefined,
-      formData({ email: "newcomer@example.com", code, name: "Newcomer", password: "short" }),
-    );
-
-    expect(result).toEqual({ error: "Password must be at least 8 characters." });
-    expect(await prisma.user.findUnique({ where: { email: "newcomer@example.com" } })).toBeNull();
-  });
-
-  it("requires a name", async () => {
-    const { code } = await openInvite();
-
-    const result = await acceptInvite(
-      undefined,
-      formData({ email: "newcomer@example.com", code, name: "", password: "a-good-password" }),
-    );
-
-    expect(result).toEqual({ error: "Enter your name." });
-  });
-
-  it("throttles code guessing", async () => {
-    await openInvite();
-    const guess = () =>
-      acceptInvite(
-        undefined,
-        formData({
-          email: "newcomer@example.com",
-          code: "ZZZZ-ZZZZ",
-          name: "Guesser",
-          password: "a-good-password",
-        }),
-      );
-
-    for (let i = 0; i < 8; i++) await guess();
-
-    expect((await guess())?.error).toContain("Too many failed attempts");
-  });
-
-  it("does not let an invite to one home create a user in another", async () => {
-    const otherHome = await createHome();
-    const { home, code } = await openInvite();
+  it("uses up no place for somebody already in the home, and keeps their role", async () => {
+    const { home, admin, link, token } = await openLink({ maxUses: 1 });
 
     await captureRedirect(() =>
-      acceptInvite(
-        undefined,
-        formData({
-          email: "newcomer@example.com",
-          code,
-          name: "Newcomer",
-          password: "a-good-password",
-          homeId: otherHome.id, // ignored: the invite decides
-        }),
-      ),
+      joinWithLink(undefined, newcomer(token, { email: admin.email, password: TEST_PASSWORD })),
     );
 
-    const created = await prisma.user.findUnique({ where: { email: "newcomer@example.com" } });
-    expect(await roleIn(created!.id, home.id)).toBe("USER");
-    expect(await roleIn(created!.id, otherHome.id)).toBeNull();
+    expect(await roleIn(admin.id, home.id)).toBe("ADMIN");
+    expect((await prisma.inviteLink.findUniqueOrThrow({ where: { id: link.id } })).uses).toBe(0);
+  });
+
+  it("requires a name and a password of at least eight characters", async () => {
+    const { token } = await openLink();
+
+    expect((await joinWithLink(undefined, newcomer(token, { name: " " })))?.error).toBe("Enter your name.");
+    expect((await joinWithLink(undefined, newcomer(token, { password: "short" })))?.error).toBe(
+      "Password must be at least 8 characters.",
+    );
+    expect(await prisma.user.count({ where: { email: "newcomer@example.com" } })).toBe(0);
+  });
+
+  it("throttles password guessing against an existing account", async () => {
+    await createUser({ email: "newcomer@example.com" });
+    const { token } = await openLink();
+    setClientIp("203.0.113.9");
+
+    for (let i = 0; i < attemptsAllowed("join"); i++) {
+      await joinWithLink(undefined, newcomer(token, { password: `wrong-${i}-password` }));
+    }
+    const result = await joinWithLink(undefined, newcomer(token, { password: TEST_PASSWORD }));
+
+    expect(result?.error).toMatch(/Too many failed attempts/);
+  });
+
+  it("limits how many accounts one address can make", async () => {
+    const { token } = await openLink({ maxUses: 10 });
+    setClientIp("203.0.113.10");
+
+    for (let i = 0; i < attemptsAllowed("signup"); i++) {
+      await captureRedirect(() => joinWithLink(undefined, newcomer(token, { email: `n${i}@example.com` })));
+    }
+    const result = await joinWithLink(undefined, newcomer(token, { email: "one-more@example.com" }));
+
+    expect(result?.error).toMatch(/Many accounts have been made from here/);
+    expect(await prisma.user.findUnique({ where: { email: "one-more@example.com" } })).toBeNull();
+  });
+
+  it("ignores a home named in the form: the link decides", async () => {
+    const otherHome = await createHome();
+    const { home, token } = await openLink();
+
+    await captureRedirect(() => joinWithLink(undefined, newcomer(token, { homeId: otherHome.id })));
+
+    const created = await prisma.user.findUniqueOrThrow({ where: { email: "newcomer@example.com" } });
+    expect(await roleIn(created.id, home.id)).toBe("USER");
+    expect(await roleIn(created.id, otherHome.id)).toBeNull();
+  });
+});
+
+describe("joinWithLinkAsMe", () => {
+  it("joins the signed-in person to the link's home with one press", async () => {
+    const elsewhere = await createHome();
+    const person = await createUser({ homeId: elsewhere.id });
+    const { home, admin } = await createHomeWithMembers();
+    const { link, token } = await createInviteLinkFor({ homeId: home.id, createdById: admin.id });
+    await signIn(person);
+
+    await expectRedirect(() => joinWithLinkAsMe(undefined, formData({ token })), "/dashboard");
+
+    const membership = await prisma.homeMember.findUnique({
+      where: { userId_homeId: { userId: person.id, homeId: home.id } },
+    });
+    expect(membership?.role).toBe("USER");
+    expect((await prisma.inviteLink.findUniqueOrThrow({ where: { id: link.id } })).uses).toBe(1);
+  });
+
+  it("refuses a used-up link", async () => {
+    const person = await createUser();
+    const { home, admin } = await createHomeWithMembers();
+    const { token } = await createInviteLinkFor({ homeId: home.id, createdById: admin.id, maxUses: 1, uses: 1 });
+    await signIn(person);
+
+    expect(await joinWithLinkAsMe(undefined, formData({ token }))).toEqual({
+      error: "This link has been used up. Ask for a new one.",
+    });
+  });
+
+  it("sends somebody back to a home they are already in, even on a used-up link", async () => {
+    const { home, admin, member } = await createHomeWithMembers();
+    const { token } = await createInviteLinkFor({ homeId: home.id, createdById: admin.id, maxUses: 1, uses: 1 });
+    await signIn(member);
+
+    await expectRedirect(() => joinWithLinkAsMe(undefined, formData({ token })), "/dashboard");
+  });
+
+  it("sends somebody signed out to log in", async () => {
+    await expectRedirect(() => joinWithLinkAsMe(undefined, formData({ token: "anything" })), "/login");
   });
 });

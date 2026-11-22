@@ -69,7 +69,7 @@ export type Say = <P extends Phrase | Plural>(phrase: P, ...fill: Args<P>) => st
  * `const db = homeDb(user.homeId)` and stops thinking about it.
  *
  * Deliberately *not* read from the session inside here. The reminder job has no
- * session and must say what it says in each home's own language; `/accept-invite`
+ * session and must say what it says in each home's own language; `/join/<token>`
  * must say what it says in the *inviting* home's language, which is not the reader's
  * and could not be — the reader has no home yet. An ambient async `t()` can express
  * neither, and would have quietly answered "English" in both.

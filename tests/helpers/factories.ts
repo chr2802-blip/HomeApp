@@ -1,7 +1,7 @@
 import type { HomeLanguage, MemberRole, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createSession, hashPassword } from "@/lib/auth";
-import { generateInviteCode, hashInviteCode } from "@/lib/invite-code";
+import { generateLinkToken, hashLinkToken } from "@/lib/invite-links";
 import { cookieStore } from "./next-mocks";
 import { pngBytes } from "./images";
 
@@ -110,27 +110,25 @@ export function signOut() {
   cookieStore.delete("homehub_session");
 }
 
-export async function createInviteFor(options: {
-  email: string;
+export async function createInviteLinkFor(options: {
   homeId: string;
   createdById: string;
-  role?: MemberRole;
+  maxUses?: number;
+  uses?: number;
   expiresAt?: Date;
-  acceptedAt?: Date | null;
 }) {
-  const code = generateInviteCode();
-  const invite = await prisma.invite.create({
+  const token = generateLinkToken();
+  const link = await prisma.inviteLink.create({
     data: {
-      email: options.email.toLowerCase(),
       homeId: options.homeId,
-      role: options.role ?? "USER",
-      codeHash: hashInviteCode(code),
-      expiresAt: options.expiresAt ?? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-      acceptedAt: options.acceptedAt ?? null,
+      tokenHash: hashLinkToken(token),
+      maxUses: options.maxUses ?? 5,
+      uses: options.uses ?? 0,
+      expiresAt: options.expiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       createdById: options.createdById,
     },
   });
-  return { invite, code };
+  return { link, token };
 }
 
 /**

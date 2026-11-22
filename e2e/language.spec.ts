@@ -167,8 +167,8 @@ test("speaks settings and admin in the household's own language, and login befor
   await expect(page.getByRole("heading", { name: "Medlemmer" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Inviter nogen" })).toBeVisible();
 
-  // /login and /accept-invite are reached before any session exists at all, so they
-  // read through `currentLanguage()` rather than a page's own session — and there is
+  // /login is reached before any session exists at all, so it
+  // reads through `currentLanguage()` rather than a page's own session — and there is
   // nobody's home to have set Danish on yet, so this is instead proof the pages
   // default sensibly (English) with nothing to ask.
   await page.context().clearCookies();
