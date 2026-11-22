@@ -79,9 +79,9 @@ export function recipeImportOverlay(language: HomeLanguage): AiWait {
       RECIPES.readingStage3,
       RECIPES.readingStage4,
     ].map(say),
-    // A guess for Sonnet 5.5 at low effort plus the page fetch before it; set it from
-    // Admin → System → AI call times once a few real imports have been timed.
-    expectedSeconds: 18,
+    // Sonnet 5.5 at low effort plus the page fetch before it: Admin → System → AI call
+    // times read an 8s median for imports in production (2026-11-22).
+    expectedSeconds: 8,
   };
 }
 

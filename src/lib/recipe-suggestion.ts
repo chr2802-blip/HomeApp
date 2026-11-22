@@ -1,17 +1,16 @@
 import type { HomeLanguage } from "@prisma/client";
 import { homeDb } from "./home-db";
 import { leftoversLabel } from "./meals";
+import { SUGGESTIBLE } from "./meal-suggestions";
 import { todayInZone } from "./time";
 
 /**
  * Every recipe this home may be suggested for dinner — everything except what is filed
- * under a category an admin has excluded. A recipe under several headings is kept out
- * the moment any one of them is: a household that excludes "Baby food" does not want a
- * lasagne that also happens to be filed there.
+ * only under categories an admin has excluded (`SUGGESTIBLE`, the meal plan's rule too).
  */
 async function eligibleRecipeIds(homeId: string) {
   const recipes = await homeDb(homeId).recipe.findMany({
-    where: { categories: { none: { category: { excludeFromSuggestion: true } } } },
+    where: SUGGESTIBLE,
     select: { id: true },
   });
   return recipes.map((recipe) => recipe.id);

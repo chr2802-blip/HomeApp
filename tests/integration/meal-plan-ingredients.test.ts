@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { addMealPlanIngredients } from "@/app/actions/lists";
 import { planMeal } from "@/app/actions/meals";
 import { PLAN_FIELD, PLAN_OUT, leftoversChoice } from "@/lib/meals";
-import { todayInZone, weekDays, weekStartOn } from "@/lib/time";
+import { todayInZone, weekDays, mealWeekStartOn } from "@/lib/time";
 import {
   createHome,
   createHomeWithMembers,
@@ -24,9 +24,9 @@ import { expectDenied } from "../helpers/expect";
 let home: Awaited<ReturnType<typeof createHomeWithMembers>>["home"];
 let member: Awaited<ReturnType<typeof createHomeWithMembers>>["member"];
 
-// A fixed Thursday, so the week it falls in (Monday 2026-06-01) is stable across runs.
+// A fixed Thursday, so the week it falls in (Sunday 2026-05-31) is stable across runs.
 const THURSDAY = "2026-06-04";
-const WEEK = weekStartOn(THURSDAY)!;
+const WEEK = mealWeekStartOn(THURSDAY)!;
 
 beforeEach(async () => {
   ({ home, member } = await createHomeWithMembers());

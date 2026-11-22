@@ -14,7 +14,6 @@ import { formatInZone, readInZone } from "@/lib/time";
 import { DATE } from "@/lib/copy/dates";
 import { sayIn } from "@/lib/copy/say";
 import { TASKS } from "@/lib/copy/tasks";
-import { LinkCue } from "@/components/link-cue";
 
 /** What a row, the details page and the edit sheet need to know about a task. */
 export type TaskSummary = {
@@ -137,7 +136,6 @@ export function TaskRow({
             )}
           </p>
         </div>
-        <LinkCue />
       </Link>
       {trailing}
     </div>

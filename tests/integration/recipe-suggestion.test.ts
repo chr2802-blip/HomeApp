@@ -105,6 +105,20 @@ describe("refreshTonightsDinner", () => {
     expect(await refreshTonightsDinner(home.id)).toBe(allowed.id);
   });
 
+  it("still offers a recipe that is also filed under an ordinary category", async () => {
+    const babyFood = await createRecipeCategory({ homeId: home.id, excludeFromSuggestion: true });
+    const weeknight = await createRecipeCategory({ homeId: home.id });
+    const both = await createRecipe({
+      homeId: home.id,
+      createdById: member.id,
+      categoryIds: [babyFood.id, weeknight.id],
+    });
+    const onlyBaby = await createRecipe({ homeId: home.id, createdById: member.id, categoryIds: [babyFood.id] });
+    await planToday(onlyBaby.id);
+
+    expect(await refreshTonightsDinner(home.id)).toBe(both.id);
+  });
+
   it("never switches to another home's recipe", async () => {
     const mine = await createRecipe({ homeId: home.id, createdById: member.id });
     const neighbour = await createHome({ name: "Next door" });

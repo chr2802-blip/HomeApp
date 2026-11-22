@@ -3,13 +3,12 @@ import { requireUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
 import { openItemCounts } from "@/lib/list-counts";
 import { ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
-import { completeTask, snoozeTask } from "@/app/actions/tasks";
+import { completeTask } from "@/app/actions/tasks";
 import { TaskDoneButton } from "@/components/task-done-button";
-import { TaskSnoozeMenu } from "@/components/task-snooze";
 import { NotificationSetup } from "@/components/notification-setup";
 import { dueTone } from "@/lib/due";
 import type { HomeLanguage } from "@prisma/client";
-import { UNFINISHED, isSnoozable } from "@/lib/tasks";
+import { UNFINISHED } from "@/lib/tasks";
 import { TaskRow, type TaskSummary } from "@/components/task-row";
 import { PhotoThumb } from "@/components/photo";
 import { faceOf } from "@/lib/emoji";
@@ -27,7 +26,6 @@ import { DASHBOARD } from "@/lib/copy/dashboard";
 import { APP } from "@/lib/copy/app";
 import { DATE } from "@/lib/copy/dates";
 import { MEALS } from "@/lib/copy/meals";
-import { LinkCue } from "@/components/link-cue";
 import { CreateMenu } from "@/components/create-button";
 import { HomeBanner } from "@/components/home-banner";
 import { LISTS } from "@/lib/copy/lists";
@@ -76,10 +74,9 @@ function itemsLine(total: number, open: number, language: HomeLanguage) {
  * one row, a due badge and Done on the next — which on a phone was about a hundred
  * pixels a task, so three of them pushed the dinner and the lists off the first screen.
  *
- * Beside it, on the rows where it means anything, the one other answer this page is ever
- * given: not today (`isSnoozable`). The three dots are a small icon, not a second button
- * the size of Done, so a thumb aiming at "later" does not land on the job being marked
- * done — see `TaskSnoozeMenu`.
+ * Done is the only thing beside it. "Not today" lives on the task's own page, one press
+ * away: three dots on every row of the first screen were furniture next to the press the
+ * row is for.
  */
 function DueTask({
   task,
@@ -102,14 +99,9 @@ function DueTask({
       language={language}
       showWho={showWho}
       trailing={
-        <>
-          {isSnoozable(task, now) && (
-            <TaskSnoozeMenu taskId={task.id} title={task.title} action={snoozeTask} className="-mx-1" />
-          )}
-          {/* The same press as the one on the tasks page, drawn by the same component so
-              the tick rises out of it in both places. */}
-          <TaskDoneButton taskId={task.id} action={completeTask} label={say(DASHBOARD.done)} />
-        </>
+        // The same press as the one on the tasks page, drawn by the same component so
+        // the tick rises out of it in both places.
+        <TaskDoneButton taskId={task.id} action={completeTask} label={say(DASHBOARD.done)} />
       }
     />
   );
@@ -143,7 +135,6 @@ function StatTile({
         <p className="truncate text-xs text-slate-700">{label}</p>
         <p className={`truncate text-[11px] ${warn ? "text-red-600" : "text-slate-400"}`}>{detail}</p>
       </Card>
-      <LinkCue />
     </Link>
   );
 }
@@ -413,7 +404,6 @@ export default async function DashboardPage() {
                   >
                     {what}
                   </p>
-                  <LinkCue />
                 </Link>
               );
             })}
@@ -475,7 +465,6 @@ export default async function DashboardPage() {
                         not done. */}
                     {total > 0 && <ProgressBar edge done={total - stillOpen} total={total} />}
                   </Card>
-                  <LinkCue />
                 </Link>
               );
             })}

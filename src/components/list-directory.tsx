@@ -18,7 +18,6 @@ import { ProgressBar } from "@/components/progress-bar";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
 import { LISTS } from "@/lib/copy/lists";
-import { LinkCue } from "@/components/link-cue";
 
 export type ListSummary = {
   id: string;
@@ -77,7 +76,6 @@ function ListCards({ lists }: { lists: ListSummary[] }) {
                 {say(LISTS.openTotal, { open: list.open, total: list.total })}
               </p>
             </div>
-            <LinkCue />
           </Link>
           {/* Both sit to the right of the title, outside the link: a button inside
               a link is neither valid nor pressable without following it. */}

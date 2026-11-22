@@ -15,7 +15,6 @@ import { sayIn } from "@/lib/copy/say";
 import { RECIPES } from "@/lib/copy/recipes";
 import { formatAverage } from "@/lib/rating";
 import { HeartIcon } from "@/components/recipe-rating";
-import { LinkCue } from "@/components/link-cue";
 import { RecipeSelectionBar } from "@/components/recipe-selection-bar";
 import { MenuItem } from "@/components/context-menu";
 import type { ListChoice } from "@/components/add-to-list-menu";
@@ -362,7 +361,6 @@ export function RecipeDirectory({
                     ) : (
                       <HoldableLink href={`/recipes/${recipe.id}`} onHold={() => hold(recipe.id)}>
                         {face(recipe)}
-                        <LinkCue />
                       </HoldableLink>
                     )}
                     {/* Over the card rather than in it: the card is one link, and a

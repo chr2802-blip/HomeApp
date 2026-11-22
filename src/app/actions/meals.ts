@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireHomeUser } from "@/lib/auth";
 import { homeDb } from "@/lib/home-db";
-import { dueAtDaysFrom, dueAtOn, todayInZone, weekDays, weekStartOn } from "@/lib/time";
+import { dueAtDaysFrom, dueAtOn, mealWeekStartOn, todayInZone, weekDays } from "@/lib/time";
 import { PLAN_FIELD, PLAN_OUT, leftoversDay } from "@/lib/meals";
 import { readTimes, TIMES_FIELD } from "@/lib/recipes";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
@@ -104,7 +104,7 @@ export async function planMeal(_prev: ActionResult, formData: FormData): Promise
  * Clears every day of one week in a single press, for a plan started over rather than
  * undone one day at a time.
  *
- * `week` is checked through `weekStartOn` rather than trusted as given: it comes off the
+ * `week` is checked through `mealWeekStartOn` rather than trusted as given: it comes off the
  * page's own address, and a hand-edited or stale one is still something the server is
  * being asked to act on, the same as `planMeal`'s own `date`. `deleteMany` rather than
  * seven individual clears — a week with nothing planned in it yet is cleared just as
@@ -116,7 +116,7 @@ export async function planMeal(_prev: ActionResult, formData: FormData): Promise
 export async function resetMealWeek(formData: FormData) {
   const user = await requireHomeUser();
 
-  const week = weekStartOn(String(formData.get("week") ?? ""));
+  const week = mealWeekStartOn(String(formData.get("week") ?? ""));
   if (!week) return;
 
   await homeDb(user.homeId).mealPlan.deleteMany({ where: { date: { in: weekDays(week) } } });

@@ -59,8 +59,8 @@ is what leftovers means, and is also what makes a cycle unwritable without anyon
 a second thought about chains), and it must be a day this home is **cooking**, since
 leftovers of a night out is not a sentence. The picker only offers days that pass both,
 so an option the action would refuse is never drawn — and it reaches one day back past
-the Monday on screen, because a week that could not see the Sunday before it would be the
-one week in seven where living off the roast disappeared.
+the first day on screen, because a week that could not see the day before it would be the
+one week in seven where living off it disappeared.
 
 **The picker is a list of radios, not a `<select>` and not a combobox.**
 `MealPicker` (`src/components/meal-picker.tsx`) draws it. A native picker holds one line
@@ -147,10 +147,11 @@ leaves no mark of its own: without it a browser test presses a static page, whic
 on an idle machine and fails whenever one is busy.
 
 `/meals` is a tab, between Tasks and Recipes — the plan beside the collection it draws
-from. The week is in the address (`?week=`, read through `weekStartOn`), so it is a place
+from. The week is in the address (`?week=`, read through `mealWeekStartOn`), so it is a place
 that can be shared, bookmarked and reached with the back arrow, and the page stays on the
 server with no week held in a component's state. Any day of a week is a link to that week
-because the value is normalised to its Monday, and a day that never existed
+because the value is normalised to its Sunday — the meal plan's week opens on the day the
+household sits down to plan it (2026-11-22; it opened on Monday before) — and a day that never existed
 ("2026-02-31") falls back to the live week rather than drawing seven days of arithmetic
 nobody can read. Pressing a day's row opens its sheet: there is exactly one thing to do
 with a day, so a three-dot menu would be a menu of one entry standing in front of it.
@@ -187,9 +188,11 @@ planned (`onDelete: Cascade` on `MealPlan.recipe`, the same as any other recipe 
 out from under a plan), so a stale pointer is never left behind: the next visit just
 picks again, the same as any other day nothing was stored yet.
 
-A category's `excludeFromSuggestion` keeps its recipes out of the pool entirely — a
-recipe filed under an excluded heading and an ordinary one is still excluded, because a
-household that ticked "Baby food" for exactly this reason does not want it back for
-having a second category. The checkbox lives beside the name on both the add and rename
+A category's `excludeFromSuggestion` keeps a recipe out of the pool only when **every**
+heading it is filed under has it. It used to be any one of them; the household reversed
+that (2026-11-22): a dish filed under "Baby food" and "Dinner" is somebody saying it is
+both, while one filed only under excluded headings is never dinner — and is kept out of
+the meal plan's whole picker too, not only its suggestions, except on a day already
+holding it. The checkbox lives beside the name on both the add and rename
 forms in `RecipeCategoriesAdmin`, read the same way `List.trackAmounts` is: an unticked
 box is absent from the form rather than present and false.

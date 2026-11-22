@@ -4,7 +4,6 @@ import { Card, PageHeader } from "@/components/ui";
 import { sayIn } from "@/lib/copy/say";
 import { ADMIN_INDEX, SYSTEM } from "@/lib/copy/admin";
 import { HOMES } from "@/lib/copy/homes";
-import { LinkCue } from "@/components/link-cue";
 
 /**
  * The installation, which is the super admin's business and nobody else's: every home
@@ -56,7 +55,6 @@ function Entry({
         <h2 className="font-semibold tracking-tight">{title}</h2>
         <p className="mt-1 text-sm text-slate-500">{description}</p>
       </Card>
-      <LinkCue />
     </Link>
   );
 }

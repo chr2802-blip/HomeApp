@@ -12,7 +12,6 @@ import { Card } from "@/components/ui";
 import { ItemMenu } from "@/components/item-menu";
 import { PhotoBanner, PhotoThumb } from "@/components/photo";
 import { faceOf } from "@/lib/emoji";
-import { SnoozeMenuItem } from "@/components/task-snooze";
 import { SubmitButton } from "@/components/submit-button";
 import { TaskDoneButton } from "@/components/task-done-button";
 import { TONE_TEXT, TaskFields } from "@/components/task-row";
@@ -90,9 +89,6 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
           editAction={updateTask}
           deleteAction={deleteTask}
           deleteMessage={say(TASKS.deleteTaskMessage, { title: task.title })}
-          extraItems={
-            isSnoozable(task, now) && <SnoozeMenuItem taskId={task.id} action={snoozeTask} />
-          }
           className="-mr-2"
         >
           <TaskFields task={task} members={members} language={language} />
@@ -127,7 +123,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
         </Card>
       )}
 
-      <div className="flex justify-center pt-2">
+      <div className="flex flex-col items-center gap-3 pt-2">
         {finished ? (
           // Reopening is a correction rather than an achievement, so it stays a plain
           // form: the tick rising out of the button would be celebrating an undo.
@@ -144,6 +140,18 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
             label={say(TASKS.markDone)}
             variant="primary"
           />
+        )}
+        {/* "Not today", only where it could mean anything (`isSnoozable`), and set apart
+            below the main button rather than beside it at the same size, so a thumb
+            aiming at "later" does not mark the job done. It lived in the rows' three
+            dots until those went; this page is now the one place it is offered. */}
+        {isSnoozable(task, now) && (
+          <form action={snoozeTask}>
+            <input type="hidden" name="taskId" value={task.id} />
+            <SubmitButton variant="secondary" pendingLabel={say(APP.saving)}>
+              {say(TASKS.snoozeToTomorrow)}
+            </SubmitButton>
+          </form>
         )}
       </div>
     </>

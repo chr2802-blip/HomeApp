@@ -3,6 +3,7 @@ import {
   STAPLE_MINIMUM,
   SUGGESTION_COUNT,
   ingredientKeys,
+  isSuggestible,
   rankByOverlap,
   staplesOf,
   suggestionReason,
@@ -147,5 +148,22 @@ describe("suggestionReason", () => {
     expect(suggestionReason({ recipeId: "a", title: "Toast", shared: 1, total: 1 }, "EN")).toBe(
       "Shares 1 of 1 ingredient with the week",
     );
+  });
+});
+
+describe("isSuggestible", () => {
+  const filed = (...excluded: boolean[]) => ({
+    categories: excluded.map((excludeFromSuggestion) => ({ category: { excludeFromSuggestion } })),
+  });
+
+  it("keeps out a recipe only when every heading it is under is excluded", () => {
+    expect(isSuggestible(filed(true))).toBe(false);
+    expect(isSuggestible(filed(true, true))).toBe(false);
+    expect(isSuggestible(filed(true, false))).toBe(true);
+    expect(isSuggestible(filed(false))).toBe(true);
+  });
+
+  it("offers a recipe with no heading rather than hiding it", () => {
+    expect(isSuggestible(filed())).toBe(true);
   });
 });

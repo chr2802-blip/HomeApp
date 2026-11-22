@@ -6,7 +6,7 @@ import {
   previousWeekStart,
   todayInZone,
   weekDays,
-  weekStartInZone,
+  mealWeekStartInZone,
 } from "../src/lib/time";
 
 async function seedRecipe(title: string, ingredients = "Something") {
@@ -106,7 +106,7 @@ async function addToList(page: import("@playwright/test").Page, listTitle: strin
  * through" as the week goes by, which every test below that needs more than one day to
  * work with has to be immune to.
  */
-const FUTURE_WEEK = nextWeekStart(weekStartInZone());
+const FUTURE_WEEK = nextWeekStart(mealWeekStartInZone());
 
 test.beforeEach(async ({ loginAs, page }) => {
   await loginAs(ACCOUNTS.member);
@@ -114,7 +114,7 @@ test.beforeEach(async ({ loginAs, page }) => {
 });
 
 test("the week starts as seven days with nothing planned", async ({ page }) => {
-  for (const date of weekDays(weekStartInZone())) {
+  for (const date of weekDays(mealWeekStartInZone())) {
     await expect(day(page, date)).toBeVisible();
   }
 
@@ -193,9 +193,9 @@ test("the week's plan is kept, and the weeks either side are their own", async (
 });
 
 test("a week reached by its own address is the week it names", async ({ page }) => {
-  const week = nextWeekStart(weekStartInZone());
+  const week = nextWeekStart(mealWeekStartInZone());
 
-  // Any day of a week is a link to that week: the address is normalised to its Monday.
+  // Any day of a week is a link to that week: the address is normalised to its Sunday, the day the household plans.
   await page.goto(`/meals?week=${weekDays(week)[3]}`);
 
   for (const date of weekDays(week)) {
@@ -224,7 +224,7 @@ test("the Food tab opens on the recipes, and the plan is the segment beside them
 });
 
 test("a day can live off an earlier one's cooking, and says whose", async ({ page }) => {
-  const [monday, tuesday] = weekDays(FUTURE_WEEK);
+  const [, monday, tuesday] = weekDays(FUTURE_WEEK);
   await seedRecipe("Pancakes");
   await page.goto(`/meals?week=${FUTURE_WEEK}`);
 
@@ -247,7 +247,7 @@ test("a day can live off an earlier one's cooking, and says whose", async ({ pag
 });
 
 test("only the days already cooked are offered to be the leftovers of", async ({ page }) => {
-  const [monday, tuesday, wednesday] = weekDays(FUTURE_WEEK);
+  const [, monday, tuesday, wednesday] = weekDays(FUTURE_WEEK);
   await seedRecipe("Pancakes");
   await page.goto(`/meals?week=${FUTURE_WEEK}`);
 
@@ -267,7 +267,7 @@ test("only the days already cooked are offered to be the leftovers of", async ({
 test("an empty day is offered what shares most with the week, and fills the picker in", async ({
   page,
 }) => {
-  const [monday, tuesday] = weekDays(FUTURE_WEEK);
+  const [, monday, tuesday] = weekDays(FUTURE_WEEK);
   await seedRecipe("Beef pasta", "Beef\nPasta\nOnion");
   await seedRecipe("Beef stew", "Beef\nOnion\nCarrot");
   await seedRecipe("Cod and saffron", "Cod\nSaffron\nCream");
@@ -355,7 +355,7 @@ test("searching never takes away the choice already made", async ({ page }) => {
 });
 
 test("a recipe is offered once, under the first group that claims it", async ({ page }) => {
-  const [monday, tuesday] = weekDays(FUTURE_WEEK);
+  const [, monday, tuesday] = weekDays(FUTURE_WEEK);
   await seedRecipe("Beef pasta", "Beef\nPasta\nOnion");
   await seedRecipe("Beef stew", "Beef\nOnion\nCarrot");
   await page.goto(`/meals?week=${FUTURE_WEEK}`);
@@ -369,7 +369,7 @@ test("a recipe is offered once, under the first group that claims it", async ({ 
 });
 
 test("every recipe planned this week goes onto a chosen list in one press", async ({ page }) => {
-  const [monday, tuesday] = weekDays(FUTURE_WEEK);
+  const [, monday, tuesday] = weekDays(FUTURE_WEEK);
   await seedRecipe("Pancakes", "Milk\nFlour");
   await seedRecipe("Curry", "Rice\nMilk");
   await page.goto(`/meals?week=${FUTURE_WEEK}`);
@@ -393,7 +393,7 @@ test("every recipe planned this week goes onto a chosen list in one press", asyn
 test("a day already lived through cannot be opened", async ({ page }) => {
   // Every day of the week before this one is strictly earlier than today, whatever day
   // of its own week today happens to be.
-  const lastWeek = previousWeekStart(weekStartInZone());
+  const lastWeek = previousWeekStart(mealWeekStartInZone());
   await page.goto(`/meals?week=${lastWeek}`);
 
   const row = day(page, weekDays(lastWeek)[0]!);
@@ -404,7 +404,7 @@ test("a day already lived through cannot be opened", async ({ page }) => {
 test("swiping saves the day being left and moves the sheet on to the next one", async ({
   page,
 }) => {
-  const [monday, tuesday] = weekDays(FUTURE_WEEK);
+  const [, monday, tuesday] = weekDays(FUTURE_WEEK);
   await seedRecipe("Pancakes");
   await seedRecipe("Curry");
   await page.goto(`/meals?week=${FUTURE_WEEK}`);
@@ -433,4 +433,26 @@ test("swiping saves the day being left and moves the sheet on to the next one", 
 
   await expect(day(page, monday!)).toContainText("Pancakes");
   await expect(day(page, tuesday!)).toContainText("Curry");
+});
+
+test("a recipe filed only under excluded headings is not offered in the picker", async ({ page }) => {
+  const [, monday] = weekDays(FUTURE_WEEK);
+  const db = prisma();
+  const home = await db.home.findFirstOrThrow({ where: { name: HOME_NAME } });
+  const babyFood = await db.recipeCategory.create({
+    data: { homeId: home.id, name: "Baby food", excludeFromSuggestion: true },
+  });
+  // seedRecipe files both under the ordinary first heading; Puree is moved off it.
+  const onlyBaby = await seedRecipe("Puree");
+  const both = await seedRecipe("Mash");
+  await db.recipeCategoryLink.deleteMany({ where: { recipeId: onlyBaby.id } });
+  await db.recipeCategoryLink.create({ data: { recipeId: onlyBaby.id, categoryId: babyFood.id } });
+  await db.recipeCategoryLink.create({ data: { recipeId: both.id, categoryId: babyFood.id } });
+
+  await page.goto(`/meals?week=${FUTURE_WEEK}`);
+  await openDay(page, monday!);
+
+  // Under an ordinary heading as well, it is somebody saying it is dinner too.
+  await expect(choice(page, "Mash")).toHaveCount(1);
+  await expect(choice(page, "Puree")).toHaveCount(0);
 });

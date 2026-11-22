@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { ACCOUNTS, expect, openDialog, ROUTES_REQUESTS, test } from "./helpers/fixtures";
 import { CATEGORIES, HOME_NAME, prisma } from "./helpers/database";
-import { formatDayInZone, nextWeekStart, weekStartInZone } from "../src/lib/time";
+import { formatDayInZone, mealWeekStartInZone, nextWeekStart } from "../src/lib/time";
 
 // Holds requests with `page.route`, which a service worker can route around.
 test.use(ROUTES_REQUESTS);
@@ -181,19 +181,6 @@ test.describe("a press on its way somewhere", () => {
     await page.waitForURL(/\/tasks$/);
   });
 
-  test("rings the card that was pressed until its page lands", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 680 });
-    await holdPage(page, "/tasks");
-    await page.goto("/dashboard");
-
-    const tile = page.locator('main a[href="/tasks"]').first();
-    await tile.click();
-
-    await expect(tile.locator("[data-link-cue]")).toBeVisible();
-    await page.waitForURL(/\/tasks$/);
-    await expect(page.locator("[data-link-cue]")).toHaveCount(0);
-  });
-
   test("is forgotten once it has landed, so coming back lights the page shown", async ({
     page,
   }) => {
@@ -247,7 +234,7 @@ test.describe("swiping between meal-plan days", () => {
     // Next week rather than this one: today might be its own week's last day, with
     // nowhere later in it to swipe on to, and every day of a week that has not arrived
     // yet is open regardless of which weekday today happens to be.
-    const monday = nextWeekStart(weekStartInZone());
+    const monday = nextWeekStart(mealWeekStartInZone());
     await page.goto(`/meals?week=${monday}`);
     await forget(page);
 
@@ -446,8 +433,9 @@ test.describe("marking a task done", () => {
 
     await page.goto("/tasks");
     // A task has no row to slide away, so the stamp is the whole of the feedback — and
-    // it is the half that needs React attached. The card's own menu says when that is.
-    await expect(page.getByRole("button", { name: "Actions for Water the plants" })).toHaveAttribute(
+    // it is the half that needs React attached. The row has no menu of its own any more,
+    // so the header's home menu, hydrated in the same pass, says when that is.
+    await expect(page.getByRole("button", { name: /— home menu$/ })).toHaveAttribute(
       "data-ready",
       "true",
     );

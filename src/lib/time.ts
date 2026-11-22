@@ -198,6 +198,26 @@ export function weekStartOn(day: string): string | null {
   return instant ? weekStartInZone(instant) : null;
 }
 
+/**
+ * The Sunday a meal-planning week starts on, as "yyyy-MM-dd".
+ *
+ * The meal plan is the one week here that does not start on a Monday: Sunday is the day
+ * the household sits down and plans the week's dinners, so the week on `/meals` opens on
+ * the day it is planned. Everything else — `ClearedWeek`, the streak, the week's
+ * workload — still keys on `weekStartInZone`'s Monday, and the two are never compared.
+ * `weekDays`, `nextWeekStart` and `previousWeekStart` count whole days from whichever
+ * start they are handed, so they serve both.
+ */
+export function mealWeekStartInZone(now: Date = new Date()): string {
+  return format(startOfWeek(inZone(now), { weekStartsOn: 0 }), "yyyy-MM-dd");
+}
+
+/** `weekStartOn` for the meal plan: the Sunday of the week a day falls in, or null. */
+export function mealWeekStartOn(day: string): string | null {
+  const instant = dueAtOn(day);
+  return instant ? mealWeekStartInZone(instant) : null;
+}
+
 /** The instant a week begins: midnight on its Monday, in the home's zone. */
 export function weekStartInstant(week: string): Date {
   const [year, month, day] = week.split("-").map(Number) as [number, number, number];

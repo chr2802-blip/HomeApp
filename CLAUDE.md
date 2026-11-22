@@ -470,19 +470,20 @@ just said they are not doing today, and tomorrow's run is past the job's cutoff 
 
 It is offered only where "not today" could mean anything — `isSnoozable`, which is a
 task due today or overdue and not a finished one-off. On something due next week,
-snoozing to tomorrow would be pulling it *forward*, so the entry is not drawn; the
+snoozing to tomorrow would be pulling it *forward*, so the button is not drawn; the
 action guards the same case from the other side by never moving a date earlier than it
 already is, because a card left open on a phone overnight is a card offering yesterday's
-answer. It lives in the three dots on `/tasks` and in a menu of its own on the
-dashboard's due rows, rather than as a button beside Done: two buttons the same size
-next to each other is how a job gets marked done by a thumb aiming at "later".
+answer. **It lives on the task's own page and nowhere else** — a secondary button under
+"Mark done", set apart rather than beside it at the same size, because two buttons the
+same size next to each other is how a job gets marked done by a thumb aiming at "later".
 
 **A task is one row, wherever it is listed, and the row is a way into its own page.**
 `TaskRow` in `src/components/task-row.tsx` draws it on `/tasks` and on the dashboard alike:
-picture, name, and one line of due · rhythm · who, with the three dots and Done beside it
-as siblings of the link (a link cannot hold a button). Pressing the rest of it opens
-`/tasks/[id]`, which is where the notes, the history and the picture at size live — the
-row carries only what somebody scanning the list decides on. A task deleted from its own
+picture, name, and one line of due · rhythm · who, with Done beside it as a sibling of the
+link (a link cannot hold a button). **A task row has no three dots**, by the household's
+choice — the one exception to *Editing and deleting live behind the three dots*: edit,
+delete and snooze are on `/tasks/[id]`, which is also where the notes, the history and
+the picture at size live. The row carries only what somebody scanning the list decides on. A task deleted from its own
 page lands back on `/tasks` (`deleteTask` redirects), and `refreshTaskViews` revalidates
 the `/tasks` *layout* so the page under it is refreshed too.
 
@@ -1197,7 +1198,11 @@ has no code for any of those, so nothing built on it can do one by mistake.
   how few things it adds, and **drops staples first**, derived rather than declared. Worked
   out once for the week; ties break on fewer new ingredients, then the title. An empty
   basket offers **nothing at all**. **Nothing is ever written on the household's behalf.**
-- `/meals` keeps the week in the address (`?week=`), normalised to its Monday.
+- `/meals` keeps the week in the address (`?week=`), normalised to its **Sunday** —
+  `mealWeekStartOn` / `mealWeekStartInZone`, because Sunday is when the household plans.
+  It is the only week that starts on a Sunday: `ClearedWeek`, the streak and the week's
+  workload stay on `weekStartInZone`'s Monday, and the two are never compared. The meal
+  actions (`resetMealWeek`, `addMealPlanIngredients`) read `week` through the Sunday one.
 
 **[`docs/design/meals.md`](docs/design/meals.md) has all of the reasoning.**
 
@@ -1212,8 +1217,11 @@ dashboard and `/meals` agree because they are reading the same one.
   today stays empty until somebody chooses a recipe on `/meals`.
 - "Find new" replaces `recipeId` for today, prefers a recipe other than the one showing, and
   revalidates `/meals` alongside the dashboard.
-- A category's `excludeFromSuggestion` keeps its recipes out of the pool **entirely** — a
-  recipe filed under an excluded heading and an ordinary one is still excluded.
+- A category's `excludeFromSuggestion` keeps a recipe out **only when every heading it is
+  filed under has it** (`isSuggestible` / `SUGGESTIBLE` in `src/lib/meal-suggestions.ts`,
+  one rule for "Find new", the meal plan's suggestions *and* its whole picker). "Baby food"
+  alone is never offered; "Baby food" and "Dinner" is. The picker still shows such a recipe
+  on a day that already holds it, because the chosen row always survives.
 
 **[`docs/design/meals.md`](docs/design/meals.md) has the reasoning.**
 
@@ -1353,7 +1361,8 @@ from a link**. Three steps, all inside the one `Modal`.
   can ask. Portalled to `<body>` above the sheet, dressed only in the home's `--accent` and
   mixes of it. Never a spinner beside a field. `e2e/ai-wait.spec.ts` holds both halves.
 - **The wait is paced by `expectedSeconds`, the typical wait and not a ceiling**, and the
-  stage lines divide it between them. **It is set from Admin → System → AI call times**,
+  stage lines divide it between them (the link import's is 8s, its measured median in
+  2026-11). **It is set from Admin → System → AI call times**,
   and wants changing with the model: at Sonnet's 20s against Haiku's 7s the screen vanished
   at half a bar and the middle stage, which read as the loader being cut off. When the
   answer arrives the bar fills and the screen stays for `FINISH_MS` before it goes.
@@ -1625,7 +1634,9 @@ about which words to throw away.
   `@layer components`, so a utility on the same element still wins (the old unlayered
   `.pressable` beat every `duration-*` written beside it).
 - **A press that navigates is answered before the page lands.** A card or row that is a
-  `<Link>` is `relative` and carries `<LinkCue />` (an accent ring after a 120ms beat). A
+  `<Link>` answers with its press class and the page's dim (`PageLeaving`) — **no ring**:
+  `LinkCue`'s accent ring read as a blue border on everything tapped and was removed, and
+  `:focus:not(:focus-visible)` drops the browser's outline after a tap. A
   row of tabs — the bottom nav, the desktop links, the section pill — lights the pressed one
   through `usePendingHref` and its link's `onNavigate`, so exactly one is lit and it moves on
   the tap. In the tab bar it is one light that glides between the tabs (`.app-pill`),

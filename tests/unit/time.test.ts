@@ -7,6 +7,8 @@ import {
   endOfDayInZone,
   formatDayInZone,
   formatInZone,
+  mealWeekStartInZone,
+  mealWeekStartOn,
   monthStartInstant,
   nextWeekStart,
   previousWeekStart,
@@ -286,6 +288,28 @@ describe("weekStartOn", () => {
     expect(weekStartOn("next week")).toBeNull();
     expect(weekStartOn("2026-02-31")).toBeNull();
     expect(weekStartOn("2026-13-01")).toBeNull();
+  });
+});
+
+describe("mealWeekStartOn", () => {
+  it("answers with the Sunday the meal plan's week opens on", () => {
+    // Sunday is the day the household plans, so it starts the week rather than ending it.
+    expect(mealWeekStartOn("2026-05-31")).toBe("2026-05-31");
+    expect(mealWeekStartOn("2026-06-01")).toBe("2026-05-31");
+    expect(mealWeekStartOn("2026-06-06")).toBe("2026-05-31");
+    expect(mealWeekStartOn("2026-06-07")).toBe("2026-06-07");
+    expect(weekDays(mealWeekStartOn("2026-06-03")!).map((day) => formatDayInZone(day, "EEE"))).toEqual([
+      "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
+    ]);
+  });
+
+  it("refuses anything that is not a real date", () => {
+    expect(mealWeekStartOn("2026-02-31")).toBeNull();
+  });
+
+  it("reads the household's clock, not the server's", () => {
+    // 23:30 UTC on Saturday is already Sunday in Copenhagen: the new meal week.
+    expect(mealWeekStartInZone(new Date("2026-06-06T23:30:00Z"))).toBe("2026-06-07");
   });
 });
 

@@ -3,26 +3,21 @@ import { homeDb } from "@/lib/home-db";
 import {
   completeTask,
   createTask,
-  deleteTask,
   reopenTask,
-  snoozeTask,
-  updateTask,
 } from "@/app/actions/tasks";
 import { Card, EmptyState, Input, Label, PageHeader, Textarea } from "@/components/ui";
-import { FINISHED, UNFINISHED, isFinished, isSnoozable } from "@/lib/tasks";
+import { FINISHED, UNFINISHED, isFinished } from "@/lib/tasks";
 import { todayInZone } from "@/lib/time";
 import { sayIn } from "@/lib/copy/say";
 import { APP } from "@/lib/copy/app";
 import { TASKS } from "@/lib/copy/tasks";
 import type { HomeLanguage } from "@prisma/client";
 import { FormDialog } from "@/components/form-dialog";
-import { AssigneeField, type MemberOption } from "@/components/assignee-field";
+import { AssigneeField } from "@/components/assignee-field";
 import { RepeatField } from "@/components/repeat-field";
-import { ItemMenu } from "@/components/item-menu";
-import { SnoozeMenuItem } from "@/components/task-snooze";
 import { SubmitButton } from "@/components/submit-button";
 import { TaskDoneButton } from "@/components/task-done-button";
-import { TaskFields, TaskRow, type TaskSummary } from "@/components/task-row";
+import { TaskRow, type TaskSummary } from "@/components/task-row";
 import { EmojiField } from "@/components/emoji-field";
 import { Collapsible } from "@/components/collapsible";
 import { PhotoField } from "@/components/photo-field";
@@ -43,9 +38,10 @@ function searchEntry(task: TaskItemRow & { assignee: { name: string } | null }):
 }
 
 /**
- * One task as a row of the page's card. Pressing it opens the task's own page; the
- * three dots carry snooze, edit and delete, as they do on every other stored thing; and
- * the button at the end is the press this page is mostly for.
+ * One task as a row of the page's card. Pressing it opens the task's own page, which is
+ * where snooze, edit and delete live; the button at the end is the press this page is
+ * mostly for, and the only thing beside the name — no three dots, by the household's
+ * choice: a row of menus beside a row of Done buttons was furniture.
  *
  * A finished one-off shows the way back instead of Done. It is the same button in the
  * same place because it is the same thought a moment later — pressing Done on the wrong
@@ -54,12 +50,10 @@ function searchEntry(task: TaskItemRow & { assignee: { name: string } | null }):
  */
 function TaskItem({
   task,
-  members,
   now,
   language,
 }: {
   task: TaskItemRow;
-  members: MemberOption[];
   now: Date;
   language: HomeLanguage;
 }) {
@@ -73,21 +67,6 @@ function TaskItem({
       showWho
       trailing={
         <>
-          <ItemMenu
-            name="taskId"
-            id={task.id}
-            label={task.title}
-            editTitle={say(TASKS.editTask)}
-            editAction={updateTask}
-            deleteAction={deleteTask}
-            deleteMessage={say(TASKS.deleteTaskMessage, { title: task.title })}
-            extraItems={
-              isSnoozable(task, now) && <SnoozeMenuItem taskId={task.id} action={snoozeTask} />
-            }
-            className="-mx-1"
-          >
-            <TaskFields task={task} members={members} language={language} />
-          </ItemMenu>
           {isFinished(task) ? (
             // Reopening is a correction rather than an achievement, so it stays a plain
             // form: the tick rising out of the button would be celebrating an undo.
@@ -108,12 +87,10 @@ function TaskItem({
 
 function TaskList({
   tasks,
-  members,
   now,
   language,
 }: {
   tasks: TaskItemRow[];
-  members: MemberOption[];
   now: Date;
   language: HomeLanguage;
 }) {
@@ -128,7 +105,7 @@ function TaskList({
         {tasks.map((task, index) => (
           <TaskMatch key={task.id} id={task.id}>
             <div className="animate-row-in" style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}>
-              <TaskItem task={task} members={members} now={now} language={language} />
+              <TaskItem task={task} now={now} language={language} />
             </div>
           </TaskMatch>
         ))}
@@ -215,7 +192,7 @@ export default async function TasksPage() {
               <EmptyState art="mug">{say(TASKS.allDone)}</EmptyState>
             </TaskMatchGroup>
           ) : (
-            <TaskList tasks={todo} members={members} now={now} language={user.homeLanguage} />
+            <TaskList tasks={todo} now={now} language={user.homeLanguage} />
           )}
 
           {/* Only once something has been finished. A household that keeps no one-offs
@@ -233,7 +210,7 @@ export default async function TasksPage() {
                   triggerClassName="hover:text-slate-700"
                   panelClassName="pb-1"
                 >
-                  <TaskList tasks={done} members={members} now={now} language={user.homeLanguage} />
+                  <TaskList tasks={done} now={now} language={user.homeLanguage} />
                 </Collapsible>
               </section>
             </TaskMatchGroup>

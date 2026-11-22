@@ -161,8 +161,10 @@ that did nothing.
 **The slowest-feeling thing in the app was not an animation but its absence.** There is no
 `loading.tsx`, so a tap on a list card shrank for a tenth of a second and then nothing
 happened until the server answered — on a phone in a shop, long enough to tap again.
-`LinkCue` rings the card in the home's colour while `useLinkStatus` says the navigation is
-pending, after a 120ms beat so a prefetched page never flashes it. Skeleton pages were
+`LinkCue` used to ring the card in the home's colour while `useLinkStatus` said the
+navigation was pending; once every pressable answered the press itself (the press-* tiers)
+and the page dimmed on leaving (`PageLeaving`), the ring read as a stray blue border on
+everything tapped, and it went (2026-11-22). Skeleton pages were
 considered and left: they would replay `PageTransition` on the skeleton and pop the real
 page in under it, and they cost a file per route to say what one component says for all.
 

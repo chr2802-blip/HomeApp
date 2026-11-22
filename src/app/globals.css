@@ -445,23 +445,13 @@ h1,
 }
 
 /*
- * A link on its way somewhere. `LinkCue` draws this inside a card or row the moment its
- * navigation starts and takes it away when the page lands, so a tap on a slow connection
- * is answered on the thing tapped rather than by nothing for half a second. It waits a
- * beat before showing, because a prefetched page usually lands before the eye would have
- * seen it, and a ring flashing on every tap is noise.
+ * No ring on a press. A tap answers through the press-* tiers and `PageLeaving`'s dim;
+ * an outline left behind on whatever the finger touched read as a blue border on every
+ * button (and `LinkCue`'s accent ring on cards was removed for the same reason). A
+ * keyboard still gets its focus ring: `:focus-visible` is left to the browser.
  */
-@keyframes link-cue {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.animate-link-cue {
-  animation: link-cue var(--dur-quick) ease-out 120ms both;
+:focus:not(:focus-visible) {
+  outline: none;
 }
 
 /*

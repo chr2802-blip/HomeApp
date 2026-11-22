@@ -11,7 +11,6 @@ import { namesInWords, pantryKey } from "@/lib/pantry";
 import { rankByPantry, type CookCandidate } from "@/lib/pantry-cook";
 import { sayIn } from "@/lib/copy/say";
 import { PANTRY_COOK } from "@/lib/copy/pantry";
-import { LinkCue } from "@/components/link-cue";
 
 type Loaded = { candidates: CookCandidate[]; stocked: string[] };
 
@@ -150,7 +149,6 @@ export function PantryCook() {
                         </span>
                       </span>
                       <MatchRing have={match.have} total={match.total} />
-                      <LinkCue />
                     </Link>
                   </li>
                 ))}
