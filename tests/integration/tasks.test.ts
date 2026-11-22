@@ -185,6 +185,56 @@ describe("completeTask", () => {
   });
 });
 
+describe("who did it (TaskCompletion)", () => {
+  it("records each press of Done with who pressed it and the task's name then", async () => {
+    const task = await seedTask({ homeId: home.id, createdById: admin.id, title: "Bins", intervalDays: 7 });
+
+    await completeTask(formData({ taskId: task.id }));
+    await signIn(admin);
+    await completeTask(formData({ taskId: task.id }));
+
+    const rows = await prisma.taskCompletion.findMany({ orderBy: { completedAt: "asc" } });
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.userId)).toEqual([member.id, admin.id]);
+    expect(rows.every((row) => row.homeId === home.id && row.taskId === task.id && row.title === "Bins")).toBe(true);
+  });
+
+  it("writes nothing for another home's task", async () => {
+    const other = await createHomeWithMembers();
+    const task = await seedTask({ homeId: other.home.id, createdById: other.admin.id });
+
+    await expect(completeTask(formData({ taskId: task.id }))).rejects.toThrow();
+
+    expect(await prisma.taskCompletion.count()).toBe(0);
+  });
+
+  it("takes back only the newest press when a one-off is reopened", async () => {
+    const task = await seedTask({ homeId: home.id, createdById: member.id, intervalDays: null });
+    const older = await prisma.taskCompletion.create({
+      data: { homeId: home.id, taskId: task.id, title: task.title, userId: admin.id, completedAt: new Date("2020-01-01") },
+    });
+
+    await completeTask(formData({ taskId: task.id }));
+    await reopenTask(formData({ taskId: task.id }));
+
+    expect((await prisma.taskCompletion.findMany()).map((row) => row.id)).toEqual([older.id]);
+  });
+
+  it("keeps the credit when the task is deleted or the person leaves", async () => {
+    const task = await seedTask({ homeId: home.id, createdById: admin.id, title: "Descale" });
+    await completeTask(formData({ taskId: task.id }));
+
+    await prisma.task.delete({ where: { id: task.id } });
+    await prisma.user.delete({ where: { id: member.id } });
+
+    expect(await prisma.taskCompletion.findFirstOrThrow()).toMatchObject({
+      taskId: null,
+      userId: null,
+      title: "Descale",
+    });
+  });
+});
+
 describe("a task's face", () => {
   it("is stored when picked, kept when the edit says nothing, and cleared to be guessed", async () => {
     await createTask(undefined, formData({ title: "Walk the dog", intervalDays: "1", emoji: "🐶" }));

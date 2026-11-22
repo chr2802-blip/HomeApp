@@ -31,7 +31,7 @@ test.describe("your profile", () => {
     await page.getByRole("button", { name: "Save profile" }).click();
     await expect(page.getByText("Saved.")).toBeVisible();
 
-    await page.goto("/settings");
+    await page.goto("/settings/members");
     await expect(page.getByText("Ada Renamed (you)")).toBeVisible();
   });
 
@@ -53,7 +53,7 @@ test.describe("your profile", () => {
     expect(stored.photoId).not.toBeNull();
 
     // Decorative beside their name, so it is found by where it sits rather than by alt.
-    await page.goto("/settings");
+    await page.goto("/settings/members");
     await expect(page.locator("main img")).toHaveCount(1);
   });
 

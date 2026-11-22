@@ -89,6 +89,7 @@ model Home {
   invites          Invite[]
   lists            List[]
   tasks            Task[]
+  taskCompletions  TaskCompletion[]
   recipes          Recipe[]
   recipeCategories RecipeCategory[]
   /// The weeks this household cleared a list in — see ClearedWeek.
@@ -160,6 +161,7 @@ model User {
   lists             List[]
   tasks             Task[]             @relation("TaskCreatedBy")
   tasksAssigned     Task[]             @relation("TaskAssignee")
+  tasksCompleted    TaskCompletion[]
   recipes           Recipe[]
   invitesCreated    Invite[]           @relation("InviteCreatedBy")
 
@@ -211,12 +213,12 @@ model Invite {
 }
 
 model List {
-  id           String   @id @default(cuid())
+  id           String       @id @default(cuid())
   homeId       String
   title        String
   /// Whether items on this list carry a quantity. Chosen when the list is made: a
   /// shopping list wants "2 milk", a to-do list does not.
-  trackAmounts Boolean  @default(false)
+  trackAmounts Boolean      @default(false)
   /**
    * How the open items are drawn: in the household's own order (`NONE`), under the shop's
    * aisles (`AISLE`, `ShopAisle`), or under headings this list keeps for itself (`OWN`,
@@ -233,11 +235,11 @@ model List {
   emoji        String?
   photoId      String?
   createdById  String
-  createdAt    DateTime @default(now())
+  createdAt    DateTime     @default(now())
 
-  home      Home           @relation(fields: [homeId], references: [id], onDelete: Cascade)
-  createdBy User           @relation(fields: [createdById], references: [id], onDelete: Cascade)
-  photo     Photo?         @relation(fields: [photoId], references: [id], onDelete: SetNull)
+  home       Home           @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  createdBy  User           @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  photo      Photo?         @relation(fields: [photoId], references: [id], onDelete: SetNull)
   items      ListItem[]
   favorites  ListFavorite[]
   categories ListCategory[]
@@ -254,7 +256,9 @@ model List {
  * its list, which is what carries the home. Pages read it as an include on a list query
  * they already made through homeDb; a lint rule stops them reaching it directly.
  */
-/** How a list's open items are drawn — see `List.grouping`. */
+/**
+ * How a list's open items are drawn — see `List.grouping`.
+ */
 enum ListGrouping {
   NONE
   AISLE
@@ -483,15 +487,16 @@ model Task {
   photoId         String?
   createdAt       DateTime  @default(now())
 
-  home      Home   @relation(fields: [homeId], references: [id], onDelete: Cascade)
-  photo     Photo? @relation(fields: [photoId], references: [id], onDelete: SetNull)
-  createdBy User   @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  home        Home             @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  photo       Photo?           @relation(fields: [photoId], references: [id], onDelete: SetNull)
+  createdBy   User             @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
   /**
    * SetNull rather than Cascade, unlike createdBy: removing a member must not take the
    * household's tasks with them. The task falls back to being everybody's, which is
    * where it started.
    */
-  assignee  User?  @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assignee    User?            @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  completions TaskCompletion[]
 
   @@index([homeId])
   @@index([nextDueAt])
@@ -500,6 +505,35 @@ model Task {
   @@index([createdById])
   @@index([assigneeId])
   @@index([photoId])
+}
+
+/**
+ * One press of Done: who did which task, and when. It answers the question
+ * `Task.lastCompletedAt` cannot — *who* has been doing the household's jobs — for
+ * Settings' "Done" tab. `lastCompletedAt` stays the answer to "is it finished / when was it
+ * last done", which this is never asked.
+ * `title` is the task's name at the press. That is a fact about the event rather than a
+ * second copy of the task: the task may since have been renamed, or deleted along with the
+ * finished one-off it was, and the household still did it — so the task goes `SetNull`,
+ * and so does the person when they leave the home. Undoing a Done (`reopenTask`) deletes
+ * the newest row for that task, since the press it undoes never happened.
+ */
+model TaskCompletion {
+  id          String   @id @default(cuid())
+  homeId      String
+  taskId      String?
+  title       String
+  userId      String?
+  completedAt DateTime @default(now())
+
+  home Home  @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  task Task? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // The tab asks for one home's completions, newest first, over a window of days.
+  @@index([homeId, completedAt])
+  @@index([taskId])
+  @@index([userId])
 }
 
 model Recipe {
@@ -721,7 +755,6 @@ model RecipeCategoryLink {
 /**
  * How a pantry entry is kept — the one question a household answers per entry, set in
  * the sheet behind its three dots.
- *
  * `PIECES` is counted in uses: "1 stk" is enough for cooking something once, however the
  * household divides a packet up (a kilo of rice used 200 g at a time is 5 stk). Adding a
  * recipe to a list takes one stk per time it is made (`pantryDraws`). `ENDLESS` is had or

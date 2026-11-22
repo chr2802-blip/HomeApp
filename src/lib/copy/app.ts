@@ -24,6 +24,12 @@ export const APP = {
     recipes: { EN: "Recipes", DA: "Opskrifter" },
     lists: { EN: "Lists", DA: "Lister" },
     supplies: { EN: "Supplies", DA: "Forråd" },
+    // Settings' tabs (`SETTINGS_TABS`): five to a pill, so one short word each.
+    home: { EN: "Home", DA: "Hjem" },
+    members: { EN: "People", DA: "Personer" },
+    categories: { EN: "Sorting", DA: "Kategorier" },
+    done: { EN: "Done", DA: "Klaret" },
+    status: { EN: "Status", DA: "Status" },
   },
   logOut: { EN: "Log out", DA: "Log ud" },
   /** The greyed-out "+" in the tab bar, on a page with nothing to make. */

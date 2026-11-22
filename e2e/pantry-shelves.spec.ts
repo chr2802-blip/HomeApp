@@ -28,7 +28,7 @@ test.beforeEach(async ({ loginAs }) => {
 });
 
 test("an admin makes a shelf, things are filed on it, and deleting it unsorts them", async ({ page }) => {
-  await page.goto("/settings");
+  await page.goto("/settings/categories");
   await addShelf(page, "Snacks");
   await expect(page.getByRole("dialog")).toBeHidden();
   const listed = page.getByTestId("pantry-shelves").locator("[data-category-row]");
@@ -50,7 +50,7 @@ test("an admin makes a shelf, things are filed on it, and deleting it unsorts th
   await expect(shelf(page, id).getByRole("group", { name: "Quantity of Crisps" })).toBeVisible();
   await expect(shelf(page, id).locator("[data-shelf-toggle]")).toContainText("Snacks");
 
-  await page.goto("/settings");
+  await page.goto("/settings/categories");
   await expect(listed.filter({ hasText: "Snacks" })).toContainText("1 thing");
   await openMenu(page, { label: "Snacks" });
   await expect(page.getByRole("menuitem", { name: "Delete" })).toBeVisible();
@@ -62,7 +62,7 @@ test("an admin makes a shelf, things are filed on it, and deleting it unsorts th
 });
 
 test("a shelf cannot take a built-in shelf's name", async ({ page }) => {
-  await page.goto("/settings");
+  await page.goto("/settings/categories");
   await addShelf(page, "fridge");
   await expect(page.getByRole("dialog").getByText("There is already a shelf called “fridge”.")).toBeVisible();
 });
