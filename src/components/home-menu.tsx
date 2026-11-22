@@ -80,7 +80,7 @@ export function HomeMenu({
   }, [open]);
 
   const entry =
-    "flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm font-medium transition hover:bg-slate-100 hover:text-slate-900";
+    "press-card flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm font-medium hover:bg-slate-100 hover:text-slate-900";
 
   return (
     <div ref={wrapperRef} className="relative min-w-0">
@@ -91,7 +91,7 @@ export function HomeMenu({
         aria-label={say(APP.homeMenu.ariaLabel, { name: label })}
         data-ready={ready ? "true" : undefined}
         onClick={() => setOpen((was) => !was)}
-        className="press-button flex min-w-0 items-center gap-1.5 rounded-lg text-lg font-semibold tracking-tight text-[var(--accent-text)]"
+        className="press-button flex min-h-8 min-w-0 items-center gap-1.5 rounded-lg text-lg font-semibold tracking-tight text-[var(--accent-text)]"
       >
         {/* The household's own picture. A home without one simply has no avatar rather
             than a placeholder standing in for it. */}

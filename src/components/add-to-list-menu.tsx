@@ -162,7 +162,7 @@ export function AddToListMenu({
                           close();
                           add(list);
                         }}
-                        className="flex w-full items-center gap-3 px-5 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
+                        className="press-card flex w-full items-center gap-3 px-5 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900"
                       >
                         <span className="min-w-0 flex-1 truncate">{list.title}</span>
                         <span className="shrink-0 text-xs font-normal text-slate-400 tabular-nums">
@@ -233,7 +233,7 @@ export function AddToListMenu({
             <ModalBody className="space-y-3">
               <p className="text-sm text-slate-500">{say(APP.addToList.decisionHelp)}</p>
               {decision.lines.map((line) => (
-                <label key={line.key} className="flex items-start gap-2.5 text-sm">
+                <label key={line.key} className="press-text flex items-start gap-2.5 py-1.5 text-sm">
                   <input
                     type="checkbox"
                     checked={decision.keep.has(line.key)}

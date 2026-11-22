@@ -71,7 +71,7 @@ export function CreateFab({
       aria-haspopup="dialog"
       aria-expanded={expanded}
       onClick={onClick}
-      className={`app-create fixed ${above ? "z-[60]" : "z-[45]"} flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_10px_24px_-6px_rgb(60_40_20/0.55)] ring-4 ring-[#ffffff] hover:bg-[var(--accent-hover)] md:ring-0`}
+      className={`app-create press-icon fixed ${above ? "z-[60]" : "z-[45]"} flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_10px_24px_-6px_rgb(60_40_20/0.55)] ring-4 ring-[#ffffff] hover:bg-[var(--accent-hover)] md:ring-0`}
     >
       <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true">
         <path d="M12 5v14M5 12h14" />

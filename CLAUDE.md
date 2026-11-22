@@ -51,7 +51,7 @@ the old import, and every page answers 500 naming the missing file. Stop the ser
 `rm -rf .next`, start it again.
 
 **A screenshot is two commands: `npm run db:demo`, then `npm run screenshot -- /path`.**
-`db:demo` (`scripts/demo-seed.ts`) migrates the dev database and makes a household worth
+`db:demo` (`scripts/demo-seed.ts`, which runs `seedDemo` in `scripts/demo-household.ts`) migrates the dev database and makes a household worth
 looking at — `flat` (English, lived in: lists with ticks, a grouped shopping list, tasks
 overdue and due today, a week of dinners, a pantry with run-out, expiring and unsorted
 entries, a streak), `da` (the same in Danish) and `empty` (members and nothing else) — with
@@ -66,7 +66,7 @@ opened, a row pressed — is a throwaway that imports `scripts/demo-cast.ts` and
 from `screenshot.ts`, put inside the checkout (from the scratchpad it cannot resolve
 `@prisma/client`), run with `npx tsx --env-file=.env` (`tsx` does not read `.env` itself)
 and deleted afterwards. A new kind of thing on screen wants a row in
-`demo-seed.ts`, so the next session finds it there.
+`demo-household.ts`, so the next session finds it there.
 It hides Next's dev overlay ("1 Issue"), which otherwise sits over the tab bar in every
 phone shot — a hydration warning between `SnackbarProvider` and `KitchenProvider` that
 predates the nav. Facts a hand-written seed still needs: a `List`'s name is `title`;
@@ -1609,11 +1609,19 @@ about which words to throw away.
   in a component too (`duration-(--dur-quick)`, `ease-(--ease-arrive)`). The fold keeps its
   own symmetric curve. A JS timer that waits for an exit cannot read a variable, so it lives
   in `src/lib/motion.ts` and `tests/unit/motion.test.ts` holds it to its token.
-- **A press is one of three tiers, chosen by size**: `press-icon` (to 90%), `press-button`
-  (96%), `press-card` (98% on a warm tint). In quickly, back on `--ease-spring`. **Never an
-  `active:scale-*` beside one** — the test refuses it. They sit in `@layer components`, so a
-  utility on the same element still wins (the old unlayered `.pressable` beat every
-  `duration-*` written beside it).
+- **Everything pressable answers the press and is at least 32×32 px.** Each button, link,
+  `<summary>`, choice label and bare sheet trigger carries a press class, chosen by its
+  look: `press-icon` (to 90%), `press-button` (96%), `press-card` (98%, under a shade laid
+  over its background as an image, so a `bg-*` cannot hide it and its own corners cut it),
+  `press-text` for a word in a line (it fades, never shrinks — with `tap-inline` for the
+  32px target without moving the line) and `press-photo` for a picture. In quickly, back on
+  `--ease-spring`. Something small in a row gets its 32px from a negative margin rather
+  than by growing the row (the list's tick box: `h-8 w-8 -m-1.5` round a 20px box).
+  `tests/unit/press-feedback.test.ts` reads the source for a pressable without a class;
+  `e2e/tap-targets.spec.ts` lays out the demo household at 390px and measures every
+  page. **Never an `active:scale-*` beside one** — the test refuses it. They sit in
+  `@layer components`, so a utility on the same element still wins (the old unlayered
+  `.pressable` beat every `duration-*` written beside it).
 - **A press that navigates is answered before the page lands.** A card or row that is a
   `<Link>` is `relative` and carries `<LinkCue />` (an accent ring after a 120ms beat). A
   row of tabs — the bottom nav, the desktop links, the section pill — lights the pressed one

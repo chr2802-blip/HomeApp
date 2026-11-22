@@ -381,7 +381,7 @@ export default async function DashboardPage() {
             <h2 className="text-sm font-semibold text-slate-500 uppercase">
               {say(DASHBOARD.comingUp)}
             </h2>
-            <Link href="/meals" className="text-xs font-medium text-slate-900 underline">
+            <Link href="/meals" className="press-text tap-inline text-xs font-medium text-slate-900 underline">
               {say(DASHBOARD.mealPlan)}
             </Link>
           </div>
@@ -427,7 +427,7 @@ export default async function DashboardPage() {
             {starred ? say(DASHBOARD.favouriteLists) : say(DASHBOARD.recentLists)}
           </h2>
           {more && (
-            <Link href="/lists" className="text-xs font-medium text-slate-900 underline">
+            <Link href="/lists" className="press-text tap-inline text-xs font-medium text-slate-900 underline">
               {say(DASHBOARD.seeAll)}
             </Link>
           )}
@@ -435,7 +435,7 @@ export default async function DashboardPage() {
         {lists.length === 0 ? (
           <EmptyState icon="📝">
             {say(DASHBOARD.noListsYet)}{" "}
-            <Link href="/lists" className="font-medium text-slate-900 underline">
+            <Link href="/lists" className="press-text tap-inline font-medium text-slate-900 underline">
               {say(DASHBOARD.createOne)}
             </Link>
           </EmptyState>
@@ -482,7 +482,7 @@ export default async function DashboardPage() {
         {!starred && lists.length > 0 && (
           <p className="mt-3 text-xs text-slate-500">
             {say(DASHBOARD.starAListOn)}{" "}
-            <Link href="/lists" className="font-medium text-slate-900 underline">
+            <Link href="/lists" className="press-text tap-inline font-medium text-slate-900 underline">
               {say(DASHBOARD.listsPage)}
             </Link>{" "}
             {say(DASHBOARD.toKeepItHereInstead)}

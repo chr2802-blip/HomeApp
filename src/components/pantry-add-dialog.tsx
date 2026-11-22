@@ -184,7 +184,7 @@ function PantryAddFields({
             <button
               type="button"
               onClick={() => onShow(exact.id)}
-              className="font-medium text-[var(--accent-text)] underline underline-offset-2"
+              className="press-text tap-inline font-medium text-[var(--accent-text)] underline underline-offset-2"
             >
               {say(PANTRY.showIt)}
             </button>
@@ -216,7 +216,7 @@ function PantryAddFields({
                     aria-selected={index === highlighted}
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => choose(option)}
-                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
+                    className={`press-card flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
                       index === highlighted ? "bg-slate-100" : "hover:bg-slate-50"
                     }`}
                   >

@@ -221,7 +221,7 @@ function Row({
           aria-label={say(LISTS.reorder, { name: item.text })}
           // touch-none stops the browser scrolling the page instead of dragging. The
           // padding is generous on purpose: this is dragged with a thumb, in a kitchen.
-          className="touch-none cursor-grab rounded px-2 py-3 text-slate-400 hover:text-slate-700 focus-visible:outline-2 active:cursor-grabbing"
+          className="press-icon touch-none cursor-grab rounded px-2 py-3 text-slate-400 hover:text-slate-700 focus-visible:outline-2 active:cursor-grabbing"
         >
           <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true">
             <circle cx="7" cy="5" r="1.5" />
@@ -242,11 +242,17 @@ function Row({
           aria-label={item.done ? say(LISTS.markNotDone) : say(LISTS.markDone)}
           aria-pressed={item.done}
           onClick={() => onPress(!item.done)}
-          className={`press-icon flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-[1.5px] text-xs ${
-            item.done ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-slate-300 bg-white"
-          } ${settling ? "animate-check-pop" : ""}`}
+          // A finger's 32px round the 20px box, given back by the margin so the row is
+          // laid out as before (`e2e/tap-targets.spec.ts`).
+          className="press-icon -m-1.5 flex h-8 w-8 shrink-0 items-center justify-center"
         >
-          {item.done ? "✓" : ""}
+          <span
+            className={`flex h-5 w-5 items-center justify-center rounded-md border-[1.5px] text-xs ${
+              item.done ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-slate-300 bg-white"
+            } ${settling ? "animate-check-pop" : ""}`}
+          >
+            {item.done ? "✓" : ""}
+          </span>
         </button>
         <span className="min-w-0 flex-1">
           {editing ? (
@@ -276,7 +282,7 @@ function Row({
               type="button"
               onClick={() => setEditing(true)}
               aria-label={say(LISTS.editItemAria, { name: item.text })}
-              className={`block w-full rounded py-0.5 text-left text-sm transition-colors duration-(--dur-quick) hover:bg-slate-50 ${
+              className={`press-card -my-1 flex min-h-8 w-full items-center rounded py-0.5 text-left text-sm hover:bg-slate-50 ${
                 item.done ? "text-slate-400 line-through" : ""
               }`}
             >
@@ -294,7 +300,7 @@ function Row({
                   {index > 0 && ", "}
                   <Link
                     href={`/recipes/${source.id}`}
-                    className="hover:text-slate-700 hover:underline"
+                    className="press-text tap-inline hover:text-slate-700 hover:underline"
                   >
                     {source.title}
                   </Link>

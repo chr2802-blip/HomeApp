@@ -26,14 +26,14 @@ export default async function AcceptInvitePage() {
       <AcceptInviteForm account={account} language={language} />
       {account ? (
         <p className="mt-6 text-sm text-slate-500">
-          <Link href="/homes" className="font-medium text-slate-900 underline">
+          <Link href="/homes" className="press-text tap-inline font-medium text-slate-900 underline">
             {say(AUTH.backToYourHomes)}
           </Link>
         </p>
       ) : (
         <p className="mt-6 text-sm text-slate-500">
           {say(AUTH.alreadyHaveAccount)}{" "}
-          <Link href="/login" className="font-medium text-slate-900 underline">
+          <Link href="/login" className="press-text tap-inline font-medium text-slate-900 underline">
             {say(AUTH.logIn)}
           </Link>
         </p>
