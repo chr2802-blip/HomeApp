@@ -1853,9 +1853,10 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
   is shrunk onto a white disc — a white ring round it on the home screen. The manifest's
   `maskable` PNGs (`public/icon-maskable-*.png`, full-bleed, mark inside the middle 80%)
   are rendered from `public/icon-maskable.svg`; there is no PIL or ImageMagick in the
-  container, so re-render them with a throwaway Playwright script (`page.setContent` the
-  SVG at the size, `page.screenshot`). `tests/unit/app-icon.test.ts` holds the manifest
-  to it. An already-installed app keeps its old icon until it is reinstalled or Chrome
+  container, so `node scripts/render-icons.mjs` draws them in Playwright — and with them
+  `badge.png` (the mark alone, white) and `src/app/favicon.ico`, all from the two SVGs.
+  The mark is a roof over a pot holding a tick (home, recipes, lists), cream on
+  `#2f2a3a`. `tests/unit/app-icon.test.ts` holds the manifest to it. An already-installed app keeps its old icon until it is reinstalled or Chrome
   refreshes the WebAPK, which can take days.
 - **A push subscription goes missing on its own, mostly on an iPhone**: iOS drops a
   home-screen app's subscription without telling it, and `sendPushToUsers` deletes one a

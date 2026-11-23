@@ -24,6 +24,6 @@ describe("the installed app's icon", () => {
 
   it("fills the whole square, so the crop leaves no ring", () => {
     // The source the PNGs are rendered from: a background with no rounded corners.
-    expect(read("public/icon-maskable.svg")).toMatch(/<rect width="192" height="192" fill="#000000"\/>/);
+    expect(read("public/icon-maskable.svg")).toMatch(/<rect width="192" height="192" fill="#[0-9a-f]{6}"\/>/);
   });
 });
