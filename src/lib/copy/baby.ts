@@ -118,6 +118,8 @@ export const BABY = {
   tapASide: { EN: "Tap a side to start the timer.", DA: "Tryk på en side for at starte timeren." },
   typeMinutes: { EN: "Type the minutes", DA: "Indtast minutter" },
   useTimer: { EN: "Use the timer", DA: "Brug timeren" },
+  continueFeed: { EN: "Carry on", DA: "Fortsæt" },
+  lastFeedEnded: { EN: "The feed from {time}", DA: "Amningen fra kl. {time}" },
   finishFeed: { EN: "Done · save", DA: "Færdig · gem" },
   save: { EN: "Save", DA: "Gem" },
 

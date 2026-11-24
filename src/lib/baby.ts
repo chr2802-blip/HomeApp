@@ -194,6 +194,27 @@ export function otherSide(side: BreastSide): BreastSide {
   return side === "LEFT" ? "RIGHT" : "LEFT";
 }
 
+/**
+ * How long after a breast feed was finished it can still be carried on as the same
+ * feed — the baby put down for a nappy, or back at the breast ten minutes later. Past
+ * this it is a new feed, and "time since the last feed" should say so.
+ */
+export const RESUME_FEED_WITHIN_MS = 60 * 60_000;
+
+/**
+ * The breast feed that "Continue" would carry on: the newest one, finished no longer
+ * than `RESUME_FEED_WITHIN_MS` ago. None while a breast feed is running — there is
+ * only ever one timer, and that one is already going.
+ */
+export function resumableFeed(entries: readonly BabyEntry[], now: Date): BabyEntry | null {
+  const feeds = entries.filter((entry) => feedMethodOf(entry) === "BREAST");
+  if (feeds.some((entry) => !entry.endedAt)) return null;
+  const newest = feeds.sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())[0];
+  if (!newest?.endedAt) return null;
+  const since = now.getTime() - newest.endedAt.getTime();
+  return since >= 0 && since <= RESUME_FEED_WITHIN_MS ? newest : null;
+}
+
 /** Whether an entry is a timer still going: a sleep or a breast feed with no end yet. */
 export function isRunning(entry: BabyEntry): boolean {
   if (entry.endedAt) return false;

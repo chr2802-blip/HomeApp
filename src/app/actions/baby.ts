@@ -19,6 +19,7 @@ import {
   MAX_NOTE_LENGTH,
   MAX_SIDE_SECONDS,
   readBabyDetails,
+  resumableFeed,
   switchBreastSide,
   type BreastDetails,
   type BreastSide,
@@ -238,6 +239,35 @@ export async function pressBreastSide(formData: FormData): Promise<void> {
       },
     });
   }
+  refresh();
+}
+
+/**
+ * A finished breast feed carried on: its end is taken off again and its sides keep what
+ * they had, so the timer picks up where "Done" left it rather than starting a new feed.
+ * Paused, with no side running — the next press on a side starts it. Only the feed
+ * `resumableFeed` names can be carried on, so a feed from the morning, or one while
+ * another timer runs, is left alone.
+ */
+export async function resumeFeed(formData: FormData): Promise<void> {
+  const user = await requireHomeUser();
+  const baby = await homeBaby(user.homeId);
+  const id = String(formData.get("id") ?? "");
+  if (!baby || !id) return;
+  const db = homeDb(user.homeId);
+  const now = new Date();
+  const feeds = await db.babyEvent.findMany({
+    where: { homeId: user.homeId, babyId: baby.id, kind: "FEED", details: { path: ["method"], equals: "BREAST" } },
+    orderBy: { startedAt: "desc" },
+    take: 5,
+  });
+  const feed = resumableFeed(feeds, now);
+  if (!feed || feed.id !== id) return;
+  const details = readBabyDetails("FEED", feed.details).details as BreastDetails;
+  await db.babyEvent.update({
+    where: { id: feed.id },
+    data: { endedAt: null, details: switchBreastSide(details, null, now) },
+  });
   refresh();
 }
 

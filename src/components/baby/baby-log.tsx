@@ -25,6 +25,7 @@ import {
   lastFeedAt,
   otherSide,
   readBabyDetails,
+  resumableFeed,
   sideSeconds,
   sleepState,
   switchBreastSide,
@@ -37,6 +38,7 @@ import { clockWords, describeEntry, durationWords, timeWords } from "@/lib/baby-
 import {
   deleteBabyEvent,
   pressBreastSide,
+  resumeFeed,
   saveDiaper,
   saveFeed,
   saveSleep,
@@ -296,6 +298,7 @@ export function BabyLog({
         <FeedSheet
           methods={methods}
           running={runningBreast}
+          resumable={resumableFeed(entries, now)}
           lastSide={lastBreastSide(entries.filter((entry) => entry !== runningBreast))}
           solids={solids}
           now={now}
@@ -483,6 +486,7 @@ const EMPTY_BREAST: BreastDetails = { method: "BREAST", left: 0, right: 0, runni
 function FeedSheet({
   methods,
   running,
+  resumable,
   lastSide,
   solids,
   now,
@@ -490,6 +494,8 @@ function FeedSheet({
 }: {
   methods: FeedMethod[];
   running: BabyEntry | null;
+  /** A feed finished a moment ago, which "Carry on" picks up again. */
+  resumable: BabyEntry | null;
   lastSide: BreastSide | null;
   solids: string[];
   now: Date;
@@ -512,7 +518,17 @@ function FeedSheet({
       await pressBreastSide(form);
     });
 
+  const carryOn = (feed: BabyEntry) =>
+    startTransition(async () => {
+      const details = readBabyDetails("FEED", feed.details).details as BreastDetails;
+      showTimer({ ...details, running: null, runningSince: null });
+      const form = new FormData();
+      form.set("id", feed.id);
+      await resumeFeed(form);
+    });
+
   const onTimer = method === "BREAST" && !typed;
+  const resumed = resumable && !running && !timer ? (readBabyDetails("FEED", resumable.details).details as BreastDetails) : null;
   const choices = methods.includes(method) ? methods : [method, ...methods];
 
   return (
@@ -543,7 +559,34 @@ function FeedSheet({
           ) : (
             <input type="hidden" name="timer" value="1" />
           )}
-          {lastSide && !running && (
+          {resumable && resumed && (
+            <div
+              className="flex items-center gap-3 rounded-2xl px-4 py-3"
+              style={{ background: "var(--baby-feed-soft)", color: "var(--baby-feed-text)" }}
+              data-baby-resume
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">
+                  {say(BABY.lastFeedEnded, { time: timeWords(resumable.startedAt, language) })}
+                </p>
+                <p className="truncate text-xs">
+                  {say(BABY.sides, {
+                    left: durationWords(resumed.left * 1000, language),
+                    right: durationWords(resumed.right * 1000, language),
+                  })}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => carryOn(resumable)}
+                className="press-button h-10 shrink-0 rounded-full px-4 text-sm font-bold text-white"
+                style={{ background: "var(--baby-feed)" }}
+              >
+                {say(BABY.continueFeed)}
+              </button>
+            </div>
+          )}
+          {lastSide && !running && !timer && (
             <p className="text-center text-sm text-slate-600">
               {say(otherSide(lastSide) === "LEFT" ? BABY.startOnLeft : BABY.startOnRight)}
             </p>
