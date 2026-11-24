@@ -231,3 +231,19 @@ export function monthStartInstant(now: Date = new Date()): Date {
     new TZDate(zoned.getFullYear(), zoned.getMonth(), 1, 0, 0, 0, 0, TIME_ZONE).getTime(),
   );
 }
+
+/** The instant a day begins: midnight on it, in the home's zone. */
+export function dayStartInstant(day: string): Date {
+  return weekStartInstant(day);
+}
+
+/** A day some whole number of days away, as "yyyy-MM-dd" — counted in days, not hours. */
+export function shiftDay(day: string, days: number): string {
+  return format(addDays(noonOn(day), days), "yyyy-MM-dd");
+}
+
+/** The hour of the day an instant falls in, on the household's clock, with minutes as a fraction. */
+export function hourInZone(date: Date): number {
+  const zoned = inZone(date);
+  return zoned.getHours() + zoned.getMinutes() / 60 + zoned.getSeconds() / 3600;
+}

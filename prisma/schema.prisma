@@ -105,6 +105,9 @@ model Home {
   /// The household's nemlig.com login, where one is connected — see NemligAccount.
   nemligAccount    NemligAccount?
   nemligChoices    NemligChoice[]
+  /// The household's baby log — see Baby and BabyEvent.
+  babies           Baby[]
+  babyEvents       BabyEvent[]
   /// Every picture filed under this home, whatever it is attached to.
   photos           Photo[]          @relation("PhotoHome")
   photo            Photo?           @relation("HomePhoto", fields: [photoId], references: [id], onDelete: SetNull)
@@ -172,6 +175,7 @@ model User {
   tasksCompleted    TaskCompletion[]
   recipes           Recipe[]
   inviteLinksMade   InviteLink[]       @relation("InviteLinkCreatedBy")
+  babyEvents        BabyEvent[]
 
   @@index([activeHomeId])
   @@index([photoId])
@@ -205,7 +209,6 @@ model HomeMember {
  * A link an admin posts wherever the household talks (SMS, Messenger…). Whoever opens it
  * makes an account, or logs in with the one they have, and joins the home as a USER —
  * a link carries no role, because it is passed around rather than addressed to anybody.
- *
  * Only the token's hash is stored, so the link is shown once, when it is made. `uses` is
  * counted in the same transaction that brings somebody in, through a guarded update that
  * compares it with `maxUses` (`redeemInviteLink`).
@@ -1038,4 +1041,80 @@ model PushSubscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/**
+ * What a baby log entry is. One kind per thing a parent writes down at 3 in the morning;
+ * a feed's way (breast, bottle, solids) is in its `details`, because it changes what is
+ * written about the feed rather than what the entry is. A new kind is a new value here
+ * and a schema for its details in `src/lib/baby.ts`.
+ */
+enum BabyEventKind {
+  SLEEP
+  FEED
+  DIAPER
+}
+
+/**
+ * A baby the household keeps a log for. One per home is all the page shows today; it is
+ * a table of its own rather than columns on Home so a second child is rows, not a
+ * migration. Kept by everybody in the home, like the pantry — feeding the baby is not
+ * a question about who runs the household.
+ */
+model Baby {
+  id          String   @id @default(cuid())
+  homeId      String
+  /// Shown as the Baby page's title.
+  name        String
+  /**
+   * Which kinds of entry the page offers. Switched off is hidden, never deleted: what
+   * was logged before stays in the timeline and the charts. Five columns rather than a
+   * list, because each is a plain yes or no and the page asks them one at a time.
+   */
+  trackSleep  Boolean  @default(true)
+  trackBreast Boolean  @default(true)
+  trackBottle Boolean  @default(true)
+  trackSolid  Boolean  @default(true)
+  trackDiaper Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  home   Home        @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  events BabyEvent[]
+
+  @@index([homeId])
+}
+
+/**
+ * One thing that happened to a baby: a sleep, a feed or a nappy.
+ * Every kind is the same row — when it started, when it ended if it lasts, what kind,
+ * the details that kind carries and a note — so the timeline and the charts read one
+ * table in one order, and a new kind costs no new table.
+ * **`endedAt` null on a SLEEP or a breast FEED is a timer still running.** The elapsed
+ * time is always worked out from `startedAt` (and, for a breast feed, the side running
+ * since `details.runningSince`) against the clock, never counted on a phone — so it
+ * keeps going while the app is closed, and the other parent's phone shows the same.
+ * A DIAPER, a bottle and solids are moments: `endedAt` stays null and means nothing.
+ */
+model BabyEvent {
+  id          String        @id @default(cuid())
+  homeId      String
+  babyId      String
+  kind        BabyEventKind
+  startedAt   DateTime
+  endedAt     DateTime?
+  /// Shaped by `kind` (and a feed's `method`): read only through `readBabyDetails`.
+  details     Json          @default("{}")
+  note        String?
+  /// Who wrote it down. SetNull: a member leaving does not take the baby's night with them.
+  createdById String?
+  createdAt   DateTime      @default(now())
+
+  home      Home  @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  baby      Baby  @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  // The timeline and the charts ask for one baby's entries between two instants.
+  @@index([babyId, startedAt])
+  @@index([homeId])
+  @@index([createdById])
 }
