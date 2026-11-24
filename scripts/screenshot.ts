@@ -13,6 +13,15 @@
  *   --slow 0.1             play every animation at this rate; take frames with --wait
  *   --wait 1500            ms to wait after the page settles, before the shot
  *   --out <dir>            where the PNGs go (default ./screenshots, git-ignored)
+ *
+ * Then, in the order given, what a thumb would do before the shot — each repeatable:
+ *   --press "<button name>"     press a button by its accessible name (a sheet, a menu)
+ *   --tap "<text>"              press whatever shows that text (a chip, a row, a tab)
+ *   --fill "<label>=<text>"     type into a field, found by its label, else placeholder
+ *   --hold "<text>"             press and hold what shows that text (the recipe list's
+ *                               choosing), long enough for `LONG_PRESS_MS`
+ *   --photo "<label>"           choose a picture for that file input — one is drawn in
+ *                               the page, since the repo has no image file to hand it
  *   --url http://localhost:3000
  *
  * It signs a session with the `.env`'s AUTH_SECRET the way `e2e/helpers/session.ts`
@@ -22,9 +31,10 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import { chromium } from "@playwright/test";
+import { chromium, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { SignJWT } from "jose";
+import { LONG_PRESS_MS } from "../src/components/use-long-press";
 import { DEMO_HOMES, DEMO_PEOPLE, type DemoHomeKey, type DemoPerson } from "./demo-cast";
 
 // Mirrors `createSession` in src/lib/auth.ts, which writes through next/headers and so
@@ -32,9 +42,65 @@ import { DEMO_HOMES, DEMO_PEOPLE, type DemoHomeKey, type DemoPerson } from "./de
 const COOKIE = "homehub_session";
 const MAX_AGE = 60 * 60 * 24 * 30;
 
+const STEP_KINDS = ["press", "tap", "fill", "hold", "photo"] as const;
+type StepKind = (typeof STEP_KINDS)[number];
+const isStepKind = (name: string): name is StepKind => (STEP_KINDS as readonly string[]).includes(name);
+type Step = { kind: StepKind; value: string };
+
+/** One thing a thumb does before the shot. The last match wins, as a sheet is drawn last. */
+async function perform(page: Page, { kind, value }: Step) {
+  switch (kind) {
+    case "press":
+      return page.getByRole("button", { name: value, exact: true }).last().click();
+    case "tap":
+      return page.getByText(value, { exact: true }).last().click();
+    case "fill": {
+      const at = value.indexOf("=");
+      if (at < 1) throw new Error(`--fill wants "<label>=<text>", not "${value}"`);
+      const label = value.slice(0, at);
+      const text = value.slice(at + 1);
+      const byLabel = page.getByLabel(label, { exact: true });
+      const field = (await byLabel.count()) > 0 ? byLabel : page.getByPlaceholder(label, { exact: true });
+      return field.last().fill(text);
+    }
+    case "hold": {
+      const target = page.getByText(value, { exact: true }).last();
+      await target.scrollIntoViewIfNeeded();
+      const box = await target.boundingBox();
+      if (!box) throw new Error(`--hold: "${value}" is not on screen`);
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.waitForTimeout(LONG_PRESS_MS + 250);
+      return page.mouse.up();
+    }
+    case "photo":
+      return page.getByLabel(value, { exact: true }).last().setInputFiles(await drawnPicture(page));
+  }
+}
+
+/**
+ * A JPEG drawn in the page — warm stripes and a circle, so a crop or a rotation shows. The
+ * container has no image file and no PIL; the page has a canvas. A string, not a function:
+ * `tsx` wraps a function in an esbuild helper the page does not have.
+ */
+async function drawnPicture(page: Page) {
+  const dataUrl: string = await page.evaluate(`(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1200; canvas.height = 900;
+    const g = canvas.getContext("2d");
+    ["#c9744a", "#e3b26b", "#7a8f5a", "#4f6d8a"].forEach((colour, i) => {
+      g.fillStyle = colour; g.fillRect(0, i * 225, 1200, 225);
+    });
+    g.fillStyle = "#f3ebdf"; g.beginPath(); g.arc(600, 450, 260, 0, Math.PI * 2); g.fill();
+    return canvas.toDataURL("image/jpeg", 0.9);
+  })()`);
+  return { name: "picture.jpg", mimeType: "image/jpeg", buffer: Buffer.from(dataUrl.split(",")[1], "base64") };
+}
+
 async function main() {
-  const { values, positionals } = parseArgs({
+  const { values, positionals, tokens } = parseArgs({
     allowPositionals: true,
+    tokens: true,
     options: {
       home: { type: "string", default: "flat" },
       as: { type: "string", default: "alex" },
@@ -43,13 +109,24 @@ async function main() {
       full: { type: "boolean", default: false },
       slow: { type: "string" },
       wait: { type: "string", default: "300" },
-      // A button to press before the shot, by its accessible name — a sheet or a menu
-      // opened. Repeat it to press several in turn.
+      // What to do before the shot, kept in the order typed (read from `tokens` below).
       press: { type: "string", multiple: true },
+      tap: { type: "string", multiple: true },
+      fill: { type: "string", multiple: true },
+      hold: { type: "string", multiple: true },
+      photo: { type: "string", multiple: true },
       out: { type: "string", default: "screenshots" },
       url: { type: "string", default: process.env.SCREENSHOT_URL ?? "http://localhost:3000" },
     },
   });
+
+  // `values` groups a repeated option's values by name and so loses which came first;
+  // `--press Edit --fill Name=Rice --press Save` has to happen in that order.
+  const steps = tokens.flatMap((token) =>
+    token.kind === "option" && isStepKind(token.name) && token.value !== undefined
+      ? [{ kind: token.name, value: token.value }]
+      : [],
+  );
 
   const paths = positionals.length > 0 ? positionals : ["/dashboard"];
   if (!(values.home in DEMO_HOMES)) throw new Error(`--home is one of ${Object.keys(DEMO_HOMES).join(", ")}`);
@@ -98,6 +175,8 @@ async function main() {
         { name: COOKIE, value: token, url: values.url, httpOnly: true, sameSite: "Lax", secure: values.url.startsWith("https:") },
       ]);
       const page = await context.newPage();
+      // A step naming something not on the page should say so in seconds, not Playwright's 30.
+      page.setDefaultTimeout(8000);
 
       if (values.slow) {
         const cdp = await context.newCDPSession(page);
@@ -116,8 +195,8 @@ async function main() {
         // Next's dev overlay ("1 Issue") sits over the tab bar in every phone shot.
         await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
         await page.waitForTimeout(Number(values.wait));
-        for (const name of values.press ?? []) {
-          await page.getByRole("button", { name, exact: true }).last().click();
+        for (const step of steps) {
+          await perform(page, step);
           await page.waitForTimeout(Number(values.wait) + 500);
         }
 

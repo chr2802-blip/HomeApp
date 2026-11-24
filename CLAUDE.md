@@ -35,6 +35,13 @@ note from 2026-09-20 on named standing this up by hand as its largest cost; the 
 below is what the script now does, kept because the day it is wrong you have to know what
 it was aiming at.
 
+**In Claude Code on the web, the "HomeApp" cloud environment runs `npm run setup` as its
+setup script**, so a session started on it opens with dependencies, the Prisma client,
+Postgres, `.env` and the browser already in place, and the SessionStart hook's check
+should say so. A session on the "Default" environment still starts cold — pick HomeApp
+when starting one. The script is the one line `if [ -d HomeApp ]; then (cd HomeApp && npm
+run setup); fi`, so what setup does is still decided here, in the repo.
+
 Integration and browser tests need the local Postgres: `docker start homehub-pg`.
 
 **Stopping a server from the Bash tool: `pkill -f "[n]ext dev"`, never `pkill -f "next dev"`.**
@@ -60,10 +67,15 @@ remakes only its own homes and people, and refuses a database not on this machin
 `screenshot` (`scripts/screenshot.ts`) needs `npm run dev` already running: it signs a
 session with `.env`'s `AUTH_SECRET` (no login form), switches to `--home flat|da|empty`,
 shoots each path at 390×844 into `screenshots/` (git-ignored), and prints the files.
-`--as sam`, `--full`, `--width`/`--height`, `--wait <ms>`, `--slow 0.1` (every animation
-at a tenth of its speed, through CDP) and `--press "<button name>"` (pressed before the
-shot, repeatable — `--press Menu` opens the tab bar's drawer) cover the rest; anything it
-cannot do — a field filled, a row long-pressed — is a throwaway that imports `scripts/demo-cast.ts` and copies
+`--as sam`, `--full`, `--width`/`--height`, `--wait <ms>` and `--slow 0.1` (every animation
+at a tenth of its speed, through CDP) cover the page; what a thumb does before the shot is
+five repeatable steps, **run in the order typed**: `--press "<button name>"` (`--press
+Menu` opens the tab bar's drawer), `--tap "<text>"` (a chip, a row), `--fill
+"<label>=<text>"` (by label, else placeholder), `--hold "<text>"` (press and hold — the
+recipe list's choosing) and `--photo "<file input's label>"` (a picture drawn in the page
+and chosen). A step naming something not there fails in 8s. `--press "Add to supplies"
+--fill "Something you keep in=ris"` is the pantry's add sheet mid-typing. Anything still
+beyond that is a throwaway that imports `scripts/demo-cast.ts` and copies
 from `screenshot.ts`, put inside the checkout (from the scratchpad it cannot resolve
 `@prisma/client`), run with `npx tsx --env-file=.env` (`tsx` does not read `.env` itself)
 and deleted afterwards. A new kind of thing on screen wants a row in
@@ -76,9 +88,9 @@ user's homes are `memberships: { create: … }` and the pointer `activeHome`; a 
 top-level `await` must be `.mts`, because `tsx` compiles a `.ts` as CommonJS here.
 `PantryCategory` is `SPICES`, `OIL_VINEGAR`, `SAUCES`, `BAKING`, `DRY_GOODS`, `TINS_JARS`,
 `FRIDGE`, `FREEZER`, `DRINKS`, `BABY`, `BATHROOM`, `CLEANING`, `OTHER` — the label "Pasta, rice & grains" is
-`DRY_GOODS`. **To screenshot a picture being chosen**, there is no image file in the repo
-and no PIL in the container: draw one in the page (`canvas.toDataURL("image/jpeg")`) and
-hand its bytes to `setInputFiles({ name, mimeType, buffer })`. A row's three dots are the
+`DRY_GOODS`. **To screenshot a picture being chosen**, `--photo` does it: there is no image file in the
+repo and no PIL in the container, so it draws one in the page (`canvas.toDataURL`) and
+hands its bytes to `setInputFiles({ name, mimeType, buffer })` — copy that for an e2e spec. A row's three dots are the
 button named "Actions for <name>", clickable once it carries `data-ready`.
 
 **Restart `npm run dev` after `prisma generate`.** A dev server already running keeps the
@@ -111,15 +123,15 @@ default worker count against 4 CPUs, and a different single spec times out on ea
 twice, and never anything the diff under test touched). Before treating a lone failure as a
 real regression, re-run just that spec alone (`npx playwright test <file> -g "<test
 name>"`): it passes in a couple of seconds when it was contention, and that is cheaper than
-re-running the whole suite on a guess. **The pre-push hook runs the same full suite, so a push can
-fail the same way**; push with `E2E_WORKERS=3 git push …` there (read by `e2eWorkerCount`
-in `e2e/helpers/servers.ts`) — every suite still runs, with one less worker fighting for
-the CPUs. It took two failed pushes to find. (`ai-wait.spec.ts`, the one named most often, was
+re-running the whole suite on a guess. **The pre-push hook runs the same full suite, so a push failed
+the same way** — until `e2eWorkerCount` (`e2e/helpers/servers.ts`) started answering **1
+wherever `CLAUDE_CODE_REMOTE=true`**, which every cloud container sets. 4, 3 and 2 workers
+each dropped a different test there; 1 passed all 297 in about 11 minutes, which beats a
+failed push and a second run. `E2E_WORKERS` still overrides it either way, and
+`tests/unit/e2e-workers.test.ts` holds the rule. **Run a push from a cloud container in the
+background**: with the browser suite it outlasts a single 10-minute tool call. (`ai-wait.spec.ts`, the one named most often, was
 not contention but a service worker race — see `ROUTES_REQUESTS` under *Tests gate
 everything* — and is fixed.)
-On 2026-10-01 even 3 and 2 workers each dropped a different test; `E2E_WORKERS=1` passed
-all 297 in about 11 minutes — go straight there if the container is slow, and run the push
-in the background, since it outlasts a single 10-minute tool call.
 
 ## Conventions that are not optional
 
