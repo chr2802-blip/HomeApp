@@ -184,7 +184,7 @@ export function TotalsChart({ summary, language }: { summary: PeriodSummary; lan
   const labels = (
     <div aria-hidden="true" className={`mt-1 flex text-center text-[10px] font-semibold text-slate-600 ${dense ? "gap-0.5" : "gap-2"}`}>
       {rows.map(({ row, median }) => (
-        <span key={row.day} className={`${column(median)} ${median ? "overflow-visible text-[var(--accent-text)]" : "truncate"} ${dense && !median ? "invisible" : ""}`}>
+        <span key={row.day} className={`${column(median)} ${median ? "overflow-visible whitespace-nowrap text-[var(--accent-text)]" : "truncate"} ${dense && !median ? "invisible" : ""}`}>
           {dense && median ? "Md" : label(row)}
         </span>
       ))}
@@ -227,28 +227,28 @@ export function TotalsChart({ summary, language }: { summary: PeriodSummary; lan
   );
 }
 
-/** The averages over the period, in words — the charts' text equivalent. */
+/** The period's medians, in words — the charts' text equivalent. */
 export function PeriodAverages({ summary, language }: { summary: PeriodSummary; language: HomeLanguage }) {
   const say = sayIn(language);
-  const { average } = summary;
+  const { typical } = summary;
   const hours = (h: number) => durationWords(h * 3_600_000, language);
   const one = (value: number) => (Math.round(value * 10) / 10).toLocaleString(language === "DA" ? "da-DK" : "en-GB");
   const tile = "flex min-w-0 flex-col gap-0.5 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm";
   return (
-    <div className="grid grid-cols-3 gap-2" aria-label={say(BABY.chartSummary, { sleep: hours(average.nightHours + average.napHours), feeds: one(average.feedCount), diapers: one(average.diaperCount) })}>
+    <div className="grid grid-cols-3 gap-2" aria-label={say(BABY.chartSummary, { sleep: hours(typical.sleepHours), feeds: one(typical.feedCount), diapers: one(typical.diaperCount) })}>
       <div className={tile}>
         <span className="text-[11px] leading-tight font-bold tracking-wide uppercase" style={{ color: babyColor("sleep", "-text") }}>{say(BABY.sleepPerDay)}</span>
-        <span className="truncate text-lg font-bold text-slate-900">{hours(average.nightHours + average.napHours)}</span>
-        <span className="text-xs text-slate-500">{say(BABY.nightAndNap, { night: hours(average.nightHours), nap: hours(average.napHours) })}</span>
+        <span className="truncate text-lg font-bold text-slate-900">{hours(typical.sleepHours)}</span>
+        <span className="text-xs text-slate-500">{say(BABY.nightAndNap, { night: hours(typical.nightHours), nap: hours(typical.napHours) })}</span>
       </div>
       <div className={tile}>
         <span className="text-[11px] leading-tight font-bold tracking-wide uppercase" style={{ color: babyColor("feed", "-text") }}>{say(BABY.feedsPerDay)}</span>
-        <span className="truncate text-lg font-bold text-slate-900">{one(average.feedCount)}</span>
-        <span className="text-xs text-slate-500">{say(BABY.mlFromBottles, { ml: Math.round(average.ml) })}</span>
+        <span className="truncate text-lg font-bold text-slate-900">{one(typical.feedCount)}</span>
+        <span className="text-xs text-slate-500">{say(BABY.mlFromBottles, { ml: Math.round(typical.ml) })}</span>
       </div>
       <div className={tile}>
         <span className="text-[11px] leading-tight font-bold tracking-wide uppercase" style={{ color: babyColor("diaper", "-text") }}>{say(BABY.diapersPerDay)}</span>
-        <span className="truncate text-lg font-bold text-slate-900">{one(average.diaperCount)}</span>
+        <span className="truncate text-lg font-bold text-slate-900">{one(typical.diaperCount)}</span>
       </div>
     </div>
   );

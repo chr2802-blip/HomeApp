@@ -61,11 +61,11 @@ describe("a day's row", () => {
     expect(today).toMatchObject({ diaperCount: 1, dirtyCount: 1, diapers: [{ at: 8 }] });
   });
 
-  it("averages only over days with something logged", () => {
+  it("takes the median only over days with something logged", () => {
     const summary = summarise(all, periodDays("2026-11-24", "week"), now);
     expect(summary.days).toHaveLength(7);
-    expect(summary.average.nightHours).toBe(5);
-    expect(summary.average.feedCount).toBe(1.5);
+    expect(summary.typical.nightHours).toBe(5);
+    expect(summary.typical.feedCount).toBe(1.5);
     expect(summary.maxSleep).toBe(7.5);
   });
 });

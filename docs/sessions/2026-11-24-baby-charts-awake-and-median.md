@@ -46,3 +46,11 @@ That `--out` is a directory. It is now written next to the screenshot command in
   It is night where most of those sleeps were.
 - The median day is not drawn when fewer than two days are logged.
 - The awake segment is the neutral `slate-200`, not a new baby colour.
+
+## Second round
+
+The user chose the title "Søvn og vågen pr. dag" and medians in place of averages in the
+summary tiles (`summary.average` is now `summary.typical`). The screenshot taken while the
+first push's pre-push e2e build was running came out with no styling: that build rewrites
+`.next` underneath the dev server, which CLAUDE.md already warns about. Wait for the push
+before taking the next screenshot.

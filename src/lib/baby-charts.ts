@@ -104,8 +104,12 @@ export function chartDay(entries: readonly BabyEntry[], day: string, now: Date):
 
 export type PeriodSummary = {
   days: DayChart[];
-  /** Per day, over the days that have anything logged — a day before the log began is not a zero. */
-  average: { nightHours: number; napHours: number; feedCount: number; ml: number; diaperCount: number };
+  /**
+   * The median per day, over the days that have anything logged — a day before the log
+   * began is not a zero. A median rather than a mean, so one bad night does not move it.
+   * `sleepHours` is the median of the days' totals, so it need not be night plus nap.
+   */
+  typical: { sleepHours: number; nightHours: number; napHours: number; feedCount: number; ml: number; diaperCount: number };
   /**
    * The middle day of the period, as a row of its own — null where fewer than two days
    * have anything logged, since the median of one day is that day.
@@ -119,16 +123,16 @@ export type PeriodSummary = {
 export function summarise(entries: readonly BabyEntry[], days: readonly string[], now: Date): PeriodSummary {
   const charts = days.map((day) => chartDay(entries, day, now));
   const logged = charts.filter((row) => row.sleep.length + row.feedCount + row.diaperCount > 0);
-  const mean = (pick: (row: DayChart) => number) =>
-    logged.length === 0 ? 0 : logged.reduce((sum, row) => sum + pick(row), 0) / logged.length;
+  const middle = (pick: (row: DayChart) => number) => median(logged.map(pick));
   return {
     days: charts,
-    average: {
-      nightHours: mean((row) => row.nightHours),
-      napHours: mean((row) => row.napHours),
-      feedCount: mean((row) => row.feedCount),
-      ml: mean((row) => row.ml),
-      diaperCount: mean((row) => row.diaperCount),
+    typical: {
+      sleepHours: middle((row) => row.nightHours + row.napHours),
+      nightHours: middle((row) => row.nightHours),
+      napHours: middle((row) => row.napHours),
+      feedCount: middle((row) => row.feedCount),
+      ml: middle((row) => row.ml),
+      diaperCount: middle((row) => row.diaperCount),
     },
     median: medianDay(logged),
     maxSleep: Math.max(0, ...charts.map((row) => row.nightHours + row.napHours)),
