@@ -3,6 +3,7 @@ import {
   DEFAULT_PINS,
   PINNABLE_TABS,
   PIN_SLOTS,
+  dropPin,
   litPlace,
   pinInPlaceOf,
   readPins,
@@ -53,6 +54,27 @@ describe("changing the pins", () => {
 
   it("swaps the two places", () => {
     expect(swapPins(["food", "lists"])).toEqual(["lists", "food"]);
+  });
+});
+
+describe("dropPin", () => {
+  it("puts a tab dragged onto a place in that place, and the one there drops out", () => {
+    expect(dropPin(["food", "lists"], "tasks", "food")).toEqual(["tasks", "lists"]);
+    expect(dropPin(["food", "lists"], "baby", "lists")).toEqual(["food", "baby"]);
+  });
+
+  it("swaps the places when one is dropped on the other", () => {
+    expect(dropPin(["food", "lists"], "lists", "food")).toEqual(["lists", "food"]);
+    expect(dropPin(["food", "lists"], "food", "lists")).toEqual(["lists", "food"]);
+  });
+
+  it("trades a pinned tab dropped on one further down for it", () => {
+    expect(dropPin(["food", "lists"], "food", "tasks")).toEqual(["tasks", "lists"]);
+  });
+
+  it("changes nothing for a drop on itself or between two tabs not in the bar", () => {
+    expect(dropPin(["food", "lists"], "food", "food")).toEqual(["food", "lists"]);
+    expect(dropPin(["food", "lists"], "tasks", "baby")).toEqual(["food", "lists"]);
   });
 });
 

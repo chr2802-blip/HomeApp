@@ -161,9 +161,9 @@ model User {
   navPins      String[]     @default([])
   /**
    * The three tiles under the dashboard's greeting, in order — kinds from `TILE_KINDS`
-   * in `src/lib/dashboard-tiles.ts`, or `list:<id>`. Read only through `readTiles`, which
-   * drops what it does not know and fills from `DEFAULT_TILES`, so empty is "the
-   * defaults"; a list from another home falls out there too. A person's, like `navPins`.
+   * in `src/lib/dashboard-tiles.ts`, `list:<id>`, or `""` for an empty place. Read only
+   * through `readTiles`, which empties a place holding anything it does not know (a list
+   * from another home included) and never fills one. A person's, like `navPins`.
    */
   dashboardTiles String[]   @default([])
   createdAt    DateTime     @default(now())

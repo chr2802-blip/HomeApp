@@ -8,7 +8,6 @@ import { Modal, ModalBody } from "./modal";
 import { useLongPress } from "./use-long-press";
 import { sayIn, type Phrase, type Say } from "@/lib/copy/say";
 import { TILES } from "@/lib/copy/tiles";
-import { DASHBOARD } from "@/lib/copy/dashboard";
 import { clockWords } from "@/lib/baby-words";
 import { setDashboardTiles } from "@/app/actions/nav";
 import { pressBreastSide, toggleSleep } from "@/app/actions/baby";
@@ -18,17 +17,14 @@ import {
   listTile,
   setTile,
   TILE_FIELD,
-  TILE_KINDS,
   tileListId,
   type TileChoice,
   type TileKind,
+  type TileSlot,
 } from "@/lib/dashboard-tiles";
 
 /** What the page knows about one tile, worked out on the server. */
 export type TileView =
-  | { kind: "due"; value: number; overdue: number }
-  | { kind: "toBuy"; value: number; lists: number }
-  | { kind: "runOut"; value: number }
   | { kind: "sleep"; baby: boolean; since: string | null }
   | { kind: "feed"; baby: boolean; since: string | null; side: "LEFT" | "RIGHT" | null }
   | { kind: "recipe" }
@@ -166,35 +162,6 @@ function FeedTile({ view, say }: { view: Extract<TileView, { kind: "feed" }>; sa
 
 function Tile({ view, say }: { view: TileView; say: Say }) {
   switch (view.kind) {
-    case "due":
-      return (
-        <LinkTile href="/tasks">
-          <Frame>
-            <Lines
-              value={view.value}
-              label={say(DASHBOARD.dueForYouTile)}
-              detail={view.overdue > 0 ? say(DASHBOARD.overdueCount, { count: view.overdue }) : say(DASHBOARD.noneOverdue)}
-              warn={view.overdue > 0}
-            />
-          </Frame>
-        </LinkTile>
-      );
-    case "toBuy":
-      return (
-        <LinkTile href="/lists">
-          <Frame>
-            <Lines value={view.value} label={say(DASHBOARD.toBuy)} detail={say(DASHBOARD.onLists, { count: view.lists })} />
-          </Frame>
-        </LinkTile>
-      );
-    case "runOut":
-      return (
-        <LinkTile href="/pantry">
-          <Frame>
-            <Lines value={view.value} label={say(DASHBOARD.runOut)} detail={say(DASHBOARD.inThePantry)} />
-          </Frame>
-        </LinkTile>
-      );
     case "recipe":
       return (
         <LinkTile href={`/recipes?${CREATE_PARAM}`}>
@@ -226,13 +193,28 @@ const KIND_NAMES: Record<TileKind, Phrase> = {
   sleep: TILES.kindSleep,
   feed: TILES.kindFeed,
   recipe: TILES.kindRecipe,
-  due: TILES.kindDue,
-  toBuy: TILES.kindToBuy,
-  runOut: TILES.kindRunOut,
 };
-const KIND_GLYPHS: Record<TileKind, string> = { sleep: "💤", feed: "🍼", recipe: "🍲", due: "✅", toBuy: "🛒", runOut: "🫙" };
+const KIND_GLYPHS: Record<TileKind, string> = { sleep: "💤", feed: "🍼", recipe: "🍲" };
 const SHORTCUTS: readonly TileKind[] = ["sleep", "feed", "recipe"];
-const NUMBERS: readonly TileKind[] = TILE_KINDS.filter((kind) => !SHORTCUTS.includes(kind));
+
+/**
+ * A place nobody has filled, and the only place the dashboard explains how to fill one —
+ * so the explanation is where the thumb has to go, and gone the moment it is not needed.
+ */
+function EmptyTile({ say, onOpen }: { say: Say; onOpen: () => void }) {
+  // A tap opens the chooser too: an empty place has nothing else a press could mean.
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      data-tile-empty
+      className="press-card relative flex h-full min-h-[76px] w-full flex-col justify-center rounded-2xl border border-dashed border-slate-300 px-3 py-2 text-left text-slate-500"
+    >
+      <span className="block text-xs font-semibold text-slate-600">{say(TILES.emptyTitle)}</span>
+      <span className="block text-[11px] leading-snug">{say(TILES.emptyHint)}</span>
+    </button>
+  );
+}
 
 /** What a choice is called, for the chooser and `/profile`. */
 export function choiceName(choice: TileChoice, lists: readonly TileList[], say: Say): { glyph: string; name: string } {
@@ -249,13 +231,13 @@ export function choiceName(choice: TileChoice, lists: readonly TileList[], say: 
  * The tiles as chosen, with the press just made shown at once — the dashboard behind the
  * drawer changes under the thumb, not a round trip later.
  */
-export function useTiles(stored: TileChoice[]) {
+export function useTiles(stored: TileSlot[]) {
   const [tiles, show] = useOptimistic(stored);
-  const change = (next: TileChoice[]) =>
+  const change = (next: TileSlot[]) =>
     startTransition(async () => {
       show(next);
       const form = new FormData();
-      for (const tile of next) form.append(TILE_FIELD, tile);
+      for (const tile of next) form.append(TILE_FIELD, tile ?? "");
       await setDashboardTiles(form);
     });
   return [tiles, change] as const;
@@ -270,9 +252,9 @@ export function TileChooser({
   onClose,
 }: {
   slot: number | null;
-  tiles: TileChoice[];
+  tiles: TileSlot[];
   lists: readonly TileList[];
-  onChange: (tiles: TileChoice[]) => void;
+  onChange: (tiles: TileSlot[]) => void;
   onClose: () => void;
 }) {
   const say = sayIn(useLanguage());
@@ -317,8 +299,18 @@ export function TileChooser({
         ) : (
           <ul className="flex flex-col gap-2">{lists.map((list) => option(listTile(list.id)))}</ul>
         )}
-        {heading(say(TILES.numbers))}
-        <ul className="flex flex-col gap-2">{NUMBERS.map(option)}</ul>
+        {current && (
+          <button
+            type="button"
+            onClick={() => {
+              if (slot !== null) onChange(setTile(tiles, slot, null));
+              onClose();
+            }}
+            className="press-button mt-4 flex min-h-12 w-full items-center justify-center rounded-xl border border-dashed border-slate-300 px-3 text-sm font-semibold text-slate-600"
+          >
+            {say(TILES.clear)}
+          </button>
+        )}
       </ModalBody>
     </Modal>
   );
@@ -342,7 +334,7 @@ export function DashboardTiles({
   views,
   lists,
 }: {
-  tiles: TileChoice[];
+  tiles: TileSlot[];
   /** One per choice in `tiles`, keyed by the choice. */
   views: Record<string, TileView>;
   lists: TileList[];
@@ -352,12 +344,19 @@ export function DashboardTiles({
   const [slot, setSlot] = useState<number | null>(null);
   return (
     <>
-      <div className="grid grid-cols-3 gap-2" data-tiles={tiles.join(" ")}>
+      <div className="grid grid-cols-3 gap-2" data-tiles={tiles.map((tile) => tile ?? "-").join(" ")}>
         {tiles.map((choice, index) => {
-          const view = views[choice];
+          const view = choice ? views[choice] : undefined;
           return (
-            <HeldTile key={choice} onHold={() => setSlot(index)}>
-              {view ? <Tile view={view} say={say} /> : <Frame><Lines value="…" label="" detail="" /></Frame>}
+            <HeldTile key={choice ?? `empty-${index}`} onHold={() => setSlot(index)}>
+              {!choice ? (
+                <EmptyTile say={say} onOpen={() => setSlot(index)} />
+              ) : view ? (
+                <Tile view={view} say={say} />
+              ) : (
+                // Chosen a moment ago; the page brings its numbers on the refresh.
+                <Frame><Lines value={choiceName(choice, lists, say).glyph} label={choiceName(choice, lists, say).name} detail="" /></Frame>
+              )}
             </HeldTile>
           );
         })}
@@ -368,7 +367,7 @@ export function DashboardTiles({
 }
 
 /** The same choice on `/profile`: the three places spelled out, each with its own "Change". */
-export function DashboardTilesSetting({ tiles: stored, lists }: { tiles: TileChoice[]; lists: TileList[] }) {
+export function DashboardTilesSetting({ tiles: stored, lists }: { tiles: TileSlot[]; lists: TileList[] }) {
   const say = sayIn(useLanguage());
   const [tiles, change] = useTiles(stored);
   const [slot, setSlot] = useState<number | null>(null);
@@ -376,14 +375,19 @@ export function DashboardTilesSetting({ tiles: stored, lists }: { tiles: TileCho
     <>
       <ul className="flex flex-col divide-y divide-slate-100">
         {tiles.map((choice, index) => {
-          const { glyph, name } = choiceName(choice, lists, say);
+          const { glyph, name } = choice ? choiceName(choice, lists, say) : { glyph: "", name: say(TILES.emptyRow) };
           return (
-            <li key={choice} className="flex min-h-14 items-center gap-3 py-1.5" data-tile-slot={index + 1}>
-              <span aria-hidden="true" className="accent-tint-bg flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg">
+            <li key={choice ?? `empty-${index}`} className="flex min-h-14 items-center gap-3 py-1.5" data-tile-slot={index + 1}>
+              <span
+                aria-hidden="true"
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg ${
+                  choice ? "accent-tint-bg" : "border border-dashed border-slate-300"
+                }`}
+              >
                 {glyph}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-semibold text-slate-800">{name}</span>
+                <span className={`block truncate font-semibold ${choice ? "text-slate-800" : "text-slate-400"}`}>{name}</span>
                 <span className="block text-xs text-slate-500">{say(TILES.inPlace, { n: index + 1 })}</span>
               </span>
               <button
@@ -392,7 +396,7 @@ export function DashboardTilesSetting({ tiles: stored, lists }: { tiles: TileCho
                 aria-label={say(TILES.changeNamed, { n: index + 1 })}
                 className="press-button flex h-9 shrink-0 items-center rounded-full border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600"
               >
-                {say(TILES.change)}
+                {choice ? say(TILES.change) : say(TILES.add)}
               </button>
             </li>
           );

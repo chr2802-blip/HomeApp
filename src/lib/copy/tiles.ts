@@ -6,9 +6,6 @@ export const TILES = {
   kindSleep: { EN: "Start sleep", DA: "Start søvn" },
   kindFeed: { EN: "Start breastfeed", DA: "Start amning" },
   kindRecipe: { EN: "Create recipe", DA: "Opret opskrift" },
-  kindDue: { EN: "Due for you", DA: "Opgaver til dig" },
-  kindToBuy: { EN: "Things to buy", DA: "Ting at købe" },
-  kindRunOut: { EN: "Run out in supplies", DA: "Brugt op i forrådet" },
 
   // On the tiles themselves.
   sleepIdle: { EN: "Start sleep", DA: "Start søvn" },
@@ -28,22 +25,26 @@ export const TILES = {
   },
   listDone: { EN: "all done", DA: "alt klaret" },
 
+  emptyTitle: { EN: "Empty", DA: "Tomt felt" },
+  emptyHint: {
+    EN: "Press and hold to add a shortcut",
+    DA: "Tryk og hold for at tilføje en genvej",
+  },
+
   // The chooser.
   chooseTitle: { EN: "Tile {n}", DA: "Felt {n}" },
-  chooseHint: {
-    EN: "Hold a tile on the front page to change it.",
-    DA: "Hold fingeren på et felt på forsiden for at skifte det.",
-  },
   shortcuts: { EN: "Shortcuts", DA: "Genveje" },
-  numbers: { EN: "Numbers", DA: "Tal" },
+  clear: { EN: "Leave this tile empty", DA: "Lad feltet være tomt" },
+  emptyRow: { EN: "Empty", DA: "Tomt" },
   lists: { EN: "A list", DA: "En liste" },
   noLists: { EN: "The home has no lists yet.", DA: "Hjemmet har ingen lister endnu." },
   inPlace: { EN: "Tile {n}", DA: "Felt {n}" },
   change: { EN: "Change", DA: "Skift" },
+  add: { EN: "Add", DA: "Tilføj" },
   changeNamed: { EN: "Change tile {n}", DA: "Skift felt {n}" },
   profileHeading: { EN: "Front page", DA: "Forsiden" },
   profileHint: {
-    EN: "The three tiles under the greeting. Yours alone — the others choose their own.",
-    DA: "De tre felter under hilsenen. Kun dine — de andre vælger deres egne.",
+    EN: "The three tiles under the greeting — or press and hold one on the front page. Yours alone; the others choose their own.",
+    DA: "De tre felter under hilsenen — eller tryk og hold på et af dem på forsiden. Kun dine; de andre vælger deres egne.",
   },
 } as const satisfies Record<string, Phrase | Plural>;

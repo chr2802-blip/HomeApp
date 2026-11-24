@@ -6,7 +6,6 @@ import { ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 import { completeTask } from "@/app/actions/tasks";
 import { TaskDoneButton } from "@/components/task-done-button";
 import { NotificationSetup } from "@/components/notification-setup";
-import { dueTone } from "@/lib/due";
 import type { HomeLanguage } from "@prisma/client";
 import { UNFINISHED } from "@/lib/tasks";
 import { TaskRow, type TaskSummary } from "@/components/task-row";
@@ -29,7 +28,7 @@ import { MEALS } from "@/lib/copy/meals";
 import { CreateMenu } from "@/components/create-button";
 import { HomeBanner } from "@/components/home-banner";
 import { DashboardTiles, type TileList, type TileView } from "@/components/dashboard-tiles";
-import { readTiles, tileListId, type TileChoice } from "@/lib/dashboard-tiles";
+import { readTiles, tileListId } from "@/lib/dashboard-tiles";
 import { readBabyDetails, type BreastDetails } from "@/lib/baby";
 
 /**
@@ -134,7 +133,7 @@ export default async function DashboardPage() {
   // The six days after today — tonight is already the dinner row in "Today".
   const ahead = weekDays(today).slice(1);
 
-  const [dueTasks, favorites, recent, open, week, streak, dinner, plans, runOut, allLists, baby] = await Promise.all([
+  const [dueTasks, favorites, recent, open, week, streak, dinner, plans, allLists, baby] = await Promise.all([
     db.task.findMany({
       // A one-off already done is not due, however long its date has been in the past.
       where: { nextDueAt: { lte: endOfToday }, ...UNFINISHED },
@@ -167,7 +166,6 @@ export default async function DashboardPage() {
       where: { date: { in: ahead } },
       select: { date: true, leftoverOf: true, recipe: { select: { title: true } } },
     }),
-    db.pantryItem.count({ where: { quantity: 0 } }),
     // Every list, for the tiles: a list can be one, and the chooser offers them all.
     db.list.findMany({ orderBy: { title: "asc" }, select: { id: true, title: true, emoji: true, _count: { select: { items: true } } } }),
     // The baby and anything of its running, for the sleep and feed tiles.
@@ -202,12 +200,7 @@ export default async function DashboardPage() {
   const lists = all.slice(0, DASHBOARD_LISTS);
   const more = all.length > lists.length;
 
-  const overdue = mine.filter((task) => dueTone(task.nextDueAt, now) === "red").length;
-  // Everything still to buy across the home, and how many lists it is spread over —
-  // `open` already counts every list, not only the four drawn below.
-  const openCounts = [...open.values()].filter((count) => count > 0);
-  const toBuy = openCounts.reduce((sum, count) => sum + count, 0);
-  const tiles: TileChoice[] = readTiles(user.dashboardTiles, new Set(allLists.map((list) => list.id)));
+  const tiles = readTiles(user.dashboardTiles, new Set(allLists.map((list) => list.id)));
   const runningSleep = baby?.events.find((event) => event.kind === "SLEEP");
   const runningFeed = baby?.events.find(
     (event) => event.kind === "FEED" && readBabyDetails("FEED", event.details).details.method === "BREAST",
@@ -215,14 +208,12 @@ export default async function DashboardPage() {
   const feedDetails = runningFeed ? (readBabyDetails("FEED", runningFeed.details).details as BreastDetails) : null;
   const tileViews: Record<string, TileView> = {};
   for (const choice of tiles) {
+    if (!choice) continue;
     const listId = tileListId(choice);
     if (listId) {
       const list = allLists.find((l) => l.id === listId)!;
       tileViews[choice] = { kind: "list", id: list.id, title: list.title, face: faceOf(list), open: open.get(list.id) ?? 0, total: list._count.items };
-    } else if (choice === "due") tileViews[choice] = { kind: "due", value: mine.length, overdue };
-    else if (choice === "toBuy") tileViews[choice] = { kind: "toBuy", value: toBuy, lists: openCounts.length };
-    else if (choice === "runOut") tileViews[choice] = { kind: "runOut", value: runOut };
-    else if (choice === "recipe") tileViews[choice] = { kind: "recipe" };
+    } else if (choice === "recipe") tileViews[choice] = { kind: "recipe" };
     else if (choice === "sleep")
       tileViews[choice] = { kind: "sleep", baby: !!baby?.trackSleep, since: runningSleep?.startedAt.toISOString() ?? null };
     else if (choice === "feed")

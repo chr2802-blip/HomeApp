@@ -10,21 +10,6 @@ export const DASHBOARD = {
   notInAHome: { EN: "You are not in a home at the moment.", DA: "I er ikke i et hjem lige nu." },
   goToYourHomes: { EN: "Go to your homes", DA: "Gå til jeres hjem" },
 
-  // The row of three numbers under the greeting.
-  dueForYouTile: { EN: "due for you", DA: "til dig" },
-  overdueCount: {
-    EN: { one: "{count} overdue", other: "{count} overdue" },
-    DA: { one: "{count} over tid", other: "{count} over tid" },
-  },
-  noneOverdue: { EN: "none overdue", DA: "intet over tid" },
-  toBuy: { EN: "to buy", DA: "at købe" },
-  onLists: {
-    EN: { one: "on {count} list", other: "on {count} lists" },
-    DA: { one: "på {count} liste", other: "på {count} lister" },
-  },
-  runOut: { EN: "run out", DA: "brugt op" },
-  inThePantry: { EN: "in supplies", DA: "i forrådet" },
-
   today: { EN: "Today", DA: "I dag" },
   nothingToday: { EN: "Nothing needs doing today. Enjoy it.", DA: "Intet skal gøres i dag. Nyd det." },
   comingUp: { EN: "Coming up", DA: "De næste dage" },

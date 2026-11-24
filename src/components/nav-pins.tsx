@@ -170,7 +170,8 @@ export function NavPins({
         screenReaderInstructions: { draggable: say(NAV.dragInstructions) },
       }}
     >
-      <div className="flex flex-col gap-3">
+      {/* `data-ready` once hydrated: a drag before then is a finger on a picture of a handle. */}
+      <div className="flex flex-col gap-3" data-pins-ready={mounted ? "true" : undefined}>
         {home && onOpen && (
           <ul>
             <li className="flex min-h-14 items-center gap-3 py-1.5">{body(home)}</li>

@@ -71,8 +71,19 @@ test.describe("the baby log", () => {
   test("can be pinned to the tab bar", async ({ page }) => {
     await page.locator("nav.app-bottombar").getByRole("button", { name: "Menu" }).click();
     const drawer = page.getByRole("dialog", { name: "All tabs" });
-    await drawer.getByRole("button", { name: "Pin Baby to the tab bar" }).click();
-    await drawer.getByRole("button", { name: "Replace Lists" }).click();
+    await expect(drawer.locator("[data-pins-ready]")).toBeVisible();
+    // Dragged by its grip onto the second place, the way the drawer chooses.
+    const grip = drawer.getByRole("button", { name: "Move Baby", exact: true });
+    await grip.scrollIntoViewIfNeeded();
+    await drawer.getByText("In the tab bar", { exact: true }).scrollIntoViewIfNeeded();
+    await page.waitForTimeout(100);
+    const from = (await grip.boundingBox())!;
+    const to = (await drawer.locator('[data-pin-row="lists"]').boundingBox())!;
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2 - 10, { steps: 3 });
+    await page.mouse.move(from.x + from.width / 2, to.y + to.height / 2, { steps: 12 });
+    await page.mouse.up();
     await expect(page.locator("nav.app-bottombar").getByRole("link")).toHaveText(["Home", "Food", "Baby"]);
   });
 });

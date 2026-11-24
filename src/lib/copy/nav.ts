@@ -14,7 +14,7 @@ export const NAV = {
   },
   dragNamed: { EN: "Move {name}", DA: "Flyt {name}" },
   dragPicked: { EN: "Picked up {name}.", DA: "{name} er samlet op." },
-  dragOver: { EN: "Over {name}.", DA: "Over {name}." },
+  dragOver: { EN: "Over {name}.", DA: "Hen over {name}." },
   dragDropped: { EN: "Dropped. The tab bar has changed.", DA: "Sluppet. Bundbaren er ændret." },
   dragCancelled: { EN: "Put back where it was.", DA: "Lagt tilbage, hvor den var." },
   dragInstructions: {
