@@ -41,6 +41,8 @@ export const BABY = {
   asleep: { EN: "Asleep", DA: "Sover" },
   awake: { EN: "Awake", DA: "Vågen" },
   since: { EN: "since {time}", DA: "siden {time}" },
+  endedAt: { EN: "ended {time}", DA: "sluttede {time}" },
+  feedingNowShort: { EN: "Now", DA: "Nu" },
   ago: { EN: "{time} ago", DA: "{time} siden" },
   notYet: { EN: "Nothing yet", DA: "Intet endnu" },
   today: { EN: "Today", DA: "I dag" },

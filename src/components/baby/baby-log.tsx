@@ -22,7 +22,7 @@ import {
   isNightSleep,
   isRunning,
   lastBreastSide,
-  lastFeedAt,
+  lastFeed,
   otherSide,
   readBabyDetails,
   resumableFeed,
@@ -151,7 +151,7 @@ export function BabyLog({
   const feeds = methods.length > 0 || runningBreast !== null;
 
   const sleep = sleepState(entries, now);
-  const fed = lastFeedAt(entries, now);
+  const fed = lastFeed(entries, now);
   const lastDiaper = entries
     .filter((entry) => entry.kind === "DIAPER")
     .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())[0];
@@ -210,9 +210,16 @@ export function BabyLog({
         {feeds && (
           <Tile
             kind="feed"
-            label={say(BABY.feed)}
-            value={fed ? durationWords(now.getTime() - fed.getTime(), language) : say(BABY.notYet)}
-            detail={fed ? say(BABY.since, { time: timeWords(fed, language) }) : ""}
+            strong={fed?.running === true}
+            label={say(fed?.method === "BREAST" ? BABY.breast : BABY.feed)}
+            value={
+              fed?.running
+                ? say(BABY.feedingNowShort)
+                : fed
+                  ? durationWords(now.getTime() - fed.at.getTime(), language)
+                  : say(BABY.notYet)
+            }
+            detail={fed ? say(fed.running ? BABY.since : BABY.endedAt, { time: timeWords(fed.at, language) }) : ""}
           />
         )}
         {baby.trackDiaper && (
