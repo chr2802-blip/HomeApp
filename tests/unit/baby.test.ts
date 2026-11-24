@@ -7,8 +7,11 @@ import {
   lastBreastSide,
   lastFeedAt,
   readBabyDetails,
+  resumableFeed,
+  resumableSleep,
   sideSeconds,
   sleepState,
+  sleptMs,
   solidSuggestions,
   switchBreastSide,
   type BabyEntry,
@@ -28,7 +31,7 @@ const entry = (kind: BabyEntry["kind"], startedAt: string, endedAt: string | nul
 
 describe("readBabyDetails", () => {
   it("makes anything stored well-formed rather than throwing", () => {
-    expect(readBabyDetails("SLEEP", null)).toEqual({ kind: "SLEEP", details: { night: null } });
+    expect(readBabyDetails("SLEEP", null)).toEqual({ kind: "SLEEP", details: { night: null, awake: 0 } });
     expect(readBabyDetails("DIAPER", { wet: "yes" })).toEqual({ kind: "DIAPER", details: { wet: false, dirty: false } });
     expect(readBabyDetails("FEED", { method: "BREAST", left: -3 }).details).toMatchObject({ left: 0, right: 0, running: null });
   });
@@ -119,7 +122,7 @@ describe("the numbers at the top", () => {
 
   it("says asleep since a running sleep began, even past a later nappy", () => {
     const entries = [entry("SLEEP", "2026-11-24T12:00:00Z", null), entry("DIAPER", "2026-11-24T13:00:00Z", null)];
-    expect(sleepState(entries, now)).toEqual({ asleep: true, since: at("2026-11-24T12:00:00Z") });
+    expect(sleepState(entries, now)).toEqual({ asleep: true, since: at("2026-11-24T12:00:00Z"), sleptMs: 2 * 3_600_000 });
   });
 
   it("says awake since the last sleep ended", () => {
@@ -154,5 +157,29 @@ describe("solidSuggestions", () => {
       solid("2026-11-23T09:00:00Z", " "),
     ];
     expect(solidSuggestions(entries)).toEqual(["grød", "banan"]);
+  });
+});
+
+describe("carrying a timer on", () => {
+  const now = at("2026-11-24T14:00:00Z");
+  const breast = { method: "BREAST", left: 540, right: 360, lastSide: "RIGHT" };
+
+  it("offers the newest feed or sleep stopped within 30 minutes, and nothing older", () => {
+    const feed = entry("FEED", "2026-11-24T13:20:00Z", "2026-11-24T13:35:00Z", breast);
+    expect(resumableFeed([entry("FEED", "2026-11-24T10:00:00Z", "2026-11-24T10:20:00Z", breast), feed], now)).toBe(feed);
+    expect(resumableFeed([entry("FEED", "2026-11-24T13:00:00Z", "2026-11-24T13:29:00Z", breast)], now)).toBeNull();
+    const sleep = entry("SLEEP", "2026-11-24T12:00:00Z", "2026-11-24T13:50:00Z");
+    expect(resumableSleep([sleep], now)).toBe(sleep);
+  });
+
+  it("offers nothing while one is running, and never a bottle", () => {
+    expect(resumableSleep([entry("SLEEP", "2026-11-24T12:00:00Z", "2026-11-24T13:50:00Z"), entry("SLEEP", "2026-11-24T13:55:00Z", null)], now)).toBeNull();
+    expect(resumableFeed([entry("FEED", "2026-11-24T13:50:00Z", "2026-11-24T13:55:00Z", { method: "BOTTLE" })], now)).toBeNull();
+  });
+
+  it("counts a sleep as its span less the time awake inside it", () => {
+    const sleep = entry("SLEEP", "2026-11-24T12:00:00Z", "2026-11-24T13:30:00Z", { awake: 600 });
+    expect(sleptMs(sleep, now)).toBe(80 * 60_000);
+    expect(sleptMs(entry("SLEEP", "2026-11-24T13:00:00Z", null, { awake: 300 }), now)).toBe(55 * 60_000);
   });
 });

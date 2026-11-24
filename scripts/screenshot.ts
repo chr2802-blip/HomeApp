@@ -117,7 +117,8 @@ async function main() {
         await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
         await page.waitForTimeout(Number(values.wait));
         for (const name of values.press ?? []) {
-          await page.getByRole("button", { name, exact: true }).last().click();
+          // A three-dot menu's entries are menuitems, not buttons, so "Edit" is found too.
+          await page.getByRole("button", { name, exact: true }).or(page.getByRole("menuitem", { name, exact: true })).last().click();
           await page.waitForTimeout(Number(values.wait) + 500);
         }
 

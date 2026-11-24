@@ -4,6 +4,8 @@ import {
   createBaby,
   deleteBabyEvent,
   pressBreastSide,
+  resumeFeed,
+  resumeSleep,
   saveDiaper,
   saveFeed,
   saveSleep,
@@ -76,6 +78,58 @@ describe("sleep", () => {
     await toggleSleep();
     expect(await submit(saveSleep, { start: local(60) })).toMatchObject({ ok: false });
     expect(await events()).toHaveLength(1);
+  });
+});
+
+describe("carrying on", () => {
+  it("carries on a sleep stopped minutes ago, banking the gap as time awake", async () => {
+    const baby = await prisma.baby.findFirstOrThrow({ where: { homeId: home.id } });
+    const sleep = await prisma.babyEvent.create({
+      data: {
+        homeId: home.id,
+        babyId: baby.id,
+        kind: "SLEEP",
+        startedAt: new Date(Date.now() - 60 * 60_000),
+        endedAt: new Date(Date.now() - 5 * 60_000),
+        details: { night: null, awake: 120 },
+      },
+    });
+    await resumeSleep(formData({ id: sleep.id }));
+    const [again] = await events();
+    expect(again!.endedAt).toBeNull();
+    const awake = readBabyDetails("SLEEP", again!.details).details.awake;
+    expect(awake).toBeGreaterThanOrEqual(120 + 299);
+    expect(awake).toBeLessThan(120 + 330);
+    expect(await events()).toHaveLength(1);
+  });
+
+  it("leaves a sleep stopped past the window alone", async () => {
+    const baby = await prisma.baby.findFirstOrThrow({ where: { homeId: home.id } });
+    const sleep = await prisma.babyEvent.create({
+      data: { homeId: home.id, babyId: baby.id, kind: "SLEEP", startedAt: new Date(Date.now() - 3 * 3_600_000), endedAt: new Date(Date.now() - 45 * 60_000), details: { night: null } },
+    });
+    await resumeSleep(formData({ id: sleep.id }));
+    expect((await events())[0]!.endedAt).not.toBeNull();
+  });
+
+  it("carries on a finished breast feed, paused, keeping its sides", async () => {
+    await pressBreastSide(formData({ side: "LEFT" }));
+    let [feed] = await events();
+    await submit(saveFeed, { id: feed!.id, finish: "1" });
+    await resumeFeed(formData({ id: feed!.id }));
+    [feed] = await events();
+    expect(feed!.endedAt).toBeNull();
+    expect(readBabyDetails("FEED", feed!.details).details).toMatchObject({ running: null, lastSide: "LEFT" });
+
+    // Still one feed: the next press on a side runs this one, not a new one.
+    await pressBreastSide(formData({ side: "RIGHT" }));
+    expect(await events()).toHaveLength(1);
+  });
+
+  it("writes and refuses time awake typed into a sleep", async () => {
+    expect(await submit(saveSleep, { start: local(90), end: local(10), awake: "15" })).toEqual({ ok: true });
+    expect((await events())[0]!.details).toMatchObject({ awake: 900 });
+    expect(await submit(saveSleep, { start: local(200), end: local(180), awake: "30" })).toMatchObject({ ok: false });
   });
 });
 

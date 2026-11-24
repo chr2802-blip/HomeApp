@@ -62,7 +62,8 @@ session with `.env`'s `AUTH_SECRET` (no login form), switches to `--home flat|da
 shoots each path at 390×844 into `screenshots/` (git-ignored), and prints the files.
 `--as sam`, `--full`, `--width`/`--height`, `--wait <ms>`, `--slow 0.1` (every animation
 at a tenth of its speed, through CDP) and `--press "<button name>"` (pressed before the
-shot, repeatable — `--press Menu` opens the tab bar's drawer) cover the rest; anything it
+shot, repeatable — `--press Menu` opens the tab bar's drawer, and a three-dot menu's
+entries are found too, so `--press "Actions for X" --press Edit` opens an edit sheet) cover the rest; anything it
 cannot do — a field filled, a row long-pressed — is a throwaway that imports `scripts/demo-cast.ts` and copies
 from `screenshot.ts`, put inside the checkout (from the scratchpad it cannot resolve
 `@prisma/client`), run with `npx tsx --env-file=.env` (`tsx` does not read `.env` itself)
@@ -1224,6 +1225,12 @@ the page; a table so a second child is rows). Everybody's, like the pantry: the 
   so it runs on with the app closed and reads the same on both parents' phones. A breast
   feed's sides are banked by `switchBreastSide` on every press, and `lastSide` is stored
   because two totals cannot say which side came last.
+- **A timer stopped is carried on, not restarted, for `RESUME_WITHIN_MS` (30 min)** —
+  `resumableFeed` / `resumableSleep`, offered beside "new", never instead of it. A breast
+  feed comes back paused with its sides kept (`resumeFeed`); a sleep comes back with the
+  gap banked into `details.awake` (`resumeSleep`), and **a sleep's length is always
+  `sleptMs` — its span less `awake`** (the timeline, the tiles and the charts' hours).
+  Where in the span the waking fell is not kept, so the strip still draws one block.
 - **Nap or night is decided, not stored**: `isNightSleep` from when the sleep *started*
   (`NIGHT_FROM_HOUR`–`NIGHT_UNTIL_HOUR` on the household's clock), and `details.night`
   holds only an override. One sleep runs at a time.

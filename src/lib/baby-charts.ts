@@ -1,4 +1,4 @@
-import { clipToDay, dayBounds, feedMethodOf, isNightSleep, readBabyDetails, type BabyEntry, type FeedMethod } from "./baby";
+import { clipToDay, dayBounds, endOf, sleptMs, feedMethodOf, isNightSleep, readBabyDetails, type BabyEntry, type FeedMethod } from "./baby";
 import { shiftDay } from "./time";
 
 /**
@@ -61,8 +61,11 @@ export function chartDay(entries: readonly BabyEntry[], day: string, now: Date):
     if (entry.kind === "SLEEP") {
       const night = isNightSleep(entry.startedAt, readBabyDetails("SLEEP", entry.details).details.night);
       row.sleep.push({ ...clip, night });
-      if (night) row.nightHours += clip.to - clip.from;
-      else row.napHours += clip.to - clip.from;
+      // Time awake inside a sleep is not placed, so each day keeps its share of it.
+      const span = endOf(entry, now).getTime() - entry.startedAt.getTime();
+      const hours = (clip.to - clip.from) * (span > 0 ? sleptMs(entry, now) / span : 1);
+      if (night) row.nightHours += hours;
+      else row.napHours += hours;
       continue;
     }
     // A feed belongs to the day it began on, not to every day its timer touched.

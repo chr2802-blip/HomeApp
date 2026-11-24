@@ -5,7 +5,8 @@ import { useLanguage } from "@/components/language-provider";
 import { Input, Label } from "@/components/ui";
 import { sayIn } from "@/lib/copy/say";
 import { BABY } from "@/lib/copy/baby";
-import { localInputValue } from "@/lib/time";
+import { instantFromLocal, localInputValue } from "@/lib/time";
+import { clockWords, durationWords } from "@/lib/baby-words";
 import {
   MAX_BOTTLE_ML,
   MAX_FOOD_LENGTH,
@@ -69,12 +70,14 @@ export function TimeField({
   value,
   required = true,
   hint,
+  onChange,
 }: {
   name: string;
   label: string;
   value: Date | null;
   required?: boolean;
   hint?: string;
+  onChange?: (value: string) => void;
 }) {
   const id = useId();
   return (
@@ -86,6 +89,7 @@ export function TimeField({
         type="datetime-local"
         required={required}
         defaultValue={value ? localInputValue(value) : ""}
+        onChange={onChange ? (event) => onChange(event.target.value) : undefined}
         className="h-12 text-base"
       />
       {hint && <p className="text-xs text-slate-500">{hint}</p>}
@@ -106,19 +110,58 @@ export function NoteField({ value }: { value?: string | null }) {
 
 /** A sleep: when it began, when it ended (empty while still asleep), nap or night. */
 export function SleepFields({ entry, now }: { entry?: BabyEntry; now: Date }) {
-  const say = sayIn(useLanguage());
+  const language = useLanguage();
+  const say = sayIn(language);
+  const awakeId = useId();
   const night = entry ? readBabyDetails("SLEEP", entry.details).details : null;
   const chosen = night && "night" in night ? (night.night === null ? "auto" : night.night ? "night" : "nap") : "auto";
+  const storedAwake = night ? Math.round(night.awake / 60) : 0;
+  const [start, setStart] = useState(() => localInputValue(entry?.startedAt ?? now));
+  const [end, setEnd] = useState(() => (entry?.endedAt ? localInputValue(entry.endedAt) : ""));
+  const [awake, setAwake] = useState(storedAwake ? String(storedAwake) : "");
+
+  // What the sleep comes to as the fields stand: its span, less the time awake inside it.
+  // A sleep with no end yet runs to now.
+  const from = instantFromLocal(start);
+  const to = end ? instantFromLocal(end) : now;
+  const awakeMs = (Number(awake) || 0) * 60_000;
+  const slept = from && to ? to.getTime() - from.getTime() - awakeMs : null;
+
   return (
     <>
-      <TimeField name="start" label={say(BABY.fellAsleep)} value={entry?.startedAt ?? now} />
+      <TimeField name="start" label={say(BABY.fellAsleep)} value={entry?.startedAt ?? now} onChange={setStart} />
       <TimeField
         name="end"
         label={say(BABY.wokeUp)}
         value={entry ? entry.endedAt : null}
         required={false}
         hint={say(BABY.stillAsleepHint)}
+        onChange={setEnd}
       />
+      <div className="space-y-1">
+        <Label htmlFor={awakeId}>{say(BABY.awakeMinutes)}</Label>
+        <Input
+          id={awakeId}
+          name="awake"
+          type="number"
+          inputMode="numeric"
+          min={0}
+          step={1}
+          value={awake}
+          onChange={(event) => setAwake(event.target.value)}
+          placeholder="0"
+          className="h-12 text-base"
+        />
+      </div>
+      {slept !== null && slept > 0 && (
+        <div className="text-center" data-baby-slept>
+          <span className="block text-xs font-bold tracking-wide text-slate-500 uppercase">{say(BABY.timeAsleep)}</span>
+          <span className="block text-4xl font-bold text-slate-800 tabular-nums">{clockWords(slept)}</span>
+          {awakeMs > 0 && (
+            <span className="block text-sm text-slate-500">{say(BABY.awakeFor, { time: durationWords(awakeMs, language) })}</span>
+          )}
+        </div>
+      )}
       <div className="space-y-2">
         <span className="block text-sm font-medium text-slate-700">{say(BABY.kindOfSleep)}</span>
         <Chips

@@ -41,9 +41,18 @@ export const NIGHT_UNTIL_HOUR = 7;
 
 const seconds = z.number().int().min(0).max(MAX_SIDE_SECONDS).catch(0);
 
+/** Past this, the time awake inside one sleep is a typo rather than a night. */
+export const MAX_AWAKE_SECONDS = 12 * 3600;
+
 const sleepSchema = z.object({
   /** null is "decide from the time it started" (`isNightSleep`), true or false an override. */
   night: z.boolean().nullable().catch(null),
+  /**
+   * Seconds the baby was awake inside this sleep — banked by "Carry on sleeping" from the
+   * gap since it was stopped, or typed in its sheet. The sleep's own length is its span
+   * less this (`sleptMs`); where in the span the waking fell is not kept.
+   */
+  awake: z.number().int().min(0).max(MAX_AWAKE_SECONDS).catch(0),
 });
 
 const breastSchema = z.object({
@@ -122,7 +131,7 @@ export function readBabyDetails(kind: BabyEventKind, raw: unknown): BabyDetails 
   const value = raw && typeof raw === "object" ? raw : {};
   switch (kind) {
     case "SLEEP":
-      return { kind, details: sleepSchema.parse({ night: null, ...value }) };
+      return { kind, details: sleepSchema.parse({ night: null, awake: 0, ...value }) };
     case "DIAPER":
       return { kind, details: diaperSchema.parse(value) };
     case "FEED": {
@@ -195,24 +204,40 @@ export function otherSide(side: BreastSide): BreastSide {
 }
 
 /**
- * How long after a breast feed was finished it can still be carried on as the same
- * feed — the baby put down for a nappy, or back at the breast ten minutes later. Past
- * this it is a new feed, and "time since the last feed" should say so.
+ * How long after a breast feed or a sleep was stopped it can still be carried on as the
+ * same one — the baby put down for a nappy, or asleep again after a short waking. Past
+ * this it is a new one. Carrying on is only ever offered: a new one can be started
+ * inside the window all the same.
  */
-export const RESUME_FEED_WITHIN_MS = 60 * 60_000;
+export const RESUME_WITHIN_MS = 30 * 60_000;
 
-/**
- * The breast feed that "Continue" would carry on: the newest one, finished no longer
- * than `RESUME_FEED_WITHIN_MS` ago. None while a breast feed is running — there is
- * only ever one timer, and that one is already going.
- */
-export function resumableFeed(entries: readonly BabyEntry[], now: Date): BabyEntry | null {
-  const feeds = entries.filter((entry) => feedMethodOf(entry) === "BREAST");
-  if (feeds.some((entry) => !entry.endedAt)) return null;
-  const newest = feeds.sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())[0];
+/** The newest of `timers` if it was stopped inside the window, and none of them is running. */
+function resumable(timers: BabyEntry[], now: Date): BabyEntry | null {
+  if (timers.some((entry) => !entry.endedAt)) return null;
+  const newest = [...timers].sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())[0];
   if (!newest?.endedAt) return null;
   const since = now.getTime() - newest.endedAt.getTime();
-  return since >= 0 && since <= RESUME_FEED_WITHIN_MS ? newest : null;
+  return since >= 0 && since <= RESUME_WITHIN_MS ? newest : null;
+}
+
+/** The breast feed "Carry on" would pick up again, if any. */
+export function resumableFeed(entries: readonly BabyEntry[], now: Date): BabyEntry | null {
+  return resumable(entries.filter((entry) => feedMethodOf(entry) === "BREAST"), now);
+}
+
+/** The sleep "Carry on sleeping" would pick up again, if any. */
+export function resumableSleep(entries: readonly BabyEntry[], now: Date): BabyEntry | null {
+  return resumable(entries.filter((entry) => entry.kind === "SLEEP"), now);
+}
+
+/** Seconds a sleep was awake inside itself; zero for anything else. */
+export function awakeSeconds(entry: BabyEntry): number {
+  return entry.kind === "SLEEP" ? readBabyDetails("SLEEP", entry.details).details.awake : 0;
+}
+
+/** How long a sleep was actually asleep: its span, less the time awake inside it. */
+export function sleptMs(entry: BabyEntry, now: Date): number {
+  return Math.max(0, endOf(entry, now).getTime() - entry.startedAt.getTime() - awakeSeconds(entry) * 1000);
 }
 
 /** Whether an entry is a timer still going: a sleep or a breast feed with no end yet. */
@@ -232,14 +257,14 @@ export function endOf(entry: BabyEntry, now: Date): Date {
  * nothing yet. A sleep still running wins over any later entry, since a nappy changed in
  * the dark does not wake anybody in the log.
  */
-export type SleepState = { asleep: true; since: Date } | { asleep: false; since: Date } | null;
+export type SleepState = { asleep: true; since: Date; sleptMs: number } | { asleep: false; since: Date } | null;
 
 export function sleepState(entries: readonly BabyEntry[], now: Date): SleepState {
   const sleeps = entries.filter((entry) => entry.kind === "SLEEP" && entry.startedAt <= now);
   const running = sleeps
     .filter((entry) => !entry.endedAt)
     .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())[0];
-  if (running) return { asleep: true, since: running.startedAt };
+  if (running) return { asleep: true, since: running.startedAt, sleptMs: sleptMs(running, now) };
   const lastEnd = sleeps
     .map((entry) => entry.endedAt!)
     .sort((a, b) => b.getTime() - a.getTime())[0];

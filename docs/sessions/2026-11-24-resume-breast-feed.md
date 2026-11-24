@@ -1,4 +1,4 @@
-# Carry on a finished breast feed
+# Carry on a finished breast feed or sleep
 
 - **Date** — 2026-11-24
 - **Branch** — `claude/optimistic-bohr-57ueci`
@@ -26,7 +26,7 @@ written yet, pending the answers.
 | Understanding the ask | small | one ambiguous sentence; interpreted, then asked with a screenshot |
 | Reading the codebase | small | baby code is three files and well commented |
 | Building | small | |
-| Tests | none yet | waiting on the user's answers |
+| Tests | small | unit for the window and `sleptMs`, integration for both resumes |
 | Review, CI, deploy | — | |
 
 ## What should have been quicker
@@ -36,10 +36,19 @@ start, run in the background while reading.
 
 ## What CLAUDE.md did not say
 
-Nothing new: `--press` being repeatable got the "after" shot without a throwaway script.
+`--press` found only buttons, so a three-dot menu's "Edit" (a `menuitem`) could not be
+reached for a shot of an edit sheet. `scripts/screenshot.ts` now finds menuitems too, and
+the Commands section says so.
+
+A first push was started in the background and then the tree edited under it; the
+pre-push hook tests the working tree, not the commit, so it had to be killed. Push only
+once the tree is what is being pushed.
 
 ## Decided rather than known
 
-- A feed can be carried on for `RESUME_FEED_WITHIN_MS` = 60 minutes after it was finished.
+- 30 minutes (`RESUME_WITHIN_MS`) for both, the user's number.
 - Carrying on leaves the timer paused; the next press on a side starts it.
-- Sleep cannot be carried on (yet) — merging two sleeps would count the waking gap as sleep.
+- A sleep's awake time is one number, not a list of wakings; the charts take each day's
+  share of it proportionally, since where it fell is not kept.
+- The sleep button asks "carry on / new" only inside the window; outside it, one press as
+  before.
