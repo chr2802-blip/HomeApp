@@ -14,7 +14,7 @@ test.describe("scrolling after sheets", () => {
   const bodyOverflow = (page: import("@playwright/test").Page) =>
     page.evaluate(() => document.body.style.overflow);
 
-  test("comes back after the tab bar's + opens another page's sheet", async ({ page }) => {
+  test("comes back after the tab bar's + opens another page's sheet", { tag: "@smoke" }, async ({ page }) => {
     await page.goto("/meals");
     await page.getByRole("button", { name: "Create", exact: true }).click();
     await page.getByRole("dialog", { name: "Create" }).getByRole("link", { name: "New list" }).click();

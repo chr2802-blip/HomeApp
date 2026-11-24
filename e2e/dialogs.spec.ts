@@ -40,7 +40,7 @@ test.describe("a sheet is closed by the browser's back button", () => {
   // The entry is taken off without the router restoring the page as it was when the
   // sheet opened — which would put the old name back — and a later return to the page
   // shows the save too.
-  test("after a sheet saves, back leaves the page and the save stands", async ({ page }) => {
+  test("after a sheet saves, back leaves the page and the save stands", { tag: "@smoke" }, async ({ page }) => {
     await page.goto("/lists");
     await openDialog(page, "New list");
     await page.getByLabel("List name").fill("Old name");

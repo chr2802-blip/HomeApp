@@ -55,7 +55,7 @@ test.beforeEach(async ({ loginAs }) => {
   await loginAs(ACCOUNTS.member);
 });
 
-test("a tick made with no connection survives a reload and is sent when it is back", async ({
+test("a tick made with no connection survives a reload and is sent when it is back", { tag: "@smoke" }, async ({
   page,
   context,
 }) => {
@@ -86,7 +86,7 @@ test("a tick made with no connection survives a reload and is sent when it is ba
   await expect(page.getByRole("button", { name: "Completed (1)" })).toBeVisible();
 });
 
-test("an item added with no connection is on the list, and is created once", async ({
+test("an item added with no connection is on the list, and is created once", { tag: "@smoke" }, async ({
   page,
   context,
 }) => {

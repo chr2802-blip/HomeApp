@@ -35,7 +35,7 @@ async function attachPicture(page: Parameters<typeof openDialog>[0], label = "Ph
   await expect(page.getByAltText("The picture you chose")).toBeVisible();
 }
 
-test("a phone-sized picture is shrunk in the browser and shown on the recipe", async ({
+test("a phone-sized picture is shrunk in the browser and shown on the recipe", { tag: "@smoke" }, async ({
   page,
   loginAs,
 }) => {
@@ -165,7 +165,7 @@ test("the home's own picture reaches the header and the dashboard", async ({ pag
   await expect(page.locator("header img")).toHaveCount(2);
 });
 
-test("a picture is not served to another household", async ({ page, loginAs }) => {
+test("a picture is not served to another household", { tag: "@smoke" }, async ({ page, loginAs }) => {
   await loginAs(ACCOUNTS.member);
   await page.goto("/lists");
 

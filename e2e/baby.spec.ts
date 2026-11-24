@@ -14,7 +14,7 @@ test.describe("the baby log", () => {
     await expect(page.getByRole("heading", { name: "Ella", level: 1 })).toBeVisible();
   });
 
-  test("starts and ends a sleep with one button, and says so at the top", async ({ page }) => {
+  test("starts and ends a sleep with one button, and says so at the top", { tag: "@smoke" }, async ({ page }) => {
     const sleep = page.locator("[data-baby-dock=sleep]");
     await sleep.click();
     await expect(sleep).toContainText("Awake");

@@ -22,7 +22,7 @@ test("starting from scratch opens the ordinary, empty create form", async ({ pag
   await expect(page.getByRole("button", { name: "Save recipe" })).toBeVisible();
 });
 
-test("a successful import opens the create form pre-filled", async ({ page }) => {
+test("a successful import opens the create form pre-filled", { tag: "@smoke" }, async ({ page }) => {
   await openDialog(page, "New recipe");
   await page.getByRole("button", { name: "Import from a link" }).click();
 
@@ -55,7 +55,7 @@ test("refuses a link that is not a web address, without leaving the link step", 
   await expect(page.getByText("That doesn't look like a web address.")).toBeVisible();
 });
 
-test("refuses a link that points back at the server's own network", async ({ page }) => {
+test("refuses a link that points back at the server's own network", { tag: "@smoke" }, async ({ page }) => {
   await openDialog(page, "New recipe");
   await page.getByRole("button", { name: "Import from a link" }).click();
 

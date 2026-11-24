@@ -35,6 +35,13 @@ note from 2026-09-20 on named standing this up by hand as its largest cost; the 
 below is what the script now does, kept because the day it is wrong you have to know what
 it was aiming at.
 
+**In Claude Code on the web, the "HomeApp" cloud environment runs `npm run setup` as its
+setup script**, so a session started on it opens with dependencies, the Prisma client,
+Postgres, `.env` and the browser already in place, and the SessionStart hook's check
+should say so. A session on the "Default" environment still starts cold — pick HomeApp
+when starting one. The script is the one line `if [ -d HomeApp ]; then (cd HomeApp && npm
+run setup); fi`, so what setup does is still decided here, in the repo.
+
 Integration and browser tests need the local Postgres: `docker start homehub-pg`.
 
 **Stopping a server from the Bash tool: `pkill -f "[n]ext dev"`, never `pkill -f "next dev"`.**
@@ -60,11 +67,16 @@ remakes only its own homes and people, and refuses a database not on this machin
 `screenshot` (`scripts/screenshot.ts`) needs `npm run dev` already running: it signs a
 session with `.env`'s `AUTH_SECRET` (no login form), switches to `--home flat|da|empty`,
 shoots each path at 390×844 into `screenshots/` (git-ignored), and prints the files.
-`--as sam`, `--full`, `--width`/`--height`, `--wait <ms>`, `--slow 0.1` (every animation
-at a tenth of its speed, through CDP) and `--press "<button name>"` (pressed before the
-shot, repeatable — `--press Menu` opens the tab bar's drawer, and a three-dot menu's
-entries are found too, so `--press "Actions for X" --press Edit` opens an edit sheet) cover the rest; anything it
-cannot do — a field filled, a row long-pressed — is a throwaway that imports `scripts/demo-cast.ts` and copies
+`--as sam`, `--full`, `--width`/`--height`, `--wait <ms>` and `--slow 0.1` (every animation
+at a tenth of its speed, through CDP) cover the page; what a thumb does before the shot is
+five repeatable steps, **run in the order typed**: `--press "<button name>"` (`--press
+Menu` opens the tab bar's drawer; a three-dot menu's entries are found too, so `--press
+"Actions for X" --press Edit` opens an edit sheet), `--tap "<text>"` (a chip, a row), `--fill
+"<label>=<text>"` (by label, else placeholder), `--hold "<text>"` (press and hold — the
+recipe list's choosing) and `--photo "<file input's label>"` (a picture drawn in the page
+and chosen). A step naming something not there fails in 8s. `--press "Add to supplies"
+--fill "Something you keep in=ris"` is the pantry's add sheet mid-typing. Anything still
+beyond that is a throwaway that imports `scripts/demo-cast.ts` and copies
 from `screenshot.ts`, put inside the checkout (from the scratchpad it cannot resolve
 `@prisma/client`), run with `npx tsx --env-file=.env` (`tsx` does not read `.env` itself)
 and deleted afterwards. A new kind of thing on screen wants a row in
@@ -77,9 +89,9 @@ user's homes are `memberships: { create: … }` and the pointer `activeHome`; a 
 top-level `await` must be `.mts`, because `tsx` compiles a `.ts` as CommonJS here.
 `PantryCategory` is `SPICES`, `OIL_VINEGAR`, `SAUCES`, `BAKING`, `DRY_GOODS`, `TINS_JARS`,
 `FRIDGE`, `FREEZER`, `DRINKS`, `BABY`, `BATHROOM`, `CLEANING`, `OTHER` — the label "Pasta, rice & grains" is
-`DRY_GOODS`. **To screenshot a picture being chosen**, there is no image file in the repo
-and no PIL in the container: draw one in the page (`canvas.toDataURL("image/jpeg")`) and
-hand its bytes to `setInputFiles({ name, mimeType, buffer })`. A row's three dots are the
+`DRY_GOODS`. **To screenshot a picture being chosen**, `--photo` does it: there is no image file in the
+repo and no PIL in the container, so it draws one in the page (`canvas.toDataURL`) and
+hands its bytes to `setInputFiles({ name, mimeType, buffer })` — copy that for an e2e spec. A row's three dots are the
 button named "Actions for <name>", clickable once it carries `data-ready`.
 
 **Restart `npm run dev` after `prisma generate`.** A dev server already running keeps the
@@ -112,15 +124,15 @@ default worker count against 4 CPUs, and a different single spec times out on ea
 twice, and never anything the diff under test touched). Before treating a lone failure as a
 real regression, re-run just that spec alone (`npx playwright test <file> -g "<test
 name>"`): it passes in a couple of seconds when it was contention, and that is cheaper than
-re-running the whole suite on a guess. **The pre-push hook runs the same full suite, so a push can
-fail the same way**; push with `E2E_WORKERS=3 git push …` there (read by `e2eWorkerCount`
-in `e2e/helpers/servers.ts`) — every suite still runs, with one less worker fighting for
-the CPUs. It took two failed pushes to find. (`ai-wait.spec.ts`, the one named most often, was
+re-running the whole suite on a guess. **The pre-push hook runs the same full suite, so a push failed
+the same way** — until `e2eWorkerCount` (`e2e/helpers/servers.ts`) started answering **1
+wherever `CLAUDE_CODE_REMOTE=true`**, which every cloud container sets. 4, 3 and 2 workers
+each dropped a different test there; 1 passed all 297 in about 11 minutes, which beats a
+failed push and a second run. `E2E_WORKERS` still overrides it either way, and
+`tests/unit/e2e-workers.test.ts` holds the rule. **Run a push from a cloud container in the
+background**: with the browser suite it outlasts a single 10-minute tool call. (`ai-wait.spec.ts`, the one named most often, was
 not contention but a service worker race — see `ROUTES_REQUESTS` under *Tests gate
 everything* — and is fixed.)
-On 2026-10-01 even 3 and 2 workers each dropped a different test; `E2E_WORKERS=1` passed
-all 297 in about 11 minutes — go straight there if the container is slow, and run the push
-in the background, since it outlasts a single 10-minute tool call.
 
 ## Conventions that are not optional
 
@@ -1786,9 +1798,44 @@ about which words to throw away.
 ### Tests gate everything
 
 `.githooks/pre-push` runs lint, types and unit tests always, and the schema check plus the
-integration and browser suites when the code they cover changed. CI runs the full suite
-regardless, and `npm run build` runs the unit tests. **Pushing to `main` deploys, so a
-failing suite must not reach the remote.**
+integration and browser suites when the code they cover changed. **It is the only gate**:
+there is no GitHub CI and the Vercel build runs no tests, by the household's choice
+(2026-11-24) — running the same suites three times cost minutes on every change and caught
+nothing the hook had not. **Pushing to `main` deploys, so a failing suite must not reach
+the remote.** It follows that **code reaches GitHub only through `git push` from a checkout
+with the hook installed** (`npm install` installs it): never through the GitHub API tools
+(`push_files`, `create_or_update_file`) or the web editor, and never `--no-verify`, all of
+which deploy untested once merged. A PR is merged only once its branch went through the
+hook, and a branch behind `main` is brought up to date (merge `main` in, push again) first,
+since the merge itself is never tested.
+
+**How much of the browser suite runs is a judgement of the change's risk, made by whoever
+pushes — in a Claude session, by Claude — and said as `RISK=low|medium|high git push …`**
+(the household's rule, 2026-11-24). Lint, types, the unit tests, the schema check and the
+integration suite run at every level; only the browser suite (~11 min of the ~14) varies:
+
+| `RISK` | Browser tests | For a change that… |
+| --- | --- | --- |
+| `low` | none | cannot change what a page does: docs, a copy string, a test, a script the app does not run, a `src/lib` function its unit tests cover whole, a colour or spacing tweak on one component |
+| `medium` | the 41 tagged `@smoke` (`npm run e2e:smoke`, ~3 min) | changes one feature: a page, a component, an action, a fix that stays in its own area |
+| `high` | all of them | is shared by every page (`Modal`, `PageTransition`, the layouts, the tab bar, `useFormAction`), crosses several features, touches offline or the service worker, sessions or access, or is the kind of change that broke production before |
+
+- **Never edit `.githooks/pre-push` while a push is running it.** `sh` reads a script as
+  it goes, so the rest is read from the edited file at the old offset — a push lost after
+  all its tests had passed (2026-11-24).
+- **Say which, and why, in the message before the push** — the household sees the level,
+  not the reasoning, unless it is written down. When unsure between two, take the higher.
+- **Unset is `high`**, and so is a push with no range to compare. **Some paths raise any
+  level to `high` in the hook itself** (`ALWAYS_HIGH`: `prisma/`, `package.json` and the
+  lockfile, `e2e/helpers/`, the Next and Playwright configs, `public/sw.js`, the middleware,
+  `home-db`/`access`/`auth`/`scoped`), because the smoke tests cannot be trusted to cover
+  what every page stands on.
+- **A smoke test is a flow that would hurt most if it broke in production**: signing in,
+  one home not seeing another's, a list ticked and added to (online, offline, on two
+  phones), a recipe imported and saved, a task completed, the pantry kept off the shop,
+  a day planned, cooking, a picture, a sheet's save surviving back. It is tagged
+  `{ tag: "@smoke" }` beside its title. Add one when a new feature is one of those; keep
+  the set near three minutes.
 
 - Integration and E2E use **separate databases** (`homehub_test`, `homehub_e2e`), created
   automatically, truncated between tests, and **refused outright if the name lacks the right
@@ -1818,8 +1865,8 @@ failing suite must not reach the remote.**
   that routes without it.
 - **A password is hashed once per password, not once per user**, and `loginAs` puts the
   cookie straight into the browser; `auth.spec.ts` still drives the real form.
-- **A flaky test is worse than no test: fix the race, do not add a timeout.** CI refuses an
-  `it.only` in either suite.
+- **A flaky test is worse than no test: fix the race, do not add a timeout.** The hook refuses
+  an `it.only` in either suite (it exports `TEST_GATE`, read by `forbidOnly`/`allowOnly`).
 - **A test's 5s covers every `await import(…)` / `vi.importActual(…)` inside its body.** A
   module that reaches the generated Prisma client costs ~1.7s cold on a laptop and ran past
   5s on Vercel's build machine, failing the production build on a test nobody had touched
@@ -1856,7 +1903,7 @@ rollback path.
 
 `npm run db:check` closes the cheap half of that: it replays the migrations into a
 throwaway `_shadow` database and fails if `prisma/schema.prisma` says anything they do
-not. It runs in the pre-push hook and in CI, takes about two seconds, and catches a
+not. It runs in the pre-push hook, takes about two seconds, and catches a
 schema edited without a migration — which the test suites only catch where a test
 happens to touch the model. What it cannot catch is a migration that is valid against an
 empty database and fails against a full one (a `NOT NULL` column on a populated table, a
@@ -1928,14 +1975,12 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
   sound — replacing a picture writes a new row with a new id — but it means a browser can
   answer a repeat request out of its own cache, so a test about what the *server* will
   serve has to ask with `cache: "no-store"`.
-- **The unit tests read the schema through the generated client, so `prisma generate`
-  runs first in `npm run build`.** `home-scoping.test.ts` walks `Prisma.dmmf`, which is
-  whatever was last generated — and Vercel restores `node_modules` from the previous
-  deployment's cache and skips the install scripts, so without generating first the
-  tests are asked about the *previous* commit's schema. That fails the build on a test
-  naming a model sitting right there in `schema.prisma`, which reads like a bad test
-  rather than a stale client. It is also why the failure cannot happen locally: a
-  checkout that has run `npm ci` has generated from the schema in front of it.
+- **`prisma generate` runs first in `npm run build`**, because Vercel restores
+  `node_modules` from the previous deployment's cache and skips the install scripts, so
+  without it the build compiles against the *previous* commit's client. It was found when
+  the build still ran the unit tests (`home-scoping.test.ts` walks `Prisma.dmmf`), and
+  failed on a model sitting right there in `schema.prisma`; the build no longer runs
+  tests, but the stale client would now fail `next build` instead, or worse, not fail.
 - **Android draws the installed app's icon in a circle**, and an icon marked only `any`
   is shrunk onto a white disc — a white ring round it on the home screen. The manifest's
   `maskable` PNGs (`public/icon-maskable-*.png`, full-bleed, mark inside the middle 80%)

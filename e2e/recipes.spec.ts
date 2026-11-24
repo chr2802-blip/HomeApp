@@ -39,7 +39,7 @@ async function fillRecipe(
   }
 }
 
-test("a recipe is saved and shown with its ingredients and steps", async ({ page }) => {
+test("a recipe is saved and shown with its ingredients and steps", { tag: "@smoke" }, async ({ page }) => {
   await fillRecipe(page, {
     title: "Pancakes",
     description: "Sunday breakfast",
@@ -95,7 +95,7 @@ test("a recipe with both steps and a video link offers Start cooking and Go to l
   await expect(page.getByRole("link", { name: "Go to link" })).toBeVisible();
 });
 
-test("a recipe can be edited from its page", async ({ page }) => {
+test("a recipe can be edited from its page", { tag: "@smoke" }, async ({ page }) => {
   await fillRecipe(page, { title: "Rough draft", ingredients: "Flour" });
   await page.getByRole("button", { name: "Save recipe" }).click();
   await page.waitForURL(SAVED_RECIPE);
@@ -110,7 +110,7 @@ test("a recipe can be edited from its page", async ({ page }) => {
   await expect(page.getByText("Salt")).toBeVisible();
 });
 
-test("a recipe can be deleted", async ({ page }) => {
+test("a recipe can be deleted", { tag: "@smoke" }, async ({ page }) => {
   await fillRecipe(page, { title: "Doomed recipe" });
   await page.getByRole("button", { name: "Save recipe" }).click();
   await page.waitForURL(SAVED_RECIPE);
@@ -141,7 +141,7 @@ test("a recipe can be filed under several categories at once", async ({ page }) 
   }
 });
 
-test("a recipe cannot be saved with no category at all", async ({ page }) => {
+test("a recipe cannot be saved with no category at all", { tag: "@smoke" }, async ({ page }) => {
   await fillRecipe(page, { title: "Homeless" });
   await page.getByRole("checkbox", { name: CATEGORIES[0], exact: true }).uncheck({ force: true });
   await page.getByRole("button", { name: "Save recipe" }).click();

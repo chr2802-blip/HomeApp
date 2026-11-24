@@ -88,7 +88,7 @@ test.beforeEach(async ({ page, loginAs }) => {
   await page.setViewportSize({ width: 390, height: 680 });
 });
 
-test("opens on the ingredients and turns a page at a time, with what each step needs", async ({
+test("opens on the ingredients and turns a page at a time, with what each step needs", { tag: "@smoke" }, async ({
   page,
 }) => {
   const recipe = await seedPrepared();
@@ -374,7 +374,7 @@ test("is reached from the recipe, and only where there is something to cook", as
   await expect(page.getByRole("dialog", { name: /Cooking/ })).toBeVisible();
 });
 
-test("comes back to the same step and the same timer after the phone threw the page away", async ({
+test("comes back to the same step and the same timer after the phone threw the page away", { tag: "@smoke" }, async ({
   page,
 }) => {
   const recipe = await seedPrepared();

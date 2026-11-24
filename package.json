@@ -5,7 +5,7 @@
   "scripts": {
     "setup": "node scripts/dev-setup.mjs",
     "dev": "next dev",
-    "build": "prisma generate && vitest run --project unit && prisma migrate deploy && next build",
+    "build": "prisma generate && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "eval:ai": "vitest run --config vitest.eval.config.ts",
     "e2e": "npm run e2e:build && playwright test",
+    "e2e:smoke": "npm run e2e:build && playwright test --grep @smoke",
     "e2e:ui": "npm run e2e:build && playwright test --ui",
     "e2e:report": "playwright show-report",
     "e2e:build": "prisma generate && next build",

@@ -59,7 +59,7 @@ export default defineConfig({
   workers,
   fullyParallel: false,
 
-  forbidOnly: !!process.env.CI,
+  forbidOnly: !!(process.env.CI || process.env.TEST_GATE),
   retries: process.env.CI ? 1 : 0,
   timeout: 30_000,
   expect: { timeout: 10_000 },

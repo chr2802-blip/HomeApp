@@ -51,7 +51,7 @@ async function seedOtherHomeContent() {
  * amounts to: the household member is genuinely signed in, the form is the app's own,
  * and only the record it names is one they may not touch.
  */
-test("an action aimed at another home's record says whose it is", async ({ page, loginAs }) => {
+test("an action aimed at another home's record says whose it is", { tag: "@smoke" }, async ({ page, loginAs }) => {
   const { list: theirs } = await seedOtherHomeContent();
   await loginAs(ACCOUNTS.member);
 
@@ -92,7 +92,7 @@ test.describe("a member of one home", () => {
     await loginAs(ACCOUNTS.member);
   });
 
-  test("cannot open another home's list by its URL", async ({ page }) => {
+  test("cannot open another home's list by its URL", { tag: "@smoke" }, async ({ page }) => {
     const { list } = await seedOtherHomeContent();
 
     const response = await page.goto(`/lists/${list.id}`);
@@ -101,7 +101,7 @@ test.describe("a member of one home", () => {
     await expect(page.getByText("Neighbour's shopping")).toBeHidden();
   });
 
-  test("cannot open another home's recipe by its URL", async ({ page }) => {
+  test("cannot open another home's recipe by its URL", { tag: "@smoke" }, async ({ page }) => {
     const { recipe } = await seedOtherHomeContent();
 
     const response = await page.goto(`/recipes/${recipe.id}`);
@@ -110,7 +110,7 @@ test.describe("a member of one home", () => {
     await expect(page.getByText("Neighbour's secret sauce")).toBeHidden();
   });
 
-  test("sees only their own home's lists and recipes", async ({ page }) => {
+  test("sees only their own home's lists and recipes", { tag: "@smoke" }, async ({ page }) => {
     await seedOtherHomeContent();
 
     await page.goto("/lists");
@@ -149,7 +149,7 @@ test.describe("an admin of a different home", () => {
     await expect(page.getByText(ACCOUNTS.member.email)).toBeHidden();
   });
 
-  test("cannot reach the other home's list even knowing its id", async ({ page }) => {
+  test("cannot reach the other home's list even knowing its id", { tag: "@smoke" }, async ({ page }) => {
     const db = prisma();
     const home = await db.home.findFirstOrThrow({ where: { name: HOME_NAME } });
     const owner = await db.user.findFirstOrThrow({ where: { email: ACCOUNTS.admin.email } });
@@ -186,7 +186,7 @@ test.describe("the not-found page", () => {
 });
 
 test.describe("a super admin", () => {
-  test("can open a home's content once switched into it", async ({ page, loginAs }) => {
+  test("can open a home's content once switched into it", { tag: "@smoke" }, async ({ page, loginAs }) => {
     const { list, otherHome } = await seedOtherHomeContent();
 
     await loginAs(ACCOUNTS.superAdmin);

@@ -10,13 +10,20 @@ import { deriveE2eDatabaseUrl, workerDatabaseUrl } from "../../scripts/test-db-u
  * settable with `E2E_WORKERS` where a machine cannot hold that many: each one is a Next
  * server and a Chromium, which costs a good deal more than a vitest worker.
  *
+ * **A Claude Code cloud container gets one** (`CLAUDE_CODE_REMOTE`). It reports 4 CPUs and
+ * cannot hold four Next servers and four Chromiums on them: each run there dropped one
+ * random, unrelated test to a timeout, and 3 and 2 workers each still dropped a different
+ * one. 1 passed every test, in about 11 minutes — slower than a clean run on 4, faster
+ * than the failed push and the second run that 4 cost there every time.
+ *
  * vitest is not given a number — it sizes its own pool, and takes a database per worker
  * process as it goes.
  */
-export function e2eWorkerCount() {
-  const asked = Number(process.env.E2E_WORKERS);
+export function e2eWorkerCount(env: Record<string, string | undefined> = process.env, cores = cpus().length) {
+  const asked = Number(env.E2E_WORKERS);
   if (Number.isInteger(asked) && asked > 0) return asked;
-  return Math.max(1, Math.min(4, cpus().length));
+  if (env.CLAUDE_CODE_REMOTE === "true") return 1;
+  return Math.max(1, Math.min(4, cores));
 }
 
 const BASE_PORT = Number(process.env.E2E_PORT ?? 3100);

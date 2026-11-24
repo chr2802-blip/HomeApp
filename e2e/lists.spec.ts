@@ -13,7 +13,7 @@ test("the empty state invites you to make a first list", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("creating a list opens it", async ({ page }) => {
+test("creating a list opens it", { tag: "@smoke" }, async ({ page }) => {
   await openDialog(page, "New list");
   await page.getByLabel("List name").fill("Weekly shop");
   await page.getByRole("button", { name: "Create list" }).click();
@@ -23,7 +23,7 @@ test("creating a list opens it", async ({ page }) => {
   await expect(page.getByText("This list is empty — add something below.")).toBeVisible();
 });
 
-test("ticking an item off folds it into the completed section", async ({ page }) => {
+test("ticking an item off folds it into the completed section", { tag: "@smoke" }, async ({ page }) => {
   await openDialog(page, "New list");
   await page.getByLabel("List name").fill("Groceries");
   await page.getByRole("button", { name: "Create list" }).click();
@@ -200,7 +200,7 @@ test("the list says how far along it is, and the bar draws what it says", async 
   ).toBe("none");
 });
 
-test("the last tick clears the list and says so", async ({ page }) => {
+test("the last tick clears the list and says so", { tag: "@smoke" }, async ({ page }) => {
   await openDialog(page, "New list");
   await page.getByLabel("List name").fill("One job");
   await page.getByRole("button", { name: "Create list" }).click();
@@ -242,7 +242,7 @@ test("a ticked row says who picked it up, and the dashboard counts the week", as
   await expect(page.getByText("🔥 A list cleared · 1 list cleared this week")).toBeVisible();
 });
 
-test("an item can be removed outright", async ({ page }) => {
+test("an item can be removed outright", { tag: "@smoke" }, async ({ page }) => {
   await openDialog(page, "New list");
   await page.getByLabel("List name").fill("Hardware");
   await page.getByRole("button", { name: "Create list" }).click();
