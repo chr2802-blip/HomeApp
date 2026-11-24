@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { lockScroll } from "@/lib/scroll-lock";
 import { createPortal } from "react-dom";
 import { useLanguage } from "@/components/language-provider";
 import { sayIn } from "@/lib/copy/say";
@@ -150,11 +151,10 @@ export function Modal({
       if (event.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKeyDown);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlock = lockScroll();
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previousOverflow;
+      unlock();
     };
   }, [mounted, onClose]);
 

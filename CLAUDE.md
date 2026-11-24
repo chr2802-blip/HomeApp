@@ -1652,6 +1652,12 @@ about which words to throw away.
   `"screen"` — a form runs past the fold, and a drawer grown to full height is a
   full-screen sheet with a gap at the top. From `sm` up both are the same centred panel.
   A drawer pads past the home indicator itself unless it has a `ModalFooter`, which does.
+- **What covers the page stops it scrolling through `lockScroll`** (`src/lib/scroll-lock.ts`)
+  — `Modal`, `PhotoViewer` and action mode — **counted, never saved and restored.** Each
+  used to note `body.style.overflow` and put it back on close, which is right only when
+  they close in reverse order; the tab bar's "+" handing over to another page's sheet
+  closed out of order and left the whole app unable to scroll in production.
+  `e2e/scroll-lock.spec.ts` holds both hand-overs. Never write `body.style.overflow` directly.
 - **A sheet closes on the browser's back button and a phone's back gesture**, by pushing
   one history entry when it opens and closing on the `popstate` that leaves it. **Closed
   any other way, it takes that entry back off through `popOwnEntry` and nothing else** —

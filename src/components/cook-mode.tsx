@@ -1,5 +1,6 @@
 "use client";
 
+import { lockScroll } from "@/lib/scroll-lock";
 import type { HomeLanguage } from "@prisma/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -156,11 +157,7 @@ export function CookMode({
   // The page behind must not scroll under the surface, the same way a sheet stops it.
   useEffect(() => {
     if (!mounted) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previous;
-    };
+    return lockScroll();
   }, [mounted]);
 
   const goTo = useCallback(
