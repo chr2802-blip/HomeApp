@@ -63,3 +63,14 @@ Decided rather than known: whether Vercel's Deployment Checks or a GitHub rulese
 for the "Lint, types and tests" check. Neither is readable from here (the Vercel API's
 project answer does not say), and README described both as optional. If either is on, it
 waits for a check that will never come again and has to be removed by hand.
+
+## And then: how many browser tests run is a judgement of risk
+
+The household chose: `RISK=low` runs no browser tests, `medium` the 41 tagged `@smoke`
+(~3 min), `high` all 344, and the pusher (Claude, in a session) decides which. The hook
+reads `RISK`, treats unset as `high`, and raises any level to `high` for paths every page
+stands on (`ALWAYS_HIGH`). The rubric is in CLAUDE.md under *Tests gate everything*.
+
+Decided rather than known: which 41 tests are the smoke set, and what is in `ALWAYS_HIGH`.
+Both were picked by reading test titles and past incidents, not measured against which
+tests have ever caught anything — nothing records that.

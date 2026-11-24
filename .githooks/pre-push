@@ -58,6 +58,32 @@ if [ "$saw_range" = "1" ] && [ -n "$(printf %s "$changed" | tr -d '[:space:]')" 
   fi
 fi
 
+# How much of the browser suite runs is the pusher's judgement of the change's risk,
+# given as RISK=low|medium|high (see CLAUDE.md, "How much of the browser suite runs"):
+#   low    — none of it
+#   medium — the tests tagged @smoke, the flows that would hurt most if broken
+#   high   — all of it
+# Unset means high: somebody who has not said is somebody who has not judged. And a change
+# to what the whole app stands on is high whatever it was called, because the smoke tests
+# cannot be trusted to cover it.
+ALWAYS_HIGH='^(prisma/|package\.json|package-lock\.json|e2e/helpers/|(next|playwright)\.config\.[a-z]+|public/sw\.js|src/middleware\.ts|src/lib/(home-db|access|auth|scoped)\.ts)'
+
+risk=$(printf %s "${RISK:-high}" | tr '[:upper:]' '[:lower:]')
+case "$risk" in
+  low|medium|high) ;;
+  *)
+    echo "pre-push: RISK must be low, medium or high, not \"$RISK\". Nothing was pushed."
+    exit 1
+    ;;
+esac
+if [ "$risk" != "high" ] && printf %s "$changed" | grep -qE "$ALWAYS_HIGH"; then
+  echo "pre-push: RISK=$risk raised to high — the change touches:"
+  printf %s "$changed" | grep -E "$ALWAYS_HIGH" | sort -u | sed 's/^/            /'
+  risk=high
+fi
+# An unrecognised push has no list of changes to judge, so it is high too.
+[ "$saw_range" = "1" ] || risk=high
+
 run() {
   echo "pre-push: $1"
   shift
@@ -82,7 +108,11 @@ if [ "$needs_everything" = "1" ]; then
   # schema edited without a migration to match deploys nothing and cannot be undone.
   run "checking migrations match the schema..." npm run --silent db:check
   run "running integration tests..." npm run --silent test:integration
-  run "running browser tests..." npm run --silent e2e
+  case "$risk" in
+    low) echo "pre-push: RISK=low — skipping the browser suite." ;;
+    medium) run "running the browser smoke tests (RISK=medium)..." npm run --silent e2e:smoke ;;
+    high) run "running browser tests (RISK=high)..." npm run --silent e2e ;;
+  esac
 else
   echo "pre-push: no application, test or build files changed — skipping the"
   echo "          integration and browser suites."

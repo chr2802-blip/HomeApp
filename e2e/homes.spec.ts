@@ -61,7 +61,7 @@ test.describe("somebody in two homes", () => {
     await page.goto("/dashboard");
   });
 
-  test("moves between them from the header", async ({ page }) => {
+  test("moves between them from the header", { tag: "@smoke" }, async ({ page }) => {
     await switchTo(page, OTHER_HOME_NAME);
     await expect(page).toHaveURL(/\/dashboard$/);
 
@@ -102,7 +102,7 @@ test.describe("somebody in two homes", () => {
 });
 
 test.describe("joining a second home", () => {
-  test("somebody signed in joins through a link with one press, and no second account", async ({
+  test("somebody signed in joins through a link with one press, and no second account", { tag: "@smoke" }, async ({
     page,
     loginAs,
   }) => {

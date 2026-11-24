@@ -1800,6 +1800,31 @@ which deploy untested once merged. A PR is merged only once its branch went thro
 hook, and a branch behind `main` is brought up to date (merge `main` in, push again) first,
 since the merge itself is never tested.
 
+**How much of the browser suite runs is a judgement of the change's risk, made by whoever
+pushes — in a Claude session, by Claude — and said as `RISK=low|medium|high git push …`**
+(the household's rule, 2026-11-24). Lint, types, the unit tests, the schema check and the
+integration suite run at every level; only the browser suite (~11 min of the ~14) varies:
+
+| `RISK` | Browser tests | For a change that… |
+| --- | --- | --- |
+| `low` | none | cannot change what a page does: docs, a copy string, a test, a script the app does not run, a `src/lib` function its unit tests cover whole, a colour or spacing tweak on one component |
+| `medium` | the 41 tagged `@smoke` (`npm run e2e:smoke`, ~3 min) | changes one feature: a page, a component, an action, a fix that stays in its own area |
+| `high` | all of them | is shared by every page (`Modal`, `PageTransition`, the layouts, the tab bar, `useFormAction`), crosses several features, touches offline or the service worker, sessions or access, or is the kind of change that broke production before |
+
+- **Say which, and why, in the message before the push** — the household sees the level,
+  not the reasoning, unless it is written down. When unsure between two, take the higher.
+- **Unset is `high`**, and so is a push with no range to compare. **Some paths raise any
+  level to `high` in the hook itself** (`ALWAYS_HIGH`: `prisma/`, `package.json` and the
+  lockfile, `e2e/helpers/`, the Next and Playwright configs, `public/sw.js`, the middleware,
+  `home-db`/`access`/`auth`/`scoped`), because the smoke tests cannot be trusted to cover
+  what every page stands on.
+- **A smoke test is a flow that would hurt most if it broke in production**: signing in,
+  one home not seeing another's, a list ticked and added to (online, offline, on two
+  phones), a recipe imported and saved, a task completed, the pantry kept off the shop,
+  a day planned, cooking, a picture, a sheet's save surviving back. It is tagged
+  `{ tag: "@smoke" }` beside its title. Add one when a new feature is one of those; keep
+  the set near three minutes.
+
 - Integration and E2E use **separate databases** (`homehub_test`, `homehub_e2e`), created
   automatically, truncated between tests, and **refused outright if the name lacks the right
   suffix**.
