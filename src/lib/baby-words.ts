@@ -8,6 +8,7 @@ import {
   isRunning,
   readBabyDetails,
   sideSeconds,
+  sleptMs,
   type BabyEntry,
   type BreastDetails,
 } from "./baby";
@@ -48,15 +49,17 @@ export function describeEntry(entry: BabyEntry, language: HomeLanguage, now: Dat
   const say = sayIn(language);
   const read = readBabyDetails(entry.kind, entry.details);
   const running = isRunning(entry);
-  const length = durationWords(endOf(entry, now).getTime() - entry.startedAt.getTime(), language);
 
   switch (read.kind) {
     case "SLEEP": {
       const night = isNightSleep(entry.startedAt, read.details.night);
       const kind = say(night ? BABY.nightSleep : BABY.nap);
-      if (running) return { title: say(BABY.asleepNow), detail: `${kind} · ${say(BABY.counting, { time: length })}` };
+      const slept = durationWords(sleptMs(entry, now), language);
+      const awake = read.details.awake > 0 ? ` · ${say(BABY.awakeFor, { time: durationWords(read.details.awake * 1000, language) })}` : "";
+      // "and counting" gives way to the time awake: the line has room for one of them.
+      if (running) return { title: say(BABY.asleepNow), detail: `${kind} · ${awake ? slept : say(BABY.counting, { time: slept })}${awake}` };
       const span = `${timeWords(entry.startedAt, language)}–${timeWords(endOf(entry, now), language)}`;
-      return { title: kind, detail: `${span} · ${length}` };
+      return { title: kind, detail: `${span} · ${slept}${awake}` };
     }
     case "DIAPER": {
       const { wet, dirty } = read.details;

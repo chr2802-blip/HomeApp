@@ -25,7 +25,10 @@ import {
   lastFeedAt,
   otherSide,
   readBabyDetails,
+  resumableFeed,
+  resumableSleep,
   sideSeconds,
+  sleptMs,
   sleepState,
   switchBreastSide,
   type BabyEntry,
@@ -37,6 +40,8 @@ import { clockWords, describeEntry, durationWords, timeWords } from "@/lib/baby-
 import {
   deleteBabyEvent,
   pressBreastSide,
+  resumeFeed,
+  resumeSleep,
   saveDiaper,
   saveFeed,
   saveSleep,
@@ -108,7 +113,7 @@ function useFollow() {
   }, [router]);
 }
 
-type Sheet = null | "feed" | "diaper" | "sleep" | "settings" | "choose";
+type Sheet = null | "feed" | "diaper" | "sleep" | "settings" | "choose" | "wakeful";
 
 /**
  * The baby log: how long since the last of everything at the top, the day being read
@@ -158,6 +163,18 @@ export function BabyLog({
       await toggleSleep();
     });
 
+  // A sleep stopped a moment ago can be carried on rather than a new one started, so
+  // the button asks which — only inside that window, and never to stop a sleep.
+  const wakeful = asleep ? null : resumableSleep(entries, now);
+  const carryOnSleep = (entry: BabyEntry) =>
+    startTransition(async () => {
+      showAsleep(true);
+      setSheet(null);
+      const form = new FormData();
+      form.set("id", entry.id);
+      await resumeSleep(form);
+    });
+
   return (
     <div className="pb-24 md:pb-0">
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -184,7 +201,9 @@ export function BabyLog({
             kind="sleep"
             strong={sleep?.asleep === true}
             label={say(sleep?.asleep ? BABY.asleep : sleep ? BABY.awake : BABY.sleep)}
-            value={sleep ? durationWords(now.getTime() - sleep.since.getTime(), language) : say(BABY.notYet)}
+            value={
+              sleep ? durationWords(sleep.asleep ? sleep.sleptMs : now.getTime() - sleep.since.getTime(), language) : say(BABY.notYet)
+            }
             detail={sleep ? say(BABY.since, { time: timeWords(sleep.since, language) }) : ""}
           />
         )}
@@ -229,12 +248,12 @@ export function BabyLog({
         style={{ paddingRight: "calc(0.75rem + var(--bars, 0) * 4.5rem)" }}
       >
         {baby.trackSleep && (
-          <DockButton kind="sleep" strong={asleep} onClick={pressSleep}>
+          <DockButton kind="sleep" strong={asleep} onClick={wakeful ? () => setSheet("wakeful") : pressSleep}>
             <SleepIcon />
             {asleep ? (
               <span>
                 {say(BABY.stopSleep)}
-                {sleep?.asleep && <span className="font-normal tabular-nums"> · {clockWords(now.getTime() - sleep.since.getTime())}</span>}
+                {sleep?.asleep && <span className="font-normal tabular-nums"> · {clockWords(sleep.sleptMs)}</span>}
               </span>
             ) : (
               <span>{say(BABY.startSleep)}</span>
@@ -280,6 +299,37 @@ export function BabyLog({
         </div>
       </Modal>
 
+      <Modal open={sheet === "wakeful"} onClose={() => setSheet(null)} title={say(BABY.sleep)} size="drawer">
+        {wakeful && (
+          <div className="flex flex-col gap-2 px-5 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+            <p className="text-center text-sm text-slate-600">
+              {say(BABY.sleepFrom, { time: timeWords(wakeful.startedAt, language) })} · {durationWords(sleptMs(wakeful, now), language)}
+              {" · "}
+              {say(BABY.awakeFor, {
+                time: durationWords(
+                  now.getTime() - wakeful.endedAt!.getTime() + (readBabyDetails("SLEEP", wakeful.details).details.awake * 1000),
+                  language,
+                ),
+              })}
+            </p>
+            <ChooseRow kind="sleep" strong onClick={() => carryOnSleep(wakeful)}>
+              <SleepIcon />
+              {say(BABY.continueSleep)}
+            </ChooseRow>
+            <ChooseRow
+              kind="sleep"
+              onClick={() => {
+                setSheet(null);
+                pressSleep();
+              }}
+            >
+              <SleepIcon />
+              {say(BABY.newSleep)}
+            </ChooseRow>
+          </div>
+        )}
+      </Modal>
+
       <Modal open={sheet === "sleep"} onClose={() => setSheet(null)} title={say(BABY.logSleep)}>
         <DialogForm action={saveSleep} submitLabel={say(BABY.save)} onDone={() => setSheet(null)} onCancel={() => setSheet(null)}>
           <SleepFields now={now} />
@@ -296,6 +346,7 @@ export function BabyLog({
         <FeedSheet
           methods={methods}
           running={runningBreast}
+          resumable={resumableFeed(entries, now)}
           lastSide={lastBreastSide(entries.filter((entry) => entry !== runningBreast))}
           solids={solids}
           now={now}
@@ -483,6 +534,7 @@ const EMPTY_BREAST: BreastDetails = { method: "BREAST", left: 0, right: 0, runni
 function FeedSheet({
   methods,
   running,
+  resumable,
   lastSide,
   solids,
   now,
@@ -490,6 +542,8 @@ function FeedSheet({
 }: {
   methods: FeedMethod[];
   running: BabyEntry | null;
+  /** A feed finished a moment ago, which "Carry on" picks up again. */
+  resumable: BabyEntry | null;
   lastSide: BreastSide | null;
   solids: string[];
   now: Date;
@@ -512,7 +566,17 @@ function FeedSheet({
       await pressBreastSide(form);
     });
 
+  const carryOn = (feed: BabyEntry) =>
+    startTransition(async () => {
+      const details = readBabyDetails("FEED", feed.details).details as BreastDetails;
+      showTimer({ ...details, running: null, runningSince: null });
+      const form = new FormData();
+      form.set("id", feed.id);
+      await resumeFeed(form);
+    });
+
   const onTimer = method === "BREAST" && !typed;
+  const resumed = resumable && !running && !timer ? (readBabyDetails("FEED", resumable.details).details as BreastDetails) : null;
   const choices = methods.includes(method) ? methods : [method, ...methods];
 
   return (
@@ -543,7 +607,35 @@ function FeedSheet({
           ) : (
             <input type="hidden" name="timer" value="1" />
           )}
-          {lastSide && !running && (
+          {resumable && resumed && (
+            <div
+              className="flex items-center gap-3 rounded-2xl px-4 py-3"
+              style={{ background: "var(--baby-feed-soft)", color: "var(--baby-feed-text)" }}
+              data-baby-resume
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">
+                  {say(BABY.lastFeedEnded, { time: timeWords(resumable.startedAt, language) })}
+                </p>
+                <p className="truncate text-xs">
+                  {say(BABY.sides, {
+                    left: durationWords(resumed.left * 1000, language),
+                    right: durationWords(resumed.right * 1000, language),
+                  })}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => carryOn(resumable)}
+                className="press-button h-10 shrink-0 rounded-full px-4 text-sm font-bold text-white"
+                style={{ background: "var(--baby-feed)" }}
+              >
+                {say(BABY.continueFeed)}
+              </button>
+            </div>
+          )}
+          {resumable && resumed && <p className="text-center text-sm text-slate-600">{say(BABY.orNewFeed)}</p>}
+          {lastSide && !running && !timer && !resumed && (
             <p className="text-center text-sm text-slate-600">
               {say(otherSide(lastSide) === "LEFT" ? BABY.startOnLeft : BABY.startOnRight)}
             </p>
@@ -664,13 +756,23 @@ function DockButton({
   );
 }
 
-function ChooseRow({ kind, onClick, children }: { kind: BabyColorKind; onClick: () => void; children: React.ReactNode }) {
+function ChooseRow({
+  kind,
+  strong = false,
+  onClick,
+  children,
+}: {
+  kind: BabyColorKind;
+  strong?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       className="press-button flex h-14 items-center gap-3 rounded-2xl px-4 text-base font-semibold"
-      style={{ background: babyColor(kind, "-soft"), color: babyColor(kind, "-text") }}
+      style={{ background: babyColor(kind, strong ? "" : "-soft"), color: strong ? "white" : babyColor(kind, "-text") }}
     >
       {children}
     </button>

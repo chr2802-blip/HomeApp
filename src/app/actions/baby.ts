@@ -14,11 +14,14 @@ import {
   BOTTLE_MILKS,
   BREAST_SIDES,
   MAX_BABY_NAME_LENGTH,
+  MAX_AWAKE_SECONDS,
   MAX_BOTTLE_ML,
   MAX_FOOD_LENGTH,
   MAX_NOTE_LENGTH,
   MAX_SIDE_SECONDS,
   readBabyDetails,
+  resumableFeed,
+  resumableSleep,
   switchBreastSide,
   type BreastDetails,
   type BreastSide,
@@ -143,11 +146,40 @@ export async function toggleSleep(): Promise<void> {
         babyId: baby.id,
         kind: "SLEEP",
         startedAt: now,
-        details: { night: null },
+        details: { night: null, awake: 0 },
         createdById: user.id,
       },
     });
   }
+  refresh();
+}
+
+/**
+ * A sleep stopped a moment ago carried on: its end is taken off again and the gap since
+ * is banked as time awake inside it, so a short waking is one sleep with "awake 4 m"
+ * rather than two. Only the sleep `resumableSleep` names, so two parents pressing at
+ * once carry it on once.
+ */
+export async function resumeSleep(formData: FormData): Promise<void> {
+  const user = await requireHomeUser();
+  const baby = await homeBaby(user.homeId);
+  const id = String(formData.get("id") ?? "");
+  if (!baby || !id) return;
+  const db = homeDb(user.homeId);
+  const now = new Date();
+  const sleeps = await db.babyEvent.findMany({
+    where: { homeId: user.homeId, babyId: baby.id, kind: "SLEEP" },
+    orderBy: { startedAt: "desc" },
+    take: 5,
+  });
+  const sleep = resumableSleep(sleeps, now);
+  if (!sleep || sleep.id !== id || !sleep.endedAt) return;
+  const details = readBabyDetails("SLEEP", sleep.details).details;
+  const gap = Math.floor((now.getTime() - sleep.endedAt.getTime()) / 1000);
+  await db.babyEvent.update({
+    where: { id: sleep.id },
+    data: { endedAt: null, details: { ...details, awake: Math.min(MAX_AWAKE_SECONDS, details.awake + gap) } },
+  });
   refresh();
 }
 
@@ -175,6 +207,11 @@ export async function saveSleep(_prev: ActionResult, formData: FormData): Promis
   }
   const kind = String(formData.get("sleepKind") ?? "auto");
   const night = kind === "night" ? true : kind === "nap" ? false : null;
+  const awakeRaw = String(formData.get("awake") ?? "").trim();
+  const awakeMinutes = awakeRaw ? Number(awakeRaw) : 0;
+  if (!Number.isFinite(awakeMinutes) || awakeMinutes < 0 || awakeMinutes * 60 > MAX_AWAKE_SECONDS) return fail(say(BABY.awakeTooLong));
+  const awake = Math.round(awakeMinutes * 60);
+  if (awake > 0 && (endedAt ?? now).getTime() - start.at.getTime() <= awake * 1000) return fail(say(BABY.awakeTooLong));
 
   const db = homeDb(user.homeId);
   const id = String(formData.get("id") ?? "");
@@ -190,7 +227,7 @@ export async function saveSleep(_prev: ActionResult, formData: FormData): Promis
     if (running) return fail(say(BABY.alreadyAsleep));
   }
 
-  const data = { startedAt: start.at, endedAt, details: { night }, note: readNote(formData) };
+  const data = { startedAt: start.at, endedAt, details: { night, awake }, note: readNote(formData) };
   if (existing) await db.babyEvent.update({ where: { id: existing.id }, data });
   else {
     await db.babyEvent.create({
@@ -238,6 +275,35 @@ export async function pressBreastSide(formData: FormData): Promise<void> {
       },
     });
   }
+  refresh();
+}
+
+/**
+ * A finished breast feed carried on: its end is taken off again and its sides keep what
+ * they had, so the timer picks up where "Done" left it rather than starting a new feed.
+ * Paused, with no side running — the next press on a side starts it. Only the feed
+ * `resumableFeed` names can be carried on, so a feed from the morning, or one while
+ * another timer runs, is left alone.
+ */
+export async function resumeFeed(formData: FormData): Promise<void> {
+  const user = await requireHomeUser();
+  const baby = await homeBaby(user.homeId);
+  const id = String(formData.get("id") ?? "");
+  if (!baby || !id) return;
+  const db = homeDb(user.homeId);
+  const now = new Date();
+  const feeds = await db.babyEvent.findMany({
+    where: { homeId: user.homeId, babyId: baby.id, kind: "FEED", details: { path: ["method"], equals: "BREAST" } },
+    orderBy: { startedAt: "desc" },
+    take: 5,
+  });
+  const feed = resumableFeed(feeds, now);
+  if (!feed || feed.id !== id) return;
+  const details = readBabyDetails("FEED", feed.details).details as BreastDetails;
+  await db.babyEvent.update({
+    where: { id: feed.id },
+    data: { endedAt: null, details: switchBreastSide(details, null, now) },
+  });
   refresh();
 }
 
