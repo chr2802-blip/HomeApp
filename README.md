@@ -328,15 +328,11 @@ Pushing to `main` is what triggers a Vercel deploy, so the tests gate the push:
    minutes and a full build; anything unrecognised runs everything. If a check fails,
    nothing is pushed and nothing deploys. In a genuine emergency, `git push --no-verify`
    skips it.
-2. **In CI.** `.github/workflows/test.yml` runs the same checks on GitHub against a throwaway
-   Postgres, on every push and pull request. Lint, types, the schema check and the vitest suites
-   run in one job; the browser suite runs in another, alongside rather than behind it, since the
-   two share nothing but two minutes of setup. Both report into a third job named
-   **Lint, types and tests**, which is the single check a deploy gate waits for — see below. A
-   failing browser test uploads its Playwright report as a build artifact.
-3. **During the build.** `npm run build` runs the unit tests before `next build`, so a broken
-   build fails on Vercel even if the first two were bypassed. (Integration tests are left out
-   here: the build has no test database, and it must never touch the production one.)
+That hook is the only gate. There is no GitHub CI and the Vercel build runs no tests: both
+used to run the same suites again, and were dropped on 2026-11-24 as costing ten minutes per
+change for nothing the hook had not already found. So code must reach GitHub through `git
+push` from a checkout that ran `npm install` — never through the GitHub API, the web
+editor or `--no-verify`, which deploy untested once merged.
 
 ### The migration that cannot be taken back
 
@@ -347,7 +343,7 @@ rollback path — the one failure in this project that cannot be fixed by revert
 `npm run db:check` is the cheap half of that problem. It replays the migrations into a
 throwaway `_shadow` database and compares the result against `prisma/schema.prisma`, so a
 schema edited without a migration to match is caught in about two seconds. It runs in the
-pre-push hook and in CI, and it is worth running by hand after any schema change.
+pre-push hook, and it is worth running by hand after any schema change.
 
 The integration suite catches some of this already, but only where a test happens to touch the
 model: the generated client asks for a column the database has not got, and the query errors. A
@@ -372,31 +368,11 @@ production before anyone reviewed it, and the preview app itself read and wrote 
 data. Rather than give previews their own database, there are no previews.
 
 What replaces them: the browser tests, which drive a production build of the app
-against a throwaway database on every push, locally and in CI. That is a better check
+against a throwaway database on every push, in the pre-push hook. That is a better check
 than clicking through a preview, and it cannot touch anything real.
 
 If you ever want a one-off preview, `npx vercel` still deploys from your machine on
 demand. This setting only turns off the automatic ones.
-
-### Making Vercel wait for CI
-
-By default Vercel builds and releases as soon as `main` moves, without waiting for the workflow
-above. Two independent ways to close that gap — either is enough, and they combine well:
-
-**Vercel Deployment Checks** hold a finished production build back from your production domain
-until the checks pass. First make sure automatic aliasing is on under
-**Project Settings → Environments → Production**. Then open
-**Project Settings → Build and Deployment → Deployment Checks**, choose **Add Checks**, pick
-**GitHub** as the provider, and select the **Lint, types and tests** check (GitHub identifies
-checks by job name, so renaming that job in `test.yml` means re-selecting it here). That job runs
-nothing itself: it is green exactly when the checks and browser jobs beside it are, which is what
-lets the work be split in two without the gate having to be re-selected or widened to a list. The build
-still runs; it just is not released to users until the tests go green. `Force Promote` on the
-deployment page overrides this when you need it.
-
-**A GitHub ruleset** on `main` requiring the same check keeps failing code off the branch in the
-first place, so no production build is ever created from it. Set it under
-**Repository Settings → Rules → Rulesets**, requiring a pull request and the status check.
 
 ## Deploying to Vercel with Supabase
 

@@ -50,3 +50,16 @@ Postgres line.
   runners have 4 cores too, and run 4 workers cleanly.
 - The environment's setup script is untested until a fresh session starts on "HomeApp" —
   the script ran here by hand, but never as a setup script.
+
+## Later in the same session: the pre-push hook is the only gate
+
+The household asked for the tests to run only here, not again on GitHub and Vercel.
+`.github/workflows/test.yml` is gone, `npm run build` no longer runs the unit tests, and the
+hook exports `TEST_GATE` so both suites still refuse a stray `.only` (that was CI's job).
+CLAUDE.md, README and `docs/design/testing.md` say so, and that code must reach GitHub
+through `git push` with the hook, never the GitHub API or web editor.
+
+Decided rather than known: whether Vercel's Deployment Checks or a GitHub ruleset still wait
+for the "Lint, types and tests" check. Neither is readable from here (the Vercel API's
+project answer does not say), and README described both as optional. If either is on, it
+waits for a check that will never come again and has to be removed by hand.

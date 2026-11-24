@@ -2,8 +2,9 @@
  * Points git at the version-controlled hooks in .githooks, so the pre-push test gate
  * is set up by `npm install` rather than by hand on every machine.
  *
- * Never fails the install: there is no .git directory on a build server, and a missing
- * hook there is harmless because CI runs the same tests anyway.
+ * Never fails the install: there is no .git directory on a build server, and nothing is
+ * pushed from one. This hook is the only test gate there is — no CI, and the Vercel build
+ * runs no tests — so a checkout that pushes without it pushes untested code.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";

@@ -9,12 +9,16 @@
 # Next.js build.
 #
 # When in doubt this runs everything: an unrecognised push, no range to compare, or any
-# change outside the known-safe set. CI runs the full suite on the server regardless, so
-# the worst case here is finding out a minute later rather than a minute earlier.
+# change outside the known-safe set. Nothing runs after this: there is no CI, and the
+# Vercel build runs no tests, so what this lets through is what deploys.
 #
 # To push anyway in an emergency: git push --no-verify
 
 set -e
+
+# The only test gate: there is no CI and the Vercel build runs no tests. This makes both
+# suites refuse a stray `it.only`/`test.only`, which would otherwise read as a pass.
+export TEST_GATE=1
 
 ZERO=0000000000000000000000000000000000000000
 
@@ -81,7 +85,7 @@ if [ "$needs_everything" = "1" ]; then
   run "running browser tests..." npm run --silent e2e
 else
   echo "pre-push: no application, test or build files changed — skipping the"
-  echo "          integration and browser suites. CI still runs them in full."
+  echo "          integration and browser suites."
 fi
 
 echo "pre-push: all checks passed."

@@ -6,9 +6,17 @@ Moved out of CLAUDE.md, which keeps the rules. This is the reasoning behind them
 
 `.githooks/pre-push` checks the change before it leaves: lint, types and unit tests
 always; the integration and browser suites only when `src/`, `prisma/`, `tests/`, `e2e/`,
-`scripts/`, a lockfile or a build config changed. CI runs the full suite regardless, and
-`npm run build` runs the unit tests. Pushing to `main` deploys, so a failing suite must
-not reach the remote.
+`scripts/`, a lockfile or a build config changed. Pushing to `main` deploys, so a failing
+suite must not reach the remote.
+
+**The hook is the only gate.** Until 2026-11-24 the same suites also ran in GitHub Actions
+on every push and PR, and the unit tests again inside `npm run build` on Vercel. The
+household dropped both: every change already ran the whole lot in the hook before it left,
+so the second and third runs cost ten minutes of waiting per PR and had stopped finding
+anything. What that gives up, knowingly: code that reaches GitHub without the hook (the
+GitHub API, the web editor, `--no-verify`) is untested, and a PR's merge into a `main` that
+moved meanwhile is never run anywhere — so a branch behind `main` is brought up to date and
+pushed again before it is merged.
 
 Integration and E2E use **separate** databases (`homehub_test`, `homehub_e2e`), created
 automatically. They truncate between tests, and refuse to run against a database whose
@@ -73,7 +81,7 @@ because there the form is the thing being tested.
 
 A flaky test is worse than no test: it teaches everyone to press the button again. Fix the
 race, do not add a timeout. An `it.only` left in is the same failure by another route — a
-file reduced to one test, reading as a pass — so CI refuses one in either suite
+file reduced to one test, reading as a pass — so the hook refuses one in either suite (it exports `TEST_GATE`)
 (`forbidOnly` for Playwright, `allowOnly` for vitest).
 
 **Never pipe a suite whose exit code is the thing being asked about.** `npm run e2e |

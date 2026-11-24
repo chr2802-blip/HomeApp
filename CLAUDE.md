@@ -1782,9 +1782,16 @@ about which words to throw away.
 ### Tests gate everything
 
 `.githooks/pre-push` runs lint, types and unit tests always, and the schema check plus the
-integration and browser suites when the code they cover changed. CI runs the full suite
-regardless, and `npm run build` runs the unit tests. **Pushing to `main` deploys, so a
-failing suite must not reach the remote.**
+integration and browser suites when the code they cover changed. **It is the only gate**:
+there is no GitHub CI and the Vercel build runs no tests, by the household's choice
+(2026-11-24) — running the same suites three times cost minutes on every change and caught
+nothing the hook had not. **Pushing to `main` deploys, so a failing suite must not reach
+the remote.** It follows that **code reaches GitHub only through `git push` from a checkout
+with the hook installed** (`npm install` installs it): never through the GitHub API tools
+(`push_files`, `create_or_update_file`) or the web editor, and never `--no-verify`, all of
+which deploy untested once merged. A PR is merged only once its branch went through the
+hook, and a branch behind `main` is brought up to date (merge `main` in, push again) first,
+since the merge itself is never tested.
 
 - Integration and E2E use **separate databases** (`homehub_test`, `homehub_e2e`), created
   automatically, truncated between tests, and **refused outright if the name lacks the right
@@ -1814,8 +1821,8 @@ failing suite must not reach the remote.**
   that routes without it.
 - **A password is hashed once per password, not once per user**, and `loginAs` puts the
   cookie straight into the browser; `auth.spec.ts` still drives the real form.
-- **A flaky test is worse than no test: fix the race, do not add a timeout.** CI refuses an
-  `it.only` in either suite.
+- **A flaky test is worse than no test: fix the race, do not add a timeout.** The hook refuses
+  an `it.only` in either suite (it exports `TEST_GATE`, read by `forbidOnly`/`allowOnly`).
 - **A test's 5s covers every `await import(…)` / `vi.importActual(…)` inside its body.** A
   module that reaches the generated Prisma client costs ~1.7s cold on a laptop and ran past
   5s on Vercel's build machine, failing the production build on a test nobody had touched
@@ -1852,7 +1859,7 @@ rollback path.
 
 `npm run db:check` closes the cheap half of that: it replays the migrations into a
 throwaway `_shadow` database and fails if `prisma/schema.prisma` says anything they do
-not. It runs in the pre-push hook and in CI, takes about two seconds, and catches a
+not. It runs in the pre-push hook, takes about two seconds, and catches a
 schema edited without a migration — which the test suites only catch where a test
 happens to touch the model. What it cannot catch is a migration that is valid against an
 empty database and fails against a full one (a `NOT NULL` column on a populated table, a
@@ -1920,14 +1927,12 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
   sound — replacing a picture writes a new row with a new id — but it means a browser can
   answer a repeat request out of its own cache, so a test about what the *server* will
   serve has to ask with `cache: "no-store"`.
-- **The unit tests read the schema through the generated client, so `prisma generate`
-  runs first in `npm run build`.** `home-scoping.test.ts` walks `Prisma.dmmf`, which is
-  whatever was last generated — and Vercel restores `node_modules` from the previous
-  deployment's cache and skips the install scripts, so without generating first the
-  tests are asked about the *previous* commit's schema. That fails the build on a test
-  naming a model sitting right there in `schema.prisma`, which reads like a bad test
-  rather than a stale client. It is also why the failure cannot happen locally: a
-  checkout that has run `npm ci` has generated from the schema in front of it.
+- **`prisma generate` runs first in `npm run build`**, because Vercel restores
+  `node_modules` from the previous deployment's cache and skips the install scripts, so
+  without it the build compiles against the *previous* commit's client. It was found when
+  the build still ran the unit tests (`home-scoping.test.ts` walks `Prisma.dmmf`), and
+  failed on a model sitting right there in `schema.prisma`; the build no longer runs
+  tests, but the stale client would now fail `next build` instead, or worse, not fail.
 - **Android draws the installed app's icon in a circle**, and an icon marked only `any`
   is shrunk onto a white disc — a white ring round it on the home screen. The manifest's
   `maskable` PNGs (`public/icon-maskable-*.png`, full-bleed, mark inside the middle 80%)
