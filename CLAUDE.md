@@ -70,7 +70,8 @@ shoots each path at 390×844 into `screenshots/` (git-ignored), and prints the f
 `--as sam`, `--full`, `--width`/`--height`, `--wait <ms>` and `--slow 0.1` (every animation
 at a tenth of its speed, through CDP) cover the page; what a thumb does before the shot is
 five repeatable steps, **run in the order typed**: `--press "<button name>"` (`--press
-Menu` opens the tab bar's drawer), `--tap "<text>"` (a chip, a row), `--fill
+Menu` opens the tab bar's drawer; a three-dot menu's entries are found too, so `--press
+"Actions for X" --press Edit` opens an edit sheet), `--tap "<text>"` (a chip, a row), `--fill
 "<label>=<text>"` (by label, else placeholder), `--hold "<text>"` (press and hold — the
 recipe list's choosing) and `--photo "<file input's label>"` (a picture drawn in the page
 and chosen). A step naming something not there fails in 8s. `--press "Add to supplies"
@@ -1236,6 +1237,12 @@ the page; a table so a second child is rows). Everybody's, like the pantry: the 
   so it runs on with the app closed and reads the same on both parents' phones. A breast
   feed's sides are banked by `switchBreastSide` on every press, and `lastSide` is stored
   because two totals cannot say which side came last.
+- **A timer stopped is carried on, not restarted, for `RESUME_WITHIN_MS` (30 min)** —
+  `resumableFeed` / `resumableSleep`, offered beside "new", never instead of it. A breast
+  feed comes back paused with its sides kept (`resumeFeed`); a sleep comes back with the
+  gap banked into `details.awake` (`resumeSleep`), and **a sleep's length is always
+  `sleptMs` — its span less `awake`** (the timeline, the tiles and the charts' hours).
+  Where in the span the waking fell is not kept, so the strip still draws one block.
 - **Nap or night is decided, not stored**: `isNightSleep` from when the sleep *started*
   (`NIGHT_FROM_HOUR`–`NIGHT_UNTIL_HOUR` on the household's clock), and `details.night`
   holds only an override. One sleep runs at a time.

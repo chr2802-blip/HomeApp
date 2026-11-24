@@ -51,7 +51,12 @@ type Step = { kind: StepKind; value: string };
 async function perform(page: Page, { kind, value }: Step) {
   switch (kind) {
     case "press":
-      return page.getByRole("button", { name: value, exact: true }).last().click();
+      // A three-dot menu's entries are menuitems, not buttons, so "Edit" is found too.
+      return page
+        .getByRole("button", { name: value, exact: true })
+        .or(page.getByRole("menuitem", { name: value, exact: true }))
+        .last()
+        .click();
     case "tap":
       return page.getByText(value, { exact: true }).last().click();
     case "fill": {
