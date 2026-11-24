@@ -44,6 +44,7 @@ function user(
     homeTheme: "SLATE",
     homeLanguage: "EN",
     homeSeasonal: false,
+    navPins: ["food", "lists"],
     homeRole: homes.find((home) => home.id === active)?.role ?? null,
   };
 }

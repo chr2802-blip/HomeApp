@@ -148,6 +148,14 @@ model User {
    * people who share a home with them wherever it happens to be filed.
    */
   photoId      String?
+  /**
+   * The two tabs this person keeps in the tab bar between Home and the menu, in the order
+   * they sit there — keys from `PINNABLE_TABS` in `src/lib/nav-tabs.ts`. Read only through
+   * `readPins`, which drops anything it does not know and fills a short list from
+   * `DEFAULT_PINS`, so empty is "the defaults" and a tab removed from the app later
+   * simply falls out. A person's, not a home's: it is their thumb, in every household.
+   */
+  navPins      String[]     @default([])
   createdAt    DateTime     @default(now())
 
   activeHome        Home?              @relation("ActiveHome", fields: [activeHomeId], references: [id], onDelete: SetNull)

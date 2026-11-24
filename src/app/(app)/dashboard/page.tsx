@@ -28,10 +28,6 @@ import { DATE } from "@/lib/copy/dates";
 import { MEALS } from "@/lib/copy/meals";
 import { CreateMenu } from "@/components/create-button";
 import { HomeBanner } from "@/components/home-banner";
-import { LISTS } from "@/lib/copy/lists";
-import { TASKS } from "@/lib/copy/tasks";
-import { RECIPES } from "@/lib/copy/recipes";
-import { PANTRY } from "@/lib/copy/pantry";
 
 /**
  * How many lists the dashboard draws before it stops and offers the rest.
@@ -232,14 +228,7 @@ export default async function DashboardPage() {
     <>
       {/* The dashboard makes nothing itself, so its "+" offers what the other pages make
           and opens that page's own sheet there. */}
-      <CreateMenu
-        choices={[
-          { href: "/lists", label: LISTS.newList, emoji: "📝" },
-          { href: "/tasks", label: TASKS.newTask, emoji: "🧹" },
-          { href: "/recipes", label: RECIPES.newRecipe, emoji: "🍲" },
-          { href: "/pantry", label: PANTRY.add, emoji: "🫙" },
-        ]}
-      />
+      <CreateMenu />
       <HomeBanner>
         {/*
           The home's picture, the date, the greeting and the week, in the space a greeting

@@ -43,6 +43,9 @@ async function main() {
       full: { type: "boolean", default: false },
       slow: { type: "string" },
       wait: { type: "string", default: "300" },
+      // A button to press before the shot, by its accessible name — a sheet or a menu
+      // opened. Repeat it to press several in turn.
+      press: { type: "string", multiple: true },
       out: { type: "string", default: "screenshots" },
       url: { type: "string", default: process.env.SCREENSHOT_URL ?? "http://localhost:3000" },
     },
@@ -113,6 +116,10 @@ async function main() {
         // Next's dev overlay ("1 Issue") sits over the tab bar in every phone shot.
         await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
         await page.waitForTimeout(Number(values.wait));
+        for (const name of values.press ?? []) {
+          await page.getByRole("button", { name, exact: true }).last().click();
+          await page.waitForTimeout(Number(values.wait) + 500);
+        }
 
         const slug = target.replace(/^\/+/, "").replace(/[^a-z0-9]+/gi, "-").replace(/-+$/, "") || "root";
         const file = path.join(outDir, `${slug}-${homeKey}-${width}.png`);

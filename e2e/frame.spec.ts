@@ -16,9 +16,14 @@ test.describe("the tab bar's +", () => {
     await expect(page.getByRole("dialog", { name: "New list" })).toBeVisible();
   });
 
-  test("is greyed out where a page has nothing to make", async ({ page }) => {
+  test("offers what the other pages make where a page has nothing of its own", async ({ page }) => {
     await page.goto("/meals");
-    await expect(page.getByRole("button", { name: "Nothing to add here" })).toBeDisabled();
+    const plus = page.getByRole("button", { name: "Create", exact: true });
+    await plus.click();
+    const drawer = page.getByRole("dialog", { name: "Create" });
+    await drawer.getByRole("link", { name: "New list" }).click();
+    await page.waitForURL(/\/lists$/);
+    await expect(page.getByRole("dialog", { name: "New list" })).toBeVisible();
   });
 
   test("on the dashboard offers what the other pages make, and opens that page's sheet", async ({ page }) => {

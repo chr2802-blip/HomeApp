@@ -60,9 +60,10 @@ remakes only its own homes and people, and refuses a database not on this machin
 `screenshot` (`scripts/screenshot.ts`) needs `npm run dev` already running: it signs a
 session with `.env`'s `AUTH_SECRET` (no login form), switches to `--home flat|da|empty`,
 shoots each path at 390×844 into `screenshots/` (git-ignored), and prints the files.
-`--as sam`, `--full`, `--width`/`--height`, `--wait <ms>` and `--slow 0.1` (every animation
-at a tenth of its speed, through CDP) cover the rest; anything it cannot do — a sheet
-opened, a row pressed — is a throwaway that imports `scripts/demo-cast.ts` and copies
+`--as sam`, `--full`, `--width`/`--height`, `--wait <ms>`, `--slow 0.1` (every animation
+at a tenth of its speed, through CDP) and `--press "<button name>"` (pressed before the
+shot, repeatable — `--press Menu` opens the tab bar's drawer) cover the rest; anything it
+cannot do — a field filled, a row long-pressed — is a throwaway that imports `scripts/demo-cast.ts` and copies
 from `screenshot.ts`, put inside the checkout (from the scratchpad it cannot resolve
 `@prisma/client`), run with `npx tsx --env-file=.env` (`tsx` does not read `.env` itself)
 and deleted afterwards. A new kind of thing on screen wants a row in
@@ -157,6 +158,29 @@ Switching is `switchHome`, which moves the pointer and grants nothing. The heade
 becomes a menu once there is more than one to go to, `/homes` lists them, and that page is
 also where somebody with no home at all is sent, because it is the only page with
 anything to tell them.
+
+### The tab bar is Home, two pins, the "+" and Menu
+
+A phone's bar has five places: **Home · pin · "+" · pin · Menu**. Home and the "+" are
+always there; the two pins are the person's own, and Menu opens a drawer of every tab,
+pinned or not, where the pins are chosen (`NavPins`, also on `/profile`). The tabs, where
+each lives and the rules are `src/lib/nav-tabs.ts` (plain data, unit-tested); the icons
+are `nav-items.tsx`. A new tab is a key in `TAB_KEYS`, its paths in `TAB_PATHS_BY_KEY`,
+its icon, its `APP.nav` label — and `PINNABLE_TABS` if it may go in the bar.
+
+- **`User.navPins` is the person's, not the home's**, and is read only through
+  `readPins`: unknown or repeated keys are dropped and a short list is filled from
+  `DEFAULT_PINS`, so empty means "the defaults" and the bar always has exactly two.
+- **Which place is lit is `litPlace`**: Home, a pinned tab on any of its pages, and
+  otherwise **Menu** — a tab not in the bar and every page outside the tabs (Settings,
+  Profile) are reached from there. While the drawer is open, Menu is lit.
+- Pinning with both places taken asks which one makes way, under the row; it never
+  quietly replaces one.
+- The desktop header (`NavLinks`) draws every tab. `TAB_PATHS` for `pageMotion` is the
+  fixed menu order, not the person's bar, so a page comes in from the same side for
+  everybody.
+- **A browser test that walks the phone's tab bar uses Food or Lists** — the defaults.
+  Tasks is reached through the menu now.
 
 ### Administration is two different things, in two different places
 
@@ -1651,10 +1675,11 @@ about which words to throw away.
 - **The page's "+" lives in the middle of the tab bar** (`CreateFab`, portalled to
   `<body>`), in the home's `--accent`. One per page: `FormDialog`'s `triggerShape="fab"`,
   or a sheet that draws `CreateFab` itself (new recipe, pantry). A page with nothing to
-  make shows a greyed one (`.app-create-idle`, hidden by `:has(.app-create)`). The
-  dashboard's is `CreateMenu`, a drawer of links to the pages that make things, each with
-  `?new` (`CREATE_PARAM`), which presses that page's "+" once on arrival and is taken off
-  the address first. From `md` up it sits in the bottom-right corner.
+  make shows the bar's own `CreateMenu inBar` (`.app-create-idle`, hidden by
+  `:has(.app-create)`) — the same drawer the dashboard's "+" opens, of links to the pages
+  that make things (`CREATE_CHOICES` in `src/lib/create-choices.ts`), each with `?new`
+  (`CREATE_PARAM`), which presses that page's "+" once on arrival and is taken off the
+  address first. From `md` up it sits in the bottom-right corner.
 - **The header, the tab bar and what floats over it go with the scroll** (`ScrollBars`
   writes `--bars`, 0 to 1; `.app-topbar`, `.app-bottombar`, `.app-above-bar`, phone
   only). The "+" travels to the corner as the bar goes rather than leaving. Something new

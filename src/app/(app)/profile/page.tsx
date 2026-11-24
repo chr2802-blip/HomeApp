@@ -8,6 +8,8 @@ import { NotificationSetup, TestPushButton } from "@/components/notification-set
 import { sayIn } from "@/lib/copy/say";
 import { PROFILE } from "@/lib/copy/profile";
 import { HOMES } from "@/lib/copy/homes";
+import { NAV } from "@/lib/copy/nav";
+import { NavPinsSetting } from "@/components/nav-pins";
 
 /**
  * You, rather than any of your homes: your name, your password, your picture and
@@ -86,6 +88,15 @@ export default async function ProfilePage() {
               </div>
             )}
           </ActionForm>
+        </Card>
+      </section>
+
+      {/* Only a phone has a tab bar, so only a phone is offered the choice of its two places. */}
+      <section className="mb-8 md:hidden">
+        <h2 className="mb-1 text-sm font-semibold text-slate-500 uppercase">{say(NAV.profileHeading)}</h2>
+        <p className="mb-3 text-sm text-slate-500">{say(NAV.profileHint)}</p>
+        <Card>
+          <NavPinsSetting pins={user.navPins} />
         </Card>
       </section>
 

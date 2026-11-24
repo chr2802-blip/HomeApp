@@ -88,7 +88,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </main>
 
             <KitchenTimers />
-            <BottomNav />
+            <BottomNav pins={user.navPins} />
             <ScrollBars />
           </div>
         </KitchenProvider>

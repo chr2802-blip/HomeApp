@@ -700,7 +700,7 @@ h1,
   animation-delay: 120ms;
 }
 
-/* The greyed-out "+" in the tab bar, for a page with nothing to make; the real one takes its place. */
+/* The tab bar's own "+" (`CreateMenu inBar`), offering what the other pages make; a page with a "+" of its own takes its place. */
 :root:has(.app-create) .app-create-idle {
   visibility: hidden;
 }

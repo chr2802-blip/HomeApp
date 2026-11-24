@@ -32,7 +32,6 @@ export const APP = {
     status: { EN: "Status", DA: "Status" },
   },
   logOut: { EN: "Log out", DA: "Log ud" },
-  /** The greyed-out "+" in the tab bar, on a page with nothing to make. */
   /** The full-screen picture (`PhotoViewer`). */
   photo: {
     open: { EN: "Show the picture full screen", DA: "Vis billedet i fuld skærm" },
@@ -43,7 +42,6 @@ export const APP = {
   },
   /** The dashboard's "+", and the drawer it opens of things to make. */
   create: { EN: "Create", DA: "Opret" },
-  nothingToAdd: { EN: "Nothing to add here", DA: "Intet at tilføje her" },
 
   /** The title on the reminder job's push notification — read with no session, in the
    *  home the task belongs to rather than whoever happens to be looking at a screen. */
