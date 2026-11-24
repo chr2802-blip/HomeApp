@@ -46,3 +46,14 @@ Written in this commit: the tab bar section (and that phone e2e tests should use
 Lists), the baby log section, `--press` for screenshots, and the in-bar "+" replacing the
 greyed one. Not written, because it is now enforced by the type error it causes: the
 `as const satisfies` on copy files.
+
+## Afterwards: the app stopped scrolling in production
+
+Reported right after the merge. Every sheet saved `body.style.overflow` on open and put
+it back on close, so two sheets closing out of order left it "hidden". The tab bar's new
+"+" lives in the layout and outlives a page change, so its drawer was still closing when
+the next page's sheet opened — the old dashboard-only "+" unmounted with its page and
+never overlapped. **No test asked what `body.style.overflow` was after a sheet closed**;
+`e2e/scroll-lock.spec.ts` does now, and the lock is a counter (`lockScroll`). What would
+have caught it before production: a browser test that scrolls the page after the new
+flow, rather than only checking the sheet opened.

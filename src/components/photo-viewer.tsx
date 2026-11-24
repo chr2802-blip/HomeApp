@@ -1,5 +1,6 @@
 "use client";
 
+import { lockScroll } from "@/lib/scroll-lock";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { photoUrl } from "@/components/photo";
@@ -87,8 +88,7 @@ export function PhotoViewer({
     return holdHistoryEntry(() => onCloseRef.current());
   }, []);
   useEffect(() => {
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlock = lockScroll();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onCloseRef.current();
       else if (event.key === "ArrowRight") go(indexRef.current + 1);
@@ -97,7 +97,7 @@ export function PhotoViewer({
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = overflow;
+      unlock();
       if (tapTimer.current) clearTimeout(tapTimer.current);
     };
   }, [go]);
