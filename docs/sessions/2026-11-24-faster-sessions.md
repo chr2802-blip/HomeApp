@@ -71,6 +71,11 @@ The household chose: `RISK=low` runs no browser tests, `medium` the 41 tagged `@
 reads `RISK`, treats unset as `high`, and raises any level to `high` for paths every page
 stands on (`ALWAYS_HIGH`). The rubric is in CLAUDE.md under *Tests gate everything*.
 
+**Cost: one ~14-minute push thrown away.** `.githooks/pre-push` was edited while a push
+was running it. `sh` reads a script as it goes, so after all 344 browser tests had passed it
+read the rest of the *new* file at the old offset (`es: not found`) and the push failed.
+Never edit the hook while a push is running; commit edits to it after the push is done.
+
 Decided rather than known: which 41 tests are the smoke set, and what is in `ALWAYS_HIGH`.
 Both were picked by reading test titles and past incidents, not measured against which
 tests have ever caught anything — nothing records that.

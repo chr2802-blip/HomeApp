@@ -1811,6 +1811,9 @@ integration suite run at every level; only the browser suite (~11 min of the ~14
 | `medium` | the 41 tagged `@smoke` (`npm run e2e:smoke`, ~3 min) | changes one feature: a page, a component, an action, a fix that stays in its own area |
 | `high` | all of them | is shared by every page (`Modal`, `PageTransition`, the layouts, the tab bar, `useFormAction`), crosses several features, touches offline or the service worker, sessions or access, or is the kind of change that broke production before |
 
+- **Never edit `.githooks/pre-push` while a push is running it.** `sh` reads a script as
+  it goes, so the rest is read from the edited file at the old offset — a push lost after
+  all its tests had passed (2026-11-24).
 - **Say which, and why, in the message before the push** — the household sees the level,
   not the reasoning, unless it is written down. When unsure between two, take the higher.
 - **Unset is `high`**, and so is a push with no range to compare. **Some paths raise any
