@@ -62,6 +62,9 @@ test("a list with its own categories is set up, filled and sorted from its own p
   await page.getByRole("button", { name: "Move Firewood to another category" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Chemist" }).click();
   await expect(section("Chemist").getByText("Firewood")).toBeVisible();
+  // The sheet takes its own history entry back off as it closes (`popOwnEntry`); a
+  // reload started under that traverse is aborted, so it waits for the sheet to go.
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.reload();
   await expect(section("Chemist").getByText("Firewood")).toBeVisible();
   await expect(section("Hardware").getByText("Screws")).toBeVisible();

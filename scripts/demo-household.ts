@@ -278,7 +278,11 @@ export async function seedDemo(prisma: PrismaClient) {
   await prisma.user.deleteMany({ where: { email: { in: Object.values(DEMO_PEOPLE).map((person) => person.email) } } });
 
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
-  const alex = await prisma.user.create({ data: { ...DEMO_PEOPLE.alex, passwordHash } });
+  // Alex keeps the two baby shortcuts on the dashboard with the third place empty; Sam
+  // has chosen nothing — so tiles and the empty places are both on screen in one seed.
+  const alex = await prisma.user.create({
+    data: { ...DEMO_PEOPLE.alex, passwordHash, dashboardTiles: ["sleep", "feed", ""] },
+  });
   const sam = await prisma.user.create({ data: { ...DEMO_PEOPLE.sam, passwordHash } });
   const people = { alex, sam };
 

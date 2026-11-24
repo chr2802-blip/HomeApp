@@ -1,4 +1,33 @@
+import type { Locator } from "@playwright/test";
 import { ACCOUNTS, expect, test } from "./helpers/fixtures";
+
+/**
+ * Drags tab `name` by its grip and lets go over the row of tab `onto`, or — for null — on
+ * the heading above the rows, where there is nothing to drop on. In steps, because
+ * dnd-kit starts a drag only past its 6px and then follows the pointer's moves.
+ */
+async function drag(scope: Locator, name: string, onto: string | null) {
+  await expect(scope.locator("[data-pins-ready]")).toBeVisible();
+  const page = scope.page();
+  // Measured on screen: off it, the mouse lands on nothing and only selects text. The
+  // grip is scrolled to first, then the places above it, so both are in view at once.
+  const handle = scope.getByRole("button", { name: `Move ${name}`, exact: true });
+  await handle.scrollIntoViewIfNeeded();
+  await scope.getByText("In the tab bar", { exact: true }).scrollIntoViewIfNeeded();
+  await page.waitForTimeout(100);
+  const grip = await handle.boundingBox();
+  const target = await (onto
+    ? scope.locator(`[data-pin-row="${onto}"]`)
+    : scope.getByText("In the tab bar", { exact: true })
+  ).boundingBox();
+  if (!grip || !target) throw new Error("Nothing to drag, or nowhere to drop it.");
+  const x = grip.x + grip.width / 2;
+  await page.mouse.move(x, grip.y + grip.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(x, grip.y + grip.height / 2 - 10, { steps: 3 });
+  await page.mouse.move(x, target.y + target.height / 2, { steps: 12 });
+  await page.mouse.up();
+}
 
 /**
  * The phone's tab bar: Home, the person's two pins, the "+" and the menu — and the menu
@@ -28,16 +57,16 @@ test.describe("the tab bar", () => {
     await expect(lit(page, "Menu")).toHaveCSS("scale", "1.1");
   });
 
-  test("pins a tab in place of another, and remembers it", async ({ page }) => {
+  test("takes a place when a tab is dragged onto it, and the old one drops down", async ({ page }) => {
     await page.goto("/tasks");
     await bar(page).getByRole("button", { name: "Menu" }).click();
     const drawer = page.getByRole("dialog", { name: "All tabs" });
-    await drawer.getByRole("button", { name: "Pin Tasks to the tab bar" }).click();
-    await drawer.getByRole("button", { name: "Replace Lists" }).click();
+    await drag(drawer, "Tasks", "lists");
 
     // Under the thumb, and the page it is on is now in the bar — lit there once the
-    // menu, lit while it is open, has closed.
+    // menu, lit while it is open, has closed. Lists is among the others now.
     await expect(bar(page).getByRole("link")).toHaveText(["Home", "Food", "Tasks"]);
+    await expect(drawer.locator('[data-pin-row="lists"]')).not.toContainText("Place");
     await drawer.getByRole("button", { name: "Close" }).click();
     await expect(lit(page, "Tasks")).toHaveCSS("scale", "1.1");
 
@@ -45,11 +74,19 @@ test.describe("the tab bar", () => {
     await expect(bar(page).getByRole("link")).toHaveText(["Home", "Food", "Tasks"]);
   });
 
-  test("swaps the two places", async ({ page }) => {
+  test("swaps the two places when one is dragged onto the other", async ({ page }) => {
     await page.goto("/dashboard");
     await bar(page).getByRole("button", { name: "Menu" }).click();
-    await page.getByRole("dialog", { name: "All tabs" }).getByRole("button", { name: "Swap the two" }).click();
+    await drag(page.getByRole("dialog", { name: "All tabs" }), "Lists", "food");
     await expect(bar(page).getByRole("link")).toHaveText(["Home", "Lists", "Food"]);
+  });
+
+  test("lets go of nothing when dropped outside a row", async ({ page }) => {
+    await page.goto("/dashboard");
+    await bar(page).getByRole("button", { name: "Menu" }).click();
+    const drawer = page.getByRole("dialog", { name: "All tabs" });
+    await drag(drawer, "Tasks", null);
+    await expect(bar(page).getByRole("link")).toHaveText(["Home", "Food", "Lists"]);
   });
 
   test("goes to a tab that is not in the bar", async ({ page }) => {
@@ -63,8 +100,7 @@ test.describe("the tab bar", () => {
 
   test("is chosen on the profile too", async ({ page }) => {
     await page.goto("/profile");
-    await page.getByRole("button", { name: "Pin Tasks to the tab bar" }).click();
-    await page.getByRole("button", { name: "Replace Food" }).click();
+    await drag(page.locator("main"), "Tasks", "food");
     await expect(bar(page).getByRole("link")).toHaveText(["Home", "Tasks", "Lists"]);
   });
 });

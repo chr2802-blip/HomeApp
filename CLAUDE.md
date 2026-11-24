@@ -175,8 +175,12 @@ its icon, its `APP.nav` label — and `PINNABLE_TABS` if it may go in the bar.
 - **Which place is lit is `litPlace`**: Home, a pinned tab on any of its pages, and
   otherwise **Menu** — a tab not in the bar and every page outside the tabs (Settings,
   Profile) are reached from there. While the drawer is open, Menu is lit.
-- Pinning with both places taken asks which one makes way, under the row; it never
-  quietly replaces one.
+- **Pins are chosen by dragging** (`dropPin`, dnd-kit in `nav-pins.tsx`): a tab dropped
+  on a place takes it and the one there drops down among the others; the two places
+  dropped on each other swap. The place is the one under the finger (`pointerWithin`), so
+  nothing is replaced that was not pointed at. The grip is the only handle; the row's
+  name stays a link. `e2e/nav-pins.spec.ts`' `drag` scrolls the grip into view first —
+  a mouse off screen only selects text.
 - The desktop header (`NavLinks`) draws every tab. `TAB_PATHS` for `pageMotion` is the
   fixed menu order, not the person's bar, so a page comes in from the same side for
   everybody.
@@ -775,12 +779,17 @@ the dashboard's layout.**
 Almost nobody scrolls a dashboard, so every block is spending the only screen there is.
 
 - **The order of the blocks is what each one asks of you**: the date and greeting with the
-  week's ring beside them, three numbers (due for you, to buy, run out — each a link to
-  the page that answers it), then **Today** — the dinner, what is due for you, and what
+  week's ring beside them, the person's three tiles, then **Today** — the dinner, what is due for you, and what
   is due for somebody else (folded, count on the heading) as rows of one card — then the
   days ahead's dinners, then the lists.
-- **A number is a way in, not a report.** A tile answers a question somebody opens the
-  app with before they have read a row; anything it cannot link to does not get one.
+- **The three tiles are each person's own** (`User.dashboardTiles`, `readTiles` in
+  `src/lib/dashboard-tiles.ts`): start sleep, start breastfeed (V/H), create recipe, or
+  one of the home's lists (`list:<id>`). **Nothing is chosen for anybody**: a place never
+  filled, or holding a list this home does not have, is empty, and an empty place is the
+  one that says how to fill it ("press and hold"). Holding any tile opens the chooser;
+  `/profile` has the same choice. The sleep and feed tiles are the baby page's own
+  actions (`toggleSleep`, `pressBreastSide`), so a tile and `/baby` cannot disagree.
+  The old numbers (due for you, to buy, run out) were removed by the household's choice.
 - **Tonight's dinner is a row, not a hero.** The appetising photograph is one tap away.
   The page asks `tonightsDinner` itself and hands it to `DinnerRow`, because it has to
   know whether "Today" has anything in it before drawing the card.
@@ -794,7 +803,7 @@ Almost nobody scrolls a dashboard, so every block is spending the only screen th
   takes one more than it draws so the section knows without counting every list.
 - **The home's picture is a square beside the greeting, not a photo banner** — a photo's
   height is what the numbers and the days ahead needed. Drawn only when there is one.
-- **The opening — date, greeting, ring, the three numbers — hangs from the header as one
+- **The opening — date, greeting, ring, the three tiles — hangs from the header as one
   band** (`HomeBanner`, `.home-banner`), full width in the header's linen, rolling down on
   arrival and back up when a tab leads away (`useLeaveHome` holds the navigation for
   `banner-up`). It is the same content in the same height, so it costs the first screen
@@ -1888,6 +1897,10 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
   The input is `sr-only`, and inside a `Modal` still animating in Playwright calls it
   "outside of the viewport" even forced. `sheet.getByText(name, { exact: true }).click()`
   waits for the sheet and presses the chip a person would.
+- **A dnd-kit `DragOverlay` inside a sheet is portalled to `<body>`.** It is
+  `position: fixed`, and `Modal` animates with a `transform`, which makes a fixed child
+  fixed to the sheet: the overlay is drawn off screen. Its size is the draggable node's, so
+  the node is the row and the grip is `setActivatorNodeRef` (`nav-pins.tsx`).
 - **`<Card className="p-0">` keeps its padding.** `Card` writes `p-5` itself and which of
   two padding utilities wins is the stylesheet's order, not the attribute's — a card of
   rows whose rows were meant to run edge to edge is `padded={false}`.

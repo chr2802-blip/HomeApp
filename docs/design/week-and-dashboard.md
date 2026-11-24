@@ -129,10 +129,15 @@ What changed, and why each:
   what `e2e/tasks.spec.ts` reads.
 - **The date is written above the greeting**, in the home's colour. A front page says
   what day it is; "Hi Christian" alone said nothing that changes.
-- **Three numbers, each a link.** Due for you (with how many are overdue), still to buy
-  across every list, and what the pantry has run out of. These are the three questions
-  somebody opens the app with, answered before a row is read. A number that could not
-  link anywhere was not added: a tile is a way in, not a report.
+- **Three tiles, each person's own** (2026-11). They were three numbers — due for you,
+  still to buy, run out — on the reasoning that those are what everybody opens the app
+  with. In practice the household opened it to *do* one thing: start a sleep, start a
+  feed, open the shopping list, write down a recipe. So each place is now a shortcut the
+  person chose (`User.dashboardTiles`), and the numbers were removed rather than kept as
+  options, at the household's request. A place nobody filled is drawn empty and says
+  "press and hold to add", which is the one place the gesture is explained — where the
+  thumb has to go. Nothing is filled in on anybody's behalf: a default would be one
+  person's shortcuts on another person's phone.
 - **"Today" is one card.** The dinner, what is due for you, and the fold for somebody
   else's, as rows separated by hairlines, each group under a small label (the labels keep
   the headings the tests and screen readers find). A task is one row: the date as
