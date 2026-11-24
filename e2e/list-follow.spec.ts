@@ -42,7 +42,7 @@ const tickBox = (page: Page, text: string) =>
     name: "Mark as done",
   });
 
-test("a tick on one phone reaches the other without a reload", async ({
+test("a tick on one phone reaches the other without a reload", { tag: "@smoke" }, async ({
   page,
   loginAs,
   browser,

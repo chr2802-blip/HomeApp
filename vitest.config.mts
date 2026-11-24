@@ -27,8 +27,9 @@ export default defineConfig({
   },
   test: {
     // An `it.only` left in is a file reduced to one test, which reads as a pass. The
-    // browser suite has refused one on CI since it was written; this is the same rule.
-    allowOnly: !process.env.CI,
+    // browser suite has refused one at the gate since it was written; this is the same
+    // rule. `TEST_GATE` is set by the pre-push hook, which is the only gate there is.
+    allowOnly: !(process.env.CI || process.env.TEST_GATE),
     env: {
       DATABASE_URL: databaseUrl,
       DIRECT_URL: databaseUrl,

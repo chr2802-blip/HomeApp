@@ -2,7 +2,7 @@ import { ACCOUNTS, expect, logInThroughForm, test } from "./helpers/fixtures";
 import { HOME_NAME, prisma } from "./helpers/database";
 
 test.describe("signing in", () => {
-  test("a member logs in and lands on the dashboard", async ({ page }) => {
+  test("a member logs in and lands on the dashboard", { tag: "@smoke" }, async ({ page }) => {
     // The one test that is about the form itself, so it fills it in rather than
     // starting from a session the way every other spec does.
     await logInThroughForm(page, ACCOUNTS.member);
@@ -13,7 +13,7 @@ test.describe("signing in", () => {
     await expect(page.getByText(ACCOUNTS.member.name)).toBeVisible();
   });
 
-  test("a wrong password is refused and the session stays out", async ({ page }) => {
+  test("a wrong password is refused and the session stays out", { tag: "@smoke" }, async ({ page }) => {
     await page.goto("/login");
     await page.getByLabel("Email").fill(ACCOUNTS.member.email);
     await page.getByLabel("Password").fill("definitely-wrong");
@@ -36,7 +36,7 @@ test.describe("signing in", () => {
     await expect(page.getByText("Wrong email or password.")).toBeVisible();
   });
 
-  test("logging out ends the session", async ({ page, loginAs }) => {
+  test("logging out ends the session", { tag: "@smoke" }, async ({ page, loginAs }) => {
     await loginAs(ACCOUNTS.member);
 
     await page.getByRole("button", { name: "Log out" }).click();
@@ -57,7 +57,7 @@ test.describe("pages that need a session", () => {
 });
 
 test.describe("joining with an invitation link", () => {
-  test("an admin makes a link and a newcomer signs up through it", async ({ page, loginAs }) => {
+  test("an admin makes a link and a newcomer signs up through it", { tag: "@smoke" }, async ({ page, loginAs }) => {
     await loginAs(ACCOUNTS.admin);
     await page.goto("/settings/members");
     await page.getByRole("button", { name: "Make invitation link" }).click();

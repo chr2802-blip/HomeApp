@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useEffect, useMemo, useOptimistic, useState } from "react";
+import { Fragment, startTransition, useEffect, useMemo, useOptimistic, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/components/language-provider";
@@ -16,13 +16,14 @@ import { readDayInZone, shiftDay } from "@/lib/time";
 import {
   MAX_BABY_NAME_LENGTH,
   clipToDay,
+  endOf,
   diapersOn,
   entriesOn,
   feedMethodOf,
   isNightSleep,
   isRunning,
   lastBreastSide,
-  lastFeedAt,
+  lastFeed,
   otherSide,
   readBabyDetails,
   resumableFeed,
@@ -126,12 +127,15 @@ export function BabyLog({
   day,
   today,
   solids,
+  show: initialShow = null,
 }: {
   baby: BabySettings;
   entries: WireEntry[];
   day: string;
   today: string;
   solids: string[];
+  /** The kind the list is narrowed to, from `?show=` — a tile pressed. */
+  show?: BabyColorKind | null;
 }) {
   const language = useLanguage();
   const say = sayIn(language);
@@ -140,7 +144,19 @@ export function BabyLog({
   const running = entries.some(isRunning);
   const now = useNow(running || asleep);
   const [sheet, setSheet] = useState<Sheet>(null);
+  const [show, setShow] = useState<BabyColorKind | null>(initialShow);
   useFollow();
+
+  // A tile pressed narrows the day's list to its kind, and pressed again shows everything.
+  // Kept in the address too, so paging the day keeps it and a reload comes back to it.
+  const toggleShow = (kind: BabyColorKind) => {
+    const next = show === kind ? null : kind;
+    setShow(next);
+    const url = new URL(window.location.href);
+    if (next) url.searchParams.set("show", next);
+    else url.searchParams.delete("show");
+    window.history.replaceState(window.history.state, "", url);
+  };
 
   const methods: FeedMethod[] = [
     ...(baby.trackBreast ? (["BREAST"] as const) : []),
@@ -151,11 +167,11 @@ export function BabyLog({
   const feeds = methods.length > 0 || runningBreast !== null;
 
   const sleep = sleepState(entries, now);
-  const fed = lastFeedAt(entries, now);
+  const fed = lastFeed(entries, now);
   const lastDiaper = entries
     .filter((entry) => entry.kind === "DIAPER")
     .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())[0];
-  const shown = entriesOn(entries, day, now);
+  const shown = entriesOn(entries, day, now).filter((entry) => !show || kindColor(entry) === show);
 
   const pressSleep = () =>
     startTransition(async () => {
@@ -199,6 +215,8 @@ export function BabyLog({
         {baby.trackSleep && (
           <Tile
             kind="sleep"
+            pressed={show === "sleep"}
+            onPress={() => toggleShow("sleep")}
             strong={sleep?.asleep === true}
             label={say(sleep?.asleep ? BABY.asleep : sleep ? BABY.awake : BABY.sleep)}
             value={
@@ -210,14 +228,25 @@ export function BabyLog({
         {feeds && (
           <Tile
             kind="feed"
-            label={say(BABY.feed)}
-            value={fed ? durationWords(now.getTime() - fed.getTime(), language) : say(BABY.notYet)}
-            detail={fed ? say(BABY.since, { time: timeWords(fed, language) }) : ""}
+            pressed={show === "feed"}
+            onPress={() => toggleShow("feed")}
+            strong={fed?.running === true}
+            label={say(fed?.method === "BREAST" ? BABY.breast : BABY.feed)}
+            value={
+              fed?.running
+                ? say(BABY.feedingNowShort)
+                : fed
+                  ? durationWords(now.getTime() - fed.at.getTime(), language)
+                  : say(BABY.notYet)
+            }
+            detail={fed ? say(fed.running ? BABY.since : BABY.endedAt, { time: timeWords(fed.at, language) }) : ""}
           />
         )}
         {baby.trackDiaper && (
           <Tile
             kind="diaper"
+            pressed={show === "diaper"}
+            onPress={() => toggleShow("diaper")}
             label={say(BABY.diapers)}
             value={say(BABY.countToday, { n: diapersOn(entries, today) })}
             detail={lastDiaper ? say(BABY.lastAt, { time: timeWords(lastDiaper.startedAt, language) }) : ""}
@@ -225,13 +254,50 @@ export function BabyLog({
         )}
       </div>
 
-      <DayPager day={day} today={today} />
+      <DayPager day={day} today={today} show={show} />
       <DayStrip entries={entries} day={day} now={now} />
 
+      {show && (
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <span className="text-xs font-bold tracking-wide uppercase" style={{ color: babyColor(show, "-text") }}>
+            {say(show === "sleep" ? BABY.sleep : show === "feed" ? BABY.feed : BABY.diapers)}
+          </span>
+          <button
+            type="button"
+            onClick={() => toggleShow(show)}
+            className="press-text tap-inline text-sm font-semibold text-[var(--accent-text)]"
+          >
+            {say(BABY.showAll)}
+          </button>
+        </div>
+      )}
       {shown.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">
           {say(BABY.nothingOnDay)}
         </p>
+      ) : show ? (
+        // One kind at a time reads as a run: each entry, and between two of them the time
+        // that passed — for sleep, the time awake.
+        <ul className="flex flex-col" data-baby-focus={show}>
+          {shown.map((entry, index) => {
+            const older = shown[index + 1];
+            const gap = older ? entry.startedAt.getTime() - endOf(older, now).getTime() : 0;
+            return (
+              <Fragment key={entry.id}>
+                <li className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                  <EntryRow entry={entry} now={now} solids={solids} as="div" />
+                </li>
+                {older && gap >= 60_000 && (
+                  <li className="flex items-center gap-3 py-1.5 pl-9 text-sm text-slate-500" data-baby-gap>
+                    <span aria-hidden="true" className="h-7 border-l-2 border-dashed border-slate-300" />
+                    {say(show === "sleep" ? BABY.awakeGap : BABY.betweenGap, { time: durationWords(gap, language) })}
+                  </li>
+                )}
+                {older && gap < 60_000 && <li aria-hidden="true" className="h-2" />}
+              </Fragment>
+            );
+          })}
+        </ul>
       ) : (
         <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white shadow-sm">
           {shown.map((entry) => (
@@ -369,17 +435,28 @@ function Tile({
   value,
   detail,
   strong = false,
+  pressed,
+  onPress,
 }: {
   kind: BabyColorKind;
   label: string;
   value: string;
   detail: string;
   strong?: boolean;
+  pressed: boolean;
+  onPress: () => void;
 }) {
   return (
-    <div
-      className="flex min-w-0 flex-col gap-0.5 rounded-2xl border border-slate-200 px-3 py-2.5 shadow-sm"
-      style={{ background: strong ? babyColor(kind, "-soft") : "var(--color-white)" }}
+    <button
+      type="button"
+      onClick={onPress}
+      aria-pressed={pressed}
+      className="press-card flex min-w-0 flex-col gap-0.5 rounded-2xl border border-slate-200 px-3 py-2.5 text-left shadow-sm"
+      style={{
+        background: strong ? babyColor(kind, "-soft") : "var(--color-white)",
+        borderColor: pressed ? babyColor(kind) : undefined,
+        boxShadow: pressed ? `0 0 0 1px ${babyColor(kind)}` : undefined,
+      }}
       data-baby-tile={kind}
     >
       <span className="truncate text-[11px] font-bold tracking-wide uppercase" style={{ color: babyColor(kind, "-text") }}>
@@ -387,27 +464,34 @@ function Tile({
       </span>
       <span className="truncate text-lg leading-tight font-bold text-slate-900">{value}</span>
       <span className="truncate text-xs text-slate-500">{detail || " "}</span>
-    </div>
+    </button>
   );
 }
 
-function DayPager({ day, today }: { day: string; today: string }) {
+function DayPager({ day, today, show }: { day: string; today: string; show: BabyColorKind | null }) {
   const language = useLanguage();
   const say = sayIn(language);
   const yesterday = shiftDay(today, -1);
   const name = day === today ? say(BABY.today) : day === yesterday ? say(BABY.yesterday) : null;
   const arrow = "press-icon flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600";
+  const to = (target: string | null) => {
+    const params = new URLSearchParams();
+    if (target) params.set("day", target);
+    if (show) params.set("show", show);
+    const query = params.toString();
+    return query ? `/baby?${query}` : "/baby";
+  };
   return (
     <div className="mb-3 flex items-center justify-between gap-2">
-      <Link href={`/baby?day=${shiftDay(day, -1)}`} replace scroll={false} aria-label={say(BABY.previousDay)} className={arrow}>
+      <Link href={to(shiftDay(day, -1))} replace scroll={false} aria-label={say(BABY.previousDay)} className={arrow}>
         <Chevron flip />
       </Link>
-      <Link href="/baby" replace scroll={false} className="press-text min-w-0 text-center">
+      <Link href={to(null)} replace scroll={false} className="press-text min-w-0 text-center">
         <span className="block font-semibold text-slate-800">{name ?? readDayInZone(day, BABY.dayPattern, language)}</span>
         {name && <span className="block text-xs text-slate-500">{readDayInZone(day, BABY.dayPattern, language)}</span>}
       </Link>
       {day < today ? (
-        <Link href={day === yesterday ? "/baby" : `/baby?day=${shiftDay(day, 1)}`} replace scroll={false} aria-label={say(BABY.nextDay)} className={arrow}>
+        <Link href={to(day === yesterday ? null : shiftDay(day, 1))} replace scroll={false} aria-label={say(BABY.nextDay)} className={arrow}>
           <Chevron />
         </Link>
       ) : (
@@ -463,7 +547,17 @@ function DayStrip({ entries, day, now }: { entries: BabyEntry[]; day: string; no
   );
 }
 
-function EntryRow({ entry, now, solids }: { entry: BabyEntry; now: Date; solids: string[] }) {
+function EntryRow({
+  entry,
+  now,
+  solids,
+  as: Tag = "li",
+}: {
+  entry: BabyEntry;
+  now: Date;
+  solids: string[];
+  as?: "li" | "div";
+}) {
   const language = useLanguage();
   const say = sayIn(language);
   const { title, detail } = describeEntry(entry, language, now);
@@ -493,7 +587,7 @@ function EntryRow({ entry, now, solids }: { entry: BabyEntry; now: Date; solids:
           : null;
 
   return (
-    <li className="flex items-center gap-3 py-2.5 pr-1.5 pl-4" data-baby-entry={entry.kind}>
+    <Tag className="flex items-center gap-3 py-2.5 pr-1.5 pl-4" data-baby-entry={entry.kind}>
       <span className="w-11 shrink-0 text-sm font-bold text-slate-600 tabular-nums">{time}</span>
       <span
         aria-hidden="true"
@@ -519,7 +613,7 @@ function EntryRow({ entry, now, solids }: { entry: BabyEntry; now: Date; solids:
       >
         {edit?.fields}
       </ItemMenu>
-    </li>
+    </Tag>
   );
 }
 

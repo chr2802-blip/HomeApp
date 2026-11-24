@@ -380,7 +380,7 @@ test("a name the household already keeps is refused, and the row says what it sa
   await expect(quantityGroup(page, "Sukker")).toBeVisible();
 });
 
-test("a recipe leaves the pantry's own lines off the shopping list", async ({ page }) => {
+test("a recipe leaves the pantry's own lines off the shopping list", { tag: "@smoke" }, async ({ page }) => {
   await newList(page, "Groceries");
 
   await page.goto("/pantry");
@@ -406,7 +406,7 @@ test("a recipe leaves the pantry's own lines off the shopping list", async ({ pa
   await expect(page.getByText("Salt", { exact: true })).toHaveCount(0);
 });
 
-test("a recipe made twice takes two stk from the cupboard", async ({ page }) => {
+test("a recipe made twice takes two stk from the cupboard", { tag: "@smoke" }, async ({ page }) => {
   await newList(page, "Groceries");
 
   await page.goto("/pantry");
@@ -466,7 +466,7 @@ test("everything that has run out goes onto a list in one press", async ({ page 
   await expect(page.getByText("Salt", { exact: true })).toHaveCount(0);
 });
 
-test("a line naming two things the pantry only partly has is asked about, not guessed at", async ({
+test("a line naming two things the pantry only partly has is asked about, not guessed at", { tag: "@smoke" }, async ({
   page,
 }) => {
   await newList(page, "Groceries");

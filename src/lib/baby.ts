@@ -271,11 +271,27 @@ export function sleepState(entries: readonly BabyEntry[], now: Date): SleepState
   return lastEnd ? { asleep: false, since: lastEnd } : null;
 }
 
-/** When the newest feed started, or null for none. */
-export function lastFeedAt(entries: readonly BabyEntry[], now: Date): Date | null {
-  const feeds = entries.filter((entry) => entry.kind === "FEED" && entry.startedAt <= now);
-  if (feeds.length === 0) return null;
-  return new Date(Math.max(...feeds.map((entry) => entry.startedAt.getTime())));
+/**
+ * The last feed, as the tile at the top reads it: what kind it was, whether it is still
+ * going, and the moment "how long since" counts from. A breast feed counts from when it
+ * *ended* — the gap between feeds is the question at 3 a.m., and a 40-minute feed would
+ * otherwise eat 40 minutes of it — while a bottle or solids, a moment with no end, counts
+ * from when it was given. A feed still running is always the last one. Null for none.
+ */
+export function lastFeed(
+  entries: readonly BabyEntry[],
+  now: Date,
+): { method: FeedMethod; running: boolean; at: Date } | null {
+  let last: { method: FeedMethod; running: boolean; at: Date } | null = null;
+  for (const entry of entries) {
+    if (entry.kind !== "FEED" || entry.startedAt > now) continue;
+    const method = feedMethodOf(entry)!;
+    const running = isRunning(entry);
+    const at = method === "BREAST" && entry.endedAt ? entry.endedAt : entry.startedAt;
+    if (last?.running && !running) continue;
+    if (!last || (running && !last.running) || at > last.at) last = { method, running, at };
+  }
+  return last;
 }
 
 /** The instants a day in the household's zone runs between, the end exclusive. */

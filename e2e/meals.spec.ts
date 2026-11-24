@@ -123,7 +123,7 @@ test("the week starts as seven days with nothing planned", async ({ page }) => {
   await expect(page.getByText("Today", { exact: true })).toBeVisible();
 });
 
-test("a recipe can be planned for a day, and shows on that day", async ({ page }) => {
+test("a recipe can be planned for a day, and shows on that day", { tag: "@smoke" }, async ({ page }) => {
   await seedRecipe("Pancakes");
   await page.reload();
 
@@ -368,7 +368,7 @@ test("a recipe is offered once, under the first group that claims it", async ({ 
   await expect(choice(page, /Beef stew/)).toHaveCount(1);
 });
 
-test("every recipe planned this week goes onto a chosen list in one press", async ({ page }) => {
+test("every recipe planned this week goes onto a chosen list in one press", { tag: "@smoke" }, async ({ page }) => {
   const [, monday, tuesday] = weekDays(FUTURE_WEEK);
   await seedRecipe("Pancakes", "Milk\nFlour");
   await seedRecipe("Curry", "Rice\nMilk");

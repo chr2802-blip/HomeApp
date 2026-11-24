@@ -72,7 +72,7 @@ test("the empty state says there are no tasks", async ({ page }) => {
   await expect(page.getByText("No chores written down yet. Lucky you — or add the first one above.")).toBeVisible();
 });
 
-test("a new task appears as due today, and its page says the rest", async ({ page }) => {
+test("a new task appears as due today, and its page says the rest", { tag: "@smoke" }, async ({ page }) => {
   await addTask(page, { title: "Water the plants", intervalDays: "7", notes: "Both windowsills" });
 
   await expect(row(page, "Water the plants")).toContainText("Due today · Every 7 days");
@@ -84,7 +84,7 @@ test("a new task appears as due today, and its page says the rest", async ({ pag
   await expect(page.getByText("Not yet")).toBeVisible();
 });
 
-test("completing a task reschedules it and records the completion", async ({ page }) => {
+test("completing a task reschedules it and records the completion", { tag: "@smoke" }, async ({ page }) => {
   await addTask(page, { title: "Change the filter", intervalDays: "30" });
   await expect(page.getByText("Due today")).toBeVisible();
 
@@ -96,7 +96,7 @@ test("completing a task reschedules it and records the completion", async ({ pag
   await expect(page.getByText("Not yet")).toBeHidden();
 });
 
-test("a task can be marked done from its own page", async ({ page }) => {
+test("a task can be marked done from its own page", { tag: "@smoke" }, async ({ page }) => {
   await addTask(page, { title: "Change the filter", intervalDays: "30" });
   await openTaskPage(page, "Change the filter");
   await expect(page.getByText("Not yet")).toBeVisible();
@@ -325,7 +325,7 @@ test("marking a task done does not leave the list", async ({ page }) => {
   await expect(page.getByRole("dialog")).toBeHidden();
 });
 
-test("a one-off is added with no interval to give", async ({ page }) => {
+test("a one-off is added with no interval to give", { tag: "@smoke" }, async ({ page }) => {
   await openDialog(page, "New task");
   await page.getByLabel("Task", { exact: true }).fill("Book the plumber");
   await page.getByLabel("Repeat", { exact: true }).selectOption({ label: "Just once" });
