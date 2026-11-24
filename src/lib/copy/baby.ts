@@ -148,6 +148,7 @@ export const BABY = {
   sleepChart: { EN: "Sleep around the clock", DA: "Søvn døgnet rundt" },
   feedChart: { EN: "Feeding rhythm", DA: "Måltidsrytme" },
   sleepTotals: { EN: "Hours of sleep per day", DA: "Timers søvn pr. dag" },
+  median: { EN: "Median", DA: "Median" },
   diaperTotals: { EN: "Nappies per day", DA: "Bleer pr. dag" },
   nothingInPeriod: { EN: "Nothing logged in this period.", DA: "Intet logget i perioden." },
   chartSummary: {

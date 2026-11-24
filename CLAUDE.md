@@ -59,7 +59,7 @@ Alex (admin) and Sam (member) in all three, password `demo-password`. It deletes
 remakes only its own homes and people, and refuses a database not on this machine.
 `screenshot` (`scripts/screenshot.ts`) needs `npm run dev` already running: it signs a
 session with `.env`'s `AUTH_SECRET` (no login form), switches to `--home flat|da|empty`,
-shoots each path at 390×844 into `screenshots/` (git-ignored), and prints the files.
+shoots each path at 390×844 into `screenshots/` (git-ignored), and prints the files. **`--out` names a directory, not a file** — `--out x.png` makes a folder called `x.png` in the checkout, which then has to be kept out of the commit; leave it off, or point it inside `screenshots/`.
 `--as sam`, `--full`, `--width`/`--height`, `--wait <ms>`, `--slow 0.1` (every animation
 at a tenth of its speed, through CDP) and `--press "<button name>"` (pressed before the
 shot, repeatable — `--press Menu` opens the tab bar's drawer, and a three-dot menu's

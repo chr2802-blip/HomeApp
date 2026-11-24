@@ -31,9 +31,14 @@ function Axis({ dense }: { dense: boolean }) {
 }
 
 function DayLabel({ day, language, dense }: { day: string; language: HomeLanguage; dense: boolean }) {
+  const median = day === "median";
   return (
-    <span className={`shrink-0 text-[11px] leading-none font-semibold whitespace-nowrap text-slate-600 ${dense ? "w-13" : "w-9"}`}>
-      {readDayInZone(day, dense ? BABY.shortDay : BABY.weekday, language)}
+    <span
+      className={`shrink-0 text-[11px] leading-none whitespace-nowrap ${dense ? "w-13" : "w-9"} ${
+        median ? "font-bold text-[var(--accent-text)]" : "font-semibold text-slate-600"
+      }`}
+    >
+      {median ? sayIn(language)(BABY.median) : readDayInZone(day, dense ? BABY.shortDay : BABY.weekday, language)}
     </span>
   );
 }
@@ -58,6 +63,14 @@ function Key({ color, shape = "bar", label }: { color: string; shape?: "bar" | "
   );
 }
 
+/** The period's days, then the median day apart from them under a rule. */
+function withMedian(summary: PeriodSummary): { row: DayChart; median: boolean }[] {
+  const rows = summary.days.map((row) => ({ row, median: false }));
+  return summary.median ? [...rows, { row: summary.median, median: true }] : rows;
+}
+
+const medianRule = "mt-1 border-t border-dashed border-slate-300 pt-2";
+
 /** One row per day on a 24-hour line: sleep as blocks, feeds and nappies as dots above and below. */
 export function SleepChart({ summary, language }: { summary: PeriodSummary; language: HomeLanguage }) {
   const say = sayIn(language);
@@ -65,8 +78,8 @@ export function SleepChart({ summary, language }: { summary: PeriodSummary; lang
   return (
     <Card title={say(BABY.sleepChart)} label={say(BABY.sleepChart)}>
       <div aria-hidden="true" className={`flex flex-col ${dense ? "gap-1" : "gap-2"}`}>
-        {summary.days.map((row) => (
-          <div key={row.day} className="flex items-center gap-2" data-chart-row={row.day}>
+        {withMedian(summary).map(({ row, median }) => (
+          <div key={row.day} className={`flex items-center gap-2 ${median ? medianRule : ""}`} data-chart-row={row.day}>
             <DayLabel day={row.day} language={language} dense={dense} />
             <div className={`relative flex-1 rounded bg-slate-100 ${dense ? "h-2.5" : "h-5"}`}>
               {row.sleep.map((block, index) => (
@@ -124,8 +137,8 @@ export function FeedChart({ summary, language }: { summary: PeriodSummary; langu
   return (
     <Card title={say(BABY.feedChart)} label={say(BABY.feedChart)}>
       <div aria-hidden="true" className={`flex flex-col ${dense ? "gap-1" : "gap-2"}`}>
-        {summary.days.map((row) => (
-          <div key={row.day} className="flex items-center gap-2">
+        {withMedian(summary).map(({ row, median }) => (
+          <div key={row.day} className={`flex items-center gap-2 ${median ? medianRule : ""}`}>
             <DayLabel day={row.day} language={language} dense={dense} />
             <div className={`relative flex-1 border-b border-slate-100 ${dense ? "h-2.5" : "h-4"}`}>
               {row.feeds.map((feed, index) => (
@@ -154,52 +167,62 @@ export function FeedChart({ summary, language }: { summary: PeriodSummary; langu
   );
 }
 
-/** Bars per day: hours of sleep, night under nap, and nappies. */
+/** Bars per day: the whole day, night under nap under awake, then nappies — the median day last. */
 export function TotalsChart({ summary, language }: { summary: PeriodSummary; language: HomeLanguage }) {
   const say = sayIn(language);
   const dense = summary.days.length > 7;
-  const sleepScale = Math.max(16, Math.ceil(summary.maxSleep));
+  const rows = withMedian(summary);
+  // A whole day is the scale, so a bar is the day and the parts are its shares of it.
+  const dayScale = Math.max(24, ...rows.map(({ row }) => row.nightHours + row.napHours + row.awakeHours));
   const diaperScale = Math.max(8, summary.maxDiapers);
-  const label = (day: string) => readDayInZone(day, dense ? BABY.shortDay : BABY.weekday, language);
+  const locale = language === "DA" ? "da-DK" : "en-GB";
+  const one = (value: number) => (Math.round(value * 10) / 10).toLocaleString(locale);
+  const label = (row: DayChart) =>
+    row.day === "median" ? say(BABY.median) : readDayInZone(row.day, dense ? BABY.shortDay : BABY.weekday, language);
+  const column = (median: boolean) =>
+    `flex min-w-0 flex-col items-stretch justify-end ${median ? (dense ? "ml-2 w-6 shrink-0" : "ml-2 flex-1") : "flex-1"}`;
+  const labels = (
+    <div aria-hidden="true" className={`mt-1 flex text-center text-[10px] font-semibold text-slate-600 ${dense ? "gap-0.5" : "gap-2"}`}>
+      {rows.map(({ row, median }) => (
+        <span key={row.day} className={`${column(median)} ${median ? "overflow-visible text-[var(--accent-text)]" : "truncate"} ${dense && !median ? "invisible" : ""}`}>
+          {dense && median ? "Md" : label(row)}
+        </span>
+      ))}
+    </div>
+  );
   return (
     <Card title={say(BABY.sleepTotals)} label={say(BABY.sleepTotals)}>
-      <div aria-hidden="true" className={`flex h-36 items-end border-b border-slate-200 ${dense ? "gap-0.5" : "gap-2"}`}>
-        {summary.days.map((row) => {
-          const total = row.nightHours + row.napHours;
+      <div aria-hidden="true" className={`flex h-40 items-end border-b border-slate-200 ${dense ? "gap-0.5" : "gap-2"}`}>
+        {rows.map(({ row, median }) => {
+          const sleep = row.nightHours + row.napHours;
+          const height = (hours: number) => `${(hours / dayScale) * 136}px`;
           return (
-            <div key={row.day} className="flex min-w-0 flex-1 flex-col items-stretch justify-end">
-              {!dense && total > 0 && (
-                <span className="mb-0.5 text-center text-[10px] text-slate-600">{(Math.round(total * 10) / 10).toLocaleString(language === "DA" ? "da-DK" : "en-GB")}</span>
-              )}
-              <span className="rounded-t-[3px]" style={{ height: `${(row.napHours / sleepScale) * 120}px`, background: "var(--baby-nap)" }} />
-              <span style={{ height: `${(row.nightHours / sleepScale) * 120}px`, background: "var(--baby-sleep)" }} />
+            <div key={row.day} className={column(median)}>
+              {!dense && sleep > 0 && <span className="mb-0.5 text-center text-[10px] text-slate-600">{one(sleep)}</span>}
+              <span className="rounded-t-[3px] bg-slate-200" style={{ height: height(row.awakeHours) }} />
+              <span style={{ height: height(row.napHours), background: "var(--baby-nap)" }} />
+              <span style={{ height: height(row.nightHours), background: "var(--baby-sleep)" }} />
             </div>
           );
         })}
       </div>
-      {!dense && (
-        <div aria-hidden="true" className="mt-1 flex gap-2 text-center text-[10px] font-semibold text-slate-600">
-          {summary.days.map((row) => (
-            <span key={row.day} className="min-w-0 flex-1 truncate">
-              {label(row.day)}
-            </span>
-          ))}
-        </div>
-      )}
+      {labels}
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
         <Key color="var(--baby-sleep)" label={say(BABY.night)} />
         <Key color="var(--baby-nap)" label={say(BABY.nap)} />
+        <Key color="var(--color-slate-200)" label={say(BABY.awake)} />
       </div>
 
       <p className="mt-5 mb-3 text-xs font-semibold tracking-wide text-slate-500 uppercase">{say(BABY.diaperTotals)}</p>
       <div aria-hidden="true" className={`flex h-20 items-end border-b border-slate-200 ${dense ? "gap-0.5" : "gap-2"}`}>
-        {summary.days.map((row) => (
-          <div key={row.day} className="flex min-w-0 flex-1 flex-col justify-end">
+        {rows.map(({ row, median }) => (
+          <div key={row.day} className={column(median)}>
             {!dense && row.diaperCount > 0 && <span className="mb-0.5 text-center text-[10px] text-slate-600">{row.diaperCount}</span>}
             <span className="rounded-t-[3px]" style={{ height: `${(row.diaperCount / diaperScale) * 64}px`, background: babyColor("diaper") }} />
           </div>
         ))}
       </div>
+      {labels}
     </Card>
   );
 }
