@@ -61,11 +61,50 @@ describe("a day's row", () => {
     expect(today).toMatchObject({ diaperCount: 1, dirtyCount: 1, diapers: [{ at: 8 }] });
   });
 
-  it("averages only over days with something logged", () => {
+  it("takes the median only over days with something logged", () => {
     const summary = summarise(all, periodDays("2026-11-24", "week"), now);
     expect(summary.days).toHaveLength(7);
-    expect(summary.average.nightHours).toBe(5);
-    expect(summary.average.feedCount).toBe(1.5);
+    expect(summary.typical.nightHours).toBe(5);
+    expect(summary.typical.feedCount).toBe(1.5);
     expect(summary.maxSleep).toBe(7.5);
+  });
+});
+
+describe("awake time and the median day", () => {
+  const day = (d: string, nightTo: string, napFrom: string, napTo: string, feedAt: string): BabyEntry[] => [
+    entry("SLEEP", `${d}T00:00:00Z`, `${d}T${nightTo}:00Z`),
+    entry("SLEEP", `${d}T${napFrom}:00Z`, `${d}T${napTo}:00Z`),
+    entry("FEED", `${d}T${feedAt}:00Z`, null, { method: "BOTTLE", milk: "FORMULA", ml: 100 }),
+  ];
+  // Copenhagen midnight is 23:00Z the day before, so each night here starts at 01:00 local.
+  const all = [
+    ...day("2026-11-20", "05:00", "10:00", "11:00", "06:00"),
+    ...day("2026-11-21", "05:30", "10:30", "11:30", "06:30"),
+    ...day("2026-11-22", "06:00", "13:00", "14:00", "07:00"),
+  ];
+
+  it("makes a logged day 24 hours, and today only up to now", () => {
+    const row = chartDay(all, "2026-11-20", now);
+    expect(row.nightHours + row.napHours + row.awakeHours).toBe(24);
+    expect(chartDay(all, "2026-11-19", now).awakeHours).toBe(0);
+    const today = chartDay([entry("DIAPER", "2026-11-24T07:00:00Z", null, { wet: true })], "2026-11-24", now);
+    expect(today.awakeHours).toBe(15); // 00:00 → 15:00 local
+  });
+
+  it("is asleep where most days were, and takes each figure's median", () => {
+    const summary = summarise(all, periodDays("2026-11-24", "week"), now);
+    const median = summary.median!;
+    expect(median.napHours).toBe(1);
+    expect(median.feedCount).toBe(1);
+    expect(median.feeds).toEqual([{ at: 7.5, method: "BOTTLE" }]);
+    // Asleep 01:00–06:30 on two of three days; the nap at 11:30–12:00 local on two of three.
+    expect(median.sleep.map(({ from, to }) => [from, to])).toEqual([
+      [1, 6.5],
+      [11.5, 12],
+    ]);
+  });
+
+  it("is left out for a single day", () => {
+    expect(summarise(all, ["2026-11-20"], now).median).toBeNull();
   });
 });
