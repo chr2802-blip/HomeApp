@@ -19,11 +19,11 @@
  * Alex (an admin everywhere) and Sam (a member) are in all three; both log in with
  * `DEMO_PASSWORD`. Refuses any database that is not on this machine.
  */
-import { PrismaClient, type HomeLanguage, type PantryCategory, type ListGrouping, type PantryMeasure, type ShopAisle } from "@prisma/client";
+import { PrismaClient, type Prisma, type HomeLanguage, type PantryCategory, type ListGrouping, type PantryMeasure, type ShopAisle } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { createHash } from "crypto";
 import { pantryKey } from "../src/lib/pantry";
-import { dueAtDaysFrom, todayInZone, weekStartInZone } from "../src/lib/time";
+import { dayStartInstant, dueAtDaysFrom, shiftDay, todayInZone, weekStartInZone } from "../src/lib/time";
 import { canSealSecrets, sealSecret } from "../src/lib/secret-box";
 import { DEMO_HOMES, DEMO_PASSWORD, DEMO_PEOPLE, type DemoHomeKey } from "./demo-cast";
 import { pngBytes } from "../tests/helpers/images";
@@ -308,7 +308,10 @@ export async function seedDemo(prisma: PrismaClient) {
         createdById: alex.id,
       },
     });
-    if (spec.livedIn) await furnish(prisma, home.id, CONTENT[spec.language], people);
+    if (spec.livedIn) {
+      await furnish(prisma, home.id, CONTENT[spec.language], people);
+      await furnishBaby(prisma, home.id, spec.language, people);
+    }
   }
 
   await prisma.user.updateMany({ where: { id: { in: [alex.id, sam.id] } }, data: { activeHomeId: homes.flat } });
@@ -491,4 +494,55 @@ async function furnish(
   await prisma.clearedWeek.createMany({
     data: [weekStartInZone(now), weekStartInZone(new Date(now.getTime() - 7 * DAY))].map((week) => ({ homeId, week })),
   });
+}
+
+/**
+ * A baby log a fortnight deep, so the timeline, the strip and the charts have something
+ * to draw: nights across midnight, three naps, breast, bottle and solids, nappies — and,
+ * when the seed runs in the middle of a nap, that nap still running. Jittered by the day
+ * so the charts do not draw seven identical rows.
+ */
+async function furnishBaby(
+  prisma: PrismaClient,
+  homeId: string,
+  language: "EN" | "DA",
+  people: { alex: { id: string }; sam: { id: string } },
+) {
+  const now = new Date();
+  const baby = await prisma.baby.create({ data: { homeId, name: "Ella" } });
+  const solids = language === "DA" ? ["Grød", "Banan", "Gulerodsmos", "Pære"] : ["Porridge", "Banana", "Carrot purée", "Pear"];
+  const rows: Prisma.BabyEventCreateManyInput[] = [];
+  const at = (day: string, hours: number) => new Date(dayStartInstant(day).getTime() + hours * 3_600_000);
+  const today = todayInZone(now);
+
+  for (let back = 14; back >= 0; back--) {
+    const day = shiftDay(today, -back);
+    const j = ((back * 37) % 7) / 12 - 0.25; // up to a quarter-hour either way
+    const who = (back % 2 === 0 ? people.alex : people.sam).id;
+    const add = (row: Omit<Prisma.BabyEventCreateManyInput, "homeId" | "babyId" | "createdById">) => {
+      if ((row.startedAt as Date) > now) return;
+      const endedAt = row.endedAt as Date | null | undefined;
+      rows.push({ ...row, endedAt: endedAt && endedAt > now ? (row.kind === "SLEEP" ? null : now) : endedAt, homeId, babyId: baby.id, createdById: who });
+    };
+    const breast = (left: number, right: number, lastSide: "LEFT" | "RIGHT") => ({
+      method: "BREAST", left: left * 60, right: right * 60, running: null, runningSince: null, lastSide,
+    });
+
+    add({ kind: "SLEEP", startedAt: at(day, 19.5 + j), endedAt: at(shiftDay(day, 1), 6.25 + j), details: { night: null } });
+    for (const [from, to] of [[9.6, 10.6], [12.75, 14.25], [16.5, 17.1]] as const) {
+      add({ kind: "SLEEP", startedAt: at(day, from + j), endedAt: at(day, to + j), details: { night: null } });
+    }
+    add({ kind: "FEED", startedAt: at(day, 3 + j), endedAt: at(day, 3.3 + j), details: breast(10, 8, "RIGHT") });
+    add({ kind: "FEED", startedAt: at(day, 6.5 + j), endedAt: at(day, 6.8 + j), details: breast(12, 6, "LEFT") });
+    add({ kind: "FEED", startedAt: at(day, 9.25), details: { method: "SOLID", food: solids[back % 2]! } });
+    add({ kind: "FEED", startedAt: at(day, 10.9 + j), details: { method: "BOTTLE", milk: "FORMULA", ml: 120 } });
+    add({ kind: "FEED", startedAt: at(day, 14.4 + j), endedAt: at(day, 14.7 + j), details: breast(9, 11, "RIGHT") });
+    add({ kind: "FEED", startedAt: at(day, 16 + j), details: { method: "BOTTLE", milk: "BREAST_MILK", ml: 150 } });
+    add({ kind: "FEED", startedAt: at(day, 18.3), details: { method: "SOLID", food: solids[2 + (back % 2)]! } });
+    add({ kind: "FEED", startedAt: at(day, 19.1 + j), endedAt: at(day, 19.4 + j), details: breast(8, 10, "LEFT") });
+    for (const [hour, wet, dirty] of [[6.7, true, false], [9.5, true, true], [12, true, false], [14.5, false, true], [17.2, true, false], [19.2, true, false]] as const) {
+      add({ kind: "DIAPER", startedAt: at(day, hour + j), details: { wet, dirty } });
+    }
+  }
+  await prisma.babyEvent.createMany({ data: rows });
 }

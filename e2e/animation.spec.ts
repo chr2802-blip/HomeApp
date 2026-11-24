@@ -125,7 +125,7 @@ test.describe("a page", () => {
     await page.waitForURL(/\/lists\/[a-z0-9]+$/);
     await expectArrival(page, "page-open");
 
-    // Tasks sits to the right of Lists in the tab bar, so it comes in from the right.
+    // Tasks comes after Lists in the order of the tabs, so it comes in from the right.
     await page.getByRole("link", { name: "Tasks" }).first().click();
     await page.waitForURL(/\/tasks$/);
     await expectArrival(page, "page-forward");
@@ -166,19 +166,19 @@ async function holdPage(page: Page, pathname: string) {
 test.describe("a press on its way somewhere", () => {
   test("lights the one tab pressed, and darkens the one being left", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 680 });
-    await holdPage(page, "/tasks");
+    await holdPage(page, "/lists");
     await page.goto("/dashboard");
 
     const pill = (name: string) => page.locator(`nav a[aria-label="${name}"] > span`).first();
     await expect(pill("Home")).toHaveCSS("scale", "1.1");
 
-    await page.locator('nav a[aria-label="Tasks"]').click();
+    await page.locator('nav a[aria-label="Lists"]').click();
 
-    // Still on the dashboard, and already only Tasks is lit.
-    await expect(pill("Tasks")).toHaveCSS("scale", "1.1");
+    // Still on the dashboard, and already only Lists is lit.
+    await expect(pill("Lists")).toHaveCSS("scale", "1.1");
     await expect(pill("Home")).toHaveCSS("scale", "1");
     expect(new URL(page.url()).pathname).toBe("/dashboard");
-    await page.waitForURL(/\/tasks$/);
+    await page.waitForURL(/\/lists$/);
   });
 
   test("is forgotten once it has landed, so coming back lights the page shown", async ({
@@ -273,7 +273,7 @@ test.describe("what eases rather than snapping", () => {
     await page.setViewportSize({ width: 390, height: 680 });
     await page.goto("/dashboard");
 
-    const pill = page.locator('nav a[aria-label="Tasks"] > span').first();
+    const pill = page.locator('nav a[aria-label="Lists"] > span').first();
     // The size it moves between is written as `scale`, so that is the property the
     // transition has to name: easing `transform` would be easing nothing.
     await expect(pill).toHaveCSS("scale", "1");
@@ -281,7 +281,7 @@ test.describe("what eases rather than snapping", () => {
       "scale",
     );
 
-    await page.locator('nav a[aria-label="Tasks"]').click();
+    await page.locator('nav a[aria-label="Lists"]').click();
     await expect(pill).toHaveCSS("scale", "1.1");
   });
 

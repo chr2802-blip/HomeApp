@@ -69,8 +69,8 @@ test.describe("scroll position between pages", () => {
     await page.goto("/lists");
     await expect(page.getByRole("button", { name: "Actions for List 40" })).toHaveAttribute("data-ready", "true");
     await page.getByRole("link", { name: /List 40/ }).scrollIntoViewIfNeeded();
-    await page.getByRole("navigation").getByRole("link", { name: "Tasks" }).last().click();
-    await page.waitForURL(/\/tasks$/);
+    await page.getByRole("navigation").getByRole("link", { name: "Food" }).last().click();
+    await page.waitForURL(/\/recipes$/);
     await expect.poll(() => scrollY(page)).toBe(0);
   });
 });

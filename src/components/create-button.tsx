@@ -6,7 +6,8 @@ import Link from "next/link";
 import { Modal, ModalBody } from "@/components/modal";
 import { useLanguage } from "@/components/language-provider";
 import { SHEET_EXIT_MS } from "@/lib/motion";
-import { sayIn, type Phrase } from "@/lib/copy/say";
+import { sayIn } from "@/lib/copy/say";
+import { CREATE_CHOICES, type CreateChoice } from "@/lib/create-choices";
 import { APP } from "@/lib/copy/app";
 
 const noChange = () => () => {};
@@ -81,7 +82,7 @@ export function CreateFab({
   );
 }
 
-export type CreateChoice = { href: string; label: Phrase; emoji: string };
+export type { CreateChoice };
 
 /**
  * Several things to make, from a page that makes none of them itself (the dashboard): the
@@ -89,7 +90,18 @@ export type CreateChoice = { href: string; label: Phrase; emoji: string };
  * page that makes that thing and opens its sheet there (`CREATE_PARAM`), so there is one
  * sheet per kind of thing and not a copy of it here.
  */
-export function CreateMenu({ choices }: { choices: CreateChoice[] }) {
+export function CreateMenu({
+  choices = CREATE_CHOICES,
+  inBar = false,
+}: {
+  choices?: CreateChoice[];
+  /**
+   * Drawn in the tab bar's own gap rather than as the page's floating "+": the one a page
+   * that makes nothing shows (`.app-create-idle`, hidden by CSS wherever a page has a "+"
+   * of its own), so the "+" is somewhere to start from on every page.
+   */
+  inBar?: boolean;
+}) {
   const say = sayIn(useLanguage());
   const [open, setOpen] = useState(false);
   // Dismissed, the drawer slides away on its own, and the "+" stays above it until it has
@@ -107,12 +119,28 @@ export function CreateMenu({ choices }: { choices: CreateChoice[] }) {
 
   return (
     <>
-      <CreateFab
-        label={say(APP.create)}
-        onClick={() => (open ? dismiss() : setOpen(true))}
-        expanded={open}
-        above={open || leaving}
-      />
+      {inBar ? (
+        <button
+          type="button"
+          aria-label={say(APP.create)}
+          title={say(APP.create)}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={() => (open ? dismiss() : setOpen(true))}
+          className="app-create-idle press-icon absolute bottom-2.5 left-1/2 flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_10px_24px_-6px_rgb(60_40_20/0.55)] ring-4 ring-[#ffffff] hover:bg-[var(--accent-hover)]"
+        >
+          <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
+      ) : (
+        <CreateFab
+          label={say(APP.create)}
+          onClick={() => (open ? dismiss() : setOpen(true))}
+          expanded={open}
+          above={open || leaving}
+        />
+      )}
       <Modal open={open} onClose={dismiss} title={say(APP.create)} size="drawer">
         <ModalBody className="pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pb-5">
           <ul className="menu-rows -mx-2 flex flex-col">

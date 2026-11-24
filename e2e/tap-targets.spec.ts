@@ -56,6 +56,11 @@ test("every button and link on the household's pages presses in and is at least 
     })),
     ...(await auditOpened(page, "/dashboard", () => openHomeMenu(page))),
     ...(await auditOpened(page, "/lists", () => openMenu(page))),
+    // The tab bar's menu of every tab, with its pin buttons.
+    ...(await auditOpened(page, "/tasks", async () => {
+      await page.locator("nav.app-bottombar").getByRole("button", { name: "Menu" }).click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+    })),
   ];
   problems.push(...(await audit(page, [
     "/dashboard",
@@ -78,6 +83,7 @@ test("every button and link on the household's pages presses in and is at least 
     "/settings/status",
     "/profile",
     "/homes",
+    "/baby",
   ])));
 
   expect(problems).toEqual([]);

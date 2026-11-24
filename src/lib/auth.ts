@@ -7,6 +7,7 @@ import type { HomeLanguage, HomeTheme, MemberRole, PlatformRole } from "@prisma/
 import { prisma } from "./prisma";
 import { DEFAULT_THEME } from "./theme";
 import { DEFAULT_LANGUAGE } from "./language";
+import { readPins, type PinnableTab } from "./nav-tabs";
 
 const COOKIE = "homehub_session";
 const MAX_AGE = 60 * 60 * 24 * 30;
@@ -108,6 +109,8 @@ export type SessionUser = {
    * a super admin, looking into a household they are not in, ever is.
    */
   homeRole: MemberRole | null;
+  /** The two tabs this person keeps in the tab bar (`readPins`), whichever home is open. */
+  navPins: PinnableTab[];
 };
 
 /**
@@ -188,6 +191,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     homeLanguage: active?.language ?? DEFAULT_LANGUAGE,
     homeSeasonal: active?.seasonal ?? false,
     homeRole: homes.find((home) => home.id === active?.id)?.role ?? null,
+    navPins: readPins(user.navPins),
   };
 });
 
