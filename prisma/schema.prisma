@@ -159,6 +159,13 @@ model User {
    * simply falls out. A person's, not a home's: it is their thumb, in every household.
    */
   navPins      String[]     @default([])
+  /**
+   * The three tiles under the dashboard's greeting, in order — kinds from `TILE_KINDS`
+   * in `src/lib/dashboard-tiles.ts`, or `list:<id>`. Read only through `readTiles`, which
+   * drops what it does not know and fills from `DEFAULT_TILES`, so empty is "the
+   * defaults"; a list from another home falls out there too. A person's, like `navPins`.
+   */
+  dashboardTiles String[]   @default([])
   createdAt    DateTime     @default(now())
 
   activeHome        Home?              @relation("ActiveHome", fields: [activeHomeId], references: [id], onDelete: SetNull)

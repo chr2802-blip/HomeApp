@@ -1881,6 +1881,10 @@ Queries over `SLOW_QUERY_MS` are recorded and pruned after a week.
   The input is `sr-only`, and inside a `Modal` still animating in Playwright calls it
   "outside of the viewport" even forced. `sheet.getByText(name, { exact: true }).click()`
   waits for the sheet and presses the chip a person would.
+- **A dnd-kit `DragOverlay` inside a sheet is portalled to `<body>`.** It is
+  `position: fixed`, and `Modal` animates with a `transform`, which makes a fixed child
+  fixed to the sheet: the overlay is drawn off screen. Its size is the draggable node's, so
+  the node is the row and the grip is `setActivatorNodeRef` (`nav-pins.tsx`).
 - **`<Card className="p-0">` keeps its padding.** `Card` writes `p-5` itself and which of
   two padding utilities wins is the stylesheet's order, not the attribute's — a card of
   rows whose rows were meant to run edge to edge is `padded={false}`.

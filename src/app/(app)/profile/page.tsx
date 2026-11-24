@@ -10,6 +10,11 @@ import { PROFILE } from "@/lib/copy/profile";
 import { HOMES } from "@/lib/copy/homes";
 import { NAV } from "@/lib/copy/nav";
 import { NavPinsSetting } from "@/components/nav-pins";
+import { DashboardTilesSetting } from "@/components/dashboard-tiles";
+import { TILES } from "@/lib/copy/tiles";
+import { homeDb } from "@/lib/home-db";
+import { faceOf } from "@/lib/emoji";
+import { readTiles } from "@/lib/dashboard-tiles";
 
 /**
  * You, rather than any of your homes: your name, your password, your picture and
@@ -23,6 +28,13 @@ import { NavPinsSetting } from "@/components/nav-pins";
 export default async function ProfilePage() {
   const user = await requireUser();
   const say = sayIn(user.homeLanguage);
+  // The home open now's lists: a tile can be one of them, and one from another home is
+  // not offered here (it still stands, for when that home is open).
+  const lists = user.homeId
+    ? await homeDb(user.homeId).list.findMany({ orderBy: { title: "asc" }, select: { id: true, title: true, emoji: true } })
+    : [];
+  const tileLists = lists.map((list) => ({ id: list.id, title: list.title, face: faceOf(list) }));
+  const tiles = readTiles(user.dashboardTiles, new Set(lists.map((list) => list.id)));
 
   return (
     <>
@@ -99,6 +111,16 @@ export default async function ProfilePage() {
           <NavPinsSetting pins={user.navPins} />
         </Card>
       </section>
+
+      {user.homeId && (
+        <section className="mb-8">
+          <h2 className="mb-1 text-sm font-semibold text-slate-500 uppercase">{say(TILES.profileHeading)}</h2>
+          <p className="mb-3 text-sm text-slate-500">{say(TILES.profileHint)}</p>
+          <Card>
+            <DashboardTilesSetting tiles={tiles} lists={tileLists} />
+          </Card>
+        </section>
+      )}
 
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-slate-500 uppercase">

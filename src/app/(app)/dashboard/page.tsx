@@ -28,6 +28,9 @@ import { DATE } from "@/lib/copy/dates";
 import { MEALS } from "@/lib/copy/meals";
 import { CreateMenu } from "@/components/create-button";
 import { HomeBanner } from "@/components/home-banner";
+import { DashboardTiles, type TileList, type TileView } from "@/components/dashboard-tiles";
+import { readTiles, tileListId, type TileChoice } from "@/lib/dashboard-tiles";
+import { readBabyDetails, type BreastDetails } from "@/lib/baby";
 
 /**
  * How many lists the dashboard draws before it stops and offers the rest.
@@ -103,38 +106,6 @@ function DueTask({
   );
 }
 
-/**
- * One of the three numbers under the greeting, and the page it is a way into.
- *
- * Each answers a question somebody opens the app with — is anything of mine due, what do
- * we need, what have we run out of — before they have read a row, and each is one press
- * from the page that answers it at length. No `font-medium` on the words: the recipe
- * suggestion's test finds tonight's title as the first medium-weight line in `main`.
- */
-function StatTile({
-  href,
-  value,
-  label,
-  detail,
-  warn = false,
-}: {
-  href: string;
-  value: number;
-  label: string;
-  detail: string;
-  warn?: boolean;
-}) {
-  return (
-    <Link href={href} className="press-card relative block rounded-2xl">
-      <Card padded={false} className="h-full px-3 py-2 transition hover:border-slate-400">
-        <p className="text-xl leading-tight font-semibold tabular-nums">{value}</p>
-        <p className="truncate text-xs text-slate-700">{label}</p>
-        <p className={`truncate text-[11px] ${warn ? "text-red-600" : "text-slate-400"}`}>{detail}</p>
-      </Card>
-    </Link>
-  );
-}
-
 export default async function DashboardPage() {
   const user = await requireUser();
   const say = sayIn(user.homeLanguage);
@@ -163,7 +134,7 @@ export default async function DashboardPage() {
   // The six days after today — tonight is already the dinner row in "Today".
   const ahead = weekDays(today).slice(1);
 
-  const [dueTasks, favorites, recent, open, week, streak, dinner, plans, runOut] = await Promise.all([
+  const [dueTasks, favorites, recent, open, week, streak, dinner, plans, runOut, allLists, baby] = await Promise.all([
     db.task.findMany({
       // A one-off already done is not due, however long its date has been in the past.
       where: { nextDueAt: { lte: endOfToday }, ...UNFINISHED },
@@ -197,6 +168,21 @@ export default async function DashboardPage() {
       select: { date: true, leftoverOf: true, recipe: { select: { title: true } } },
     }),
     db.pantryItem.count({ where: { quantity: 0 } }),
+    // Every list, for the tiles: a list can be one, and the chooser offers them all.
+    db.list.findMany({ orderBy: { title: "asc" }, select: { id: true, title: true, emoji: true, _count: { select: { items: true } } } }),
+    // The baby and anything of its running, for the sleep and feed tiles.
+    db.baby.findFirst({
+      orderBy: { createdAt: "asc" },
+      select: {
+        trackSleep: true,
+        trackBreast: true,
+        events: {
+          where: { endedAt: null, kind: { in: ["SLEEP", "FEED"] } },
+          orderBy: { startedAt: "desc" },
+          select: { kind: true, startedAt: true, details: true },
+        },
+      },
+    }),
   ]);
 
   /*
@@ -221,6 +207,33 @@ export default async function DashboardPage() {
   // `open` already counts every list, not only the four drawn below.
   const openCounts = [...open.values()].filter((count) => count > 0);
   const toBuy = openCounts.reduce((sum, count) => sum + count, 0);
+  const tiles: TileChoice[] = readTiles(user.dashboardTiles, new Set(allLists.map((list) => list.id)));
+  const runningSleep = baby?.events.find((event) => event.kind === "SLEEP");
+  const runningFeed = baby?.events.find(
+    (event) => event.kind === "FEED" && readBabyDetails("FEED", event.details).details.method === "BREAST",
+  );
+  const feedDetails = runningFeed ? (readBabyDetails("FEED", runningFeed.details).details as BreastDetails) : null;
+  const tileViews: Record<string, TileView> = {};
+  for (const choice of tiles) {
+    const listId = tileListId(choice);
+    if (listId) {
+      const list = allLists.find((l) => l.id === listId)!;
+      tileViews[choice] = { kind: "list", id: list.id, title: list.title, face: faceOf(list), open: open.get(list.id) ?? 0, total: list._count.items };
+    } else if (choice === "due") tileViews[choice] = { kind: "due", value: mine.length, overdue };
+    else if (choice === "toBuy") tileViews[choice] = { kind: "toBuy", value: toBuy, lists: openCounts.length };
+    else if (choice === "runOut") tileViews[choice] = { kind: "runOut", value: runOut };
+    else if (choice === "recipe") tileViews[choice] = { kind: "recipe" };
+    else if (choice === "sleep")
+      tileViews[choice] = { kind: "sleep", baby: !!baby?.trackSleep, since: runningSleep?.startedAt.toISOString() ?? null };
+    else if (choice === "feed")
+      tileViews[choice] = {
+        kind: "feed",
+        baby: !!baby?.trackBreast,
+        since: runningFeed?.startedAt.toISOString() ?? null,
+        side: feedDetails?.running ?? null,
+      };
+  }
+  const tileLists: TileList[] = allLists.map((list) => ({ id: list.id, title: list.title, face: faceOf(list) }));
   const planned = new Map(plans.map((plan) => [plan.date, plan]));
   const firstName = user.name.split(" ")[0]!;
 
@@ -272,31 +285,7 @@ export default async function DashboardPage() {
           <WeekRing week={week} language={user.homeLanguage} />
         </header>
 
-        <div className="grid grid-cols-3 gap-2">
-          <StatTile
-            href="/tasks"
-            value={mine.length}
-            label={say(DASHBOARD.dueForYouTile)}
-            detail={
-              overdue > 0
-                ? say(DASHBOARD.overdueCount, { count: overdue })
-                : say(DASHBOARD.noneOverdue)
-            }
-            warn={overdue > 0}
-          />
-          <StatTile
-            href="/lists"
-            value={toBuy}
-            label={say(DASHBOARD.toBuy)}
-            detail={say(DASHBOARD.onLists, { count: openCounts.length })}
-          />
-          <StatTile
-            href="/pantry"
-            value={runOut}
-            label={say(DASHBOARD.runOut)}
-            detail={say(DASHBOARD.inThePantry)}
-          />
-        </div>
+        <DashboardTiles tiles={tiles} views={tileViews} lists={tileLists} />
       </HomeBanner>
 
       <NotificationSetup />

@@ -111,6 +111,8 @@ export type SessionUser = {
   homeRole: MemberRole | null;
   /** The two tabs this person keeps in the tab bar (`readPins`), whichever home is open. */
   navPins: PinnableTab[];
+  /** The dashboard's three tiles as stored — `readTiles` against the home's lists on the page. */
+  dashboardTiles: string[];
 };
 
 /**
@@ -192,6 +194,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     homeSeasonal: active?.seasonal ?? false,
     homeRole: homes.find((home) => home.id === active?.id)?.role ?? null,
     navPins: readPins(user.navPins),
+    dashboardTiles: user.dashboardTiles,
   };
 });
 

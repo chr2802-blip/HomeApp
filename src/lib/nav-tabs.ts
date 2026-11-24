@@ -69,6 +69,22 @@ export function swapPins(pins: readonly PinnableTab[]): PinnableTab[] {
   return [...pins].reverse();
 }
 
+/**
+ * `dragged` let go on `target`, the way the tab-bar drawer drags: an unpinned tab dropped
+ * on a pinned one takes its place (and the one that was there drops out of the bar), two
+ * pinned tabs dropped on each other swap, and a pinned tab dropped on an unpinned one
+ * trades places with it. Anything else leaves the pins as they were.
+ */
+export function dropPin(pins: readonly PinnableTab[], dragged: PinnableTab, target: PinnableTab): PinnableTab[] {
+  if (dragged === target) return [...pins];
+  const from = pins.indexOf(dragged);
+  const to = pins.indexOf(target);
+  if (from >= 0 && to >= 0) return swapPins(pins);
+  if (to >= 0) return pinInPlaceOf(pins, dragged, target);
+  if (from >= 0) return pinInPlaceOf(pins, target, dragged);
+  return [...pins];
+}
+
 /** Whether `pathname` is inside a tab — its own page or any page belonging to it. */
 export function pathInTab(key: TabKey, pathname: string): boolean {
   const { href, also = [] } = TAB_PATHS_BY_KEY[key];
