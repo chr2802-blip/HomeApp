@@ -17,7 +17,7 @@ export const TAB_PATHS_BY_KEY: Record<TabKey, { href: string; also?: string[] }>
   food: { href: "/recipes", also: ["/meals"] },
   lists: { href: "/lists", also: ["/pantry"] },
   tasks: { href: "/tasks" },
-  baby: { href: "/baby" },
+  baby: { href: "/baby", also: ["/baby/charts"] },
 };
 
 /** The tabs a person may put in the bar. Home is not one of them: it is always there. */

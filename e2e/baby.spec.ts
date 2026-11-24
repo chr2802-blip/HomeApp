@@ -76,3 +76,24 @@ test.describe("the baby log", () => {
     await expect(page.locator("nav.app-bottombar").getByRole("link")).toHaveText(["Home", "Food", "Baby"]);
   });
 });
+
+test.describe("the baby log's charts", () => {
+  test("draw a logged sleep, and switch between a week and a month", async ({ page, loginAs }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAs(ACCOUNTS.member);
+    await page.goto("/baby");
+    await page.getByLabel("The baby's name").fill("Ella");
+    await page.getByRole("button", { name: "Start the log" }).click();
+    await page.locator("[data-baby-dock=sleep]").click();
+    await expect(page.locator("[data-baby-dock=sleep]")).toContainText("Awake");
+
+    await page.getByRole("link", { name: "Charts", exact: true }).click();
+    await page.waitForURL(/\/baby\/charts$/);
+    await expect(page.getByRole("figure", { name: "Sleep around the clock" })).toBeVisible();
+    await expect(page.locator("[data-chart-row]")).toHaveCount(7);
+
+    await page.getByRole("link", { name: "Month", exact: true }).click();
+    await page.waitForURL(/period=month/);
+    await expect(page.locator("[data-chart-row]")).toHaveCount(30);
+  });
+});

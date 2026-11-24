@@ -26,6 +26,10 @@ export const SECTIONS: { href: string; key: keyof typeof APP.sections }[][] = [
     { href: "/lists", key: "lists" },
     { href: "/pantry", key: "supplies" },
   ],
+  [
+    { href: "/baby", key: "babyLog" },
+    { href: "/baby/charts", key: "babyCharts" },
+  ],
   SETTINGS_TABS.map((tab) => ({ href: tab.href, key: tab.key })),
 ];
 

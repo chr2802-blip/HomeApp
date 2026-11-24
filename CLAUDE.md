@@ -1237,6 +1237,11 @@ the page; a table so a second child is rows). Everybody's, like the pantry: the 
   accent and none of green, red or amber.
 - The page asks the server again every 30 s while visible (`useFollow`); there is no
   Realtime nudge for it yet.
+- **The charts (`/baby/charts`) are positioned blocks, not a chart library** — marks on a
+  24-hour line and bars of a height. What they draw is `src/lib/baby-charts.ts`
+  (`chartDay`, `summarise`): a sleep counts on every day it covers, a feed on the day it
+  began, and averages are over days with anything logged. `?period=day|week|month` and
+  `?to=` (the last day drawn) are the page's whole state.
 - `db:demo` gives the `flat` and `da` homes a fortnight of log, with a nap running if the
   seed runs during one.
 

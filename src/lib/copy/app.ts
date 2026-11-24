@@ -25,6 +25,8 @@ export const APP = {
     recipes: { EN: "Recipes", DA: "Opskrifter" },
     lists: { EN: "Lists", DA: "Lister" },
     supplies: { EN: "Supplies", DA: "Forråd" },
+    babyLog: { EN: "Log", DA: "Logbog" },
+    babyCharts: { EN: "Charts", DA: "Grafer" },
     // Settings' tabs (`SETTINGS_TABS`): five to a pill, so one short word each.
     home: { EN: "Home", DA: "Hjem" },
     members: { EN: "People", DA: "Personer" },

@@ -121,6 +121,30 @@ export const BABY = {
   finishFeed: { EN: "Done · save", DA: "Færdig · gem" },
   save: { EN: "Save", DA: "Gem" },
 
+  // The charts.
+  period: { EN: "Period", DA: "Periode" },
+  periodDay: { EN: "Day", DA: "Dag" },
+  periodWeek: { EN: "Week", DA: "Uge" },
+  periodMonth: { EN: "Month", DA: "Måned" },
+  earlier: { EN: "Earlier", DA: "Tidligere" },
+  later: { EN: "Later", DA: "Senere" },
+  shortDay: { EN: "d MMM", DA: "d. MMM" },
+  weekday: { EN: "EEE", DA: "EEE" },
+  sleepPerDay: { EN: "Sleep a day", DA: "Søvn pr. døgn" },
+  feedsPerDay: { EN: "Feeds a day", DA: "Mad pr. døgn" },
+  diapersPerDay: { EN: "Nappies a day", DA: "Bleer pr. døgn" },
+  nightAndNap: { EN: "night {night} · nap {nap}", DA: "nat {night} · lur {nap}" },
+  mlFromBottles: { EN: "{ml} ml from bottles", DA: "{ml} ml fra flaske" },
+  sleepChart: { EN: "Sleep around the clock", DA: "Søvn døgnet rundt" },
+  feedChart: { EN: "Feeding rhythm", DA: "Måltidsrytme" },
+  sleepTotals: { EN: "Hours of sleep per day", DA: "Timers søvn pr. dag" },
+  diaperTotals: { EN: "Nappies per day", DA: "Bleer pr. dag" },
+  nothingInPeriod: { EN: "Nothing logged in this period.", DA: "Intet logget i perioden." },
+  chartSummary: {
+    EN: "On average {sleep} of sleep, {feeds} feeds and {diapers} nappies a day.",
+    DA: "I gennemsnit {sleep} søvn, {feeds} måltider og {diapers} bleer pr. døgn.",
+  },
+
   // Refusals.
   endBeforeStart: {
     EN: "Waking up has to come after falling asleep.",
