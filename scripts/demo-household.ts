@@ -548,5 +548,28 @@ async function furnishBaby(
       add({ kind: "DIAPER", startedAt: at(day, hour + j), details: { wet, dirty } });
     }
   }
+  // A feed finished ten minutes ago, so the feed sheet offers to carry it on.
+  rows.push({
+    kind: "FEED",
+    startedAt: new Date(now.getTime() - 25 * 60_000),
+    endedAt: new Date(now.getTime() - 10 * 60_000),
+    details: { method: "BREAST", left: 9 * 60, right: 6 * 60, running: null, runningSince: null, lastSide: "RIGHT" },
+    homeId,
+    babyId: baby.id,
+    createdById: people.alex.id,
+  });
+  // A nap stopped five minutes ago, woken once already, so the sleep button offers to
+  // carry it on — unless the seed ran during a nap, which is then the one running.
+  if (!rows.some((row) => row.kind === "SLEEP" && !row.endedAt)) {
+    rows.push({
+      kind: "SLEEP",
+      startedAt: new Date(now.getTime() - 85 * 60_000),
+      endedAt: new Date(now.getTime() - 5 * 60_000),
+      details: { night: null, awake: 4 * 60 },
+      homeId,
+      babyId: baby.id,
+      createdById: people.sam.id,
+    });
+  }
   await prisma.babyEvent.createMany({ data: rows });
 }
