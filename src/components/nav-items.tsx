@@ -61,6 +61,14 @@ const NAV_ICONS: Record<TabKey, { icon: NavItem["icon"] }> = {
       </svg>
     ),
   },
+  baby: {
+    icon: ({ className }) => (
+      <svg viewBox="0 0 24 24" className={className} {...stroke}>
+        <circle cx="12" cy="13" r="7.5" />
+        <path d="M9.5 12.5h.01M14.5 12.5h.01M10 16c1.2.8 2.8.8 4 0M12 5.5c0-1.4.9-2.5 2.2-2.5" />
+      </svg>
+    ),
+  },
 };
 
 /** The menu's own place in the tab bar: three lines, the way every phone says "more". */

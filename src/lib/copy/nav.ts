@@ -29,4 +29,4 @@ export const NAV = {
     EN: "The two tabs between Home and the menu, on every phone you use.",
     DA: "De to faner mellem Hjem og menuen, på alle de telefoner du bruger.",
   },
-} satisfies Record<string, Phrase>;
+} as const satisfies Record<string, Phrase>;

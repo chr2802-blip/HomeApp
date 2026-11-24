@@ -1209,6 +1209,37 @@ worth reading — but a home that keeps one anyway has said something better tha
 inference from its recipes, and an ingredient nobody is buying either way cannot be what
 two dinners have in common. `weekSuggestions` on `/meals` unions the two.
 
+### The baby log is one table of events, and a timer is a row with no end
+
+`/baby` is a log of sleep, feeds and nappies for the home's baby (`Baby`, one per home on
+the page; a table so a second child is rows). Everybody's, like the pantry: the actions in
+`src/app/actions/baby.ts` take the home from the session and make no admin check.
+
+- **Every entry is a `BabyEvent`**: `kind` (`SLEEP`, `FEED`, `DIAPER`), `startedAt`,
+  `endedAt`, `details` (JSON) and a note. A new kind is an enum value and a schema in
+  `src/lib/baby.ts` — never a table. **`details` is read only through
+  `readBabyDetails`**, which makes anything stored well-formed rather than throwing.
+- **A running timer is `endedAt: null`** on a sleep or a breast feed, and its time is
+  always worked out from stored instants against the clock — never counted on a phone —
+  so it runs on with the app closed and reads the same on both parents' phones. A breast
+  feed's sides are banked by `switchBreastSide` on every press, and `lastSide` is stored
+  because two totals cannot say which side came last.
+- **Nap or night is decided, not stored**: `isNightSleep` from when the sleep *started*
+  (`NIGHT_FROM_HOUR`–`NIGHT_UNTIL_HOUR` on the household's clock), and `details.night`
+  holds only an override. One sleep runs at a time.
+- **Days are the household's days**: `clipToDay` cuts an entry to one day as hours from
+  that midnight, so a night from 22:00 to 06:00 is drawn on both. Times arrive as
+  `datetime-local` values read by `instantFromLocal`; a field left on the current minute
+  means now, to the second, so two things logged in one minute keep their order.
+- **A kind switched off is hidden, never deleted** (`Baby.track*`).
+- **The three kinds have colours of their own** (`--baby-*` in `globals.css`, named in
+  `src/lib/baby-colors.ts`, held by `tests/unit/baby-colors.test.ts`): not the home's
+  accent and none of green, red or amber.
+- The page asks the server again every 30 s while visible (`useFollow`); there is no
+  Realtime nudge for it yet.
+- `db:demo` gives the `flat` and `da` homes a fortnight of log, with a nap running if the
+  seed runs during one.
+
 ### A list can fill the household's Nemlig basket, after the household has checked it
 
 "Send to Nemlig" on a list searches nemlig.com for every open line, proposes a product for

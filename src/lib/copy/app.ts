@@ -17,6 +17,7 @@ export const APP = {
     food: { EN: "Food", DA: "Mad" },
     lists: { EN: "Lists", DA: "Lister" },
     tasks: { EN: "Tasks", DA: "Opgaver" },
+    baby: { EN: "Baby", DA: "Baby" },
   },
   /** The segments inside a tab — a tab is an area, and these are its pages. */
   sections: {

@@ -114,6 +114,10 @@ const EMPTY_BREAST: BreastDetails = {
  * unknown is read as a bottle of unknown size rather than thrown away — it was still a
  * feed, and the "time since the last feed" is the number at 3 a.m. that matters.
  */
+export function readBabyDetails(kind: "SLEEP", raw: unknown): { kind: "SLEEP"; details: SleepDetails };
+export function readBabyDetails(kind: "FEED", raw: unknown): { kind: "FEED"; details: FeedDetails };
+export function readBabyDetails(kind: "DIAPER", raw: unknown): { kind: "DIAPER"; details: DiaperDetails };
+export function readBabyDetails(kind: BabyEventKind, raw: unknown): BabyDetails;
 export function readBabyDetails(kind: BabyEventKind, raw: unknown): BabyDetails {
   const value = raw && typeof raw === "object" ? raw : {};
   switch (kind) {

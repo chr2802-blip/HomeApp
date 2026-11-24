@@ -105,6 +105,32 @@
 }
 
 /*
+ * The baby log's three kinds: sleep, feeds and nappies. Like the charts' palette, not the
+ * home's accent and not per home — a sleep is this indigo in every household, so the
+ * timeline, the strip and the charts say which kind a mark is by its colour wherever it
+ * is drawn. Muted on purpose (the screen is read in the dark), each a strong shade for
+ * marks and buttons, a soft one for a tile, and a text shade that holds 4.5:1 on the soft
+ * one. None is green, red or amber, and the three differ in lightness as well as hue, so
+ * they stay apart without colour vision. `--baby-nap` is sleep's lighter half, for the
+ * charts that tell naps from nights.
+ *
+ * `BABY_KINDS` in `src/lib/baby-colors.ts` names them, and `tests/unit/baby-colors.test.ts`
+ * holds this block to it.
+ */
+:root {
+  --baby-sleep: #3f4389;
+  --baby-nap: #8f93d6;
+  --baby-sleep-soft: #e9eaf7;
+  --baby-sleep-text: #363a7a;
+  --baby-feed: #b45d7e;
+  --baby-feed-soft: #f6e4ec;
+  --baby-feed-text: #833a58;
+  --baby-diaper: #2f8a8a;
+  --baby-diaper-soft: #dcefee;
+  --baby-diaper-text: #1d5c5c;
+}
+
+/*
  * The canvas wears the band, and the page is painted over it.
  *
  * Installed on a phone the app has no address bar, and the strip holding the clock and

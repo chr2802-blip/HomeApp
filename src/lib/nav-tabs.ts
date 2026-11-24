@@ -8,7 +8,7 @@
  */
 
 /** Every tab, in the order the menu and the desktop header list them. */
-export const TAB_KEYS = ["dashboard", "food", "lists", "tasks"] as const;
+export const TAB_KEYS = ["dashboard", "food", "lists", "tasks", "baby"] as const;
 export type TabKey = (typeof TAB_KEYS)[number];
 
 /** Where each tab lives: its own page, and the other pages that belong to it. */
@@ -17,10 +17,11 @@ export const TAB_PATHS_BY_KEY: Record<TabKey, { href: string; also?: string[] }>
   food: { href: "/recipes", also: ["/meals"] },
   lists: { href: "/lists", also: ["/pantry"] },
   tasks: { href: "/tasks" },
+  baby: { href: "/baby" },
 };
 
 /** The tabs a person may put in the bar. Home is not one of them: it is always there. */
-export const PINNABLE_TABS = ["food", "lists", "tasks"] as const satisfies readonly TabKey[];
+export const PINNABLE_TABS = ["food", "lists", "tasks", "baby"] as const satisfies readonly TabKey[];
 export type PinnableTab = (typeof PINNABLE_TABS)[number];
 
 /** How many places the bar has for a person's own choice. */

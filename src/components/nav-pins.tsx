@@ -127,7 +127,7 @@ export function NavPins({
                   </button>
                 )}
                 <span className={`${chip} border-[var(--accent)] bg-[var(--accent)] text-white`} data-place={index + 1}>
-                  {say(NAV.place).replace("{n}", String(index + 1))}
+                  {say(NAV.place, { n: index + 1 })}
                 </span>
               </>,
             ),
@@ -150,7 +150,7 @@ export function NavPins({
                     type="button"
                     onClick={() => setAsking(open ? null : key)}
                     aria-expanded={open}
-                    aria-label={say(NAV.pinNamed).replace("{name}", item.label)}
+                    aria-label={say(NAV.pinNamed, { name: item.label })}
                     className={`${chip} border-slate-200 bg-white text-slate-600`}
                   >
                     <PinIcon />
@@ -171,7 +171,7 @@ export function NavPins({
                           }}
                           className={`${chip} h-10 flex-1 justify-center border-slate-200 bg-white text-slate-700`}
                         >
-                          {say(NAV.replace).replace("{name}", current.label)}
+                          {say(NAV.replace, { name: current.label })}
                         </button>
                       ))}
                     </span>

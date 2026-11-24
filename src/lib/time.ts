@@ -247,3 +247,23 @@ export function hourInZone(date: Date): number {
   const zoned = inZone(date);
   return zoned.getHours() + zoned.getMinutes() / 60 + zoned.getSeconds() / 3600;
 }
+
+/** An instant as a `datetime-local` input's value, on the household's clock. */
+export function localInputValue(date: Date): string {
+  return formatInZone(date, "yyyy-MM-dd'T'HH:mm");
+}
+
+/**
+ * A `datetime-local` input's value read as the household's clock, or null when it is
+ * not one. The input has no zone of its own, so "21:30" means half past nine in the
+ * home — not on the server, and not on a phone that happens to be abroad.
+ */
+export function instantFromLocal(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?$/.exec(value.trim());
+  if (!match) return null;
+  const [year, month, day, hour, minute] = match.slice(1).map(Number) as [number, number, number, number, number];
+  const zoned = new TZDate(year, month - 1, day, hour, minute, 0, 0, TIME_ZONE);
+  // Refuse what TZDate would roll over ("2026-02-31" into March), as `dueAtOn` does.
+  if (zoned.getMonth() !== month - 1 || zoned.getDate() !== day || zoned.getHours() !== hour) return null;
+  return new Date(zoned.getTime());
+}
