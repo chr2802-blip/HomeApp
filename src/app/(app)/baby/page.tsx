@@ -9,6 +9,9 @@ import { ActionForm } from "@/components/action-form";
 import { Card, EmptyState, Input, Label } from "@/components/ui";
 import { BabyLog, type WireEntry } from "@/components/baby/baby-log";
 
+/** The kinds a tile can narrow the list to (`?show=`). */
+const SHOWS = ["sleep", "feed", "diaper"] as const;
+
 /** How far back the numbers at the top look before asking for the newest of a kind on its own. */
 const RECENT_DAYS = 3;
 
@@ -17,7 +20,7 @@ const RECENT_DAYS = 3;
  * down. `?day=` pages the timeline back through earlier days; the numbers at the top are
  * always about now.
  */
-export default async function BabyPage({ searchParams }: { searchParams: Promise<{ day?: string }> }) {
+export default async function BabyPage({ searchParams }: { searchParams: Promise<{ day?: string; show?: string }> }) {
   const user = await requireHomeUser();
   const say = sayIn(user.homeLanguage);
   const db = homeDb(user.homeId);
@@ -44,7 +47,8 @@ export default async function BabyPage({ searchParams }: { searchParams: Promise
 
   const now = new Date();
   const today = todayInZone(now);
-  const { day: asked } = await searchParams;
+  const params = await searchParams;
+  const asked = params.day;
   // A day that is not a real date, or one still to come, is today.
   const day = asked && dueAtOn(asked) && asked < today ? asked : today;
   const { end } = dayBounds(day);
@@ -104,6 +108,7 @@ export default async function BabyPage({ searchParams }: { searchParams: Promise
       day={day}
       today={today}
       solids={solidSuggestions(solids)}
+      show={SHOWS.find((kind) => kind === params.show) ?? null}
     />
   );
 }

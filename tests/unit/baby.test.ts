@@ -5,7 +5,7 @@ import {
   entriesOn,
   isNightSleep,
   lastBreastSide,
-  lastFeedAt,
+  lastFeed,
   readBabyDetails,
   resumableFeed,
   resumableSleep,
@@ -142,8 +142,31 @@ describe("the numbers at the top", () => {
       entry("DIAPER", "2026-11-23T23:00:00Z", null), // 00:00
       entry("DIAPER", "2026-11-24T13:00:00Z", null),
     ];
-    expect(lastFeedAt(entries, now)).toEqual(at("2026-11-24T12:10:00Z"));
+    expect(lastFeed(entries, now)).toEqual({ method: "SOLID", running: false, at: at("2026-11-24T12:10:00Z") });
     expect(diapersOn(entries, "2026-11-24")).toBe(2);
+  });
+});
+
+describe("lastFeed", () => {
+  const now = at("2026-11-24T14:00:00Z");
+  const breast = { method: "BREAST", left: 600, right: 600 };
+
+  it("counts a breast feed from when it ended, and a bottle from when it was given", () => {
+    const feeds = [
+      entry("FEED", "2026-11-24T12:00:00Z", "2026-11-24T12:40:00Z", breast),
+      entry("FEED", "2026-11-24T12:20:00Z", null, { method: "BOTTLE" }),
+    ];
+    expect(lastFeed(feeds, now)).toEqual({ method: "BREAST", running: false, at: at("2026-11-24T12:40:00Z") });
+    expect(lastFeed([feeds[1]!], now)).toEqual({ method: "BOTTLE", running: false, at: at("2026-11-24T12:20:00Z") });
+  });
+
+  it("is the breast feed still running, whatever came after it", () => {
+    const feeds = [
+      entry("FEED", "2026-11-24T13:30:00Z", null, breast),
+      entry("FEED", "2026-11-24T13:45:00Z", null, { method: "BOTTLE" }),
+    ];
+    expect(lastFeed(feeds, now)).toEqual({ method: "BREAST", running: true, at: at("2026-11-24T13:30:00Z") });
+    expect(lastFeed([], now)).toBeNull();
   });
 });
 
