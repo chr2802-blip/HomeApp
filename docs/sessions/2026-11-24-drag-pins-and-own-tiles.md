@@ -55,3 +55,12 @@ true }).last()` for "Menu" — the tab bar is not drawn without them and the nam
 
 That a `DragOverlay` inside a sheet has to be portalled to `<body>` — the same trap the
 cook mode already documents for `PageTransition`. Added to *Traps worth knowing*.
+
+## After the PR went up
+
+CI on #196 failed `e2e/list-categories.spec.ts` twice (attempt and retry) at `page.reload()`
+with `ERR_ABORTED`; `main` was green. The same race this session met in its own spec: a
+sheet closing takes its history entry back (`popOwnEntry`), and a reload started under
+that traverse is aborted. The spec now waits for the dialog to be gone before reloading.
+A browser test that reloads or navigates right after a sheet closes waits on
+`getByRole("dialog")` having count 0 first.
