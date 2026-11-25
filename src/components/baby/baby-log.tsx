@@ -11,6 +11,7 @@ import { useLanguage } from "@/components/language-provider";
 import { Modal } from "@/components/modal";
 import { DialogForm } from "@/components/form-dialog";
 import { CreateFab } from "@/components/create-button";
+import { useCatchUp, useKeepWarm } from "@/components/use-keep-warm";
 import { ItemMenu } from "@/components/item-menu";
 import { Input, Label } from "@/components/ui";
 import { sayIn, type Phrase } from "@/lib/copy/say";
@@ -136,7 +137,11 @@ function useFollow() {
   }, [router]);
 }
 
-type Sheet = null | "feed" | "diaper" | "sleep" | "settings" | "choose" | "wakeful";
+/** The sheets behind the "+" and the tiles' own "+" — the ones the charts' page opens too. */
+type AddSheet = "choose" | "sleep" | "diaper" | "feed";
+type Sheet = null | AddSheet | "settings" | "wakeful";
+const isAddSheet = (sheet: Sheet): sheet is AddSheet =>
+  sheet === "choose" || sheet === "sleep" || sheet === "diaper" || sheet === "feed";
 
 /**
  * The baby log: how long since the last of everything at the top, the day being read
@@ -151,8 +156,11 @@ export function BabyLog({
   solids,
   show: initialShow = null,
   order: initialOrder,
+  renderedAt,
 }: {
   baby: BabySettings;
+  /** When the server drew this (epoch ms), so a copy kept warm catches up on arrival. */
+  renderedAt: number;
   entries: WireEntry[];
   day: string;
   today: string;
@@ -172,6 +180,8 @@ export function BabyLog({
   const [feedMethod, setFeedMethod] = useState<FeedMethod | null>(null);
   const [show, setShow] = useState<BabyShow | null>(initialShow);
   useFollow();
+  useKeepWarm("/baby/charts", wire);
+  useCatchUp(renderedAt);
 
   // A tile pressed narrows the day's list to its kind, and pressed again shows everything.
   // Kept in the address too, so paging the day keeps it and a reload comes back to it.
@@ -184,13 +194,7 @@ export function BabyLog({
     window.history.replaceState(window.history.state, "", url);
   };
 
-  const methods: FeedMethod[] = [
-    ...(baby.trackBreast ? (["BREAST"] as const) : []),
-    ...(baby.trackBottle ? (["BOTTLE"] as const) : []),
-    ...(baby.trackSolid ? (["SOLID"] as const) : []),
-  ];
-  const runningBreast = entries.find((entry) => !entry.endedAt && feedMethodOf(entry) === "BREAST") ?? null;
-  const feeds = methods.length > 0 || runningBreast !== null;
+  const runningBreast = runningBreastOf(entries);
 
   const sleep = sleepState(entries, now);
   const lastDiaper = entries
@@ -348,30 +352,18 @@ export function BabyLog({
         </ul>
       )}
 
-      <CreateFab label={say(BABY.newEntry)} onClick={() => setSheet("choose")} expanded={sheet === "choose"} />
-
-      <Modal open={sheet === "choose"} onClose={() => setSheet(null)} title={say(BABY.newEntry)} size="drawer">
-        <div className="flex flex-col gap-2 px-5 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
-          {baby.trackSleep && (
-            <ChooseRow kind="sleep" onClick={() => setSheet("sleep")}>
-              <SleepIcon />
-              {say(BABY.logSleep)}
-            </ChooseRow>
-          )}
-          {feeds && (
-            <ChooseRow kind="feed" onClick={() => openFeed(null)}>
-              <BottleIcon />
-              {say(BABY.feed)}
-            </ChooseRow>
-          )}
-          {baby.trackDiaper && (
-            <ChooseRow kind="diaper" onClick={() => setSheet("diaper")}>
-              <DiaperIcon />
-              {say(BABY.diaper)}
-            </ChooseRow>
-          )}
-        </div>
-      </Modal>
+      <AddSheets
+        baby={baby}
+        entries={entries}
+        solids={solids}
+        now={now}
+        sheet={isAddSheet(sheet) ? sheet : null}
+        feedMethod={feedMethod}
+        onSheet={(next, method) => {
+          if (method !== undefined) setFeedMethod(method);
+          setSheet(next);
+        }}
+      />
 
       <Modal open={sheet === "wakeful"} onClose={() => setSheet(null)} title={say(BABY.sleep)} size="drawer">
         {wakeful && (
@@ -404,19 +396,83 @@ export function BabyLog({
         )}
       </Modal>
 
-      <Modal open={sheet === "sleep"} onClose={() => setSheet(null)} title={say(BABY.logSleep)}>
-        <DialogForm action={saveSleep} submitLabel={say(BABY.save)} onDone={() => setSheet(null)} onCancel={() => setSheet(null)}>
+      <Modal open={sheet === "settings"} onClose={() => setSheet(null)} title={say(BABY.settings)}>
+        <DialogForm action={updateBaby} submitLabel={say(BABY.saveSettings)} onDone={() => setSheet(null)} onCancel={() => setSheet(null)}>
+          <SettingsFields baby={baby} />
+        </DialogForm>
+      </Modal>
+    </div>
+  );
+}
+
+/**
+ * The page's "+" and the sheets it and the tiles open: a sleep written down afterwards, a
+ * nappy, a feed. Drawn by the log and the charts alike, so the "+" does the same thing on
+ * both tabs; which sheet is open is the caller's, because the log's tiles open them too.
+ */
+function AddSheets({
+  baby,
+  entries,
+  solids,
+  now,
+  sheet,
+  feedMethod,
+  onSheet,
+}: {
+  baby: BabySettings;
+  entries: BabyEntry[];
+  solids: string[];
+  now: Date;
+  sheet: AddSheet | null;
+  feedMethod: FeedMethod | null;
+  onSheet: (sheet: AddSheet | null, method?: FeedMethod | null) => void;
+}) {
+  const say = sayIn(useLanguage());
+  const methods = feedMethodsOf(baby);
+  const runningBreast = runningBreastOf(entries);
+  const feeds = methods.length > 0 || runningBreast !== null;
+  const close = () => onSheet(null);
+
+  return (
+    <>
+      <CreateFab label={say(BABY.newEntry)} onClick={() => onSheet("choose")} expanded={sheet === "choose"} />
+
+      <Modal open={sheet === "choose"} onClose={close} title={say(BABY.newEntry)} size="drawer">
+        <div className="flex flex-col gap-2 px-5 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+          {baby.trackSleep && (
+            <ChooseRow kind="sleep" onClick={() => onSheet("sleep")}>
+              <SleepIcon />
+              {say(BABY.logSleep)}
+            </ChooseRow>
+          )}
+          {feeds && (
+            <ChooseRow kind="feed" onClick={() => onSheet("feed", null)}>
+              <BottleIcon />
+              {say(BABY.feed)}
+            </ChooseRow>
+          )}
+          {baby.trackDiaper && (
+            <ChooseRow kind="diaper" onClick={() => onSheet("diaper")}>
+              <DiaperIcon />
+              {say(BABY.diaper)}
+            </ChooseRow>
+          )}
+        </div>
+      </Modal>
+
+      <Modal open={sheet === "sleep"} onClose={close} title={say(BABY.logSleep)}>
+        <DialogForm action={saveSleep} submitLabel={say(BABY.save)} onDone={close} onCancel={close}>
           <SleepFields now={now} />
         </DialogForm>
       </Modal>
 
-      <Modal open={sheet === "diaper"} onClose={() => setSheet(null)} title={say(BABY.diaper)}>
-        <DialogForm action={saveDiaper} submitLabel={say(BABY.save)} onDone={() => setSheet(null)} onCancel={() => setSheet(null)}>
+      <Modal open={sheet === "diaper"} onClose={close} title={say(BABY.diaper)}>
+        <DialogForm action={saveDiaper} submitLabel={say(BABY.save)} onDone={close} onCancel={close}>
           <DiaperFields now={now} />
         </DialogForm>
       </Modal>
 
-      <Modal open={sheet === "feed"} onClose={() => setSheet(null)} title={say(BABY.feed)}>
+      <Modal open={sheet === "feed"} onClose={close} title={say(BABY.feed)}>
         <FeedSheet
           key={feedMethod ?? "any"}
           initial={feedMethod}
@@ -426,16 +482,57 @@ export function BabyLog({
           lastSide={lastBreastSide(entries.filter((entry) => entry !== runningBreast))}
           solids={solids}
           now={now}
-          onDone={() => setSheet(null)}
+          onDone={close}
         />
       </Modal>
+    </>
+  );
+}
 
-      <Modal open={sheet === "settings"} onClose={() => setSheet(null)} title={say(BABY.settings)}>
-        <DialogForm action={updateBaby} submitLabel={say(BABY.saveSettings)} onDone={() => setSheet(null)} onCancel={() => setSheet(null)}>
-          <SettingsFields baby={baby} />
-        </DialogForm>
-      </Modal>
-    </div>
+const feedMethodsOf = (baby: BabySettings): FeedMethod[] => [
+  ...(baby.trackBreast ? (["BREAST"] as const) : []),
+  ...(baby.trackBottle ? (["BOTTLE"] as const) : []),
+  ...(baby.trackSolid ? (["SOLID"] as const) : []),
+];
+
+const runningBreastOf = (entries: BabyEntry[]) =>
+  entries.find((entry) => !entry.endedAt && feedMethodOf(entry) === "BREAST") ?? null;
+
+/**
+ * The charts' own "+": the same sheets as the log's, over the same entries, so a feed or
+ * a nappy is written down from either tab without going back to the other first.
+ */
+export function BabyAddButton({
+  baby,
+  entries: wire,
+  solids,
+  renderedAt,
+}: {
+  baby: BabySettings;
+  entries: WireEntry[];
+  solids: string[];
+  renderedAt: number;
+}) {
+  // The log is a sideways swipe away: kept fetched, so it is there the moment it is asked for.
+  useKeepWarm("/baby", wire);
+  useCatchUp(renderedAt);
+  const entries = useMemo(() => wire.map(fromWire), [wire]);
+  const now = useNow(entries.some(isRunning), wire);
+  const [sheet, setSheet] = useState<AddSheet | null>(null);
+  const [feedMethod, setFeedMethod] = useState<FeedMethod | null>(null);
+  return (
+    <AddSheets
+      baby={baby}
+      entries={entries}
+      solids={solids}
+      now={now}
+      sheet={sheet}
+      feedMethod={feedMethod}
+      onSheet={(next, method) => {
+        if (method !== undefined) setFeedMethod(method);
+        setSheet(next);
+      }}
+    />
   );
 }
 

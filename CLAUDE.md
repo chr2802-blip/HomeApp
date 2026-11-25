@@ -1273,6 +1273,15 @@ the page; a table so a second child is rows). Everybody's, like the pantry: the 
   accent and none of green, red or amber.
 - The page asks the server again every 30 s while visible (`useFollow`); there is no
   Realtime nudge for it yet.
+- **The "+" is the same on both tabs** (`AddSheets` in `baby-log.tsx`: a sleep written
+  down afterwards, a feed, a nappy — the only way to log a sleep with times). The charts
+  draw it as `BabyAddButton`, so `/baby/charts` also loads the log's entries
+  (`loadBabyLog` in `baby/log-data.ts`, shared with `/baby`).
+- **Each tab keeps the other fetched in full** (`useKeepWarm`, `src/components/use-keep-warm.ts`),
+  asked again whenever the page's props change, because `router.refresh()` and a server
+  action's revalidation both empty the router's cache. A page drawn from that copy asks
+  the server once on arrival if it is more than a few seconds old (`useCatchUp`).
+  `e2e/baby-tabs.spec.ts` holds both.
 - **The charts (`/baby/charts`) are positioned blocks, not a chart library** — marks on a
   24-hour line and bars of a height. What they draw is `src/lib/baby-charts.ts`
   (`chartDay`, `summarise`): a sleep counts on every day it covers, a feed on the day it
