@@ -8,6 +8,7 @@ import { prisma } from "./prisma";
 import { DEFAULT_THEME } from "./theme";
 import { DEFAULT_LANGUAGE } from "./language";
 import { readPins, type PinnableTab } from "./nav-tabs";
+import { readBabyTiles, type BabyTile } from "./baby-tiles";
 
 const COOKIE = "homehub_session";
 const MAX_AGE = 60 * 60 * 24 * 30;
@@ -113,6 +114,8 @@ export type SessionUser = {
   navPins: PinnableTab[];
   /** The dashboard's three tiles as stored — `readTiles` against the home's lists on the page. */
   dashboardTiles: string[];
+  /** The baby log's tiles in this person's order (`readBabyTiles`). */
+  babyTiles: BabyTile[];
 };
 
 /**
@@ -195,6 +198,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     homeRole: homes.find((home) => home.id === active?.id)?.role ?? null,
     navPins: readPins(user.navPins),
     dashboardTiles: user.dashboardTiles,
+    babyTiles: readBabyTiles(user.babyTiles),
   };
 });
 

@@ -2,7 +2,7 @@ import { ACCOUNTS, expect, test } from "./helpers/fixtures";
 
 /**
  * The baby log on a phone: started from nothing, then written to with the three big
- * buttons, the way it is used at three in the morning.
+ * tiles' "+", the way it is used at three in the morning.
  */
 test.describe("the baby log", () => {
   test.beforeEach(async ({ page, loginAs }) => {
@@ -15,37 +15,59 @@ test.describe("the baby log", () => {
   });
 
   test("starts and ends a sleep with one button, and says so at the top", { tag: "@smoke" }, async ({ page }) => {
-    const sleep = page.locator("[data-baby-dock=sleep]");
+    const sleep = page.locator("[data-baby-add=sleep]");
     await sleep.click();
-    await expect(sleep).toContainText("Awake");
+    await expect(sleep).toHaveAttribute("aria-label", "Awake");
     await expect(page.locator("[data-baby-tile=sleep]")).toContainText("Asleep");
     await expect(page.locator("[data-baby-entry=SLEEP]")).toContainText("Asleep now");
 
     await sleep.click();
-    await expect(sleep).toContainText("Asleep now");
+    await expect(sleep).toHaveAttribute("aria-label", "Asleep now");
     await expect(page.locator("[data-baby-tile=sleep]")).toContainText("Awake");
   });
 
   test("logs a nappy and a bottle, newest first", async ({ page }) => {
-    await page.locator("[data-baby-dock=diaper]").click();
+    await page.locator("[data-baby-add=diaper]").click();
     const nappy = page.getByRole("dialog", { name: "Nappy" });
     await nappy.getByText("Both", { exact: true }).click();
     await nappy.getByRole("button", { name: "Save" }).click();
     await expect(nappy).toHaveCount(0);
     await expect(page.locator("[data-baby-tile=diaper]")).toContainText("1 today");
 
-    await page.locator("[data-baby-dock=feed]").click();
+    // The bottle's own "+" opens the sheet on the bottle.
+    await page.locator("[data-baby-add=bottle]").click();
     const feed = page.getByRole("dialog", { name: "Feed" });
-    await feed.getByText("Bottle", { exact: true }).click();
     await feed.getByLabel("Amount in ml").fill("120");
     await feed.getByRole("button", { name: "Save" }).click();
     await expect(feed).toHaveCount(0);
 
     await expect(page.locator("[data-baby-entry]").first()).toContainText("120 ml");
+    await expect(page.locator("[data-baby-tile=bottle]")).toContainText("last at");
+  });
+
+  test("keeps the tiles in the order they were dragged into", async ({ page }) => {
+    const tiles = page.locator("[data-baby-tile]");
+    await expect(tiles.first()).toHaveAttribute("data-baby-tile", "sleep");
+    // Held still first, then dragged: a hold is what lifts a tile, a swipe only scrolls.
+    const from = (await page.locator("[data-baby-tile=breast]").boundingBox())!;
+    const to = (await page.locator("[data-baby-tile=sleep]").boundingBox())!;
+    await page.mouse.move(from.x + 20, from.y + from.height - 12);
+    await page.mouse.down();
+    await page.waitForTimeout(450);
+    await page.mouse.move(from.x + 10, from.y + from.height - 12, { steps: 3 });
+    await page.mouse.move(to.x + 10, to.y + to.height - 12, { steps: 12 });
+    await page.mouse.up();
+    await expect(tiles.first()).toHaveAttribute("data-baby-tile", "breast");
+
+    // The person's own: it survives a reload.
+    await page.waitForTimeout(500);
+    await page.reload();
+    await expect(tiles.first()).toHaveAttribute("data-baby-tile", "breast");
+    await expect(tiles.nth(1)).toHaveAttribute("data-baby-tile", "sleep");
   });
 
   test("runs a breast feed's timer that outlives the sheet", async ({ page }) => {
-    await page.locator("[data-baby-dock=feed]").click();
+    await page.locator("[data-baby-add=breast]").click();
     const feed = page.getByRole("dialog", { name: "Feed" });
     await feed.getByRole("button", { name: /Left/ }).click();
     await expect(feed.getByRole("button", { name: /Left/ })).toHaveAttribute("aria-pressed", "true");
@@ -53,7 +75,7 @@ test.describe("the baby log", () => {
     // Closed and opened again — or reloaded — the feed is still running.
     await page.reload();
     await expect(page.locator("[data-baby-entry=FEED]")).toContainText("Feeding now");
-    await page.locator("[data-baby-dock=feed]").click();
+    await page.locator("[data-baby-add=breast]").click();
     await expect(page.getByRole("dialog", { name: "Feed" }).getByRole("button", { name: /Left/ })).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("dialog", { name: "Feed" }).getByRole("button", { name: "Done · save" }).click();
     await expect(page.locator("[data-baby-entry=FEED]")).toContainText("Breastfeeding");
@@ -65,7 +87,7 @@ test.describe("the baby log", () => {
     await settings.getByText("Nappies", { exact: true }).click();
     await settings.getByRole("button", { name: "Save settings" }).click();
     await expect(settings).toHaveCount(0);
-    await expect(page.locator("[data-baby-dock=diaper]")).toHaveCount(0);
+    await expect(page.locator("[data-baby-tile=diaper]")).toHaveCount(0);
   });
 
   test("can be pinned to the tab bar", async ({ page }) => {
@@ -95,8 +117,8 @@ test.describe("the baby log's charts", () => {
     await page.goto("/baby");
     await page.getByLabel("The baby's name").fill("Ella");
     await page.getByRole("button", { name: "Start the log" }).click();
-    await page.locator("[data-baby-dock=sleep]").click();
-    await expect(page.locator("[data-baby-dock=sleep]")).toContainText("Awake");
+    await page.locator("[data-baby-add=sleep]").click();
+    await expect(page.locator("[data-baby-tile=sleep]")).toContainText("Asleep");
 
     await page.getByRole("link", { name: "Charts", exact: true }).click();
     await page.waitForURL(/\/baby\/charts$/);

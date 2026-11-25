@@ -8,9 +8,10 @@ import { createBaby } from "@/app/actions/baby";
 import { ActionForm } from "@/components/action-form";
 import { Card, EmptyState, Input, Label } from "@/components/ui";
 import { BabyLog, type WireEntry } from "@/components/baby/baby-log";
+import { BABY_TILES } from "@/lib/baby-tiles";
 
-/** The kinds a tile can narrow the list to (`?show=`). */
-const SHOWS = ["sleep", "feed", "diaper"] as const;
+/** What a tile can narrow the list to (`?show=`): a tile, or every feed at once. */
+const SHOWS = [...BABY_TILES, "feed"] as const;
 
 /** How far back the numbers at the top look before asking for the newest of a kind on its own. */
 const RECENT_DAYS = 3;
@@ -57,7 +58,15 @@ export default async function BabyPage({ searchParams }: { searchParams: Promise
   const dayFrom = dayBounds(shiftDay(day, -1)).start;
 
   const select = { id: true, kind: true, startedAt: true, endedAt: true, details: true, note: true } as const;
-  const [around, lastFeed, lastSleep, solids] = await Promise.all([
+  // The newest of each way of feeding on its own: each has a tile of its own, and a bottle
+  // last given a week ago is still "a week ago" rather than "nothing yet".
+  const lastOf = (method: string) =>
+    db.babyEvent.findFirst({
+      where: { babyId: baby.id, kind: "FEED", details: { path: ["method"], equals: method } },
+      orderBy: { startedAt: "desc" },
+      select,
+    });
+  const [around, lastFeed, lastSleep, solids, lastBreast, lastBottle, lastSolid] = await Promise.all([
     db.babyEvent.findMany({
       where: {
         babyId: baby.id,
@@ -79,10 +88,13 @@ export default async function BabyPage({ searchParams }: { searchParams: Promise
       take: 200,
       select: { id: true, kind: true, startedAt: true, endedAt: true, details: true },
     }),
+    lastOf("BREAST"),
+    lastOf("BOTTLE"),
+    lastOf("SOLID"),
   ]);
 
   const byId = new Map<string, WireEntry>();
-  for (const entry of [...around, lastFeed, lastSleep]) {
+  for (const entry of [...around, lastFeed, lastSleep, lastBreast, lastBottle, lastSolid]) {
     if (!entry) continue;
     byId.set(entry.id, {
       id: entry.id,
@@ -109,6 +121,7 @@ export default async function BabyPage({ searchParams }: { searchParams: Promise
       today={today}
       solids={solidSuggestions(solids)}
       show={SHOWS.find((kind) => kind === params.show) ?? null}
+      order={user.babyTiles}
     />
   );
 }

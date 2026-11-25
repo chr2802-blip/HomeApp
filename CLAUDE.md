@@ -1261,6 +1261,13 @@ the page; a table so a second child is rows). Everybody's, like the pantry: the 
   `datetime-local` values read by `instantFromLocal`; a field left on the current minute
   means now, to the second, so two things logged in one minute keep their order.
 - **A kind switched off is hidden, never deleted** (`Baby.track*`).
+- **The top of the page is one row of tiles, each with its own "+"** — sleep, breast,
+  bottle, solid food, nappies (`BABY_TILES`, `src/lib/baby-tiles.ts`); there is no dock of
+  buttons at the bottom. The row scrolls sideways; a tile **held** (300 ms, dnd-kit's
+  `delay`) lifts and is dragged, so a swipe still scrolls. The order is **the person's**
+  (`User.babyTiles`, read through `readBabyTiles`), like `navPins`; which tiles are drawn
+  is the home's (`track*`). A tap on a tile still narrows the list (`?show=` takes a tile,
+  or `feed` for every feed — the dashboard links to that).
 - **The three kinds have colours of their own** (`--baby-*` in `globals.css`, named in
   `src/lib/baby-colors.ts`, held by `tests/unit/baby-colors.test.ts`): not the home's
   accent and none of green, red or amber.
