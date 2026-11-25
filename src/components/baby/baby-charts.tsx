@@ -167,16 +167,11 @@ export function FeedChart({ summary, language }: { summary: PeriodSummary; langu
   );
 }
 
-/** Bars per day: the whole day, night under nap under awake, then nappies — the median day last. */
-export function TotalsChart({ summary, language }: { summary: PeriodSummary; language: HomeLanguage }) {
+/** The bar columns' shared frame: the days, then the median apart; and their labels underneath. */
+function columnsOf(summary: PeriodSummary, language: HomeLanguage) {
   const say = sayIn(language);
   const dense = summary.days.length > 7;
   const rows = withMedian(summary);
-  // A whole day is the scale, so a bar is the day and the parts are its shares of it.
-  const dayScale = Math.max(24, ...rows.map(({ row }) => row.nightHours + row.napHours + row.awakeHours));
-  const diaperScale = Math.max(8, summary.maxDiapers);
-  const locale = language === "DA" ? "da-DK" : "en-GB";
-  const one = (value: number) => (Math.round(value * 10) / 10).toLocaleString(locale);
   const label = (row: DayChart) =>
     row.day === "median" ? say(BABY.median) : readDayInZone(row.day, dense ? BABY.shortDay : BABY.weekday, language);
   const column = (median: boolean) =>
@@ -190,18 +185,48 @@ export function TotalsChart({ summary, language }: { summary: PeriodSummary; lan
       ))}
     </div>
   );
+  return { say, dense, rows, column, labels };
+}
+
+/** A bar's height in px; the sleep bars are this tall whatever the day held. */
+const DAY_BAR_PX = 192;
+/** A block shorter than this many hours has no room for its number. */
+const NUMBER_FROM_HOURS = 1.5;
+
+/**
+ * Bars per day, each the whole 24 hours: night under nap under awake, the awake part
+ * being whatever the sleep left — so every bar is full height, and each block says its
+ * hours. A day with nothing logged has no bar.
+ */
+export function SleepTotalsChart({ summary, language }: { summary: PeriodSummary; language: HomeLanguage }) {
+  const { say, dense, rows, column, labels } = columnsOf(summary, language);
+  const locale = language === "DA" ? "da-DK" : "en-GB";
+  const hoursText = (value: number) =>
+    dense ? String(Math.round(value)) : (Math.round(value * 10) / 10).toLocaleString(locale);
+  const block = (hours: number, total: number, style: React.CSSProperties, textColor: string, top = false) =>
+    hours > 0 && (
+      <span
+        className={`flex items-center justify-center overflow-hidden whitespace-nowrap font-semibold leading-none ${dense ? "text-[7px] tracking-tighter" : "text-[10px]"} ${top ? "rounded-t-[3px]" : ""}`}
+        style={{ height: `${(hours / total) * 100}%`, color: textColor, ...style }}
+        data-hours={Math.round(hours * 10) / 10}
+      >
+        {hours >= NUMBER_FROM_HOURS ? hoursText(hours) : ""}
+      </span>
+    );
   return (
     <Card title={say(BABY.sleepTotals)} label={say(BABY.sleepTotals)}>
-      <div aria-hidden="true" className={`flex h-40 items-end border-b border-slate-200 ${dense ? "gap-0.5" : "gap-2"}`}>
+      <div aria-hidden="true" className={`flex items-end border-b border-slate-200 ${dense ? "gap-0.5" : "gap-2"}`} style={{ height: DAY_BAR_PX }}>
         {rows.map(({ row, median }) => {
-          const sleep = row.nightHours + row.napHours;
-          const height = (hours: number) => `${(hours / dayScale) * 136}px`;
+          const total = row.nightHours + row.napHours + row.awakeHours;
           return (
-            <div key={row.day} className={column(median)}>
-              {!dense && sleep > 0 && <span className="mb-0.5 text-center text-[10px] text-slate-600">{one(sleep)}</span>}
-              <span className="rounded-t-[3px] bg-slate-200" style={{ height: height(row.awakeHours) }} />
-              <span style={{ height: height(row.napHours), background: "var(--baby-nap)" }} />
-              <span style={{ height: height(row.nightHours), background: "var(--baby-sleep)" }} />
+            <div key={row.day} className={`${column(median)} h-full`} data-chart-bar={row.day}>
+              {total > 0 && (
+                <>
+                  {block(row.awakeHours, total, { background: "var(--color-slate-200)" }, "var(--color-slate-600)", true)}
+                  {block(row.napHours, total, { background: "var(--baby-nap)" }, "var(--baby-sleep-text)", row.awakeHours <= 0)}
+                  {block(row.nightHours, total, { background: "var(--baby-sleep)" }, "#ffffff", row.awakeHours + row.napHours <= 0)}
+                </>
+              )}
             </div>
           );
         })}
@@ -212,13 +237,27 @@ export function TotalsChart({ summary, language }: { summary: PeriodSummary; lan
         <Key color="var(--baby-nap)" label={say(BABY.nap)} />
         <Key color="var(--color-slate-200)" label={say(BABY.awake)} />
       </div>
+    </Card>
+  );
+}
 
-      <p className="mt-5 mb-3 text-xs font-semibold tracking-wide text-slate-500 uppercase">{say(BABY.diaperTotals)}</p>
-      <div aria-hidden="true" className={`flex h-20 items-end border-b border-slate-200 ${dense ? "gap-0.5" : "gap-2"}`}>
+/** Nappies per day as bars, the count on each — the median day last. */
+export function DiaperTotalsChart({ summary, language }: { summary: PeriodSummary; language: HomeLanguage }) {
+  const { say, dense, rows, column, labels } = columnsOf(summary, language);
+  const diaperScale = Math.max(8, summary.maxDiapers);
+  return (
+    <Card title={say(BABY.diaperTotals)} label={say(BABY.diaperTotals)}>
+      <div aria-hidden="true" className={`flex h-28 items-end border-b border-slate-200 ${dense ? "gap-0.5" : "gap-2"}`}>
         {rows.map(({ row, median }) => (
           <div key={row.day} className={column(median)}>
-            {!dense && row.diaperCount > 0 && <span className="mb-0.5 text-center text-[10px] text-slate-600">{row.diaperCount}</span>}
-            <span className="rounded-t-[3px]" style={{ height: `${(row.diaperCount / diaperScale) * 64}px`, background: babyColor("diaper") }} />
+            {row.diaperCount > 0 && (
+              <span
+                className={`flex min-h-3.5 items-start justify-center rounded-t-[3px] pt-0.5 whitespace-nowrap font-semibold leading-none text-white ${dense ? "text-[7px] tracking-tighter" : "text-[10px]"}`}
+                style={{ height: `${(row.diaperCount / diaperScale) * 104}px`, background: babyColor("diaper") }}
+              >
+                {Math.round(row.diaperCount)}
+              </span>
+            )}
           </div>
         ))}
       </div>
