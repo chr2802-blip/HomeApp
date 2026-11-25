@@ -672,6 +672,10 @@ usual way in. **Never put a bare Delete button on a card.** The panel is drawn t
 portal and positioned from the trigger's box, because the cards clip their own contents,
 and it follows the page when that scrolls rather than closing.
 
+**An entry in `extraItems` cannot own a sheet**: the panel unmounts once it has closed and
+takes the sheet with it a moment after it opened. Draw the sheet beside `ItemMenu`, the way
+`ListMenu` (`src/components/list-menu.tsx`, a list's "Duplicate") does.
+
 **[`docs/design/ui-patterns.md`](docs/design/ui-patterns.md) says why.**
 
 ### A recipe is filed under one category or several

@@ -9,7 +9,7 @@ import { AmountsField } from "@/components/amounts-field";
 import { GroupingField } from "@/components/grouping-field";
 import { Collapsible } from "@/components/collapsible";
 import { FavoriteButton } from "@/components/favorite-button";
-import { ItemMenu } from "@/components/item-menu";
+import { ListMenu } from "@/components/list-menu";
 import { PhotoField } from "@/components/photo-field";
 import { PhotoThumb } from "@/components/photo";
 import { EmojiField } from "@/components/emoji-field";
@@ -80,10 +80,10 @@ function ListCards({ lists }: { lists: ListSummary[] }) {
           {/* Both sit to the right of the title, outside the link: a button inside
               a link is neither valid nor pressable without following it. */}
           <FavoriteButton listId={list.id} title={list.title} favorite={list.favorite} />
-          <ItemMenu
-            name="listId"
-            id={list.id}
-            label={list.title}
+          <ListMenu
+            listId={list.id}
+            title={list.title}
+            items={list.total}
             editTitle={say(LISTS.editList)}
             editAction={updateList}
             deleteAction={deleteList}
@@ -98,7 +98,7 @@ function ListCards({ lists }: { lists: ListSummary[] }) {
             <GroupingField defaultValue={list.grouping} language={language} />
             <EmojiField selected={list.emoji} idPrefix={`emoji-${list.id}`} language={language} />
             <PhotoField defaultPhotoId={list.photoId} />
-          </ItemMenu>
+          </ListMenu>
 
           {/* Along the card's own bottom edge rather than under the counts: the
               card is one thing, and a rounded bar floating in its padding reads as
