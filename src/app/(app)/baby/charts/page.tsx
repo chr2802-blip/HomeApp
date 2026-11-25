@@ -7,7 +7,7 @@ import { dayBounds, type BabyEntry } from "@/lib/baby";
 import { PERIOD_DAYS, periodDays, readPeriod, summarise, type ChartPeriod } from "@/lib/baby-charts";
 import { sayIn } from "@/lib/copy/say";
 import { BABY } from "@/lib/copy/baby";
-import { FeedChart, PeriodAverages, SleepChart, TotalsChart } from "@/components/baby/baby-charts";
+import { DiaperTotalsChart, FeedChart, PeriodAverages, SleepChart, SleepTotalsChart } from "@/components/baby/baby-charts";
 
 /**
  * The baby log over a day, a week or a month: the averages, sleep around the clock, when
@@ -113,7 +113,8 @@ export default async function BabyChartsPage({
           <PeriodAverages summary={summary} language={language} />
           <SleepChart summary={summary} language={language} />
           <FeedChart summary={summary} language={language} />
-          <TotalsChart summary={summary} language={language} />
+          <SleepTotalsChart summary={summary} language={language} />
+          <DiaperTotalsChart summary={summary} language={language} />
         </>
       )}
     </div>
