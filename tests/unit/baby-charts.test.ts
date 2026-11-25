@@ -83,12 +83,12 @@ describe("awake time and the median day", () => {
     ...day("2026-11-22", "06:00", "13:00", "14:00", "07:00"),
   ];
 
-  it("makes a logged day 24 hours, today included", () => {
+  it("makes a logged day 24 hours, and today only up to now", () => {
     const row = chartDay(all, "2026-11-20", now);
     expect(row.nightHours + row.napHours + row.awakeHours).toBe(24);
     expect(chartDay(all, "2026-11-19", now).awakeHours).toBe(0);
     const today = chartDay([entry("DIAPER", "2026-11-24T07:00:00Z", null, { wet: true })], "2026-11-24", now);
-    expect(today.awakeHours).toBe(24);
+    expect(today.awakeHours).toBe(15); // 00:00 → 15:00 local
   });
 
   it("is asleep where most days were, and takes each figure's median", () => {

@@ -8,15 +8,15 @@
 ## The idea
 
 "Søvn og vågen pr. dag" and "Bleer pr. dag" were one card; now two (`SleepTotalsChart`,
-`DiaperTotalsChart`). Every sleep bar fills the whole height, awake is 24 − sleep (today
-too, by the household's choice — it used to be only the hours that had passed), and every
+`DiaperTotalsChart`). Every sleep bar fills the whole height, awake is 24 − sleep (today:
+the hours so far − sleep, and today's bar is drawn as its own whole), and every
 block carries its hours; every nappy bar its count.
 
 ## The route
 
 Read the page, the lib and the component; changed `chartDay`'s awake rule and its unit
 test; split the component; screenshotted week and month; month's two-digit numbers
-wrapped in 9px bars, so dense mode got 7px, nowrap; screenshotted again.
+wrapped in 9px bars, so dense mode got 7px, nowrap; screenshotted again. First pass made today 24 h too; the user corrected that to "so far".
 
 ## Where the time went
 

@@ -194,9 +194,9 @@ const DAY_BAR_PX = 192;
 const NUMBER_FROM_HOURS = 1.5;
 
 /**
- * Bars per day, each the whole 24 hours: night under nap under awake, the awake part
- * being whatever the sleep left — so every bar is full height, and each block says its
- * hours. A day with nothing logged has no bar.
+ * Bars per day, each the whole day so far (24 hours, or up to now today): night under
+ * nap under awake, the awake part being whatever the sleep left — every bar is full
+ * height, and each block says its hours. A day with nothing logged has no bar.
  */
 export function SleepTotalsChart({ summary, language }: { summary: PeriodSummary; language: HomeLanguage }) {
   const { say, dense, rows, column, labels } = columnsOf(summary, language);
