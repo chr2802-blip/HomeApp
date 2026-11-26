@@ -11,8 +11,10 @@ import {
   startCronRun,
 } from "@/lib/observability";
 import { DEFAULT_LANGUAGE } from "@/lib/language";
+import type { HomeLanguage } from "@prisma/client";
 import { sayIn } from "@/lib/copy/say";
 import { APP } from "@/lib/copy/app";
+import { namesInWords } from "@/lib/pantry";
 
 export const dynamic = "force-dynamic";
 
@@ -86,14 +88,37 @@ async function sendDueReminders() {
 
   const languageByHome = new Map(homes.map((home) => [home.id, home.language]));
 
-  let delivered = 0;
+  // One notification per person per home, however many tasks are waiting for them: a
+  // morning with five jobs due used to be five pushes in a row, which reads as the phone
+  // nagging rather than as the day's list. People who would hear about exactly the same
+  // tasks share one send, so an unassigned job still costs one lookup of subscriptions.
+  const byHome = new Map<string, typeof dueTasks>();
   for (const task of dueTasks) {
-    const say = sayIn(languageByHome.get(task.homeId) ?? DEFAULT_LANGUAGE);
-    delivered += await sendPushToUsers(recipientsFor(task, membersByHome.get(task.homeId) ?? []), {
-      title: say(APP.push.taskDue),
-      body: task.title,
-      url: "/tasks",
-    });
+    const existing = byHome.get(task.homeId);
+    if (existing) existing.push(task);
+    else byHome.set(task.homeId, [task]);
+  }
+
+  let delivered = 0;
+  for (const [homeId, tasks] of byHome) {
+    const language = languageByHome.get(homeId) ?? DEFAULT_LANGUAGE;
+    const members = membersByHome.get(homeId) ?? [];
+    // Oldest first, so what is named before the "and 2 more" is what has waited longest.
+    const ordered = [...tasks].sort((a, b) => a.nextDueAt.getTime() - b.nextDueAt.getTime());
+
+    const recipientsByTasks = new Map<string, { userIds: string[]; titles: string[] }>();
+    for (const userId of members) {
+      const theirs = ordered.filter((task) => recipientsFor(task, members).includes(userId));
+      if (theirs.length === 0) continue;
+      const key = theirs.map((task) => task.id).join(",");
+      const group = recipientsByTasks.get(key);
+      if (group) group.userIds.push(userId);
+      else recipientsByTasks.set(key, { userIds: [userId], titles: theirs.map((t) => t.title) });
+    }
+
+    for (const { userIds, titles } of recipientsByTasks.values()) {
+      delivered += await sendPushToUsers(userIds, morningPush(titles, homeId, language));
+    }
   }
 
   // One write for the whole batch instead of one per task.
@@ -105,6 +130,25 @@ async function sendDueReminders() {
   await prune(now);
 
   return { tasksDue: dueTasks.length, notificationsSent: delivered };
+}
+
+/**
+ * The morning's notification for one person's due tasks. A single task keeps the title
+ * it always had, with the task as its body; several are counted in the title and named
+ * in the body, the first few by name and the rest as a number.
+ *
+ * Tagged per home, so tomorrow's replaces today's if it is still lying in the tray
+ * rather than stacking a second summary of mostly the same jobs under it.
+ */
+function morningPush(titles: string[], homeId: string, language: HomeLanguage) {
+  const say = sayIn(language);
+  return {
+    title:
+      titles.length === 1 ? say(APP.push.taskDue) : say(APP.push.tasksDue, { count: titles.length }),
+    body: namesInWords(titles, language),
+    url: "/tasks",
+    tag: `tasks:${homeId}`,
+  };
 }
 
 /**
