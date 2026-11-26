@@ -36,10 +36,10 @@ export type DayChart = {
   nightHours: number;
   napHours: number;
   /**
-   * The rest of the day's hours that have happened: 24 less the sleep (23 or 25 on the
-   * days the clocks change), and on today only up to now — the hours still to come are
-   * nobody's yet. Zero on a day with nothing logged, which is a day before the log began
-   * rather than a day spent awake.
+   * 24 less the sleep on a day that is over (the days the clocks change included), and on
+   * today the hours so far less the sleep — the hours still to come are nobody's yet. Zero
+   * on a day with nothing logged, which is a day before the log began rather than a day
+   * spent awake. The chart draws each bar as its own whole, so every bar is full height.
    */
   awakeHours: number;
   feedCount: number;
@@ -93,8 +93,8 @@ export function chartDay(entries: readonly BabyEntry[], day: string, now: Date):
   }
   if (row.sleep.length + row.feedCount + row.diaperCount > 0) {
     const { start, end } = dayBounds(day);
-    const passed = (Math.min(now.getTime(), end.getTime()) - start.getTime()) / 3_600_000;
-    row.awakeHours = Math.max(0, passed - row.nightHours - row.napHours);
+    const hours = now < end ? (now.getTime() - start.getTime()) / 3_600_000 : 24;
+    row.awakeHours = Math.max(0, hours - row.nightHours - row.napHours);
   }
   row.sleep.sort((a, b) => a.from - b.from);
   row.feeds.sort((a, b) => a.at - b.at);

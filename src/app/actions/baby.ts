@@ -10,6 +10,8 @@ import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { sayIn, type Say } from "@/lib/copy/say";
 import { BABY } from "@/lib/copy/baby";
 import { instantFromLocal } from "@/lib/time";
+import { prisma } from "@/lib/prisma";
+import { BABY_TILE_FIELD, readBabyTiles } from "@/lib/baby-tiles";
 import {
   BOTTLE_MILKS,
   BREAST_SIDES,
@@ -427,4 +429,18 @@ export async function deleteBabyEvent(formData: FormData): Promise<void> {
   // `deleteMany` through homeDb: another home's id deletes nothing rather than throwing.
   await homeDb(user.homeId).babyEvent.deleteMany({ where: { id } });
   refresh();
+}
+
+/**
+ * The order of the tiles at the top of the log — one `BABY_TILE_FIELD` entry each, first
+ * first. The person's, not the home's, so it is written on `User`; read through
+ * `readBabyTiles`, so whatever arrives, the row keeps every tile exactly once. Nothing to
+ * report: the row is already drawn in the new order.
+ */
+export async function setBabyTiles(formData: FormData): Promise<void> {
+  const user = await requireHomeUser();
+  const tiles = readBabyTiles(formData.getAll(BABY_TILE_FIELD));
+  // `User` is a person, not a household — no home to scope by, and none needed.
+  await prisma.user.update({ where: { id: user.id }, data: { babyTiles: tiles } });
+  revalidatePath("/baby");
 }

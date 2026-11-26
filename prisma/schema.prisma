@@ -166,6 +166,12 @@ model User {
    * from another home included) and never fills one. A person's, like `navPins`.
    */
   dashboardTiles String[]   @default([])
+  /**
+   * The order of the tiles at the top of the baby log — keys from `BABY_TILES` in
+   * `src/lib/baby-tiles.ts`. Read only through `readBabyTiles`, which drops what it does
+   * not know and appends what is missing. A person's, like `navPins`.
+   */
+  babyTiles      String[]   @default([])
   createdAt    DateTime     @default(now())
 
   activeHome        Home?              @relation("ActiveHome", fields: [activeHomeId], references: [id], onDelete: SetNull)

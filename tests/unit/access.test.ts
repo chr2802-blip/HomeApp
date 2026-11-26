@@ -46,6 +46,7 @@ function user(
     homeSeasonal: false,
     navPins: ["food", "lists"],
     dashboardTiles: [],
+    babyTiles: [],
     homeRole: homes.find((home) => home.id === active)?.role ?? null,
   };
 }

@@ -1,17 +1,23 @@
 "use client";
 
-import { Fragment, startTransition, useEffect, useMemo, useOptimistic, useState } from "react";
+import { Fragment, startTransition, useEffect, useMemo, useOptimistic, useRef, useState } from "react";
+import { DndContext, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, horizontalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
+import { CSS } from "@dnd-kit/utilities";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/components/language-provider";
 import { Modal } from "@/components/modal";
 import { DialogForm } from "@/components/form-dialog";
 import { CreateFab } from "@/components/create-button";
+import { useCatchUp, useKeepWarm } from "@/components/use-keep-warm";
 import { ItemMenu } from "@/components/item-menu";
 import { Input, Label } from "@/components/ui";
-import { sayIn } from "@/lib/copy/say";
+import { sayIn, type Phrase } from "@/lib/copy/say";
 import { BABY } from "@/lib/copy/baby";
 import { babyColor, type BabyColorKind } from "@/lib/baby-colors";
+import { BABY_TILE_FIELD, moveBabyTile, type BabyTile } from "@/lib/baby-tiles";
 import { readDayInZone, shiftDay } from "@/lib/time";
 import {
   MAX_BABY_NAME_LENGTH,
@@ -44,6 +50,7 @@ import {
   resumeFeed,
   resumeSleep,
   saveDiaper,
+  setBabyTiles,
   saveFeed,
   saveSleep,
   toggleSleep,
@@ -79,19 +86,35 @@ const fromWire = (entry: WireEntry): BabyEntry => ({
 const kindColor = (entry: BabyEntry): BabyColorKind =>
   entry.kind === "SLEEP" ? "sleep" : entry.kind === "FEED" ? "feed" : "diaper";
 
+/** What the list can be narrowed to: one tile's entries, or every feed at once. */
+export type BabyShow = BabyTile | "feed";
+
+const METHOD_OF_TILE: Partial<Record<BabyTile, FeedMethod>> = { breast: "BREAST", bottle: "BOTTLE", solid: "SOLID" };
+
+const colorOfShow = (show: BabyShow): BabyColorKind => (show === "sleep" ? "sleep" : show === "diaper" ? "diaper" : "feed");
+
+/** Whether an entry belongs under what the list is narrowed to. */
+function showsEntry(show: BabyShow, entry: BabyEntry): boolean {
+  const method = METHOD_OF_TILE[show as BabyTile];
+  if (method) return entry.kind === "FEED" && feedMethodOf(entry) === method;
+  return kindColor(entry) === colorOfShow(show);
+}
+
 /**
  * The clock the page reads, ticking every second while a timer runs and every half
  * minute otherwise — every "how long since" is worked out from it and the stored
  * instants, never counted up, so a phone that slept with the app closed is right the
  * moment it wakes.
  */
-function useNow(fast: boolean): Date {
+function useNow(fast: boolean, entries: unknown): Date {
   const [now, setNow] = useState(() => new Date());
+  // Read afresh whenever the entries change too: one written a moment ago is stamped after
+  // the last tick, and would otherwise read as still to come until the next one.
   useEffect(() => {
     setNow(new Date());
     const timer = setInterval(() => setNow(new Date()), fast ? 1000 : 30_000);
     return () => clearInterval(timer);
-  }, [fast]);
+  }, [fast, entries]);
   return now;
 }
 
@@ -114,7 +137,11 @@ function useFollow() {
   }, [router]);
 }
 
-type Sheet = null | "feed" | "diaper" | "sleep" | "settings" | "choose" | "wakeful";
+/** The sheets behind the "+" and the tiles' own "+" — the ones the charts' page opens too. */
+type AddSheet = "choose" | "sleep" | "diaper" | "feed";
+type Sheet = null | AddSheet | "settings" | "wakeful";
+const isAddSheet = (sheet: Sheet): sheet is AddSheet =>
+  sheet === "choose" || sheet === "sleep" || sheet === "diaper" || sheet === "feed";
 
 /**
  * The baby log: how long since the last of everything at the top, the day being read
@@ -128,28 +155,37 @@ export function BabyLog({
   today,
   solids,
   show: initialShow = null,
+  order: initialOrder,
+  renderedAt,
 }: {
   baby: BabySettings;
+  /** When the server drew this (epoch ms), so a copy kept warm catches up on arrival. */
+  renderedAt: number;
   entries: WireEntry[];
   day: string;
   today: string;
   solids: string[];
-  /** The kind the list is narrowed to, from `?show=` — a tile pressed. */
-  show?: BabyColorKind | null;
+  /** What the list is narrowed to, from `?show=` — a tile pressed. */
+  show?: BabyShow | null;
+  /** The tiles in this person's order (`User.babyTiles`). */
+  order: BabyTile[];
 }) {
   const language = useLanguage();
   const say = sayIn(language);
   const entries = useMemo(() => wire.map(fromWire), [wire]);
   const [asleep, showAsleep] = useOptimistic(entries.some((entry) => entry.kind === "SLEEP" && !entry.endedAt));
   const running = entries.some(isRunning);
-  const now = useNow(running || asleep);
+  const now = useNow(running || asleep, wire);
   const [sheet, setSheet] = useState<Sheet>(null);
-  const [show, setShow] = useState<BabyColorKind | null>(initialShow);
+  const [feedMethod, setFeedMethod] = useState<FeedMethod | null>(null);
+  const [show, setShow] = useState<BabyShow | null>(initialShow);
   useFollow();
+  useKeepWarm("/baby/charts", wire);
+  useCatchUp(renderedAt);
 
   // A tile pressed narrows the day's list to its kind, and pressed again shows everything.
   // Kept in the address too, so paging the day keeps it and a reload comes back to it.
-  const toggleShow = (kind: BabyColorKind) => {
+  const toggleShow = (kind: BabyShow) => {
     const next = show === kind ? null : kind;
     setShow(next);
     const url = new URL(window.location.href);
@@ -158,20 +194,33 @@ export function BabyLog({
     window.history.replaceState(window.history.state, "", url);
   };
 
-  const methods: FeedMethod[] = [
-    ...(baby.trackBreast ? (["BREAST"] as const) : []),
-    ...(baby.trackBottle ? (["BOTTLE"] as const) : []),
-    ...(baby.trackSolid ? (["SOLID"] as const) : []),
-  ];
-  const runningBreast = entries.find((entry) => !entry.endedAt && feedMethodOf(entry) === "BREAST") ?? null;
-  const feeds = methods.length > 0 || runningBreast !== null;
+  const runningBreast = runningBreastOf(entries);
 
   const sleep = sleepState(entries, now);
-  const fed = lastFeed(entries, now);
   const lastDiaper = entries
     .filter((entry) => entry.kind === "DIAPER")
     .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())[0];
-  const shown = entriesOn(entries, day, now).filter((entry) => !show || kindColor(entry) === show);
+  const shown = entriesOn(entries, day, now).filter((entry) => !show || showsEntry(show, entry));
+  // A way of feeding as a tile: how long since it last ended, or "now" while it runs.
+  const feedTile = (method: FeedMethod, label: string): TileView => {
+    const fed = lastFeed(entries.filter((entry) => entry.kind === "FEED" && feedMethodOf(entry) === method), now);
+    return {
+      kind: "feed",
+      label,
+      strong: fed?.running === true,
+      value: fed?.running ? say(BABY.feedingNowShort) : fed ? durationWords(now.getTime() - fed.at.getTime(), language) : say(BABY.notYet),
+      // A breast feed has an end; a bottle or a meal is a moment.
+      detail: fed
+        ? say(fed.running ? BABY.since : method === "BREAST" ? BABY.endedAt : BABY.lastAt, { time: timeWords(fed.at, language) })
+        : "",
+      add: label,
+      onAdd: () => openFeed(method),
+    };
+  };
+  const openFeed = (method: FeedMethod | null) => {
+    setFeedMethod(method);
+    setSheet("feed");
+  };
 
   const pressSleep = () =>
     startTransition(async () => {
@@ -192,7 +241,7 @@ export function BabyLog({
     });
 
   return (
-    <div className="pb-24 md:pb-0">
+    <div>
       <div className="mb-4 flex items-center justify-between gap-3">
         <h1 className="min-w-0 truncate text-2xl font-semibold tracking-tight">{baby.name}</h1>
         <button
@@ -210,57 +259,54 @@ export function BabyLog({
         </button>
       </div>
 
-      {/* How long since the last of everything: the first thing anybody opens this for. */}
-      <div className="mb-5 grid grid-cols-3 gap-2">
-        {baby.trackSleep && (
-          <Tile
-            kind="sleep"
-            pressed={show === "sleep"}
-            onPress={() => toggleShow("sleep")}
-            strong={sleep?.asleep === true}
-            label={say(sleep?.asleep ? BABY.asleep : sleep ? BABY.awake : BABY.sleep)}
-            value={
-              sleep ? durationWords(sleep.asleep ? sleep.sleptMs : now.getTime() - sleep.since.getTime(), language) : say(BABY.notYet)
-            }
-            detail={sleep ? say(BABY.since, { time: timeWords(sleep.since, language) }) : ""}
-          />
-        )}
-        {feeds && (
-          <Tile
-            kind="feed"
-            pressed={show === "feed"}
-            onPress={() => toggleShow("feed")}
-            strong={fed?.running === true}
-            label={say(fed?.method === "BREAST" ? BABY.breast : BABY.feed)}
-            value={
-              fed?.running
-                ? say(BABY.feedingNowShort)
-                : fed
-                  ? durationWords(now.getTime() - fed.at.getTime(), language)
-                  : say(BABY.notYet)
-            }
-            detail={fed ? say(fed.running ? BABY.since : BABY.endedAt, { time: timeWords(fed.at, language) }) : ""}
-          />
-        )}
-        {baby.trackDiaper && (
-          <Tile
-            kind="diaper"
-            pressed={show === "diaper"}
-            onPress={() => toggleShow("diaper")}
-            label={say(BABY.diapers)}
-            value={say(BABY.countToday, { n: diapersOn(entries, today) })}
-            detail={lastDiaper ? say(BABY.lastAt, { time: timeWords(lastDiaper.startedAt, language) }) : ""}
-          />
-        )}
-      </div>
+      {/* How long since the last of everything: the first thing anybody opens this for —
+          and beside each, its "+" to write the next one down. A row that scrolls sideways,
+          held and dragged into the person's own order. */}
+      <TileRow
+        order={initialOrder}
+        tiles={{
+          sleep: baby.trackSleep
+            ? {
+                kind: "sleep",
+                strong: sleep?.asleep === true,
+                label: say(sleep?.asleep ? BABY.asleep : sleep ? BABY.awake : BABY.sleep),
+                value: sleep
+                  ? durationWords(sleep.asleep ? sleep.sleptMs : now.getTime() - sleep.since.getTime(), language)
+                  : say(BABY.notYet),
+                detail: sleep ? say(BABY.since, { time: timeWords(sleep.since, language) }) : "",
+                add: say(asleep ? BABY.stopSleep : BABY.startSleep),
+                stop: asleep,
+                onAdd: wakeful ? () => setSheet("wakeful") : pressSleep,
+              }
+            : null,
+          breast:
+            baby.trackBreast || runningBreast
+              ? feedTile("BREAST", say(BABY.breast))
+              : null,
+          bottle: baby.trackBottle ? feedTile("BOTTLE", say(BABY.bottle)) : null,
+          solid: baby.trackSolid ? feedTile("SOLID", say(BABY.solid)) : null,
+          diaper: baby.trackDiaper
+            ? {
+                kind: "diaper",
+                label: say(BABY.diapers),
+                value: say(BABY.countToday, { n: diapersOn(entries, today) }),
+                detail: lastDiaper ? say(BABY.lastAt, { time: timeWords(lastDiaper.startedAt, language) }) : "",
+                add: say(BABY.diaper),
+                onAdd: () => setSheet("diaper"),
+              }
+            : null,
+        }}
+        show={show}
+        onPress={toggleShow}
+      />
 
       <DayPager day={day} today={today} show={show} />
       <DayStrip entries={entries} day={day} now={now} />
 
       {show && (
         <div className="mb-2 flex items-center justify-between gap-3">
-          <span className="text-xs font-bold tracking-wide uppercase" style={{ color: babyColor(show, "-text") }}>
-            {say(show === "sleep" ? BABY.sleep : show === "feed" ? BABY.feed : BABY.diapers)}
+          <span className="text-xs font-bold tracking-wide uppercase" style={{ color: babyColor(colorOfShow(show), "-text") }}>
+            {say(SHOW_LABELS[show])}
           </span>
           <button
             type="button"
@@ -306,64 +352,18 @@ export function BabyLog({
         </ul>
       )}
 
-      {/* The three buttons, in the thumb's reach, above the tab bar. They follow the bar
-          down as the page scrolls, and leave room on the right for the "+" that takes
-          its place in the corner. */}
-      <div
-        className="app-above-bar fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex gap-2 bg-gradient-to-t from-[var(--page)] from-75% to-transparent px-3 pt-5 pb-5 md:static md:mt-6 md:bg-none md:p-0"
-        style={{ paddingRight: "calc(0.75rem + var(--bars, 0) * 4.5rem)" }}
-      >
-        {baby.trackSleep && (
-          <DockButton kind="sleep" strong={asleep} onClick={wakeful ? () => setSheet("wakeful") : pressSleep}>
-            <SleepIcon />
-            {asleep ? (
-              <span>
-                {say(BABY.stopSleep)}
-                {sleep?.asleep && <span className="font-normal tabular-nums"> · {clockWords(sleep.sleptMs)}</span>}
-              </span>
-            ) : (
-              <span>{say(BABY.startSleep)}</span>
-            )}
-          </DockButton>
-        )}
-        {feeds && (
-          <DockButton kind="feed" strong={runningBreast !== null} onClick={() => setSheet("feed")}>
-            <BottleIcon />
-            <span>{say(BABY.feed)}</span>
-          </DockButton>
-        )}
-        {baby.trackDiaper && (
-          <DockButton kind="diaper" onClick={() => setSheet("diaper")}>
-            <DiaperIcon />
-            <span>{say(BABY.diaper)}</span>
-          </DockButton>
-        )}
-      </div>
-
-      <CreateFab label={say(BABY.newEntry)} onClick={() => setSheet("choose")} expanded={sheet === "choose"} />
-
-      <Modal open={sheet === "choose"} onClose={() => setSheet(null)} title={say(BABY.newEntry)} size="drawer">
-        <div className="flex flex-col gap-2 px-5 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
-          {baby.trackSleep && (
-            <ChooseRow kind="sleep" onClick={() => setSheet("sleep")}>
-              <SleepIcon />
-              {say(BABY.logSleep)}
-            </ChooseRow>
-          )}
-          {feeds && (
-            <ChooseRow kind="feed" onClick={() => setSheet("feed")}>
-              <BottleIcon />
-              {say(BABY.feed)}
-            </ChooseRow>
-          )}
-          {baby.trackDiaper && (
-            <ChooseRow kind="diaper" onClick={() => setSheet("diaper")}>
-              <DiaperIcon />
-              {say(BABY.diaper)}
-            </ChooseRow>
-          )}
-        </div>
-      </Modal>
+      <AddSheets
+        baby={baby}
+        entries={entries}
+        solids={solids}
+        now={now}
+        sheet={isAddSheet(sheet) ? sheet : null}
+        feedMethod={feedMethod}
+        onSheet={(next, method) => {
+          if (method !== undefined) setFeedMethod(method);
+          setSheet(next);
+        }}
+      />
 
       <Modal open={sheet === "wakeful"} onClose={() => setSheet(null)} title={say(BABY.sleep)} size="drawer">
         {wakeful && (
@@ -396,30 +396,6 @@ export function BabyLog({
         )}
       </Modal>
 
-      <Modal open={sheet === "sleep"} onClose={() => setSheet(null)} title={say(BABY.logSleep)}>
-        <DialogForm action={saveSleep} submitLabel={say(BABY.save)} onDone={() => setSheet(null)} onCancel={() => setSheet(null)}>
-          <SleepFields now={now} />
-        </DialogForm>
-      </Modal>
-
-      <Modal open={sheet === "diaper"} onClose={() => setSheet(null)} title={say(BABY.diaper)}>
-        <DialogForm action={saveDiaper} submitLabel={say(BABY.save)} onDone={() => setSheet(null)} onCancel={() => setSheet(null)}>
-          <DiaperFields now={now} />
-        </DialogForm>
-      </Modal>
-
-      <Modal open={sheet === "feed"} onClose={() => setSheet(null)} title={say(BABY.feed)}>
-        <FeedSheet
-          methods={methods}
-          running={runningBreast}
-          resumable={resumableFeed(entries, now)}
-          lastSide={lastBreastSide(entries.filter((entry) => entry !== runningBreast))}
-          solids={solids}
-          now={now}
-          onDone={() => setSheet(null)}
-        />
-      </Modal>
-
       <Modal open={sheet === "settings"} onClose={() => setSheet(null)} title={say(BABY.settings)}>
         <DialogForm action={updateBaby} submitLabel={say(BABY.saveSettings)} onDone={() => setSheet(null)} onCancel={() => setSheet(null)}>
           <SettingsFields baby={baby} />
@@ -429,7 +405,276 @@ export function BabyLog({
   );
 }
 
+/**
+ * The page's "+" and the sheets it and the tiles open: a sleep written down afterwards, a
+ * nappy, a feed. Drawn by the log and the charts alike, so the "+" does the same thing on
+ * both tabs; which sheet is open is the caller's, because the log's tiles open them too.
+ */
+function AddSheets({
+  baby,
+  entries,
+  solids,
+  now,
+  sheet,
+  feedMethod,
+  onSheet,
+}: {
+  baby: BabySettings;
+  entries: BabyEntry[];
+  solids: string[];
+  now: Date;
+  sheet: AddSheet | null;
+  feedMethod: FeedMethod | null;
+  onSheet: (sheet: AddSheet | null, method?: FeedMethod | null) => void;
+}) {
+  const say = sayIn(useLanguage());
+  const methods = feedMethodsOf(baby);
+  const runningBreast = runningBreastOf(entries);
+  const feeds = methods.length > 0 || runningBreast !== null;
+  const close = () => onSheet(null);
+
+  return (
+    <>
+      <CreateFab label={say(BABY.newEntry)} onClick={() => onSheet("choose")} expanded={sheet === "choose"} />
+
+      <Modal open={sheet === "choose"} onClose={close} title={say(BABY.newEntry)} size="drawer">
+        <div className="flex flex-col gap-2 px-5 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+          {baby.trackSleep && (
+            <ChooseRow kind="sleep" onClick={() => onSheet("sleep")}>
+              <SleepIcon />
+              {say(BABY.logSleep)}
+            </ChooseRow>
+          )}
+          {feeds && (
+            <ChooseRow kind="feed" onClick={() => onSheet("feed", null)}>
+              <BottleIcon />
+              {say(BABY.feed)}
+            </ChooseRow>
+          )}
+          {baby.trackDiaper && (
+            <ChooseRow kind="diaper" onClick={() => onSheet("diaper")}>
+              <DiaperIcon />
+              {say(BABY.diaper)}
+            </ChooseRow>
+          )}
+        </div>
+      </Modal>
+
+      <Modal open={sheet === "sleep"} onClose={close} title={say(BABY.logSleep)}>
+        <DialogForm action={saveSleep} submitLabel={say(BABY.save)} onDone={close} onCancel={close}>
+          <SleepFields now={now} />
+        </DialogForm>
+      </Modal>
+
+      <Modal open={sheet === "diaper"} onClose={close} title={say(BABY.diaper)}>
+        <DialogForm action={saveDiaper} submitLabel={say(BABY.save)} onDone={close} onCancel={close}>
+          <DiaperFields now={now} />
+        </DialogForm>
+      </Modal>
+
+      <Modal open={sheet === "feed"} onClose={close} title={say(BABY.feed)}>
+        <FeedSheet
+          key={feedMethod ?? "any"}
+          initial={feedMethod}
+          methods={methods}
+          running={runningBreast}
+          resumable={resumableFeed(entries, now)}
+          lastSide={lastBreastSide(entries.filter((entry) => entry !== runningBreast))}
+          solids={solids}
+          now={now}
+          onDone={close}
+        />
+      </Modal>
+    </>
+  );
+}
+
+const feedMethodsOf = (baby: BabySettings): FeedMethod[] => [
+  ...(baby.trackBreast ? (["BREAST"] as const) : []),
+  ...(baby.trackBottle ? (["BOTTLE"] as const) : []),
+  ...(baby.trackSolid ? (["SOLID"] as const) : []),
+];
+
+const runningBreastOf = (entries: BabyEntry[]) =>
+  entries.find((entry) => !entry.endedAt && feedMethodOf(entry) === "BREAST") ?? null;
+
+/**
+ * The charts' own "+": the same sheets as the log's, over the same entries, so a feed or
+ * a nappy is written down from either tab without going back to the other first.
+ */
+export function BabyAddButton({
+  baby,
+  entries: wire,
+  solids,
+  renderedAt,
+}: {
+  baby: BabySettings;
+  entries: WireEntry[];
+  solids: string[];
+  renderedAt: number;
+}) {
+  // The log is a sideways swipe away: kept fetched, so it is there the moment it is asked for.
+  useKeepWarm("/baby", wire);
+  useCatchUp(renderedAt);
+  const entries = useMemo(() => wire.map(fromWire), [wire]);
+  const now = useNow(entries.some(isRunning), wire);
+  const [sheet, setSheet] = useState<AddSheet | null>(null);
+  const [feedMethod, setFeedMethod] = useState<FeedMethod | null>(null);
+  return (
+    <AddSheets
+      baby={baby}
+      entries={entries}
+      solids={solids}
+      now={now}
+      sheet={sheet}
+      feedMethod={feedMethod}
+      onSheet={(next, method) => {
+        if (method !== undefined) setFeedMethod(method);
+        setSheet(next);
+      }}
+    />
+  );
+}
+
+const SHOW_LABELS: Record<BabyShow, Phrase> = {
+  sleep: BABY.sleep,
+  breast: BABY.breast,
+  bottle: BABY.bottle,
+  solid: BABY.solid,
+  diaper: BABY.diapers,
+  feed: BABY.feed,
+};
+
+type TileView = {
+  kind: BabyColorKind;
+  label: string;
+  value: string;
+  detail: string;
+  strong?: boolean;
+  /** What the "+" does, said out loud. */
+  add: string;
+  /** The "+" stops what is running rather than adding to it. */
+  stop?: boolean;
+  onAdd: () => void;
+};
+
+/**
+ * The row of tiles. Scrolls sideways with a finger; held still for a moment, a tile lifts
+ * and is dragged to a new place, and the order is saved as this person's. A tap is still a
+ * tap: the hold has to come before any movement, so a swipe scrolls as it always did.
+ */
+function TileRow({
+  order: initialOrder,
+  tiles,
+  show,
+  onPress,
+}: {
+  order: BabyTile[];
+  tiles: Record<BabyTile, TileView | null>;
+  show: BabyShow | null;
+  onPress: (tile: BabyShow) => void;
+}) {
+  const [order, setOrder] = useState(initialOrder);
+  const dragged = useRef(false);
+  const sensors = useSensors(
+    useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { delay: 300, tolerance: 5 } }),
+  );
+  const drawn = order.filter((tile) => tiles[tile]);
+
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    // The press that ended the drag is not also a tap on the tile it let go of.
+    dragged.current = true;
+    setTimeout(() => (dragged.current = false), 0);
+    if (!over || active.id === over.id) return;
+    const next = moveBabyTile(order, active.id as BabyTile, over.id as BabyTile);
+    setOrder(next);
+    const form = new FormData();
+    for (const tile of next) form.append(BABY_TILE_FIELD, tile);
+    startTransition(() => setBabyTiles(form));
+  };
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      modifiers={[restrictToHorizontalAxis]}
+      onDragStart={() => navigator.vibrate?.(10)}
+      onDragEnd={onDragEnd}
+    >
+      <SortableContext items={drawn} strategy={horizontalListSortingStrategy}>
+        <div className="scrollbar-hidden -mx-4 mb-5 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 py-1" data-baby-tiles>
+          {drawn.map((tile) => (
+            <SortableTile
+              key={tile}
+              tile={tile}
+              view={tiles[tile]!}
+              pressed={show === tile || (show === "feed" && tiles[tile]!.kind === "feed")}
+              onPress={() => {
+                if (!dragged.current) onPress(tile);
+              }}
+            />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+function SortableTile({ tile, view, pressed, onPress }: { tile: BabyTile; view: TileView; pressed: boolean; onPress: () => void }) {
+  const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({ id: tile });
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      onContextMenu={(event) => event.preventDefault()}
+      className="relative w-[8.75rem] shrink-0 snap-start select-none [-webkit-touch-callout:none]"
+      style={{
+        transform: CSS.Translate.toString(transform),
+        transition,
+        zIndex: isDragging ? 10 : undefined,
+      }}
+      data-baby-tile={tile}
+      data-dragging={isDragging || undefined}
+    >
+      <Tile
+        kind={view.kind}
+        pressed={pressed}
+        onPress={onPress}
+        strong={view.strong}
+        lifted={isDragging}
+        label={view.label}
+        value={view.value}
+        detail={view.detail}
+      />
+      <button
+        type="button"
+        onClick={view.onAdd}
+        aria-label={view.add}
+        title={view.add}
+        className="press-icon absolute top-1.5 right-1.5 flex h-8 w-8 items-center justify-center rounded-full"
+        style={{
+          background: view.stop ? babyColor(view.kind) : babyColor(view.kind, "-soft"),
+          color: view.stop ? "white" : babyColor(view.kind, "-text"),
+        }}
+        data-baby-add={tile}
+      >
+        {view.stop ? (
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor" aria-hidden="true">
+            <rect x="5" y="5" width="14" height="14" rx="2.5" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        )}
+      </button>
+    </div>
+  );
+}
+
 function Tile({
+  lifted = false,
   kind,
   label,
   value,
@@ -438,6 +683,7 @@ function Tile({
   pressed,
   onPress,
 }: {
+  lifted?: boolean;
   kind: BabyColorKind;
   label: string;
   value: string;
@@ -451,15 +697,19 @@ function Tile({
       type="button"
       onClick={onPress}
       aria-pressed={pressed}
-      className="press-card flex min-w-0 flex-col gap-0.5 rounded-2xl border border-slate-200 px-3 py-2.5 text-left shadow-sm"
+      className="press-card flex w-full min-w-0 flex-col gap-0.5 rounded-2xl border border-slate-200 px-3 py-2.5 text-left shadow-sm transition-[scale,box-shadow] duration-(--dur-quick)"
       style={{
         background: strong ? babyColor(kind, "-soft") : "var(--color-white)",
         borderColor: pressed ? babyColor(kind) : undefined,
-        boxShadow: pressed ? `0 0 0 1px ${babyColor(kind)}` : undefined,
+        boxShadow: lifted
+          ? "0 10px 24px -8px rgb(0 0 0 / 0.35)"
+          : pressed
+            ? `0 0 0 1px ${babyColor(kind)}`
+            : undefined,
+        scale: lifted ? "1.05" : undefined,
       }}
-      data-baby-tile={kind}
     >
-      <span className="truncate text-[11px] font-bold tracking-wide uppercase" style={{ color: babyColor(kind, "-text") }}>
+      <span className="truncate pr-8 text-[11px] font-bold tracking-wide uppercase" style={{ color: babyColor(kind, "-text") }}>
         {label}
       </span>
       <span className="truncate text-lg leading-tight font-bold text-slate-900">{value}</span>
@@ -468,7 +718,7 @@ function Tile({
   );
 }
 
-function DayPager({ day, today, show }: { day: string; today: string; show: BabyColorKind | null }) {
+function DayPager({ day, today, show }: { day: string; today: string; show: BabyShow | null }) {
   const language = useLanguage();
   const say = sayIn(language);
   const yesterday = shiftDay(today, -1);
@@ -626,6 +876,7 @@ const EMPTY_BREAST: BreastDetails = { method: "BREAST", left: 0, right: 0, runni
  * the feed nobody timed.
  */
 function FeedSheet({
+  initial,
   methods,
   running,
   resumable,
@@ -634,6 +885,8 @@ function FeedSheet({
   now,
   onDone,
 }: {
+  /** The way of feeding the sheet opens on — the tile whose "+" opened it. */
+  initial: FeedMethod | null;
   methods: FeedMethod[];
   running: BabyEntry | null;
   /** A feed finished a moment ago, which "Carry on" picks up again. */
@@ -645,7 +898,7 @@ function FeedSheet({
 }) {
   const language = useLanguage();
   const say = sayIn(language);
-  const [method, setMethod] = useState<FeedMethod>(running ? "BREAST" : (methods[0] ?? "BOTTLE"));
+  const [method, setMethod] = useState<FeedMethod>(running ? "BREAST" : (initial ?? methods[0] ?? "BOTTLE"));
   const [typed, setTyped] = useState(false);
   const stored = running ? (readBabyDetails("FEED", running.details).details as BreastDetails) : null;
   const [timer, showTimer] = useOptimistic(stored);
@@ -820,33 +1073,6 @@ function SettingsFields({ baby }: { baby: BabySettings }) {
         ))}
       </fieldset>
     </>
-  );
-}
-
-function DockButton({
-  kind,
-  strong = false,
-  onClick,
-  children,
-}: {
-  kind: BabyColorKind;
-  strong?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      data-baby-dock={kind}
-      className="press-button flex h-16 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 text-sm font-bold shadow-sm"
-      style={{
-        background: strong ? babyColor(kind) : babyColor(kind, "-soft"),
-        color: strong ? "white" : babyColor(kind, "-text"),
-      }}
-    >
-      {children}
-    </button>
   );
 }
 

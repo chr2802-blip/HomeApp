@@ -7,7 +7,9 @@ import { dayBounds, type BabyEntry } from "@/lib/baby";
 import { PERIOD_DAYS, periodDays, readPeriod, summarise, type ChartPeriod } from "@/lib/baby-charts";
 import { sayIn } from "@/lib/copy/say";
 import { BABY } from "@/lib/copy/baby";
-import { FeedChart, PeriodAverages, SleepChart, TotalsChart } from "@/components/baby/baby-charts";
+import { BabyAddButton } from "@/components/baby/baby-log";
+import { loadBabyLog } from "../log-data";
+import { DiaperTotalsChart, FeedChart, PeriodAverages, SleepChart, SleepTotalsChart } from "@/components/baby/baby-charts";
 
 /**
  * The baby log over a day, a week or a month: the averages, sleep around the clock, when
@@ -23,7 +25,10 @@ export default async function BabyChartsPage({
   const language = user.homeLanguage;
   const say = sayIn(language);
   const db = homeDb(user.homeId);
-  const baby = await db.baby.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true } });
+  const baby = await db.baby.findFirst({
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true, trackSleep: true, trackBreast: true, trackBottle: true, trackSolid: true, trackDiaper: true },
+  });
   if (!baby) redirect("/baby");
 
   const now = new Date();
@@ -35,11 +40,15 @@ export default async function BabyChartsPage({
   const from = dayBounds(shiftDay(days[0]!, -1)).start;
   const end = dayBounds(to).end;
 
-  const rows = await db.babyEvent.findMany({
-    where: { babyId: baby.id, OR: [{ startedAt: { gte: from, lt: end } }, { endedAt: null, startedAt: { lt: end } }] },
-    orderBy: { startedAt: "asc" },
-    select: { id: true, kind: true, startedAt: true, endedAt: true, details: true },
-  });
+  // The log's own entries too, for the "+": its sheets read what is running and what came last.
+  const [rows, log] = await Promise.all([
+    db.babyEvent.findMany({
+      where: { babyId: baby.id, OR: [{ startedAt: { gte: from, lt: end } }, { endedAt: null, startedAt: { lt: end } }] },
+      orderBy: { startedAt: "asc" },
+      select: { id: true, kind: true, startedAt: true, endedAt: true, details: true },
+    }),
+    loadBabyLog(user.homeId, baby.id, today, now),
+  ]);
   const summary = summarise(rows as BabyEntry[], days, now);
   const empty = summary.days.every((row) => row.sleep.length + row.feedCount + row.diaperCount === 0);
 
@@ -113,9 +122,12 @@ export default async function BabyChartsPage({
           <PeriodAverages summary={summary} language={language} />
           <SleepChart summary={summary} language={language} />
           <FeedChart summary={summary} language={language} />
-          <TotalsChart summary={summary} language={language} />
+          <SleepTotalsChart summary={summary} language={language} />
+          <DiaperTotalsChart summary={summary} language={language} />
         </>
       )}
+
+      <BabyAddButton baby={baby} entries={log.entries} solids={log.solids} renderedAt={now.getTime()} />
     </div>
   );
 }

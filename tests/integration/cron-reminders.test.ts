@@ -75,6 +75,7 @@ describe("choosing which tasks to notify about", () => {
       title: "Task due",
       body: "Overdue task",
       url: "/tasks",
+      tag: `tasks:${home.id}`,
     });
   });
 
@@ -99,6 +100,7 @@ describe("choosing which tasks to notify about", () => {
       title: "Opgave forfalder",
       body: "Overdue task",
       url: "/tasks",
+      tag: `tasks:${home.id}`,
     });
   });
 
@@ -247,6 +249,68 @@ describe("notifying on the due day itself", () => {
   });
 });
 
+describe("one notification per person, however many tasks", () => {
+  it("counts several due tasks in one notification and names them, oldest first", async () => {
+    const { home, admin, member } = await createHomeWithMembers();
+    for (const [title, days] of [["Bins", 1], ["Hoover", 3], ["Plants", 2], ["Towels", 0]] as const) {
+      await createTask({ homeId: home.id, createdById: member.id, title, nextDueAt: daysAgo(days) });
+    }
+
+    const response = await GET(request(CRON_SECRET));
+
+    expect(await response.json()).toMatchObject({ tasksDue: 4 });
+    expect(sendPushToUsers).toHaveBeenCalledTimes(1);
+    const [recipients, payload] = sendPushToUsers.mock.calls[0] as unknown as [string[], object];
+    expect([...recipients].sort()).toEqual([admin.id, member.id].sort());
+    expect(payload).toEqual({
+      title: "4 tasks due",
+      body: "Hoover, Plants, Bins and 1 more",
+      url: "/tasks",
+      tag: `tasks:${home.id}`,
+    });
+  });
+
+  it("counts in the home's own language", async () => {
+    const home = await createHome({ language: "DA" });
+    const member = await createUser({ homeId: home.id, role: "USER" });
+    await createTask({ homeId: home.id, createdById: member.id, title: "Skrald", nextDueAt: daysAgo(1) });
+    await createTask({ homeId: home.id, createdById: member.id, title: "Vask", nextDueAt: daysAgo(2) });
+
+    await GET(request(CRON_SECRET));
+
+    expect(sendPushToUsers).toHaveBeenCalledWith([member.id], {
+      title: "2 opgaver forfalder",
+      body: "Vask og Skrald",
+      url: "/tasks",
+      tag: `tasks:${home.id}`,
+    });
+  });
+
+  it("tells each person only about what reaches them", async () => {
+    const { home, admin, member } = await createHomeWithMembers();
+    await createTask({ homeId: home.id, createdById: member.id, title: "Shared", nextDueAt: daysAgo(2) });
+    await createTask({
+      homeId: home.id,
+      createdById: member.id,
+      title: "Mine",
+      nextDueAt: daysAgo(1),
+      assigneeId: member.id,
+    });
+
+    await GET(request(CRON_SECRET));
+
+    expect(sendPushToUsers).toHaveBeenCalledTimes(2);
+    expect(sendPushToUsers).toHaveBeenCalledWith([member.id], expect.objectContaining({
+      title: "2 tasks due",
+      body: "Shared and Mine",
+    }));
+    expect(sendPushToUsers).toHaveBeenCalledWith([admin.id], expect.objectContaining({
+      title: "Task due",
+      body: "Shared",
+    }));
+  });
+});
+
 describe("who an assigned task reaches", () => {
   it("notifies only the member a task names", async () => {
     const { home, admin, member } = await createHomeWithMembers();
@@ -376,7 +440,7 @@ describe("not repeating itself", () => {
     const response = await GET(request(CRON_SECRET));
 
     expect(await response.json()).toMatchObject({ tasksDue: 1, notificationsSent: 0 });
-    expect(sendPushToUsers).toHaveBeenCalledWith([], expect.anything());
+    expect(sendPushToUsers).not.toHaveBeenCalled();
     expect(
       (await prisma.task.findUniqueOrThrow({ where: { id: task.id } })).lastNotifiedAt,
     ).toBeInstanceOf(Date);
