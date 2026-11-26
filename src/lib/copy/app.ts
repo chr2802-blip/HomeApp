@@ -50,6 +50,12 @@ export const APP = {
    *  home the task belongs to rather than whoever happens to be looking at a screen. */
   push: {
     taskDue: { EN: "Task due", DA: "Opgave forfalder" },
+    /** The morning's one notification when more than one task is waiting for somebody;
+     *  the body names them. */
+    tasksDue: {
+      EN: { one: "{count} task due", other: "{count} tasks due" },
+      DA: { one: "{count} opgave forfalder", other: "{count} opgaver forfalder" },
+    },
     testBody: { EN: "Notifications are working.", DA: "Notifikationerne virker." },
     /** A cook-mode timer run out on a phone whose page was not running; the title is the
      *  recipe's own. */
