@@ -140,6 +140,72 @@ export async function createList(_prev: ActionResult, formData: FormData): Promi
   redirect(`/lists/${list.id}`);
 }
 
+/**
+ * A new list made from an existing one: the same settings, its own headings and every
+ * item on it — open again, so the copy starts as a list still to do rather than one
+ * already shopped. For the list that is nearly the same as one the household already
+ * keeps (the packing list for a different trip), so it is adjusted rather than typed out.
+ *
+ * What is copied is what the list *is*; what is not is what happened to it. Ticks, who
+ * ticked them and which recipe put a line there all answer questions about the old
+ * list's shop. The picture stays behind too: a `Photo` belongs to the one thing it was
+ * added to, and deleting either list would otherwise take it from both.
+ */
+export async function duplicateList(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const user = await requireHomeUser();
+  const say = sayIn(user.homeLanguage);
+  const source = await listInScope(String(formData.get("listId")));
+  const form = readForm(
+    z.object({ title: requiredText(say(LISTS.nameRequired)) }),
+    formData,
+    user.homeLanguage,
+  );
+  if (!form.ok) return fail(form.error);
+
+  const original = await prisma.list.findUniqueOrThrow({
+    where: { id: source.id },
+    include: {
+      categories: { orderBy: { position: "asc" } },
+      items: { orderBy: { position: "asc" } },
+    },
+  });
+
+  const copy = await prisma.$transaction(async (tx) => {
+    const list = await tx.list.create({
+      data: {
+        title: form.fields.title,
+        trackAmounts: original.trackAmounts,
+        grouping: original.grouping,
+        emoji: original.emoji,
+        homeId: original.homeId,
+        createdById: user.id,
+      },
+    });
+    // One at a time, because each item needs to know what its heading's id became.
+    const headings = new Map<string, string>();
+    for (const category of original.categories) {
+      const made = await tx.listCategory.create({
+        data: { listId: list.id, name: category.name, position: category.position },
+      });
+      headings.set(category.id, made.id);
+    }
+    await tx.listItem.createMany({
+      data: original.items.map((item) => ({
+        listId: list.id,
+        text: item.text,
+        amount: item.amount,
+        position: item.position,
+        categoryId: item.categoryId ? (headings.get(item.categoryId) ?? null) : null,
+      })),
+    });
+    return list;
+  });
+
+  revalidatePath("/lists");
+  revalidatePath("/dashboard");
+  redirect(`/lists/${copy.id}`);
+}
+
 export async function deleteList(formData: FormData) {
   const list = await listInScope(String(formData.get("listId")));
   await prisma.list.delete({ where: { id: list.id } });

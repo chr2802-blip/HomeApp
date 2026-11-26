@@ -95,6 +95,20 @@ export const LISTS = {
   },
   openTotal: { EN: "{open} open · {total} total", DA: "{open} åbne · {total} i alt" },
   editList: { EN: "Edit list", DA: "Rediger liste" },
+  duplicateList: { EN: "Duplicate", DA: "Duplikér" },
+  duplicateListTitle: { EN: "Duplicate list", DA: "Duplikér liste" },
+  duplicateListSubmit: { EN: "Make the copy", DA: "Lav kopien" },
+  duplicateListName: { EN: "{title} (copy)", DA: "{title} (kopi)" },
+  duplicateListHint: {
+    EN: {
+      one: "{count} item comes along, unticked, with the list's settings and headings.",
+      other: "All {count} items come along, unticked, with the list's settings and headings.",
+    },
+    DA: {
+      one: "{count} ting kommer med, uden flueben, sammen med listens indstillinger og overskrifter.",
+      other: "Alle {count} ting kommer med, uden flueben, sammen med listens indstillinger og overskrifter.",
+    },
+  },
   deleteListMessage: {
     EN: 'Delete "{title}" and all its items?',
     DA: 'Slet "{title}" og alt på den?',

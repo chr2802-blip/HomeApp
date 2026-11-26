@@ -225,6 +225,7 @@ const ICONS = {
   list: "M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01",
   clock: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M12 7.5V12l3 2",
   check: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M8 12.5l2.7 2.7L16 9.8",
+  copy: "M9 9h10v10H9zM5 15V5h10",
 } as const;
 
 /**

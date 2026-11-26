@@ -4,7 +4,7 @@ import { homeDb } from "@/lib/home-db";
 import { addListItem, deleteList, updateList } from "@/app/actions/lists";
 import { Card, Input, Label } from "@/components/ui";
 import { ListItems } from "@/components/list-items";
-import { ItemMenu } from "@/components/item-menu";
+import { ListMenu } from "@/components/list-menu";
 import { AmountsField } from "@/components/amounts-field";
 import { GroupingField } from "@/components/grouping-field";
 import { ListCategoriesButton } from "@/components/list-categories";
@@ -135,10 +135,10 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
         {list.grouping === "OWN" && (
           <ListCategoriesButton listId={list.id} categories={categoryCounts} />
         )}
-        <ItemMenu
-          name="listId"
-          id={list.id}
-          label={list.title}
+        <ListMenu
+          listId={list.id}
+          title={list.title}
+          items={list.items.length}
           editTitle={say(LISTS.editList)}
           editAction={updateList}
           deleteAction={deleteList}
@@ -153,7 +153,7 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
           <GroupingField defaultValue={list.grouping} language={user.homeLanguage} />
           <EmojiField selected={list.emoji} language={user.homeLanguage} />
           <PhotoField defaultPhotoId={list.photoId} />
-        </ItemMenu>
+        </ListMenu>
       </div>
 
       <Card className="mb-4">

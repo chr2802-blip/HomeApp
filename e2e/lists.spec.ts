@@ -306,3 +306,39 @@ test("the index shows open and total counts", async ({ page }) => {
   await page.goto("/lists");
   await expect(page.getByText("1 open · 2 total")).toBeVisible();
 });
+
+test("duplicating a list copies its items, unticked, into a new list", async ({ page }) => {
+  await openDialog(page, "New list");
+  await page.getByLabel("List name").fill("Packing");
+  await page.getByRole("button", { name: "Create list" }).click();
+  await page.waitForURL(/\/lists\/[a-z0-9]+$/);
+  const originalUrl = page.url();
+
+  for (const item of ["Toothbrush", "Charger"]) {
+    await page.getByPlaceholder("Add an item").fill(item);
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByText(item, { exact: true })).toBeVisible();
+  }
+  const row = page.locator("div").filter({ hasText: /^Toothbrush/ }).last();
+  await row.getByRole("button", { name: "Mark as done" }).click();
+  await expect(page.getByRole("button", { name: "Completed (1)" })).toBeVisible();
+
+  await openMenu(page, { label: "Packing" });
+  await page.getByRole("menuitem", { name: "Duplicate" }).click();
+  const sheet = page.getByRole("dialog");
+  await expect(sheet.getByText("All 2 items come along, unticked")).toBeVisible();
+  await expect(sheet.getByLabel("List name")).toHaveValue("Packing (copy)");
+  await sheet.getByLabel("List name").fill("Packing, ski");
+  await sheet.getByRole("button", { name: "Make the copy" }).click();
+
+  await page.waitForURL((url) => url.href !== originalUrl && /\/lists\/[a-z0-9]+$/.test(url.pathname));
+  await expect(page.getByRole("heading", { name: "Packing, ski" })).toBeVisible();
+  // Both come along, and both are open: the copy is a list still to do.
+  await expect(page.getByText("Toothbrush", { exact: true })).toBeVisible();
+  await expect(page.getByText("Charger", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Completed/ })).toHaveCount(0);
+
+  // The original is left exactly as it was.
+  await page.goto(originalUrl);
+  await expect(page.getByRole("button", { name: "Completed (1)" })).toBeVisible();
+});
