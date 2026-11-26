@@ -1842,9 +1842,11 @@ integration suite run at every level; only the browser suite (~11 min of the ~14
   all its tests had passed (2026-11-24).
 - **Say which, and why, in the message before the push** — the household sees the level,
   not the reasoning, unless it is written down. When unsure between two, take the higher.
-- **Unset is `high`**, and so is a push with no range to compare. **That is every first push of a
-  new branch** — no upstream yet — so a session's first push runs the whole browser suite
-  whatever `RISK` says; budget the ~11 minutes and run it in the background. **Some paths raise any
+- **Unset is `high`**, and so is a push with no range to compare. **A new branch is compared against
+  `git merge-base origin/main`, and a fresh container's `origin/main` can be stale** — then
+  commits already merged count as this push's, any of them under `ALWAYS_HIGH` raises it to
+  `high`, and a one-file change runs the whole browser suite. `git fetch origin main`
+  before a session's first push. **Some paths raise any
   level to `high` in the hook itself** (`ALWAYS_HIGH`: `prisma/`, `package.json` and the
   lockfile, `e2e/helpers/`, the Next and Playwright configs, `public/sw.js`, the middleware,
   `home-db`/`access`/`auth`/`scoped`), because the smoke tests cannot be trusted to cover

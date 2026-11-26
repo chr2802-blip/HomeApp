@@ -30,18 +30,20 @@ Pushed with `RISK=low`, and the hook ran the whole browser suite anyway.
 
 ## What should have been quicker
 
-The push: `RISK=low` did not apply because the branch had no upstream, so there was no
-range to compare and the hook fell back to `high` — ~11 minutes of browser tests for a
-change no page draws. CLAUDE.md does say "a push with no range to compare" is `high`, but
-not that this is every first push of a session branch.
+The push: `RISK=low` was raised to `high` because the container's `origin/main` was
+stale (#194 while the branch sat on #201), so the hook's merge-base diff counted seven
+merged commits touching `prisma/`, `package.json` and `auth.ts` as this push's — ~11
+minutes of browser tests for a change no page draws. I first misread it as "every new
+branch is high" and wrote that into CLAUDE.md, then corrected it. The second, docs-only
+push also ran the full suite with no "raised" line; not chased further.
 
 Also: this note was first lost because it was chained with `&&` after a `git checkout -b`
 that failed (the branch already existed and was checked out).
 
 ## What CLAUDE.md did not say
 
-That the first push of a new branch always runs the full browser suite whatever `RISK`
-says. Added beside the `RISK` table.
+That a fresh container's `origin/main` can be stale, which inflates the hook's range for a
+new branch. Added beside the `RISK` table: `git fetch origin main` before the first push.
 
 `namesInWords` lives in `src/lib/pantry.ts` but is general ("A, B, C and 2 more") and is
 now used by the reminder job too.
