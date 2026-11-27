@@ -44,9 +44,25 @@ import {
  * (`instantFromLocal`), never the server's or the phone's.
  */
 
-/** Everything the log draws hangs off `/baby`, its charts included. */
+/**
+ * Everything the log draws hangs off `/baby`, its charts included — and the dashboard's
+ * sleep and feed tiles read the same rows, so a press there redraws them too.
+ */
 function refresh() {
   revalidatePath("/baby", "layout");
+  revalidatePath("/dashboard");
+}
+
+/**
+ * What a press means the timer should end up as, when the button says so. A phone that
+ * has not yet heard what the other phone did draws the state it last knew, and a press
+ * on it is a statement about that state — "start the left side", not "flip whatever is
+ * running" — so two parents pressing from two phones agree instead of undoing each
+ * other. Absent is the older toggle, kept for a page loaded before this shipped.
+ */
+function readIntent<T extends string>(formData: FormData | undefined, values: readonly T[]): T | null {
+  const raw = formData?.get("to");
+  return typeof raw === "string" && (values as readonly string[]).includes(raw) ? (raw as T) : null;
 }
 
 /** The home's baby — the first, which is the only one the page shows. */
@@ -125,10 +141,11 @@ export async function updateBaby(_prev: ActionResult, formData: FormData): Promi
 
 /**
  * The one-press sleep button: asleep now if the baby is awake in the log, awake now if
- * a sleep is running. Asked of the stored log rather than the button's label, so two
- * parents pressing at once end up with one sleep, not two.
+ * a sleep is running. Asked of the stored log, so two parents pressing at once end up
+ * with one sleep, not two — and with `to` ("asleep" or "awake") a press from a phone
+ * that had not heard of the other's is a no-op rather than the opposite of what it said.
  */
-export async function toggleSleep(): Promise<void> {
+export async function toggleSleep(formData?: FormData): Promise<void> {
   const user = await requireHomeUser();
   const baby = await homeBaby(user.homeId);
   if (!baby) return;
@@ -139,6 +156,8 @@ export async function toggleSleep(): Promise<void> {
         babyId: baby.id, kind: "SLEEP", endedAt: null },
     orderBy: { startedAt: "desc" },
   });
+  const to = readIntent(formData, ["asleep", "awake"] as const);
+  if (to === (running ? "asleep" : "awake")) return;
   if (running) {
     await db.babyEvent.update({ where: { id: running.id }, data: { endedAt: now } });
   } else {
@@ -243,7 +262,10 @@ export async function saveSleep(_prev: ActionResult, formData: FormData): Promis
 
 /**
  * A breast feed's side pressed: starts a feed on it if none is running, switches to it
- * if another side is, and pauses it if it is the side already running. Each step banks
+ * if another side is, and pauses it if it is the side already running. With `to` the
+ * press says which it meant — "run" (start or switch to this side) or "pause" (this side)
+ * — and one the stored feed already answers changes nothing, so a phone a step behind
+ * the other never pauses a side it thought it was starting. Each step banks
  * what ran before (`switchBreastSide`), and everything is worked out from instants, so
  * the timer is right on every phone and after the app was closed.
  */
@@ -260,10 +282,15 @@ export async function pressBreastSide(formData: FormData): Promise<void> {
         babyId: baby.id, kind: "FEED", endedAt: null, details: { path: ["method"], equals: "BREAST" } },
     orderBy: { startedAt: "desc" },
   });
+  const to = readIntent(formData, ["run", "pause"] as const);
   if (running) {
     const details = readBabyDetails("FEED", running.details).details as BreastDetails;
-    const next = switchBreastSide(details, details.running === side ? null : side, now);
+    const target = to === "run" ? side : to === "pause" ? (details.running === side ? null : details.running) : details.running === side ? null : side;
+    if (target === details.running) return;
+    const next = switchBreastSide(details, target, now);
     await db.babyEvent.update({ where: { id: running.id }, data: { details: next } });
+  } else if (to === "pause") {
+    return;
   } else {
     const empty: BreastDetails = { method: "BREAST", left: 0, right: 0, running: null, runningSince: null, lastSide: null };
     await db.babyEvent.create({
@@ -309,6 +336,28 @@ export async function resumeFeed(formData: FormData): Promise<void> {
   refresh();
 }
 
+/**
+ * A running breast feed finished from a tile, with no sheet and no note: its sides are
+ * banked and it ends now. Only the feed named, and only while it still runs, so a second
+ * phone pressing after the first has finished it — or started the next — changes nothing.
+ */
+export async function finishBreastFeed(formData: FormData): Promise<void> {
+  const user = await requireHomeUser();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+  const db = homeDb(user.homeId);
+  const feed = await entryInScope(user.homeId, id);
+  if (!feed || feed.kind !== "FEED" || feed.endedAt) return;
+  const details = readBabyDetails("FEED", feed.details).details as FeedDetails;
+  if (details.method !== "BREAST") return;
+  const now = new Date();
+  await db.babyEvent.updateMany({
+    where: { id: feed.id, endedAt: null },
+    data: { details: switchBreastSide(details, null, now), endedAt: now },
+  });
+  refresh();
+}
+
 const minutesField = z.coerce.number().min(0).max(MAX_SIDE_SECONDS / 60).catch(-1);
 
 /**
@@ -333,6 +382,12 @@ export async function saveFeed(_prev: ActionResult, formData: FormData): Promise
   if (existing && formData.get("finish") === "1") {
     const details = readBabyDetails("FEED", existing.details).details as FeedDetails;
     if (details.method !== "BREAST") return fail(say(BABY.badTime));
+    // Finished already, on the other phone: its end and sides stand, the note is added.
+    if (existing.endedAt) {
+      if (note) await db.babyEvent.update({ where: { id: existing.id }, data: { note } });
+      refresh();
+      return ok();
+    }
     const stopped = switchBreastSide(details, null, now);
     await db.babyEvent.update({ where: { id: existing.id }, data: { details: stopped, endedAt: now, note } });
     refresh();
