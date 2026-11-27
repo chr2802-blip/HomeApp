@@ -30,7 +30,10 @@ test.describe("the baby log's two tabs", () => {
 
     const fetched: string[] = [];
     page.on("request", (request) => {
-      if (request.headers()["rsc"] === "1") fetched.push(request.url());
+      // A page asked for, not a link coming into view prefetching where it leads (the
+      // charts' own Day/Week/Month do that the moment they are on screen).
+      const headers = request.headers();
+      if (headers["rsc"] === "1" && !headers["next-router-prefetch"]) fetched.push(request.url());
     });
     await page.locator("main nav").getByRole("link", { name: "Charts", exact: true }).click();
     await expect(page).toHaveURL(/\/baby\?tab=charts$/);
