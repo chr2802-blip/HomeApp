@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { letsGoBack, sidewaysIntent } from "@/lib/edge-swipe";
 import { sayIn } from "@/lib/copy/say";
 import { APP } from "@/lib/copy/app";
@@ -11,6 +11,8 @@ import { usePendingHref } from "./use-pending-href";
 import { PAGE_ID, PageLeaving, motionBetween } from "./page-transition";
 import { replacingNext } from "./back-button";
 import { SETTINGS_TABS } from "@/lib/settings-tabs";
+import { PAGER_PARAM, pagerAddress } from "@/lib/pager";
+import { PAGER_DRAG, PAGER_GO } from "./swipe-pager";
 
 /**
  * The pages inside one tab. A tab is an area of the household's life, and these are
@@ -27,14 +29,24 @@ export const SECTIONS: { href: string; key: keyof typeof APP.sections }[][] = [
     { href: "/pantry", key: "supplies" },
   ],
   [
+    // One page with both drawn side by side (`SwipePager`), so the other is already there
+    // while a finger drags towards it: a pager's segments differ only in `?tab=`.
     { href: "/baby", key: "babyLog" },
-    { href: "/baby/charts", key: "babyCharts" },
+    { href: "/baby?tab=charts", key: "babyCharts" },
   ],
   SETTINGS_TABS.map((tab) => ({ href: tab.href, key: tab.key })),
 ];
 
-/** The sections as paths, for which way a page comes in (`pageMotion`). */
-export const SECTION_PATHS: string[][] = SECTIONS.map((section) => section.map((seg) => seg.href));
+/** A section whose pages are one page drawn side by side (`SwipePager`), not addresses. */
+const isPager = (section: { href: string }[]) => section.some((seg) => seg.href.includes("?"));
+
+/**
+ * The sections as paths, for which way a page comes in (`pageMotion`). A pager's pages
+ * are one address, and turning one is the pager's own slide, not a page arriving.
+ */
+export const SECTION_PATHS: string[][] = SECTIONS.filter((section) => !isPager(section)).map((section) =>
+  section.map((seg) => seg.href),
+);
 
 /**
  * One pill, sliding under the segments rather than one per segment changing colour, so
@@ -45,19 +57,32 @@ export const SECTION_PATHS: string[][] = SECTIONS.map((section) => section.map((
  */
 export function SectionTabs() {
   const pathname = usePathname();
+  const tab = useSearchParams().get(PAGER_PARAM);
   const say = sayIn(useLanguage());
   const { pending, pressed } = usePendingHref();
   const router = useRouter();
-  const section = SECTIONS.find((s) => s.some((seg) => seg.href === pathname));
+  // Where the address is, as a segment's href: a pager's page is its path and `?tab=`.
+  const here = pagerAddress(pathname, tab);
+  const section =
+    SECTIONS.find((s) => s.some((seg) => seg.href === here)) ?? SECTIONS.find((s) => s.some((seg) => seg.href === pathname));
+  const pager = section ? isPager(section) : false;
 
-  const shown = pending ?? pathname;
+  const shown = pager ? here : (pending ?? pathname);
   const at = section ? Math.max(0, section.findIndex((seg) => seg.href === shown)) : 0;
 
-  const drag = useSectionSwipe(section ?? null, at, (href) => {
+  const swiped = useSectionSwipe(pager ? null : (section ?? null), at, (href) => {
     replacingNext();
     pressed(href);
     router.replace(href);
   });
+  // A pager drags its own pages, and tells the pill how far.
+  const [paged, setPaged] = useState(0);
+  useEffect(() => {
+    const follow = (event: Event) => setPaged((event as CustomEvent<number>).detail);
+    window.addEventListener(PAGER_DRAG, follow);
+    return () => window.removeEventListener(PAGER_DRAG, follow);
+  }, []);
+  const drag = pager ? paged : swiped;
   if (!section) return null;
 
   return (
@@ -74,14 +99,21 @@ export function SectionTabs() {
         }}
       />
       {section.map((seg, index) => {
-        const active = seg.href === pathname;
+        const active = seg.href === (pager ? here : pathname);
         return (
           <Link
             key={seg.href}
             href={seg.href}
-            prefetch
+            prefetch={!pager}
             replace
-            onNavigate={() => {
+            onNavigate={(event) => {
+              // A pager's page is already drawn beside this one: it slides over, and no
+              // page is fetched.
+              if (pager) {
+                event.preventDefault();
+                window.dispatchEvent(new CustomEvent(PAGER_GO, { detail: seg.href }));
+                return;
+              }
               replacingNext();
               pressed(seg.href);
             }}
@@ -94,7 +126,7 @@ export function SectionTabs() {
             }`}
           >
             {say(APP.sections[seg.key])}
-            <PageLeaving motion={motionBetween(pathname, seg.href)} />
+            {!pager && <PageLeaving motion={motionBetween(pathname, seg.href)} />}
           </Link>
         );
       })}

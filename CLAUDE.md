@@ -1282,15 +1282,26 @@ the page; a table so a second child is rows). Everybody's, like the pantry: the 
   accent and none of green, red or amber.
 - The page asks the server again every 30 s while visible (`useFollow`); there is no
   Realtime nudge for it yet.
-- **The "+" is the same on both tabs** (`AddSheets` in `baby-log.tsx`: a sleep written
-  down afterwards, a feed, a nappy — the only way to log a sleep with times). The charts
-  draw it as `BabyAddButton`, so `/baby/charts` also loads the log's entries
-  (`loadBabyLog` in `baby/log-data.ts`, shared with `/baby`).
-- **Each tab keeps the other fetched in full** (`useKeepWarm`, `src/components/use-keep-warm.ts`),
-  asked again whenever the page's props change, because `router.refresh()` and a server
-  action's revalidation both empty the router's cache. A page drawn from that copy asks
-  the server once on arrival if it is more than a few seconds old (`useCatchUp`).
-  `e2e/baby-tabs.spec.ts` holds both.
+- **The log and the charts are one page, drawn side by side** (`SwipePager`,
+  `src/components/swipe-pager.tsx`): `/baby` renders both, and which is on screen is
+  `?tab=charts` (`src/lib/pager.ts`). So the other tab is already there and follows the
+  finger the moment a swipe starts — two addresses could only show it once the swipe had
+  ended and the server answered, and prefetching (tried first) did not change that.
+  Turning is `history.replaceState(null, …)` — **`null`, not `history.state`**: Next
+  lets a replace carrying its own state past without telling `useSearchParams`. Nothing
+  is fetched or remounted, and a refresh keeps both panels' state, because a change of
+  search params never remounts a page (a change of path or route param would).
+  `/baby/charts` redirects there, its `period`/`to` kept.
+- **A pager section's segments differ only in `?tab=`** (`{ href: "/baby?tab=charts" }`
+  in `SECTIONS`): `SectionTabs` then lets the pager drag the page (its own
+  `useSectionSwipe` stands down), follows it through `PAGER_DRAG`, and a press sends
+  `PAGER_GO` instead of navigating. `SECTION_PATHS` leaves such a section out, since
+  turning is not a page arriving. The page off screen is `inert`, `aria-hidden` (an e2e
+  role query wants `includeHidden: true`), at most a screen tall, and lifted to just under
+  the header while it slides in. `e2e/baby-tabs.spec.ts` drives a real touch swipe.
+- **The "+" is the log's, over both** (`AddSheets` in `baby-log.tsx`: a sleep written
+  down afterwards, a feed, a nappy — the only way to log a sleep with times). It is
+  portalled, so it stays on screen when the charts are.
 - **The charts (`/baby/charts`) are positioned blocks, not a chart library** — marks on a
   24-hour line and bars of a height. What they draw is `src/lib/baby-charts.ts`
   (`chartDay`, `summarise`): a sleep counts on every day it covers, a feed on the day it

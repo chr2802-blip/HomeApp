@@ -7,7 +7,9 @@ import { createBaby } from "@/app/actions/baby";
 import { ActionForm } from "@/components/action-form";
 import { Card, EmptyState, Input, Label } from "@/components/ui";
 import { BabyLog } from "@/components/baby/baby-log";
+import { SwipePager } from "@/components/swipe-pager";
 import { loadBabyLog } from "./log-data";
+import { ChartsPanel } from "./charts-panel";
 import { BABY_TILES } from "@/lib/baby-tiles";
 
 /** What a tile can narrow the list to (`?show=`): a tile, or every feed at once. */
@@ -18,7 +20,11 @@ const SHOWS = [...BABY_TILES, "feed"] as const;
  * down. `?day=` pages the timeline back through earlier days; the numbers at the top are
  * always about now.
  */
-export default async function BabyPage({ searchParams }: { searchParams: Promise<{ day?: string; show?: string }> }) {
+export default async function BabyPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ day?: string; show?: string; period?: string; to?: string }>;
+}) {
   const user = await requireHomeUser();
   const say = sayIn(user.homeLanguage);
   const db = homeDb(user.homeId);
@@ -51,8 +57,11 @@ export default async function BabyPage({ searchParams }: { searchParams: Promise
   const day = asked && dueAtOn(asked) && asked < today ? asked : today;
   const { entries, solids } = await loadBabyLog(user.homeId, baby.id, day, now);
 
+  // The log and the charts side by side, both drawn: the pill and a sideways swipe slide
+  // between them without fetching anything (`SwipePager`, `?tab=`).
   return (
-    <BabyLog
+    <SwipePager hrefs={["/baby", "/baby?tab=charts"]}>
+      <BabyLog
       baby={{
         name: baby.name,
         trackSleep: baby.trackSleep,
@@ -67,7 +76,8 @@ export default async function BabyPage({ searchParams }: { searchParams: Promise
       solids={solids}
       show={SHOWS.find((kind) => kind === params.show) ?? null}
       order={user.babyTiles}
-      renderedAt={now.getTime()}
-    />
+      />
+      <ChartsPanel homeId={user.homeId} babyId={baby.id} language={user.homeLanguage} params={params} />
+    </SwipePager>
   );
 }

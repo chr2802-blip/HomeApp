@@ -11,7 +11,6 @@ import { useLanguage } from "@/components/language-provider";
 import { Modal } from "@/components/modal";
 import { DialogForm } from "@/components/form-dialog";
 import { CreateFab } from "@/components/create-button";
-import { useCatchUp, useKeepWarm } from "@/components/use-keep-warm";
 import { ItemMenu } from "@/components/item-menu";
 import { Input, Label } from "@/components/ui";
 import { sayIn, type Phrase } from "@/lib/copy/say";
@@ -137,11 +136,8 @@ export function BabyLog({
   solids,
   show: initialShow = null,
   order: initialOrder,
-  renderedAt,
 }: {
   baby: BabySettings;
-  /** When the server drew this (epoch ms), so a copy kept warm catches up on arrival. */
-  renderedAt: number;
   entries: WireEntry[];
   day: string;
   today: string;
@@ -161,8 +157,6 @@ export function BabyLog({
   const [feedMethod, setFeedMethod] = useState<FeedMethod | null>(null);
   const [show, setShow] = useState<BabyShow | null>(initialShow);
   useFollow();
-  useKeepWarm("/baby/charts", wire);
-  useCatchUp(renderedAt);
 
   // A tile pressed narrows the day's list to its kind, and pressed again shows everything.
   // Kept in the address too, so paging the day keeps it and a reload comes back to it.
@@ -390,8 +384,9 @@ export function BabyLog({
 
 /**
  * The page's "+" and the sheets it and the tiles open: a sleep written down afterwards, a
- * nappy, a feed. Drawn by the log and the charts alike, so the "+" does the same thing on
- * both tabs; which sheet is open is the caller's, because the log's tiles open them too.
+ * nappy, a feed. The log is drawn beside the charts (`SwipePager`) and its "+" is portalled
+ * over both, so it does the same thing on either tab; which sheet is open is the log's,
+ * because its tiles open them too.
  */
 function AddSheets({
   baby,
@@ -480,44 +475,6 @@ const feedMethodsOf = (baby: BabySettings): FeedMethod[] => [
 
 const runningBreastOf = (entries: BabyEntry[]) =>
   entries.find((entry) => !entry.endedAt && feedMethodOf(entry) === "BREAST") ?? null;
-
-/**
- * The charts' own "+": the same sheets as the log's, over the same entries, so a feed or
- * a nappy is written down from either tab without going back to the other first.
- */
-export function BabyAddButton({
-  baby,
-  entries: wire,
-  solids,
-  renderedAt,
-}: {
-  baby: BabySettings;
-  entries: WireEntry[];
-  solids: string[];
-  renderedAt: number;
-}) {
-  // The log is a sideways swipe away: kept fetched, so it is there the moment it is asked for.
-  useKeepWarm("/baby", wire);
-  useCatchUp(renderedAt);
-  const entries = useMemo(() => wire.map(fromWire), [wire]);
-  const now = useNow(entries.some(isRunning), wire);
-  const [sheet, setSheet] = useState<AddSheet | null>(null);
-  const [feedMethod, setFeedMethod] = useState<FeedMethod | null>(null);
-  return (
-    <AddSheets
-      baby={baby}
-      entries={entries}
-      solids={solids}
-      now={now}
-      sheet={sheet}
-      feedMethod={feedMethod}
-      onSheet={(next, method) => {
-        if (method !== undefined) setFeedMethod(method);
-        setSheet(next);
-      }}
-    />
-  );
-}
 
 const SHOW_LABELS: Record<BabyShow, Phrase> = {
   sleep: BABY.sleep,

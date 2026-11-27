@@ -14,3 +14,6 @@ export const MENU_EXIT_MS = 120;
 
 /** A snack going back down under the tab bar — `--dur-row`. */
 export const SNACK_EXIT_MS = 200;
+
+/** A pager's pages sliding the rest of the way after a swipe or a press — `--dur-base`. */
+export const PAGE_TURN_MS = 240;

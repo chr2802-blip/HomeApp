@@ -120,13 +120,27 @@ test.describe("the baby log's charts", () => {
     await page.locator("[data-baby-add=sleep]").click();
     await expect(page.locator("[data-baby-tile=sleep]")).toContainText("Asleep");
 
-    await page.getByRole("link", { name: "Charts", exact: true }).click();
-    await page.waitForURL(/\/baby\/charts$/);
-    await expect(page.getByRole("figure", { name: "Sleep around the clock" })).toBeVisible();
-    await expect(page.locator("[data-chart-row]")).toHaveCount(7);
+    await page.locator("main nav").getByRole("link", { name: "Charts", exact: true }).click();
+    await page.waitForURL(/\/baby\?tab=charts$/);
+    const charts = page.locator("[data-pager-page=shown]");
+    await expect(charts.getByRole("figure", { name: "Sleep around the clock" })).toBeVisible();
+    await expect(charts.locator("[data-chart-row]")).toHaveCount(7);
 
-    await page.getByRole("link", { name: "Month", exact: true }).click();
+    await charts.getByRole("link", { name: "Month", exact: true }).click();
     await page.waitForURL(/period=month/);
-    await expect(page.locator("[data-chart-row]")).toHaveCount(30);
+    await expect(page).toHaveURL(/tab=charts/);
+    await expect(charts.locator("[data-chart-row]")).toHaveCount(30);
+  });
+
+  test("an old address for the charts lands on them", async ({ page, loginAs }) => {
+    await loginAs(ACCOUNTS.member);
+    await page.goto("/baby");
+    await page.getByLabel("The baby's name").fill("Ella");
+    await page.getByRole("button", { name: "Start the log" }).click();
+    await page.locator("[data-baby-add=sleep]").click();
+    await expect(page.locator("[data-baby-tile=sleep]")).toContainText("Asleep");
+    await page.goto("/baby/charts?period=month");
+    await expect(page).toHaveURL(/\/baby\?period=month&tab=charts$/);
+    await expect(page.locator("[data-pager-page=shown] [data-chart-row]")).toHaveCount(30);
   });
 });
