@@ -39,7 +39,7 @@ export type DayChart = {
    * 24 less the sleep on a day that is over (the days the clocks change included), and on
    * today the hours so far less the sleep — the hours still to come are nobody's yet. Zero
    * on a day with nothing logged, which is a day before the log began rather than a day
-   * spent awake. The chart draws each bar as its own whole, so every bar is full height.
+   * spent awake. The chart draws each bar against 24 hours, so today's stops where now is.
    */
   awakeHours: number;
   feedCount: number;

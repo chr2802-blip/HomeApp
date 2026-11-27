@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   createBaby,
   deleteBabyEvent,
+  finishBreastFeed,
   pressBreastSide,
   resumeFeed,
   resumeSleep,
@@ -54,6 +55,18 @@ describe("sleep", () => {
     expect(sleep).toMatchObject({ kind: "SLEEP", endedAt: null, createdById: member.id });
 
     await toggleSleep();
+    [sleep] = await events();
+    expect(sleep!.endedAt).not.toBeNull();
+    expect(await events()).toHaveLength(1);
+  });
+
+  it("leaves a sleep alone when a press says what it already is", async () => {
+    await toggleSleep(formData({ to: "asleep" }));
+    await toggleSleep(formData({ to: "asleep" }));
+    let [sleep] = await events();
+    expect(sleep!.endedAt).toBeNull();
+    await toggleSleep(formData({ to: "awake" }));
+    await toggleSleep(formData({ to: "awake" }));
     [sleep] = await events();
     expect(sleep!.endedAt).not.toBeNull();
     expect(await events()).toHaveLength(1);
@@ -152,6 +165,50 @@ describe("feeds", () => {
     expect(feed).toMatchObject({ note: "Godt" });
     expect(feed!.endedAt).not.toBeNull();
     expect(details.running).toBeNull();
+    expect(await events()).toHaveLength(1);
+  });
+
+  it("does what a press said, not the opposite, when another phone got there first", async () => {
+    // Phone A starts the left side; phone B, which has not heard yet, presses "start left".
+    await pressBreastSide(formData({ side: "LEFT", to: "run" }));
+    await pressBreastSide(formData({ side: "LEFT", to: "run" }));
+    let [feed] = await events();
+    expect(readBabyDetails("FEED", feed!.details).details).toMatchObject({ running: "LEFT" });
+
+    // A pause of a side that is not running changes nothing, and starts nothing.
+    await pressBreastSide(formData({ side: "RIGHT", to: "pause" }));
+    [feed] = await events();
+    expect(readBabyDetails("FEED", feed!.details).details).toMatchObject({ running: "LEFT" });
+
+    await pressBreastSide(formData({ side: "LEFT", to: "pause" }));
+    await pressBreastSide(formData({ side: "LEFT", to: "pause" }));
+    [feed] = await events();
+    expect(readBabyDetails("FEED", feed!.details).details).toMatchObject({ running: null, lastSide: "LEFT" });
+
+    // Started again after the pause: the same feed carries on.
+    await pressBreastSide(formData({ side: "RIGHT", to: "run" }));
+    [feed] = await events();
+    expect(readBabyDetails("FEED", feed!.details).details).toMatchObject({ running: "RIGHT" });
+    expect(await events()).toHaveLength(1);
+  });
+
+  it("finishes a feed from the dashboard's tile, once", async () => {
+    await pressBreastSide(formData({ side: "LEFT", to: "run" }));
+    let [feed] = await events();
+    await finishBreastFeed(formData({ id: feed!.id }));
+    [feed] = await events();
+    expect(feed!.endedAt).not.toBeNull();
+    expect(readBabyDetails("FEED", feed!.details).details).toMatchObject({ running: null });
+    const ended = feed!.endedAt;
+
+    // The other phone presses "end" too, and then "Done" in its stale sheet: nothing moves.
+    await finishBreastFeed(formData({ id: feed!.id }));
+    expect(await submit(saveFeed, { id: feed!.id, finish: "1" })).toEqual({ ok: true });
+    [feed] = await events();
+    expect(feed!.endedAt).toEqual(ended);
+
+    // A pause pressed on a phone that still shows it running starts nothing new.
+    await pressBreastSide(formData({ side: "LEFT", to: "pause" }));
     expect(await events()).toHaveLength(1);
   });
 

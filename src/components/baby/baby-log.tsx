@@ -6,7 +6,7 @@ import { SortableContext, horizontalListSortingStrategy, useSortable } from "@dn
 import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useFollow } from "../use-follow";
 import { useLanguage } from "@/components/language-provider";
 import { Modal } from "@/components/modal";
 import { DialogForm } from "@/components/form-dialog";
@@ -117,25 +117,6 @@ function useNow(fast: boolean, entries: unknown): Date {
   return now;
 }
 
-/**
- * Asks the server again every half minute while the page is in view, and the moment it
- * comes back into view: the other parent may have fed the baby meanwhile.
- */
-function useFollow() {
-  const router = useRouter();
-  useEffect(() => {
-    const ask = () => {
-      if (document.visibilityState === "visible") router.refresh();
-    };
-    const timer = setInterval(ask, 30_000);
-    document.addEventListener("visibilitychange", ask);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", ask);
-    };
-  }, [router]);
-}
-
 /** The sheets behind the "+" and the tiles' own "+" — the ones the charts' page opens too. */
 type AddSheet = "choose" | "sleep" | "diaper" | "feed";
 type Sheet = null | AddSheet | "settings" | "wakeful";
@@ -219,7 +200,9 @@ export function BabyLog({
   const pressSleep = () =>
     startTransition(async () => {
       showAsleep(!asleep);
-      await toggleSleep();
+      const form = new FormData();
+      form.set("to", asleep ? "awake" : "asleep");
+      await toggleSleep(form);
     });
 
   // A sleep stopped a moment ago can be carried on rather than a new one started, so
@@ -864,9 +847,11 @@ function FeedSheet({
   const press = (side: BreastSide) =>
     startTransition(async () => {
       const base = timer ?? EMPTY_BREAST;
-      showTimer(switchBreastSide(base, base.running === side ? null : side, new Date()));
+      const pausing = base.running === side;
+      showTimer(switchBreastSide(base, pausing ? null : side, new Date()));
       const form = new FormData();
       form.set("side", side);
+      form.set("to", pausing ? "pause" : "run");
       await pressBreastSide(form);
     });
 

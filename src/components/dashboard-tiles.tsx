@@ -10,7 +10,8 @@ import { sayIn, type Phrase, type Say } from "@/lib/copy/say";
 import { TILES } from "@/lib/copy/tiles";
 import { clockWords } from "@/lib/baby-words";
 import { setDashboardTiles } from "@/app/actions/nav";
-import { pressBreastSide, toggleSleep } from "@/app/actions/baby";
+import { finishBreastFeed, pressBreastSide, toggleSleep } from "@/app/actions/baby";
+import { useFollow } from "./use-follow";
 import { CREATE_PARAM } from "./create-button";
 import { BABY } from "@/lib/copy/baby";
 import {
@@ -26,7 +27,7 @@ import {
 /** What the page knows about one tile, worked out on the server. */
 export type TileView =
   | { kind: "sleep"; baby: boolean; since: string | null }
-  | { kind: "feed"; baby: boolean; since: string | null; side: "LEFT" | "RIGHT" | null }
+  | { kind: "feed"; baby: boolean; id: string | null; since: string | null; side: "LEFT" | "RIGHT" | null }
   | { kind: "recipe" }
   | { kind: "list"; id: string; title: string; face: string | null; open: number; total: number };
 
@@ -90,7 +91,9 @@ function SleepTile({ view, say }: { view: Extract<TileView, { kind: "sleep" }>; 
   const press = () =>
     startTransition(async () => {
       show(since ? null : new Date().toISOString());
-      await toggleSleep();
+      const form = new FormData();
+      form.set("to", since ? "awake" : "asleep");
+      await toggleSleep(form);
     });
   return (
     <button type="button" onClick={press} className="press-card relative block h-full w-full rounded-2xl text-left" data-tile-sleep={since ? "running" : "idle"}>
@@ -106,7 +109,7 @@ function SleepTile({ view, say }: { view: Extract<TileView, { kind: "sleep" }>; 
 }
 
 function FeedTile({ view, say }: { view: Extract<TileView, { kind: "feed" }>; say: Say }) {
-  const [state, show] = useOptimistic({ since: view.since, side: view.side });
+  const [state, show] = useOptimistic({ since: view.since, side: view.side, id: view.id });
   // The total since the feed began, pauses included: what a parent watching the clock
   // wants to know is how long the baby has been at it, and the page says the sides.
   const now = useNow(state.since !== null);
@@ -121,13 +124,22 @@ function FeedTile({ view, say }: { view: Extract<TileView, { kind: "feed" }>; sa
   }
   const press = (side: "LEFT" | "RIGHT") =>
     startTransition(async () => {
-      show({
-        since: state.since ?? new Date().toISOString(),
-        side: state.side === side ? null : side,
-      });
+      const pausing = state.side === side;
+      show({ since: state.since ?? new Date().toISOString(), side: pausing ? null : side, id: state.id });
       const form = new FormData();
       form.set("side", side);
+      form.set("to", pausing ? "pause" : "run");
       await pressBreastSide(form);
+    });
+  // Finishing is the tile's own press, not a trip to /baby: a feed paused on the tile was
+  // otherwise a feed nobody could end from where it was started.
+  const finish = () =>
+    startTransition(async () => {
+      if (!state.id) return;
+      show({ since: null, side: null, id: null });
+      const form = new FormData();
+      form.set("id", state.id);
+      await finishBreastFeed(form);
     });
   return (
     <Frame tone={state.since ? "live" : "plain"}>
@@ -135,8 +147,19 @@ function FeedTile({ view, say }: { view: Extract<TileView, { kind: "feed" }>; sa
         <p className="truncate text-xl leading-tight font-semibold tabular-nums">
           {state.since ? clockWords(now - Date.parse(state.since)) : "🍼"}
         </p>
-        <p className="truncate text-xs text-slate-700">{state.since ? say(TILES.feeding) : say(TILES.feedIdle)}</p>
+        {!state.since && <p className="truncate text-xs text-slate-700">{say(TILES.feedIdle)}</p>}
       </Link>
+      {state.since && (
+        <button
+          type="button"
+          onClick={finish}
+          disabled={!state.id}
+          data-tile-feed-finish
+          className="press-text tap-inline block max-w-full truncate text-xs font-semibold text-[var(--accent-text)]"
+        >
+          {say(state.side ? TILES.feedingFinish : TILES.pausedFinish)}
+        </button>
+      )}
       <div className="mt-1 flex gap-1">
         {(["LEFT", "RIGHT"] as const).map((side) => {
           const on = state.side === side;
@@ -342,6 +365,8 @@ export function DashboardTiles({
   const say = sayIn(useLanguage());
   const [tiles, change] = useTiles(stored);
   const [slot, setSlot] = useState<number | null>(null);
+  // A timer on a tile follows the other parent's phone, as `/baby` does.
+  useFollow(Object.values(views).some((view) => (view.kind === "sleep" || view.kind === "feed") && view.baby));
   return (
     <>
       <div className="grid grid-cols-3 gap-2" data-tiles={tiles.map((tile) => tile ?? "-").join(" ")}>
