@@ -190,13 +190,17 @@ function columnsOf(summary: PeriodSummary, language: HomeLanguage) {
 
 /** A bar's height in px; the sleep bars are this tall whatever the day held. */
 const DAY_BAR_PX = 192;
+/** What a column's full height stands for: one whole day. */
+const DAY_HOURS = 24;
 /** A block shorter than this many hours has no room for its number. */
 const NUMBER_FROM_HOURS = 1.5;
 
 /**
- * Bars per day, each the whole day so far (24 hours, or up to now today): night under
- * nap under awake, the awake part being whatever the sleep left — every bar is full
- * height, and each block says its hours. A day with nothing logged has no bar.
+ * Bars per day, night under nap under awake, the awake part being whatever the sleep
+ * left, and each block says its hours. A bar is drawn against a whole day: a day that is
+ * over fills the column, and today reaches only as far as the day has gone — 15:00 is
+ * five eighths of the way up. The median is a whole day by definition, so it fills too.
+ * A day with nothing logged has no bar.
  */
 export function SleepTotalsChart({ summary, language }: { summary: PeriodSummary; language: HomeLanguage }) {
   const { say, dense, rows, column, labels } = columnsOf(summary, language);
@@ -217,10 +221,11 @@ export function SleepTotalsChart({ summary, language }: { summary: PeriodSummary
     <Card title={say(BABY.sleepTotals)} label={say(BABY.sleepTotals)}>
       <div aria-hidden="true" className={`flex items-end border-b border-slate-200 ${dense ? "gap-0.5" : "gap-2"}`} style={{ height: DAY_BAR_PX }}>
         {rows.map(({ row, median }) => {
-          const total = row.nightHours + row.napHours + row.awakeHours;
+          const hours = row.nightHours + row.napHours + row.awakeHours;
+          const total = median ? hours : Math.max(hours, DAY_HOURS);
           return (
             <div key={row.day} className={`${column(median)} h-full`} data-chart-bar={row.day}>
-              {total > 0 && (
+              {hours > 0 && (
                 <>
                   {block(row.awakeHours, total, { background: "var(--color-slate-200)" }, "var(--color-slate-600)", true)}
                   {block(row.napHours, total, { background: "var(--baby-nap)" }, "var(--baby-sleep-text)", row.awakeHours <= 0)}
