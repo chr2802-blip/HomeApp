@@ -177,7 +177,7 @@ export default async function DashboardPage() {
         events: {
           where: { endedAt: null, kind: { in: ["SLEEP", "FEED"] } },
           orderBy: { startedAt: "desc" },
-          select: { kind: true, startedAt: true, details: true },
+          select: { id: true, kind: true, startedAt: true, details: true },
         },
       },
     }),
@@ -220,6 +220,7 @@ export default async function DashboardPage() {
       tileViews[choice] = {
         kind: "feed",
         baby: !!baby?.trackBreast,
+        id: runningFeed?.id ?? null,
         since: runningFeed?.startedAt.toISOString() ?? null,
         side: feedDetails?.running ?? null,
       };
