@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { MENU_EXIT_MS, SHEET_EXIT_MS, SNACK_EXIT_MS } from "@/lib/motion";
+import { MENU_EXIT_MS, PAGE_TURN_MS, SHEET_EXIT_MS, SNACK_EXIT_MS } from "@/lib/motion";
 
 /**
  * How the app moves is written once, as tokens at the top of globals.css, and a few
@@ -28,6 +28,10 @@ describe("timers that wait for an exit", () => {
 
   it("a snack is taken away when its exit has played", () => {
     expect(token("dur-row")).toBe(SNACK_EXIT_MS);
+  });
+
+  it("a pager's page takes over the scroll when its slide has played", () => {
+    expect(token("dur-base")).toBe(PAGE_TURN_MS);
   });
 });
 
