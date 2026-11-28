@@ -196,3 +196,80 @@ export function medianDay(days: readonly DayChart[]): DayChart | null {
     dirtyCount: Math.round(median(days.map((row) => row.dirtyCount))),
   };
 }
+
+/** How many nights the bedtime and waking trend takes its median over. */
+export const TREND_NIGHTS = 7;
+
+/**
+ * One night: when it began, as hours from the midnight of the evening's day (past 24 once
+ * it is after midnight), and when it ended, as hours from the next midnight. A night is
+ * every night sleep that began between noon on that day and noon the next — so the
+ * wakings in between, logged as sleeps of their own, are still one night — begun at its
+ * first sleep and over at its last. `wake` is null while the last sleep is still running.
+ */
+export type Night = { day: string; bed: number | null; wake: number | null };
+
+export function nightOf(entries: readonly BabyEntry[], day: string, now: Date): Night {
+  const noon = dayBounds(day).start.getTime() + 12 * 3_600_000;
+  const nextNoon = dayBounds(shiftDay(day, 1)).start.getTime() + 12 * 3_600_000;
+  const sleeps = entries.filter(
+    (entry) =>
+      entry.kind === "SLEEP" &&
+      entry.startedAt.getTime() >= noon &&
+      entry.startedAt.getTime() < nextNoon &&
+      isNightSleep(entry.startedAt, readBabyDetails("SLEEP", entry.details).details.night),
+  );
+  if (sleeps.length === 0) return { day, bed: null, wake: null };
+  const start = dayBounds(day).start.getTime();
+  const morning = dayBounds(shiftDay(day, 1)).start.getTime();
+  const bed = Math.min(...sleeps.map((entry) => entry.startedAt.getTime()));
+  const running = sleeps.some((entry) => entry.endedAt === null);
+  const wake = running ? null : Math.max(...sleeps.map((entry) => endOf(entry, now).getTime()));
+  return {
+    day,
+    bed: (bed - start) / 3_600_000,
+    wake: wake === null ? null : (wake - morning) / 3_600_000,
+  };
+}
+
+/**
+ * One point per day of the trend: that evening's bedtime and that morning's waking (the
+ * end of the night before), each beside its median over the `TREND_NIGHTS` up to and
+ * including it — nights with nothing logged left out, and null where none had any.
+ */
+export type SleepTimesPoint = {
+  day: string;
+  bed: number | null;
+  wake: number | null;
+  bedMedian: number | null;
+  wakeMedian: number | null;
+};
+
+export function sleepTimesTrend(entries: readonly BabyEntry[], days: readonly string[], now: Date): SleepTimesPoint[] {
+  if (days.length === 0) return [];
+  const first = shiftDay(days[0]!, -TREND_NIGHTS);
+  const nights = new Map<string, Night>();
+  for (let day = first; day <= days.at(-1)!; day = shiftDay(day, 1)) nights.set(day, nightOf(entries, day, now));
+  const window = (day: string, pick: (night: Night) => number | null) => {
+    const values = Array.from({ length: TREND_NIGHTS }, (_, index) => pick(nights.get(shiftDay(day, -index))!)).filter(
+      (value): value is number => value !== null,
+    );
+    return values.length ? median(values) : null;
+  };
+  const wakeOf = (night: Night) => night.wake;
+  return days.map((day) => ({
+    day,
+    bed: nights.get(day)!.bed,
+    wake: nights.get(shiftDay(day, -1))!.wake,
+    bedMedian: window(day, (night) => night.bed),
+    // The morning of a day ends the night before it.
+    wakeMedian: window(shiftDay(day, -1), wakeOf),
+  }));
+}
+
+/** Hours from a midnight as a clock time, "19:45" — past 24 wraps to the next day's. */
+export function clockOf(hours: number): string {
+  const minutes = Math.round(hours * 60);
+  const wrapped = ((minutes % 1440) + 1440) % 1440;
+  return `${String(Math.floor(wrapped / 60)).padStart(2, "0")}:${String(wrapped % 60).padStart(2, "0")}`;
+}

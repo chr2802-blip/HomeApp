@@ -154,6 +154,12 @@ export const BABY = {
   feedChart: { EN: "Feeding rhythm", DA: "Måltidsrytme" },
   sleepTotals: { EN: "Asleep and awake per day", DA: "Søvn og vågen pr. dag" },
   median: { EN: "Median", DA: "Median" },
+  sleepTimes: { EN: "Bedtime and waking", DA: "Sengetid og opvågning" },
+  bedtime: { EN: "Bedtime", DA: "Sengetid" },
+  wakeTime: { EN: "Wakes up", DA: "Vågner" },
+  trendMedian: { EN: "Median of {n} nights", DA: "Median af {n} nætter" },
+  oneNight: { EN: "Each night", DA: "Hver nat" },
+  sleepTimesSummary: { EN: "Typically asleep at {bed} and awake at {wake}", DA: "Sover typisk kl. {bed} og vågner kl. {wake}" },
   diaperTotals: { EN: "Nappies per day", DA: "Bleer pr. dag" },
   nothingInPeriod: { EN: "Nothing logged in this period.", DA: "Intet logget i perioden." },
   chartSummary: {

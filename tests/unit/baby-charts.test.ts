@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chartDay, periodDays, readPeriod, summarise } from "@/lib/baby-charts";
+import { chartDay, clockOf, nightOf, periodDays, readPeriod, sleepTimesTrend, summarise } from "@/lib/baby-charts";
 import type { BabyEntry } from "@/lib/baby";
 
 // Copenhagen is UTC+1 in November.
@@ -106,5 +106,40 @@ describe("awake time and the median day", () => {
 
   it("is left out for a single day", () => {
     expect(summarise(all, ["2026-11-20"], now).median).toBeNull();
+  });
+});
+
+describe("bedtime and waking", () => {
+  // Copenhagen is UTC+1: 18:30Z is 19:30 there.
+  const nights = [
+    entry("SLEEP", "2026-11-20T18:30:00Z", "2026-11-21T05:00:00Z"), // 19:30 → 06:00
+    entry("SLEEP", "2026-11-21T19:00:00Z", "2026-11-22T01:00:00Z"), // 20:00 → 02:00, woke
+    entry("SLEEP", "2026-11-22T01:30:00Z", "2026-11-22T06:00:00Z"), // 02:30 → 07:00, same night
+    entry("SLEEP", "2026-11-22T23:30:00Z", "2026-11-23T05:30:00Z"), // 00:30 → 06:30
+    entry("SLEEP", "2026-11-23T11:00:00Z", "2026-11-23T12:00:00Z"), // a nap, not a night
+    entry("SLEEP", "2026-11-23T18:45:00Z", null), // 19:45, still asleep
+  ];
+  const later = new Date("2026-11-23T22:00:00Z");
+
+  it("is one night from its first sleep to its last, however many it was logged as", () => {
+    expect(nightOf(nights, "2026-11-21", later)).toEqual({ day: "2026-11-21", bed: 20, wake: 7 });
+  });
+
+  it("counts a bedtime after midnight past 24, and has no waking while asleep", () => {
+    expect(nightOf(nights, "2026-11-22", later)).toMatchObject({ bed: 24.5, wake: 6.5 });
+    expect(nightOf(nights, "2026-11-23", later)).toMatchObject({ bed: 19.75, wake: null });
+    expect(nightOf(nights, "2026-11-19", later)).toMatchObject({ bed: null, wake: null });
+  });
+
+  it("puts the evening's bedtime and the morning's waking on each day, with their medians", () => {
+    const trend = sleepTimesTrend(nights, ["2026-11-22", "2026-11-23"], later);
+    expect(trend[0]).toEqual({ day: "2026-11-22", bed: 24.5, wake: 7, bedMedian: 20, wakeMedian: 6.5 });
+    expect(trend[1]).toMatchObject({ bed: 19.75, wake: 6.5, bedMedian: 19.875, wakeMedian: 6.5 });
+  });
+
+  it("writes a clock time, wrapping past midnight", () => {
+    expect(clockOf(19.75)).toBe("19:45");
+    expect(clockOf(24.5)).toBe("00:30");
+    expect(clockOf(6)).toBe("06:00");
   });
 });
