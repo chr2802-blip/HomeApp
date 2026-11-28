@@ -4,7 +4,7 @@ import { BABY } from "@/lib/copy/baby";
 import { babyColor } from "@/lib/baby-colors";
 import { readDayInZone } from "@/lib/time";
 import { durationWords } from "@/lib/baby-words";
-import type { DayChart, PeriodSummary } from "@/lib/baby-charts";
+import { clockOf, TREND_NIGHTS, type DayChart, type PeriodSummary, type SleepTimesPoint } from "@/lib/baby-charts";
 
 /**
  * The baby log's charts, drawn as plain positioned blocks rather than with a chart
@@ -295,5 +295,131 @@ export function PeriodAverages({ summary, language }: { summary: PeriodSummary; 
         <span className="truncate text-lg font-bold text-slate-900">{one(typical.diaperCount)}</span>
       </div>
     </div>
+  );
+}
+
+const TREND_W = 300;
+const TREND_H = 96;
+const TREND_PAD = { left: 34, right: 6, top: 6, bottom: 6 };
+
+/**
+ * One series of the bedtime-and-waking trend: each night as a faint dot, the running
+ * median as a line through them. The vertical scale is the series' own, from the hour
+ * before its earliest point to the hour after its latest — bedtimes and wakings sit
+ * half a day apart, and one scale for both would leave each a sliver. Later is lower,
+ * the way a day reads down the page.
+ */
+function TrendPanel({
+  title,
+  color,
+  values,
+  medians,
+}: {
+  title: string;
+  color: string;
+  values: (number | null)[];
+  medians: (number | null)[];
+}) {
+  const all = [...values, ...medians].filter((value): value is number => value !== null);
+  const latest = medians.findLast((value) => value !== null) ?? null;
+  if (all.length === 0) return null;
+  let low = Math.floor(Math.min(...all));
+  let high = Math.ceil(Math.max(...all));
+  if (high - low < 2) {
+    low -= 1;
+    high = low + 3;
+  }
+  const count = values.length;
+  const innerW = TREND_W - TREND_PAD.left - TREND_PAD.right;
+  const innerH = TREND_H - TREND_PAD.top - TREND_PAD.bottom;
+  const x = (index: number) => TREND_PAD.left + (count === 1 ? innerW / 2 : (index / (count - 1)) * innerW);
+  const y = (hours: number) => TREND_PAD.top + ((hours - low) / (high - low)) * innerH;
+  const ticks = Array.from({ length: high - low + 1 }, (_, index) => low + index).filter(
+    (_, index, list) => list.length <= 5 || index % 2 === 0 || index === list.length - 1,
+  );
+  // The line breaks where no night in the window had anything logged.
+  const runs: string[] = [];
+  let run: string[] = [];
+  medians.forEach((value, index) => {
+    if (value === null) {
+      if (run.length) runs.push(run.join(" "));
+      run = [];
+    } else run.push(`${x(index).toFixed(1)},${y(value).toFixed(1)}`);
+  });
+  if (run.length) runs.push(run.join(" "));
+  return (
+    <div>
+      <div className="mb-1 flex items-baseline justify-between gap-2">
+        <span className="text-sm font-semibold text-slate-700">{title}</span>
+        {latest !== null && (
+          <span className="text-lg font-bold tabular-nums" style={{ color }} data-trend-latest={clockOf(latest)}>
+            {clockOf(latest)}
+          </span>
+        )}
+      </div>
+      <svg viewBox={`0 0 ${TREND_W} ${TREND_H}`} className="block w-full" aria-hidden="true">
+        {ticks.map((hour) => (
+          <g key={hour}>
+            <line x1={TREND_PAD.left} x2={TREND_W - TREND_PAD.right} y1={y(hour)} y2={y(hour)} stroke="var(--color-slate-100)" strokeWidth="1" />
+            <text x={TREND_PAD.left - 6} y={y(hour)} dy="0.35em" textAnchor="end" fontSize="10" fill="var(--color-slate-500)">
+              {clockOf(hour)}
+            </text>
+          </g>
+        ))}
+        {values.map((value, index) =>
+          value === null ? null : <circle key={index} cx={x(index)} cy={y(value)} r="2.5" fill={color} opacity="0.3" />,
+        )}
+        {runs.map((points, index) => (
+          <polyline key={index} points={points} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+/** When the baby goes to sleep for the night and wakes in the morning, over the period. */
+export function SleepTimesChart({ trend, language }: { trend: SleepTimesPoint[]; language: HomeLanguage }) {
+  const say = sayIn(language);
+  if (trend.every((point) => point.bedMedian === null && point.wakeMedian === null)) return null;
+  const dense = trend.length > 7;
+  const bed = trend.findLast((point) => point.bedMedian !== null)?.bedMedian;
+  const wake = trend.findLast((point) => point.wakeMedian !== null)?.wakeMedian;
+  const label =
+    bed != null && wake != null
+      ? say(BABY.sleepTimesSummary, { bed: clockOf(bed), wake: clockOf(wake) })
+      : say(BABY.sleepTimes);
+  const first = trend[0]!.day;
+  const last = trend.at(-1)!.day;
+  return (
+    <Card title={say(BABY.sleepTimes)} label={label}>
+      <div className="space-y-3">
+        <TrendPanel
+          title={say(BABY.bedtime)}
+          color="var(--baby-sleep)"
+          values={trend.map((point) => point.bed)}
+          medians={trend.map((point) => point.bedMedian)}
+        />
+        <TrendPanel
+          title={say(BABY.wakeTime)}
+          color="var(--baby-sleep-text)"
+          values={trend.map((point) => point.wake)}
+          medians={trend.map((point) => point.wakeMedian)}
+        />
+      </div>
+      <div aria-hidden="true" className="mt-1 ml-[11.3%] flex justify-between text-[10px] text-slate-500">
+        <span>{readDayInZone(first, dense ? BABY.shortDay : BABY.weekday, language)}</span>
+        <span>{readDayInZone(last, dense ? BABY.shortDay : BABY.weekday, language)}</span>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+        <span className="flex items-center gap-1.5 text-xs text-slate-600">
+          <span aria-hidden="true" className="h-0.5 w-4 rounded-full bg-slate-500" />
+          {say(BABY.trendMedian, { n: TREND_NIGHTS })}
+        </span>
+        <span className="flex items-center gap-1.5 text-xs text-slate-600">
+          <span aria-hidden="true" className="h-2 w-2 rounded-full bg-slate-500 opacity-30" />
+          {say(BABY.oneNight)}
+        </span>
+      </div>
+    </Card>
   );
 }

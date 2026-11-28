@@ -3,11 +3,11 @@ import type { HomeLanguage } from "@prisma/client";
 import { homeDb } from "@/lib/home-db";
 import { dueAtOn, readDayInZone, shiftDay, todayInZone } from "@/lib/time";
 import { dayBounds, type BabyEntry } from "@/lib/baby";
-import { PERIOD_DAYS, periodDays, readPeriod, summarise, type ChartPeriod } from "@/lib/baby-charts";
+import { PERIOD_DAYS, periodDays, readPeriod, sleepTimesTrend, summarise, TREND_NIGHTS, type ChartPeriod } from "@/lib/baby-charts";
 import { PAGER_PARAM } from "@/lib/pager";
 import { sayIn } from "@/lib/copy/say";
 import { BABY } from "@/lib/copy/baby";
-import { DiaperTotalsChart, FeedChart, PeriodAverages, SleepChart, SleepTotalsChart } from "@/components/baby/baby-charts";
+import { DiaperTotalsChart, FeedChart, PeriodAverages, SleepChart, SleepTimesChart, SleepTotalsChart } from "@/components/baby/baby-charts";
 
 /**
  * The baby log over a day, a week or a month: the averages, sleep around the clock, when
@@ -32,7 +32,8 @@ export async function ChartsPanel({
   const period = readPeriod(params.period);
   const to = params.to && dueAtOn(params.to) && params.to < today ? params.to : today;
   const days = periodDays(to, period);
-  const from = dayBounds(shiftDay(days[0]!, -1)).start;
+  // The trend reaches a window of nights back before the first day drawn.
+  const from = dayBounds(shiftDay(days[0]!, -TREND_NIGHTS - 1)).start;
   const end = dayBounds(to).end;
 
   const rows = await db.babyEvent.findMany({
@@ -41,6 +42,7 @@ export async function ChartsPanel({
     select: { id: true, kind: true, startedAt: true, endedAt: true, details: true },
   });
   const summary = summarise(rows as BabyEntry[], days, now);
+  const trend = period === "day" ? [] : sleepTimesTrend(rows as BabyEntry[], days, now);
   const empty = summary.days.every((row) => row.sleep.length + row.feedCount + row.diaperCount === 0);
 
   const href = (next: { period?: ChartPeriod; to?: string }) => {
@@ -113,6 +115,7 @@ export async function ChartsPanel({
           <SleepChart summary={summary} language={language} />
           <FeedChart summary={summary} language={language} />
           <SleepTotalsChart summary={summary} language={language} />
+          {trend.length > 0 && <SleepTimesChart trend={trend} language={language} />}
           <DiaperTotalsChart summary={summary} language={language} />
         </>
       )}
