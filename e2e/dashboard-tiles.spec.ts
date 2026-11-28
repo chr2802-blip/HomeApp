@@ -51,4 +51,29 @@ test.describe("the dashboard's tiles", () => {
     await page.goto("/dashboard");
     await expect(page.locator("[data-tile-empty]")).toHaveCount(3);
   });
+
+  test("start a feed on a side, then offer pause and end, and the sides again once paused", async ({ page }) => {
+    await page.goto("/baby");
+    await page.getByLabel("The baby's name").fill("Ella");
+    await page.getByRole("button", { name: "Start the log" }).click();
+    await page.goto("/profile");
+    await page.getByRole("button", { name: "Change tile 1" }).click();
+    await page.getByRole("dialog", { name: "Tile 1" }).getByRole("button", { name: /Start breastfeed/ }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+
+    await page.goto("/dashboard");
+    await page.getByRole("button", { name: "Left" }).click();
+    await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "End" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Left" })).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Pause" }).click();
+    await expect(page.getByRole("button", { name: "Right" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "paused · end" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Right" }).click();
+    await page.getByRole("button", { name: "End" }).click();
+    await expect(page.getByRole("button", { name: "Left" })).toBeVisible();
+    await expect(page.locator("[data-tile-feed-finish]")).toHaveCount(0);
+  });
 });

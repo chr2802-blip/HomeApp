@@ -141,15 +141,26 @@ function FeedTile({ view, say }: { view: Extract<TileView, { kind: "feed" }>; sa
       form.set("id", state.id);
       await finishBreastFeed(form);
     });
+  const pill = "press-button h-8 min-w-0 flex-1 truncate rounded-full border px-1 text-xs font-semibold";
+  const plain = "border-slate-200 bg-white text-slate-700";
+  // Running, the two buttons are what can be done to a feed under way: pause it or end it.
+  // Paused (or not begun), they are the sides, because carrying on means choosing one.
   return (
     <Frame tone={state.since ? "live" : "plain"}>
       <Link href="/baby" className="press-text block">
         <p className="truncate text-xl leading-tight font-semibold tabular-nums">
           {state.since ? clockWords(now - Date.parse(state.since)) : "🍼"}
         </p>
-        {!state.since && <p className="truncate text-xs text-slate-700">{say(TILES.feedIdle)}</p>}
+        {(!state.since || state.side) && (
+          <p className="truncate text-xs text-slate-700">
+            {state.side
+              ? say(TILES.feedingOn, { side: say(state.side === "LEFT" ? TILES.leftShort : TILES.rightShort) })
+              : say(TILES.feedIdle)}
+          </p>
+        )}
       </Link>
-      {state.since && (
+      {/* Paused, the line under the clock is how to end it: the buttons are the sides. */}
+      {state.since && !state.side && (
         <button
           type="button"
           onClick={finish}
@@ -157,27 +168,51 @@ function FeedTile({ view, say }: { view: Extract<TileView, { kind: "feed" }>; sa
           data-tile-feed-finish
           className="press-text tap-inline block max-w-full truncate text-xs font-semibold text-[var(--accent-text)]"
         >
-          {say(state.side ? TILES.feedingFinish : TILES.pausedFinish)}
+          {say(TILES.pausedFinish)}
         </button>
       )}
       <div className="mt-1 flex gap-1">
-        {(["LEFT", "RIGHT"] as const).map((side) => {
-          const on = state.side === side;
-          return (
+        {state.side ? (
+          <>
+            <button
+              type="button"
+              onClick={() => press(state.side!)}
+              data-tile-feed-pause
+              aria-label={say(TILES.pause)}
+              className={`${pill} ${plain} grid place-items-center`}
+            >
+              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+                <rect x="3" y="2" width="3.5" height="12" rx="1" />
+                <rect x="9.5" y="2" width="3.5" height="12" rx="1" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={finish}
+              disabled={!state.id}
+              data-tile-feed-finish
+              aria-label={say(TILES.finish)}
+              className={`${pill} grid place-items-center border-[var(--accent)] bg-[var(--accent)] text-white disabled:opacity-60`}
+            >
+              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+                <rect x="3" y="3" width="10" height="10" rx="1.5" />
+              </svg>
+            </button>
+          </>
+        ) : (
+          (["LEFT", "RIGHT"] as const).map((side) => (
             <button
               key={side}
               type="button"
               onClick={() => press(side)}
-              aria-pressed={on}
               aria-label={say(side === "LEFT" ? BABY.left : BABY.right)}
-              className={`press-button h-8 min-w-0 flex-1 rounded-full border text-xs font-semibold ${
-                on ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-slate-200 bg-white text-slate-700"
-              }`}
+              data-tile-feed-side={side}
+              className={`${pill} ${plain}`}
             >
               {say(side === "LEFT" ? TILES.leftShort : TILES.rightShort)}
             </button>
-          );
-        })}
+          ))
+        )}
       </div>
     </Frame>
   );
