@@ -1254,7 +1254,9 @@ the page; a table so a second child is rows). Everybody's, like the pantry: the 
 - **A timer's press says what it means** (`to`: `run`/`pause` on a side, `asleep`/`awake`
   for sleep), and a press the stored row already answers changes nothing — a phone that
   has not yet heard of the other's start must not pause what it meant to start. The
-  dashboard's feed tile finishes a feed itself (`finishBreastFeed`), and the baby actions
+  dashboard's feed tile finishes a feed itself (`finishBreastFeed`): V/H starts one, and
+  while it runs the two buttons are pause and stop (icons); paused, they are the sides
+  again and the line under the clock ends it. The baby actions
   revalidate `/dashboard` as well as `/baby`, whose tiles follow like the page does.
 - **A timer stopped is carried on, not restarted, for `RESUME_WITHIN_MS` (30 min)** —
   `resumableFeed` / `resumableSleep`, offered beside "new", never instead of it. A breast
